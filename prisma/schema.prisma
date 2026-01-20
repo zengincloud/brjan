@@ -1,0 +1,43 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum TaskType {
+  hot_lead
+  interested
+  website_visit
+  follow_up
+  other
+}
+
+enum TaskStatus {
+  to_do
+  in_progress
+  done
+}
+
+enum TaskPriority {
+  high
+  medium
+  low
+}
+
+model Task {
+  id          String       @id @default(cuid())
+  title       String
+  description String
+  type        TaskType
+  status      TaskStatus
+  priority    TaskPriority
+  dueDate     DateTime?
+  createdAt   DateTime     @default(now())
+  contact     Json?
+  company     Json?
+
+  @@map("tasks")
+}

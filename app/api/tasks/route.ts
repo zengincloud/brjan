@@ -18,9 +18,39 @@ const serializeTask = (task: {
   createdAt: task.createdAt.toISOString(),
 })
 
-export async function GET() {
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url)
+  const view = searchParams.get("view")
+
+  const now = new Date()
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0)
+  const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
+  const sevenDaysOut = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+
+  const where =
+    view === "today"
+      ? {
+          dueDate: { lte: endOfToday },
+          status: { not: "done" },
+        }
+      : view === "overdue"
+        ? {
+            dueDate: { lt: startOfToday },
+            status: { not: "done" },
+          }
+        : view === "upcoming"
+          ? {
+              dueDate: { gte: now, lte: sevenDaysOut },
+              status: { not: "done" },
+            }
+          : {}
+
+  const orderBy =
+    view === "today" || view === "overdue" || view === "upcoming" ? { dueDate: "asc" } : { id: "asc" }
+
   const tasks = await prisma.task.findMany({
-    orderBy: { id: "asc" },
+    where,
+    orderBy,
   })
 
   return NextResponse.json({ tasks: tasks.map(serializeTask) })

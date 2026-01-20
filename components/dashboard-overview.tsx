@@ -2,6 +2,7 @@
 
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { formatDistanceToNow } from "date-fns"
 import {
   Phone,
   Mail,
@@ -16,6 +17,7 @@ import {
   Target,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useEffect, useState } from "react"
 
 // Quick stats for the dashboard
 const quickStats = [
@@ -63,14 +65,74 @@ const hotLeads = [
   { name: "Emily Davis", company: "CloudFlow", score: 89, action: "Demo scheduled" },
 ]
 
-// Upcoming tasks
-const upcomingTasks = [
-  { task: "Call Sarah Kim (Acme Corp)", time: "in 15 min", priority: "high" },
-  { task: "Send proposal to TechStart", time: "in 1 hour", priority: "medium" },
-  { task: "Review CloudFlow deal", time: "in 2 hours", priority: "low" },
-]
+type ApiTask = {
+  id: string
+  title: string
+  description: string
+  type: string
+  status: string
+  priority: string
+  dueDate: string | null
+  createdAt: string
+  contact?: unknown
+  company?: unknown
+}
+
+type UpcomingTask = {
+  task: string
+  time: string
+  priority: string
+}
+
+const formatDueTime = (dueDate: string | null) => {
+  if (!dueDate) return "unscheduled"
+  return formatDistanceToNow(new Date(dueDate), { addSuffix: true })
+}
 
 export function DashboardOverview() {
+  const [upcomingTasks, setUpcomingTasks] = useState<UpcomingTask[]>([])
+  const [upcomingLoading, setUpcomingLoading] = useState(true)
+  const [upcomingError, setUpcomingError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let isMounted = true
+
+    const loadUpcomingTasks = async () => {
+      try {
+        setUpcomingLoading(true)
+        setUpcomingError(null)
+        const response = await fetch("/api/tasks?view=upcoming")
+        if (!response.ok) {
+          throw new Error("Failed to load upcoming tasks")
+        }
+        const data = (await response.json()) as { tasks: ApiTask[] }
+        const nextTasks = data.tasks.slice(0, 3).map((task) => ({
+          task: task.title,
+          time: formatDueTime(task.dueDate),
+          priority: task.priority,
+        }))
+        if (isMounted) {
+          setUpcomingTasks(nextTasks)
+        }
+      } catch (error) {
+        console.error(error)
+        if (isMounted) {
+          setUpcomingError("Failed to load tasks")
+        }
+      } finally {
+        if (isMounted) {
+          setUpcomingLoading(false)
+        }
+      }
+    }
+
+    loadUpcomingTasks()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
   return (
     <div className="space-y-6">
       {/* Quick Stats Row */}
@@ -188,32 +250,38 @@ export function DashboardOverview() {
               <h3 className="text-sm font-medium text-foreground">Upcoming Tasks</h3>
             </div>
             <div className="space-y-2">
-              {upcomingTasks.map((task, i) => (
-                <div
-                  key={task.task}
-                  className={cn(
-                    "flex items-center gap-2 p-3 rounded-lg transition-all",
-                    i === 0 ? "bg-accent/10 border border-accent/30" : "bg-secondary/30"
-                  )}
-                >
-                  {i === 0 ? (
-                    <ArrowRight className="w-4 h-4 text-accent flex-shrink-0" />
-                  ) : (
-                    <Clock className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <span className="text-sm text-foreground block truncate">{task.task}</span>
-                  </div>
-                  <span
+              {upcomingLoading ? (
+                <div className="text-xs text-muted-foreground">Loading upcoming tasks...</div>
+              ) : upcomingError ? (
+                <div className="text-xs text-muted-foreground">{upcomingError}</div>
+              ) : (
+                upcomingTasks.map((task, i) => (
+                  <div
+                    key={task.task}
                     className={cn(
-                      "text-xs",
-                      i === 0 ? "text-accent font-medium" : "text-muted-foreground"
+                      "flex items-center gap-2 p-3 rounded-lg transition-all",
+                      i === 0 ? "bg-accent/10 border border-accent/30" : "bg-secondary/30"
                     )}
                   >
-                    {task.time}
-                  </span>
-                </div>
-              ))}
+                    {i === 0 ? (
+                      <ArrowRight className="w-4 h-4 text-accent flex-shrink-0" />
+                    ) : (
+                      <Clock className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm text-foreground block truncate">{task.task}</span>
+                    </div>
+                    <span
+                      className={cn(
+                        "text-xs",
+                        i === 0 ? "text-accent font-medium" : "text-muted-foreground"
+                      )}
+                    >
+                      {task.time}
+                    </span>
+                  </div>
+                ))
+              )}
             </div>
 
             {/* Quick Action Buttons */}

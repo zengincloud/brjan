@@ -27,6 +27,12 @@ enum TaskPriority {
   low
 }
 
+enum EventType {
+  email_sent
+  call_started
+  call_completed
+}
+
 model Task {
   id          String       @id @default(cuid())
   title       String
@@ -38,6 +44,16 @@ model Task {
   createdAt   DateTime     @default(now())
   contact     Json?
   company     Json?
+  events      Event[]
 
   @@map("tasks")
+}
+
+model Event {
+  id        String    @id @default(cuid())
+  type      EventType
+  taskId    String
+  task      Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  meta      Json?
 }

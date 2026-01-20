@@ -7,10 +7,15 @@ import { CardTitle } from "@/components/ui/card"
 import { CardHeader } from "@/components/ui/card"
 
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Flame,
@@ -295,6 +300,15 @@ const getPriorityColor = (priority: Priority) => {
 export function TaskBoard() {
   const [tasks, setTasks] = useState<Task[]>(initialTasks)
   const [activeTab, setActiveTab] = useState<"board" | "list">("board")
+  const [emailOpen, setEmailOpen] = useState(false)
+  const [emailTask, setEmailTask] = useState<Task | null>(null)
+  const [emailTo, setEmailTo] = useState("")
+  const [emailName, setEmailName] = useState("")
+  const [emailSubject, setEmailSubject] = useState("")
+  const [emailBody, setEmailBody] = useState("")
+  const [emailStatus, setEmailStatus] = useState<"idle" | "sending" | "error">("idle")
+  const [emailError, setEmailError] = useState<string | null>(null)
+  const router = useRouter()
 
   useEffect(() => {
     let isMounted = true
@@ -320,6 +334,50 @@ export function TaskBoard() {
       isMounted = false
     }
   }, [])
+
+  const openEmailComposer = (task: Task) => {
+    const contactName = task.contact?.name ?? ""
+    setEmailTask(task)
+    setEmailTo(task.contact?.email ?? "")
+    setEmailName(contactName)
+    setEmailSubject(`Quick follow-up: ${task.title}`)
+    setEmailBody(`Hello ${contactName || "there"},\n\n`)
+    setEmailStatus("idle")
+    setEmailError(null)
+    setEmailOpen(true)
+  }
+
+  const sendEmail = async () => {
+    if (!emailTask) return
+    setEmailStatus("sending")
+    setEmailError(null)
+
+    try {
+      const response = await fetch(`/api/tasks/${emailTask.id}/send-email`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          to: emailTo,
+          name: emailName || undefined,
+          subject: emailSubject,
+          body: emailBody,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to send email")
+      }
+
+      setEmailStatus("idle")
+      setEmailOpen(false)
+    } catch (error) {
+      console.error(error)
+      setEmailStatus("error")
+      setEmailError("Unable to send email")
+    }
+  }
 
   // Group tasks by status
   const tasksByStatus = tasks.reduce(
@@ -504,6 +562,22 @@ export function TaskBoard() {
                                   )}
 
                                   <div className="flex justify-end mt-3">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-6 w-6"
+                                      onClick={() => openEmailComposer(task)}
+                                    >
+                                      <Mail className="h-3 w-3" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-6 w-6"
+                                      onClick={() => router.push(`/dialer?taskId=${task.id}`)}
+                                    >
+                                      <Phone className="h-3 w-3" />
+                                    </Button>
                                     <Button variant="ghost" size="icon" className="h-6 w-6">
                                       <MoreHorizontal className="h-3 w-3" />
                                     </Button>
@@ -593,10 +667,20 @@ export function TaskBoard() {
                       </td>
                       <td className="p-3">
                         <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="icon" className="h-7 w-7">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => router.push(`/dialer?taskId=${task.id}`)}
+                          >
                             <Phone className="h-3 w-3" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => openEmailComposer(task)}
+                          >
                             <Mail className="h-3 w-3" />
                           </Button>
                           <Button variant="ghost" size="icon" className="h-7 w-7">
@@ -612,6 +696,50 @@ export function TaskBoard() {
           </TabsContent>
         </Tabs>
       </CardContent>
+      <Dialog open={emailOpen} onOpenChange={setEmailOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Send Email</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-3">
+            <div className="grid gap-2">
+              <Label htmlFor="email-to">To</Label>
+              <Input
+                id="email-to"
+                value={emailTo}
+                onChange={(event) => setEmailTo(event.target.value)}
+                placeholder="name@example.com"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="email-subject">Subject</Label>
+              <Input
+                id="email-subject"
+                value={emailSubject}
+                onChange={(event) => setEmailSubject(event.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="email-body">Body</Label>
+              <Textarea
+                id="email-body"
+                value={emailBody}
+                onChange={(event) => setEmailBody(event.target.value)}
+                rows={6}
+              />
+            </div>
+            {emailError && <div className="text-xs text-destructive">{emailError}</div>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEmailOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={sendEmail} disabled={emailStatus === "sending"}>
+              {emailStatus === "sending" ? "Sending..." : "Send Email"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   )
 }

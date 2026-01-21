@@ -288,9 +288,18 @@ export function Sidebar({ className }: { className?: string }) {
             </div>
           </div>
         </div>
-        <Button variant="ghost" className="w-full justify-start text-muted-foreground hover:text-foreground">
-          <Settings className="h-4 w-4 mr-3" />
-          Settings
+        <Button
+          variant="ghost"
+          className={cn(
+            "w-full justify-start transition-colors",
+            pathname === "/settings" && "bg-accent/10 text-accent hover:bg-accent/15"
+          )}
+          asChild
+        >
+          <Link href="/settings">
+            <Settings className="h-4 w-4 mr-3" />
+            Settings
+          </Link>
         </Button>
       </div>
     </div>

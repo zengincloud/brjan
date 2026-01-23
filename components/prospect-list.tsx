@@ -1,73 +1,32 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
-import { Mail, MoreHorizontal, Phone, Filter, ChevronDown } from "lucide-react"
+import { Mail, MoreHorizontal, Phone, Filter, ChevronDown, Upload, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/components/ui/use-toast"
+import { formatDistanceToNow } from "date-fns"
+import { UploadProspectsDialog } from "./upload-prospects-dialog"
+import { AddProspectDialog } from "./add-prospect-dialog"
 
-const prospects = [
-  {
-    id: 1,
-    name: "John Doe",
-    email: "john@company.com",
-    title: "CEO",
-    company: "Tech Corp",
-    status: "In Sequence",
-    sequence: "Enterprise Outreach",
-    sequenceStep: "Step 2: Follow-up Email",
-    lastActivity: "2 days ago",
-  },
-  {
-    id: 2,
-    name: "Sarah Smith",
-    email: "sarah@startup.com",
-    title: "CTO",
-    company: "Startup Inc",
-    status: "New Lead",
-    sequence: "SMB Follow-up",
-    sequenceStep: "Step 1: Introduction Email",
-    lastActivity: "1 day ago",
-  },
-  {
-    id: 3,
-    name: "Michael Johnson",
-    email: "michael@enterprise.com",
-    title: "Sales Director",
-    company: "Enterprise Co",
-    status: "Contacted",
-    sequence: "Sales Leaders",
-    sequenceStep: "Step 3: Demo Request",
-    lastActivity: "5 hours ago",
-  },
-  {
-    id: 4,
-    name: "Emily Brown",
-    email: "emily@innovate.com",
-    title: "VP Marketing",
-    company: "Innovate LLC",
-    status: "Meeting Scheduled",
-    sequence: "Product Demo Request",
-    sequenceStep: "Step 4: Meeting Confirmation",
-    lastActivity: "Just now",
-  },
-  {
-    id: 5,
-    name: "David Wilson",
-    email: "david@global.com",
-    title: "Operations Manager",
-    company: "Global Industries",
-    status: "In Sequence",
-    sequence: "New Lead Welcome",
-    sequenceStep: "Step 2: Follow-up Call",
-    lastActivity: "3 days ago",
-  },
-]
+type Prospect = {
+  id: string
+  name: string
+  email: string
+  title?: string | null
+  company?: string | null
+  phone?: string | null
+  status: string
+  sequence?: string | null
+  sequenceStep?: string | null
+  lastActivity: string
+}
 
 // Available sequences
 const sequences = [
@@ -79,12 +38,42 @@ const sequences = [
 ]
 
 export function ProspectList() {
+  const router = useRouter()
   const { toast } = useToast()
-  const [selectedRows, setSelectedRows] = useState<number[]>([])
+  const [prospects, setProspects] = useState<Prospect[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selectedRows, setSelectedRows] = useState<string[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedSequence, setSelectedSequence] = useState<string>("")
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
+  const [addDialogOpen, setAddDialogOpen] = useState(false)
 
-  const toggleRow = (id: number) => {
+  useEffect(() => {
+    loadProspects()
+  }, [])
+
+  const loadProspects = async () => {
+    try {
+      setLoading(true)
+      const response = await fetch("/api/prospects")
+      if (!response.ok) {
+        throw new Error("Failed to load prospects")
+      }
+      const data = await response.json()
+      setProspects(data.prospects)
+    } catch (error) {
+      console.error(error)
+      toast({
+        title: "Error",
+        description: "Failed to load prospects",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const toggleRow = (id: string) => {
     setSelectedRows((prev) => (prev.includes(id) ? prev.filter((rowId) => rowId !== id) : [...prev, id]))
   }
 
@@ -95,7 +84,7 @@ export function ProspectList() {
   const filteredProspects = prospects.filter(
     (prospect) =>
       (prospect.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        prospect.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (prospect.company?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
         prospect.email.toLowerCase().includes(searchTerm.toLowerCase())) &&
       (selectedSequence === "" || prospect.sequence === sequences.find((s) => s.id === selectedSequence)?.name),
   )
@@ -105,6 +94,18 @@ export function ProspectList() {
       title: action,
       description: `${action} for ${name}...`,
     })
+  }
+
+  const formatLastActivity = (dateString: string) => {
+    try {
+      return formatDistanceToNow(new Date(dateString), { addSuffix: true })
+    } catch {
+      return "Recently"
+    }
+  }
+
+  if (loading) {
+    return <div className="text-center py-8">Loading prospects...</div>
   }
 
   return (
@@ -136,7 +137,14 @@ export function ProspectList() {
             <Filter className="mr-2 h-4 w-4" />
             More Filters
           </Button>
-          <Button>Add to Sequence</Button>
+          <Button variant="outline" onClick={() => setUploadDialogOpen(true)}>
+            <Upload className="mr-2 h-4 w-4" />
+            Upload CSV
+          </Button>
+          <Button onClick={() => setAddDialogOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Prospect
+          </Button>
         </div>
       </div>
 
@@ -158,8 +166,12 @@ export function ProspectList() {
         </TableHeader>
         <TableBody>
           {filteredProspects.map((prospect) => (
-            <TableRow key={prospect.id}>
-              <TableCell>
+            <TableRow
+              key={prospect.id}
+              className="cursor-pointer hover:bg-muted/50"
+              onClick={() => router.push(`/prospects/${prospect.id}`)}
+            >
+              <TableCell onClick={(e) => e.stopPropagation()}>
                 <Checkbox checked={selectedRows.includes(prospect.id)} onCheckedChange={() => toggleRow(prospect.id)} />
               </TableCell>
               <TableCell>
@@ -179,15 +191,15 @@ export function ProspectList() {
                   </div>
                 </div>
               </TableCell>
-              <TableCell>{prospect.title}</TableCell>
-              <TableCell>{prospect.company}</TableCell>
+              <TableCell>{prospect.title || "—"}</TableCell>
+              <TableCell>{prospect.company || "—"}</TableCell>
               <TableCell>
-                <Badge variant="outline">{prospect.status}</Badge>
+                <Badge variant="outline">{prospect.status.replace(/_/g, " ")}</Badge>
               </TableCell>
-              <TableCell>
-                <Select defaultValue={prospect.sequence}>
+              <TableCell onClick={(e) => e.stopPropagation()}>
+                <Select defaultValue={prospect.sequence || ""}>
                   <SelectTrigger className="h-8 w-[180px]">
-                    <SelectValue>{prospect.sequence}</SelectValue>
+                    <SelectValue>{prospect.sequence || "No sequence"}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {sequences.map((sequence) => (
@@ -198,18 +210,18 @@ export function ProspectList() {
                   </SelectContent>
                 </Select>
               </TableCell>
-              <TableCell>
+              <TableCell onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center gap-2">
                   <Badge variant="secondary" className="whitespace-nowrap">
-                    {prospect.sequenceStep}
+                    {prospect.sequenceStep || "Not started"}
                   </Badge>
                   <Button variant="ghost" size="icon" className="h-6 w-6">
                     <ChevronDown className="h-3 w-3" />
                   </Button>
                 </div>
               </TableCell>
-              <TableCell>{prospect.lastActivity}</TableCell>
-              <TableCell>
+              <TableCell>{formatLastActivity(prospect.lastActivity)}</TableCell>
+              <TableCell onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center gap-2">
                   <Button variant="ghost" size="icon" onClick={() => handleAction("Calling", prospect.name)}>
                     <Phone className="h-4 w-4" />
@@ -226,6 +238,16 @@ export function ProspectList() {
           ))}
         </TableBody>
       </Table>
+      <UploadProspectsDialog
+        open={uploadDialogOpen}
+        onOpenChange={setUploadDialogOpen}
+        onUploadComplete={loadProspects}
+      />
+      <AddProspectDialog
+        open={addDialogOpen}
+        onOpenChange={setAddDialogOpen}
+        onProspectAdded={loadProspects}
+      />
     </div>
   )
 }

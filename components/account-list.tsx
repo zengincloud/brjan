@@ -1,83 +1,32 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
-import { MoreHorizontal, Filter, ChevronDown, Users, Globe } from "lucide-react"
+import { MoreHorizontal, Filter, ChevronDown, Users, Globe, Upload, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/components/ui/use-toast"
+import { formatDistanceToNow } from "date-fns"
+import { UploadAccountsDialog } from "./upload-accounts-dialog"
+import { AddAccountDialog } from "./add-account-dialog"
 
-const accounts = [
-  {
-    id: 1,
-    name: "Tech Corp",
-    industry: "Technology",
-    location: "San Francisco, CA",
-    website: "techcorp.com",
-    employees: 250,
-    status: "In Sequence",
-    sequence: "Enterprise Outreach",
-    sequenceStep: "Step 2: Follow-up Email",
-    lastActivity: "2 days ago",
-    contacts: 12,
-  },
-  {
-    id: 2,
-    name: "Startup Inc",
-    industry: "Software",
-    location: "New York, NY",
-    website: "startupinc.com",
-    employees: 85,
-    status: "New Lead",
-    sequence: "SMB Follow-up",
-    sequenceStep: "Step 1: Introduction Email",
-    lastActivity: "1 day ago",
-    contacts: 8,
-  },
-  {
-    id: 3,
-    name: "Enterprise Co",
-    industry: "Finance",
-    location: "Chicago, IL",
-    website: "enterpriseco.com",
-    employees: 1200,
-    status: "Contacted",
-    sequence: "Sales Leaders",
-    sequenceStep: "Step 3: Demo Request",
-    lastActivity: "5 hours ago",
-    contacts: 15,
-  },
-  {
-    id: 4,
-    name: "Innovate LLC",
-    industry: "Healthcare",
-    location: "Boston, MA",
-    website: "innovatellc.com",
-    employees: 320,
-    status: "Meeting Scheduled",
-    sequence: "Product Demo Request",
-    sequenceStep: "Step 4: Meeting Confirmation",
-    lastActivity: "Just now",
-    contacts: 9,
-  },
-  {
-    id: 5,
-    name: "Global Industries",
-    industry: "Manufacturing",
-    location: "Detroit, MI",
-    website: "globalindustries.com",
-    employees: 750,
-    status: "In Sequence",
-    sequence: "New Lead Welcome",
-    sequenceStep: "Step 2: Follow-up Call",
-    lastActivity: "3 days ago",
-    contacts: 18,
-  },
-]
+type Account = {
+  id: string
+  name: string
+  industry?: string | null
+  location?: string | null
+  website?: string | null
+  employees?: number | null
+  status: string
+  sequence?: string | null
+  sequenceStep?: string | null
+  lastActivity: string
+  contacts: number
+}
 
 // Available sequences
 const sequences = [
@@ -90,11 +39,40 @@ const sequences = [
 
 export function AccountList() {
   const { toast } = useToast()
-  const [selectedRows, setSelectedRows] = useState<number[]>([])
+  const [accounts, setAccounts] = useState<Account[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selectedRows, setSelectedRows] = useState<string[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedSequence, setSelectedSequence] = useState<string>("")
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
+  const [addDialogOpen, setAddDialogOpen] = useState(false)
 
-  const toggleRow = (id: number) => {
+  useEffect(() => {
+    loadAccounts()
+  }, [])
+
+  const loadAccounts = async () => {
+    try {
+      setLoading(true)
+      const response = await fetch("/api/accounts")
+      if (!response.ok) {
+        throw new Error("Failed to load accounts")
+      }
+      const data = await response.json()
+      setAccounts(data.accounts)
+    } catch (error) {
+      console.error(error)
+      toast({
+        title: "Error",
+        description: "Failed to load accounts",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const toggleRow = (id: string) => {
     setSelectedRows((prev) => (prev.includes(id) ? prev.filter((rowId) => rowId !== id) : [...prev, id]))
   }
 
@@ -105,8 +83,8 @@ export function AccountList() {
   const filteredAccounts = accounts.filter(
     (account) =>
       (account.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        account.industry.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        account.location.toLowerCase().includes(searchTerm.toLowerCase())) &&
+        (account.industry?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+        (account.location?.toLowerCase() || "").includes(searchTerm.toLowerCase())) &&
       (selectedSequence === "" || account.sequence === sequences.find((s) => s.id === selectedSequence)?.name),
   )
 
@@ -115,6 +93,18 @@ export function AccountList() {
       title: action,
       description: `${action} for ${name}...`,
     })
+  }
+
+  const formatLastActivity = (dateString: string) => {
+    try {
+      return formatDistanceToNow(new Date(dateString), { addSuffix: true })
+    } catch {
+      return "Recently"
+    }
+  }
+
+  if (loading) {
+    return <div className="text-center py-8">Loading accounts...</div>
   }
 
   return (
@@ -146,7 +136,14 @@ export function AccountList() {
             <Filter className="mr-2 h-4 w-4" />
             More Filters
           </Button>
-          <Button>Add to Sequence</Button>
+          <Button variant="outline" onClick={() => setUploadDialogOpen(true)}>
+            <Upload className="mr-2 h-4 w-4" />
+            Upload CSV
+          </Button>
+          <Button onClick={() => setAddDialogOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Account
+          </Button>
         </div>
       </div>
 
@@ -186,16 +183,16 @@ export function AccountList() {
                   </div>
                 </div>
               </TableCell>
-              <TableCell>{account.industry}</TableCell>
-              <TableCell>{account.location}</TableCell>
-              <TableCell>{account.employees.toLocaleString()}</TableCell>
+              <TableCell>{account.industry || "—"}</TableCell>
+              <TableCell>{account.location || "—"}</TableCell>
+              <TableCell>{account.employees?.toLocaleString() || "—"}</TableCell>
               <TableCell>
-                <Badge variant="outline">{account.status}</Badge>
+                <Badge variant="outline">{account.status.replace(/_/g, " ")}</Badge>
               </TableCell>
               <TableCell>
-                <Select defaultValue={account.sequence}>
+                <Select defaultValue={account.sequence || ""}>
                   <SelectTrigger className="h-8 w-[180px]">
-                    <SelectValue>{account.sequence}</SelectValue>
+                    <SelectValue>{account.sequence || "No sequence"}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {sequences.map((sequence) => (
@@ -209,14 +206,14 @@ export function AccountList() {
               <TableCell>
                 <div className="flex items-center gap-2">
                   <Badge variant="secondary" className="whitespace-nowrap">
-                    {account.sequenceStep}
+                    {account.sequenceStep || "Not started"}
                   </Badge>
                   <Button variant="ghost" size="icon" className="h-6 w-6">
                     <ChevronDown className="h-3 w-3" />
                   </Button>
                 </div>
               </TableCell>
-              <TableCell>{account.lastActivity}</TableCell>
+              <TableCell>{formatLastActivity(account.lastActivity)}</TableCell>
               <TableCell>
                 <div className="flex items-center gap-2">
                   <Button variant="ghost" size="icon" onClick={() => handleAction("View Contacts", account.name)}>
@@ -234,6 +231,16 @@ export function AccountList() {
           ))}
         </TableBody>
       </Table>
+      <UploadAccountsDialog
+        open={uploadDialogOpen}
+        onOpenChange={setUploadDialogOpen}
+        onUploadComplete={loadAccounts}
+      />
+      <AddAccountDialog
+        open={addDialogOpen}
+        onOpenChange={setAddDialogOpen}
+        onAccountAdded={loadAccounts}
+      />
     </div>
   )
 }

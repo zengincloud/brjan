@@ -1,0 +1,292 @@
+"use client"
+
+import { useEffect, useState } from "react"
+import { useParams, useRouter } from "next/navigation"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Separator } from "@/components/ui/separator"
+import { ArrowLeft, Mail, Phone, Linkedin, MapPin, Building, Briefcase, Calendar, Globe } from "lucide-react"
+import { formatDistanceToNow } from "date-fns"
+
+type Prospect = {
+  id: string
+  name: string
+  email: string
+  title?: string | null
+  company?: string | null
+  phone?: string | null
+  location?: string | null
+  linkedin?: string | null
+  status: string
+  sequence?: string | null
+  sequenceStep?: string | null
+  pdlData?: any
+  lastActivity: string
+  createdAt: string
+}
+
+export default function ProspectDetailPage() {
+  const params = useParams()
+  const router = useRouter()
+  const [prospect, setProspect] = useState<Prospect | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (params.id) {
+      loadProspect(params.id as string)
+    }
+  }, [params.id])
+
+  const loadProspect = async (id: string) => {
+    try {
+      setLoading(true)
+      const response = await fetch(`/api/prospects/${id}`)
+      if (!response.ok) {
+        throw new Error("Failed to load prospect")
+      }
+      const data = await response.json()
+      setProspect(data.prospect)
+    } catch (error) {
+      console.error(error)
+      alert("Failed to load prospect details")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (loading) {
+    return <div className="container mx-auto py-8">Loading...</div>
+  }
+
+  if (!prospect) {
+    return <div className="container mx-auto py-8">Prospect not found</div>
+  }
+
+  const pdlData = prospect.pdlData || {}
+
+  return (
+    <div className="container mx-auto py-8 space-y-6">
+      <div className="flex items-center gap-4">
+        <Button variant="outline" size="icon" onClick={() => router.push("/prospects")}>
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div>
+          <h1 className="text-3xl font-bold">{prospect.name}</h1>
+          <p className="text-muted-foreground">
+            {prospect.title && <span>{prospect.title}</span>}
+            {prospect.title && prospect.company && <span> at </span>}
+            {prospect.company && <span>{prospect.company}</span>}
+          </p>
+        </div>
+        <div className="ml-auto">
+          <Badge variant="outline" className="text-sm">
+            {prospect.status.replace(/_/g, " ")}
+          </Badge>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Contact Information */}
+        <Card className="md:col-span-2">
+          <CardHeader>
+            <CardTitle>Contact Information</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {(pdlData.emails && pdlData.emails.length > 0) || prospect.email ? (
+              <div className="flex items-start gap-3">
+                <Mail className="h-5 w-5 text-muted-foreground mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm text-muted-foreground mb-1">
+                    {pdlData.emails && pdlData.emails.length > 1 ? "Emails" : "Email"}
+                  </p>
+                  <div className="space-y-1">
+                    {pdlData.emails && pdlData.emails.length > 0 ? (
+                      pdlData.emails.map((email: string, index: number) => (
+                        <div key={index} className="flex items-center gap-2">
+                          <a href={`mailto:${email}`} className="text-sm font-medium hover:underline">
+                            {email}
+                          </a>
+                          {index === 0 && pdlData.emails.length > 1 && (
+                            <Badge variant="secondary" className="text-xs">
+                              Primary
+                            </Badge>
+                          )}
+                        </div>
+                      ))
+                    ) : (
+                      <a href={`mailto:${prospect.email}`} className="text-sm font-medium hover:underline">
+                        {prospect.email}
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {prospect.phone && (
+              <div className="flex items-center gap-3">
+                <Phone className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <p className="text-sm text-muted-foreground">Phone</p>
+                  <a href={`tel:${prospect.phone}`} className="text-sm font-medium hover:underline">
+                    {prospect.phone}
+                  </a>
+                </div>
+              </div>
+            )}
+
+            {prospect.linkedin && (
+              <div className="flex items-center gap-3">
+                <Linkedin className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <p className="text-sm text-muted-foreground">LinkedIn</p>
+                  <a
+                    href={prospect.linkedin}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm font-medium hover:underline"
+                  >
+                    View Profile
+                  </a>
+                </div>
+              </div>
+            )}
+
+            {prospect.location && (
+              <div className="flex items-center gap-3">
+                <MapPin className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <p className="text-sm text-muted-foreground">Location</p>
+                  <p className="text-sm font-medium">{prospect.location}</p>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Quick Stats */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Quick Stats</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {pdlData.seniorityLevel && (
+              <div>
+                <p className="text-sm text-muted-foreground">Seniority</p>
+                <p className="text-sm font-medium">{pdlData.seniorityLevel}</p>
+              </div>
+            )}
+
+            {pdlData.companySize && (
+              <div>
+                <p className="text-sm text-muted-foreground">Company Size</p>
+                <p className="text-sm font-medium">{pdlData.companySize.toLocaleString()} employees</p>
+              </div>
+            )}
+
+            {pdlData.industry && (
+              <div>
+                <p className="text-sm text-muted-foreground">Industry</p>
+                <p className="text-sm font-medium">{pdlData.industry}</p>
+              </div>
+            )}
+
+            {pdlData.buyerIntent && (
+              <div>
+                <p className="text-sm text-muted-foreground">Buyer Intent</p>
+                <Badge variant={pdlData.buyerIntent === "high" ? "default" : "secondary"}>
+                  {pdlData.buyerIntent}
+                </Badge>
+              </div>
+            )}
+
+            <Separator />
+
+            <div>
+              <p className="text-sm text-muted-foreground">Added</p>
+              <p className="text-sm font-medium">
+                {formatDistanceToNow(new Date(prospect.createdAt), { addSuffix: true })}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-sm text-muted-foreground">Last Activity</p>
+              <p className="text-sm font-medium">
+                {formatDistanceToNow(new Date(prospect.lastActivity), { addSuffix: true })}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Professional Details */}
+        <Card className="md:col-span-2">
+          <CardHeader>
+            <CardTitle>Professional Details</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {prospect.title && (
+              <div className="flex items-start gap-3">
+                <Briefcase className="h-5 w-5 text-muted-foreground mt-0.5" />
+                <div>
+                  <p className="text-sm text-muted-foreground">Current Title</p>
+                  <p className="text-sm font-medium">{prospect.title}</p>
+                </div>
+              </div>
+            )}
+
+            {prospect.company && (
+              <div className="flex items-start gap-3">
+                <Building className="h-5 w-5 text-muted-foreground mt-0.5" />
+                <div>
+                  <p className="text-sm text-muted-foreground">Current Company</p>
+                  <p className="text-sm font-medium">{prospect.company}</p>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Sequence Information */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Sequence Status</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Current Sequence</p>
+              <p className="text-sm font-medium">{prospect.sequence || "Not in sequence"}</p>
+            </div>
+
+            {prospect.sequenceStep && (
+              <div>
+                <p className="text-sm text-muted-foreground">Current Step</p>
+                <p className="text-sm font-medium">{prospect.sequenceStep}</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Actions */}
+      <div className="flex gap-3">
+        <Button>
+          <Mail className="mr-2 h-4 w-4" />
+          Send Email
+        </Button>
+        <Button variant="outline">
+          <Phone className="mr-2 h-4 w-4" />
+          Call
+        </Button>
+        {prospect.linkedin && (
+          <Button variant="outline" asChild>
+            <a href={prospect.linkedin} target="_blank" rel="noopener noreferrer">
+              <Linkedin className="mr-2 h-4 w-4" />
+              LinkedIn Profile
+            </a>
+          </Button>
+        )}
+      </div>
+    </div>
+  )
+}

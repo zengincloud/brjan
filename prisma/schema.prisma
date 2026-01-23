@@ -7,6 +7,69 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Task {
+  id          String       @id @default(cuid())
+  title       String
+  description String
+  type        TaskType
+  status      TaskStatus
+  priority    TaskPriority
+  dueDate     DateTime?
+  createdAt   DateTime     @default(now())
+  contact     Json?
+  company     Json?
+  events      Event[]
+
+  @@map("tasks")
+}
+
+model Event {
+  id        String    @id @default(cuid())
+  type      EventType
+  taskId    String
+  createdAt DateTime  @default(now())
+  meta      Json?
+  task      Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+}
+
+model Prospect {
+  id           String         @id @default(cuid())
+  name         String
+  email        String         @unique
+  title        String?
+  company      String?
+  phone        String?
+  location     String?
+  linkedin     String?
+  status       ProspectStatus @default(new_lead)
+  sequence     String?
+  sequenceStep String?
+  pdlData      Json?
+  lastActivity DateTime       @default(now())
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@map("prospects")
+}
+
+model Account {
+  id           String        @id @default(cuid())
+  name         String        @unique
+  industry     String?
+  location     String?
+  website      String?
+  employees    Int?
+  status       AccountStatus @default(new_lead)
+  sequence     String?
+  sequenceStep String?
+  lastActivity DateTime      @default(now())
+  contacts     Int           @default(0)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@map("accounts")
+}
+
 enum TaskType {
   hot_lead
   interested
@@ -33,27 +96,20 @@ enum EventType {
   call_completed
 }
 
-model Task {
-  id          String       @id @default(cuid())
-  title       String
-  description String
-  type        TaskType
-  status      TaskStatus
-  priority    TaskPriority
-  dueDate     DateTime?
-  createdAt   DateTime     @default(now())
-  contact     Json?
-  company     Json?
-  events      Event[]
-
-  @@map("tasks")
+enum ProspectStatus {
+  new_lead
+  in_sequence
+  contacted
+  meeting_scheduled
+  qualified
+  unqualified
 }
 
-model Event {
-  id        String    @id @default(cuid())
-  type      EventType
-  taskId    String
-  task      Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  createdAt DateTime  @default(now())
-  meta      Json?
+enum AccountStatus {
+  new_lead
+  in_sequence
+  contacted
+  meeting_scheduled
+  customer
+  churned
 }

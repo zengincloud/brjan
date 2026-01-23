@@ -4,19 +4,173 @@ import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Search, ChevronDown, Building2, Briefcase, Zap, Newspaper, Lightbulb, Link, Database } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Search, ChevronDown, Building2, Briefcase, Zap, Newspaper, Loader2, Globe, Users, Linkedin as LinkedinIcon } from "lucide-react"
 import { Collapsible } from "@/components/ui/collapsible"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Slider } from "@/components/ui/slider"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
+import { useToast } from "@/components/ui/use-toast"
+
+interface CompanyResult {
+  id: string
+  name: string
+  industry: string
+  location: string
+  website: string
+  employees: number
+  size: string
+  revenue: number | null
+  verified: boolean
+  linkedin: string
+  description: string
+  founded: number
+  technologies: string[]
+  buyingSignals: string[]
+}
 
 export function AccountsProspecting() {
+  const { toast } = useToast()
   const [isCompanyAttributesOpen, setIsCompanyAttributesOpen] = useState(true)
   const [isSpotlightOpen, setIsSpotlightOpen] = useState(true)
-  const [revenueRange, setRevenueRange] = useState([10, 500]) // $10M to $500M
-  const [headcountRange, setHeadcountRange] = useState([50, 1000]) // 50 to 1000 employees
+  const [revenueRange, setRevenueRange] = useState([10, 500])
+  const [headcountRange, setHeadcountRange] = useState([10, 5000])
+
+  // Search filters
+  const [query, setQuery] = useState("")
+  const [location, setLocation] = useState("")
+  const [city, setCity] = useState("")
+  const [industries, setIndustries] = useState<string[]>([])
+  const [technologies, setTechnologies] = useState<string[]>([])
+  const [jobOpportunities, setJobOpportunities] = useState<string[]>([])
+  const [recentActivities, setRecentActivities] = useState<string[]>([])
+
+  // Search results
+  const [searchResults, setSearchResults] = useState<CompanyResult[]>([])
+  const [totalResults, setTotalResults] = useState(0)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleSearch = async () => {
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const response = await fetch("/api/search/companies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query,
+          industry: industries,
+          revenueRange,
+          headcountRange,
+          location,
+          city,
+          technologies,
+          jobOpportunities,
+          recentActivities,
+          limit: 1,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to search companies")
+      }
+
+      const data = await response.json()
+      setSearchResults(data.results)
+      setTotalResults(data.total)
+    } catch (err: any) {
+      setError(err.message)
+      console.error("Search error:", err)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleReset = () => {
+    setQuery("")
+    setLocation("")
+    setCity("")
+    setIndustries([])
+    setTechnologies([])
+    setJobOpportunities([])
+    setRecentActivities([])
+    setRevenueRange([10, 500])
+    setHeadcountRange([10, 5000])
+    setSearchResults([])
+    setTotalResults(0)
+    setError(null)
+  }
+
+  const handleAddToAccounts = async (company: CompanyResult) => {
+    try {
+      const response = await fetch("/api/accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: company.name,
+          industry: company.industry,
+          website: company.website,
+          employeeCount: company.employees,
+          revenue: company.revenue,
+          status: "new_lead",
+          source: "PDL Search",
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        if (response.status === 409) {
+          toast({
+            title: "Already Added",
+            description: `${company.name} is already in your accounts list!`,
+          })
+          return
+        }
+        throw new Error(errorData.error || "Failed to add account")
+      }
+
+      toast({
+        title: "Added 1 account!",
+        description: `${company.name} has been added to your accounts.`,
+      })
+    } catch (err: any) {
+      console.error("Error adding account:", err)
+      toast({
+        title: "Error",
+        description: "Failed to add account. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const toggleIndustry = (industry: string) => {
+    setIndustries(prev =>
+      prev.includes(industry) ? prev.filter(i => i !== industry) : [...prev, industry]
+    )
+  }
+
+  const toggleTechnology = (tech: string) => {
+    setTechnologies(prev =>
+      prev.includes(tech) ? prev.filter(t => t !== tech) : [...prev, tech]
+    )
+  }
+
+  const toggleJobOpportunity = (job: string) => {
+    setJobOpportunities(prev =>
+      prev.includes(job) ? prev.filter(j => j !== job) : [...prev, job]
+    )
+  }
+
+  const toggleRecentActivity = (activity: string) => {
+    setRecentActivities(prev =>
+      prev.includes(activity) ? prev.filter(a => a !== activity) : [...prev, activity]
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -24,11 +178,17 @@ export function AccountsProspecting() {
       <div className="flex flex-col gap-4 md:flex-row">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search for companies by name, domain, or keywords..." className="pl-10" />
+          <Input
+            placeholder="Search for companies by name, domain, or keywords..."
+            className="pl-10"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+          />
         </div>
-        <Button>
-          <Search className="mr-2 h-4 w-4" />
-          Search
+        <Button onClick={handleSearch} disabled={isLoading}>
+          {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+          {isLoading ? "Searching..." : "Search"}
         </Button>
       </div>
 
@@ -56,19 +216,25 @@ export function AccountsProspecting() {
               <CardContent className="pt-0 space-y-5">
                 {/* Annual Revenue */}
                 <div className="space-y-3">
-                  <Label className="text-sm font-medium">Annual Revenue</Label>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-medium">Annual Revenue</Label>
+                    <span className="text-xs font-medium text-primary">
+                      {revenueRange[0] === 1 ? "Any" : `$${revenueRange[0]}M`} - {revenueRange[1] === 1000 ? "Any" : `$${revenueRange[1]}M`}
+                    </span>
+                  </div>
                   <div className="px-2">
                     <Slider
                       value={revenueRange}
                       min={1}
                       max={1000}
-                      step={1}
+                      step={10}
                       onValueChange={setRevenueRange}
                       className="my-5"
                     />
                     <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>${revenueRange[0]}M</span>
-                      <span>${revenueRange[1]}M+</span>
+                      <span>$1M</span>
+                      <span>$500M</span>
+                      <span>$1B+</span>
                     </div>
                   </div>
                 </div>
@@ -77,19 +243,25 @@ export function AccountsProspecting() {
 
                 {/* Headcount */}
                 <div className="space-y-3">
-                  <Label className="text-sm font-medium">Headcount</Label>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-medium">Headcount</Label>
+                    <span className="text-xs font-medium text-primary">
+                      {headcountRange[0] === 10 ? "Any" : headcountRange[0].toLocaleString()} - {headcountRange[1] === 5000 ? "Any" : headcountRange[1].toLocaleString()}
+                    </span>
+                  </div>
                   <div className="px-2">
                     <Slider
                       value={headcountRange}
                       min={10}
                       max={5000}
-                      step={10}
+                      step={50}
                       onValueChange={setHeadcountRange}
                       className="my-5"
                     />
                     <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>{headcountRange[0]}</span>
-                      <span>{headcountRange[1]}+</span>
+                      <span>10</span>
+                      <span>2,500</span>
+                      <span>5,000+</span>
                     </div>
                   </div>
                 </div>
@@ -99,7 +271,7 @@ export function AccountsProspecting() {
                 {/* HQ Location */}
                 <div className="space-y-3">
                   <Label className="text-sm font-medium">HQ Location</Label>
-                  <Select>
+                  <Select value={location} onValueChange={setLocation}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select region" />
                     </SelectTrigger>
@@ -111,7 +283,12 @@ export function AccountsProspecting() {
                       <SelectItem value="middle-east">Middle East & Africa</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Input placeholder="City or Country" className="mt-2" />
+                  <Input
+                    placeholder="City or Country"
+                    className="mt-2"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                  />
                 </div>
 
                 <Separator />
@@ -122,39 +299,16 @@ export function AccountsProspecting() {
                   <div className="space-y-2">
                     {["Technology", "Financial Services", "Healthcare", "Manufacturing", "Retail"].map((industry) => (
                       <div key={industry} className="flex items-center space-x-2">
-                        <Checkbox id={`industry-${industry.toLowerCase()}`} />
+                        <Checkbox
+                          id={`industry-${industry.toLowerCase()}`}
+                          checked={industries.includes(industry)}
+                          onCheckedChange={() => toggleIndustry(industry)}
+                        />
                         <Label htmlFor={`industry-${industry.toLowerCase()}`} className="text-sm font-normal">
                           {industry}
                         </Label>
                       </div>
                     ))}
-                    <Button variant="link" size="sm" className="px-0 text-xs">
-                      Show more industries
-                    </Button>
-                  </div>
-                </div>
-
-                <Separator />
-
-                {/* Department Headcount */}
-                <div className="space-y-3">
-                  <Label className="text-sm font-medium">Department Headcount</Label>
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select department" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="sales">Sales</SelectItem>
-                      <SelectItem value="marketing">Marketing</SelectItem>
-                      <SelectItem value="engineering">Engineering</SelectItem>
-                      <SelectItem value="finance">Finance</SelectItem>
-                      <SelectItem value="hr">Human Resources</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <div className="flex items-center gap-2 mt-2">
-                    <Input placeholder="Min" className="w-1/2" />
-                    <span>-</span>
-                    <Input placeholder="Max" className="w-1/2" />
                   </div>
                 </div>
 
@@ -163,19 +317,19 @@ export function AccountsProspecting() {
                 {/* Technologies Used */}
                 <div className="space-y-3">
                   <Label className="text-sm font-medium">Technologies Used</Label>
-                  <Input placeholder="Search technologies..." />
-                  <div className="space-y-2 mt-2">
+                  <div className="space-y-2">
                     {["Salesforce", "HubSpot", "Marketo", "AWS", "Slack"].map((tech) => (
                       <div key={tech} className="flex items-center space-x-2">
-                        <Checkbox id={`tech-${tech.toLowerCase()}`} />
+                        <Checkbox
+                          id={`tech-${tech.toLowerCase()}`}
+                          checked={technologies.includes(tech)}
+                          onCheckedChange={() => toggleTechnology(tech)}
+                        />
                         <Label htmlFor={`tech-${tech.toLowerCase()}`} className="text-sm font-normal">
                           {tech}
                         </Label>
                       </div>
                     ))}
-                    <Button variant="link" size="sm" className="px-0 text-xs">
-                      Show more technologies
-                    </Button>
                   </div>
                 </div>
               </CardContent>
@@ -204,7 +358,11 @@ export function AccountsProspecting() {
                   <div className="space-y-2">
                     {["Hiring Sales Roles", "Hiring Marketing Roles", "Hiring Leadership"].map((job) => (
                       <div key={job} className="flex items-center space-x-2">
-                        <Checkbox id={`job-${job.toLowerCase().replace(/\s+/g, "-")}`} />
+                        <Checkbox
+                          id={`job-${job.toLowerCase().replace(/\s+/g, "-")}`}
+                          checked={jobOpportunities.includes(job)}
+                          onCheckedChange={() => toggleJobOpportunity(job)}
+                        />
                         <Label
                           htmlFor={`job-${job.toLowerCase().replace(/\s+/g, "-")}`}
                           className="text-sm font-normal"
@@ -227,7 +385,11 @@ export function AccountsProspecting() {
                   <div className="space-y-2">
                     {["Funding Rounds", "Leadership Changes", "Product Launches", "Expansion News"].map((activity) => (
                       <div key={activity} className="flex items-center space-x-2">
-                        <Checkbox id={`activity-${activity.toLowerCase().replace(/\s+/g, "-")}`} />
+                        <Checkbox
+                          id={`activity-${activity.toLowerCase().replace(/\s+/g, "-")}`}
+                          checked={recentActivities.includes(activity)}
+                          onCheckedChange={() => toggleRecentActivity(activity)}
+                        />
                         <Label
                           htmlFor={`activity-${activity.toLowerCase().replace(/\s+/g, "-")}`}
                           className="text-sm font-normal"
@@ -238,84 +400,15 @@ export function AccountsProspecting() {
                     ))}
                   </div>
                 </div>
-
-                <Separator />
-
-                {/* Connection */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium flex items-center">
-                    <Link className="h-3 w-3 mr-2" />
-                    Connection
-                  </Label>
-                  <div className="space-y-2">
-                    {["1st Connections", "2nd Connections", "Shared Alma Mater", "Past Companies"].map((connection) => (
-                      <div key={connection} className="flex items-center space-x-2">
-                        <Checkbox id={`connection-${connection.toLowerCase().replace(/\s+/g, "-")}`} />
-                        <Label
-                          htmlFor={`connection-${connection.toLowerCase().replace(/\s+/g, "-")}`}
-                          className="text-sm font-normal"
-                        >
-                          {connection}
-                        </Label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <Separator />
-
-                {/* Buying Signal */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium flex items-center">
-                    <Lightbulb className="h-3 w-3 mr-2" />
-                    Buying Signal
-                  </Label>
-                  <div className="space-y-2">
-                    {["Website Changes", "Technology Adoption", "Growth Indicators", "Content Engagement"].map(
-                      (signal) => (
-                        <div key={signal} className="flex items-center space-x-2">
-                          <Checkbox id={`signal-${signal.toLowerCase().replace(/\s+/g, "-")}`} />
-                          <Label
-                            htmlFor={`signal-${signal.toLowerCase().replace(/\s+/g, "-")}`}
-                            className="text-sm font-normal"
-                          >
-                            {signal}
-                          </Label>
-                        </div>
-                      ),
-                    )}
-                  </div>
-                </div>
-
-                <Separator />
-
-                {/* Companies within CRM */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium flex items-center">
-                    <Database className="h-3 w-3 mr-2" />
-                    Companies within CRM
-                  </Label>
-                  <div className="space-y-2">
-                    {["In Salesforce", "In HubSpot", "Not in CRM", "Closed Lost"].map((crm) => (
-                      <div key={crm} className="flex items-center space-x-2">
-                        <Checkbox id={`crm-${crm.toLowerCase().replace(/\s+/g, "-")}`} />
-                        <Label
-                          htmlFor={`crm-${crm.toLowerCase().replace(/\s+/g, "-")}`}
-                          className="text-sm font-normal"
-                        >
-                          {crm}
-                        </Label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
               </CardContent>
             </Collapsible>
           </Card>
 
           <div className="flex gap-2">
-            <Button className="flex-1">Apply Filters</Button>
-            <Button variant="outline">Reset</Button>
+            <Button className="flex-1" onClick={handleSearch} disabled={isLoading}>
+              Apply Filters
+            </Button>
+            <Button variant="outline" onClick={handleReset}>Reset</Button>
           </div>
         </div>
 
@@ -327,7 +420,7 @@ export function AccountsProspecting() {
           <CardContent>
             <div className="flex items-center justify-between mb-6">
               <div className="text-sm text-muted-foreground">
-                <span className="font-medium">0</span> companies found matching your criteria
+                <span className="font-medium">{totalResults}</span> companies found matching your criteria
               </div>
               <Select defaultValue="relevance">
                 <SelectTrigger className="w-[180px]">
@@ -344,13 +437,89 @@ export function AccountsProspecting() {
               </Select>
             </div>
 
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <Building2 className="h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium mb-2">No companies found</h3>
-              <p className="text-muted-foreground max-w-md">
-                Try adjusting your search criteria or filters to find companies that match your prospecting needs.
-              </p>
-            </div>
+            {error && (
+              <div className="bg-destructive/10 text-destructive px-4 py-3 rounded mb-4">
+                {error}
+              </div>
+            )}
+
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <Loader2 className="h-12 w-12 text-muted-foreground mb-4 animate-spin" />
+                <h3 className="text-lg font-medium mb-2">Searching...</h3>
+                <p className="text-muted-foreground">Finding companies that match your criteria</p>
+              </div>
+            ) : searchResults.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <Building2 className="h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium mb-2">No companies found</h3>
+                <p className="text-muted-foreground max-w-md">
+                  Try adjusting your search criteria or filters to find companies that match your prospecting needs.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {searchResults.map((company) => (
+                  <Card key={company.id}>
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between">
+                        <div className="space-y-2 flex-1">
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-semibold text-lg">{company.name}</h3>
+                            {company.verified && <Badge className="bg-primary/20 text-primary">Verified</Badge>}
+                          </div>
+                          {company.description && (
+                            <p className="text-sm text-muted-foreground line-clamp-2">{company.description}</p>
+                          )}
+                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                            <div className="flex items-center gap-1">
+                              <Building2 className="h-4 w-4" />
+                              {company.industry}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Globe className="h-4 w-4" />
+                              {company.location}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Users className="h-4 w-4" />
+                              {company.employees?.toLocaleString()} employees
+                            </div>
+                          </div>
+                          {company.buyingSignals && company.buyingSignals.length > 0 && (
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {company.buyingSignals.map((signal, idx) => (
+                                <Badge key={idx} variant="outline" className="text-xs">
+                                  {signal}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          {company.linkedin && (
+                            <Button variant="outline" size="sm" asChild>
+                              <a href={company.linkedin} target="_blank" rel="noopener noreferrer">
+                                <LinkedinIcon className="mr-2 h-4 w-4" />
+                                LinkedIn
+                              </a>
+                            </Button>
+                          )}
+                          {company.website && (
+                            <Button variant="outline" size="sm" asChild>
+                              <a href={company.website} target="_blank" rel="noopener noreferrer">
+                                <Globe className="mr-2 h-4 w-4" />
+                                Website
+                              </a>
+                            </Button>
+                          )}
+                          <Button size="sm" onClick={() => handleAddToAccounts(company)}>Add to Accounts</Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

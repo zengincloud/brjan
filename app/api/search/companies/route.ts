@@ -50,12 +50,12 @@ export async function POST(request: NextRequest) {
       conditions.push(`(size >= ${min} AND size <= ${max})`)
     }
 
-    // Location
+    // Location (PDL uses dot notation for nested fields)
     if (location) {
-      conditions.push(`location_country = '${location}'`)
+      conditions.push(`location.country = '${location}'`)
     }
     if (city) {
-      conditions.push(`location_locality LIKE '%${city}%'`)
+      conditions.push(`location.locality LIKE '%${city}%'`)
     }
 
     // Technologies

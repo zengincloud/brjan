@@ -30,10 +30,9 @@ export async function POST(request: NextRequest) {
     // Build SQL WHERE conditions
     const conditions: string[] = []
 
-    // Free-text search (case-insensitive)
+    // Free-text search (case-insensitive using ILIKE)
     if (query) {
-      const lowerQuery = query.toLowerCase()
-      conditions.push(`(LOWER(name) LIKE '%${lowerQuery}%' OR LOWER(website) LIKE '%${lowerQuery}%')`)
+      conditions.push(`(name ILIKE '%${query}%' OR website ILIKE '%${query}%')`)
     }
 
     // Industry
@@ -72,7 +71,7 @@ export async function POST(request: NextRequest) {
       }
     }
     if (city) {
-      conditions.push(`LOWER(location.locality) LIKE '%${city.toLowerCase()}%'`)
+      conditions.push(`location.locality ILIKE '%${city}%'`)
     }
 
     // Technologies

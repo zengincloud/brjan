@@ -53,10 +53,26 @@ export async function POST(request: NextRequest) {
 
     // Location (PDL uses dot notation for nested fields)
     if (location) {
-      conditions.push(`location.country = '${location}'`)
+      // Map regions to countries
+      const regionToCountries: Record<string, string[]> = {
+        "north-america": ["United States", "Canada", "Mexico"],
+        "europe": ["United Kingdom", "Germany", "France", "Spain", "Italy", "Netherlands", "Sweden", "Poland"],
+        "asia-pacific": ["China", "Japan", "India", "Australia", "Singapore", "South Korea", "Indonesia"],
+        "latin-america": ["Brazil", "Argentina", "Chile", "Colombia", "Peru"],
+        "middle-east": ["United Arab Emirates", "Saudi Arabia", "Israel", "Egypt", "South Africa"],
+      }
+
+      const countries = regionToCountries[location]
+      if (countries) {
+        const countryList = countries.map((c) => `'${c}'`).join(", ")
+        conditions.push(`location.country IN (${countryList})`)
+      } else {
+        // If it's not a region, treat it as a specific country
+        conditions.push(`location.country = '${location}'`)
+      }
     }
     if (city) {
-      conditions.push(`location.locality LIKE '%${city}%'`)
+      conditions.push(`LOWER(location.locality) LIKE '%${city.toLowerCase()}%'`)
     }
 
     // Technologies

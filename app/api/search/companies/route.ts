@@ -16,7 +16,6 @@ export async function POST(request: NextRequest) {
     const {
       query,
       industry,
-      revenueRange,
       headcountRange,
       location,
       city,
@@ -42,11 +41,8 @@ export async function POST(request: NextRequest) {
       conditions.push(`industry IN (${industries})`)
     }
 
-    // Revenue range (in millions)
-    if (revenueRange && revenueRange.length === 2) {
-      const [min, max] = revenueRange
-      conditions.push(`(revenue >= ${min * 1000000} AND revenue <= ${max * 1000000})`)
-    }
+    // Note: PDL doesn't support revenue filtering in SQL queries
+    // Revenue data is available in results but can't be used as a filter
 
     // Headcount range
     if (headcountRange && headcountRange.length === 2) {

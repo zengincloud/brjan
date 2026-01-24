@@ -30,9 +30,10 @@ export async function POST(request: NextRequest) {
     // Build SQL WHERE conditions
     const conditions: string[] = []
 
-    // Free-text search
+    // Free-text search (case-insensitive)
     if (query) {
-      conditions.push(`(name LIKE '%${query}%' OR website LIKE '%${query}%')`)
+      const lowerQuery = query.toLowerCase()
+      conditions.push(`(LOWER(name) LIKE '%${lowerQuery}%' OR LOWER(website) LIKE '%${lowerQuery}%')`)
     }
 
     // Industry
@@ -99,6 +100,10 @@ export async function POST(request: NextRequest) {
       sql: sqlQuery,
       size: limit,
     }
+
+    // Log the query for debugging
+    console.log("PDL SQL Query:", sqlQuery)
+    console.log("Search params:", JSON.stringify(searchParams, null, 2))
 
     // Call People Data Labs API
     const response = await fetch("https://api.peopledatalabs.com/v5/company/search", {

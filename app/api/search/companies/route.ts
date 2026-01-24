@@ -30,9 +30,10 @@ export async function POST(request: NextRequest) {
     // Build SQL WHERE conditions
     const conditions: string[] = []
 
-    // Free-text search (case-insensitive using ILIKE)
+    // Free-text search
+    // PDL uses Elasticsearch SQL where text fields are case-insensitive by default
     if (query) {
-      conditions.push(`(name ILIKE '%${query}%' OR website ILIKE '%${query}%')`)
+      conditions.push(`(name LIKE '%${query}%' OR website LIKE '%${query}%')`)
     }
 
     // Industry
@@ -71,7 +72,7 @@ export async function POST(request: NextRequest) {
       }
     }
     if (city) {
-      conditions.push(`location.locality ILIKE '%${city}%'`)
+      conditions.push(`location.locality LIKE '%${city}%'`)
     }
 
     // Technologies

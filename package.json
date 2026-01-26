@@ -7,7 +7,8 @@
     "db:seed": "prisma db seed",
     "dev": "next dev",
     "lint": "next lint",
-    "start": "next start"
+    "start": "next start",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^16.2.0",

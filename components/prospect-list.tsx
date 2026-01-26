@@ -15,6 +15,7 @@ import { formatDistanceToNow } from "date-fns"
 import { UploadProspectsDialog } from "./upload-prospects-dialog"
 import { AddProspectDialog } from "./add-prospect-dialog"
 import { EditProspectDialog } from "./edit-prospect-dialog"
+import { CallProspectDialog } from "./call-prospect-dialog"
 
 type Prospect = {
   id: string
@@ -50,6 +51,8 @@ export function ProspectList() {
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [editingProspect, setEditingProspect] = useState<Prospect | null>(null)
+  const [callDialogOpen, setCallDialogOpen] = useState(false)
+  const [callingProspect, setCallingProspect] = useState<Prospect | null>(null)
 
   useEffect(() => {
     loadProspects()
@@ -102,6 +105,11 @@ export function ProspectList() {
   const handleEditProspect = (prospect: Prospect) => {
     setEditingProspect(prospect)
     setEditDialogOpen(true)
+  }
+
+  const handleCallProspect = (prospect: Prospect) => {
+    setCallingProspect(prospect)
+    setCallDialogOpen(true)
   }
 
   const formatLastActivity = (dateString: string) => {
@@ -231,7 +239,7 @@ export function ProspectList() {
               <TableCell>{formatLastActivity(prospect.lastActivity)}</TableCell>
               <TableCell onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="icon" onClick={() => handleAction("Calling", prospect.name)}>
+                  <Button variant="ghost" size="icon" onClick={() => handleCallProspect(prospect)} title="Call prospect">
                     <Phone className="h-4 w-4" />
                   </Button>
                   <Button variant="ghost" size="icon" onClick={() => handleAction("Composing Email", prospect.name)}>
@@ -261,6 +269,12 @@ export function ProspectList() {
         onOpenChange={setEditDialogOpen}
         prospect={editingProspect}
         onProspectUpdated={loadProspects}
+      />
+      <CallProspectDialog
+        open={callDialogOpen}
+        onOpenChange={setCallDialogOpen}
+        prospect={callingProspect}
+        onCallCompleted={loadProspects}
       />
     </div>
   )

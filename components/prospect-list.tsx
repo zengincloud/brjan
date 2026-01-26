@@ -14,6 +14,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { formatDistanceToNow } from "date-fns"
 import { UploadProspectsDialog } from "./upload-prospects-dialog"
 import { AddProspectDialog } from "./add-prospect-dialog"
+import { EditProspectDialog } from "./edit-prospect-dialog"
 
 type Prospect = {
   id: string
@@ -47,6 +48,8 @@ export function ProspectList() {
   const [selectedSequence, setSelectedSequence] = useState<string>("")
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [editingProspect, setEditingProspect] = useState<Prospect | null>(null)
 
   useEffect(() => {
     loadProspects()
@@ -94,6 +97,11 @@ export function ProspectList() {
       title: action,
       description: `${action} for ${name}...`,
     })
+  }
+
+  const handleEditProspect = (prospect: Prospect) => {
+    setEditingProspect(prospect)
+    setEditDialogOpen(true)
   }
 
   const formatLastActivity = (dateString: string) => {
@@ -229,7 +237,7 @@ export function ProspectList() {
                   <Button variant="ghost" size="icon" onClick={() => handleAction("Composing Email", prospect.name)}>
                     <Mail className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => handleAction("More Options", prospect.name)}>
+                  <Button variant="ghost" size="icon" onClick={() => handleEditProspect(prospect)} title="Edit prospect">
                     <MoreHorizontal className="h-4 w-4" />
                   </Button>
                 </div>
@@ -247,6 +255,12 @@ export function ProspectList() {
         open={addDialogOpen}
         onOpenChange={setAddDialogOpen}
         onProspectAdded={loadProspects}
+      />
+      <EditProspectDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        prospect={editingProspect}
+        onProspectUpdated={loadProspects}
       />
     </div>
   )

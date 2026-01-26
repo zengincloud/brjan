@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
+import { useToast } from "@/components/ui/use-toast"
 import {
   Phone,
   PhoneOff,
@@ -52,6 +53,8 @@ type CallSlot = {
   } | null
   startTime: number | null
   notes: string
+  callId?: string
+  twilioSid?: string
 }
 
 type SessionStats = {
@@ -63,6 +66,7 @@ type SessionStats = {
 }
 
 export default function DialerPage() {
+  const { toast } = useToast()
   const [sessionActive, setSessionActive] = useState(false)
   const [sessionPaused, setSessionPaused] = useState(false)
   const [dialMode, setDialMode] = useState<"parallel" | "single">("parallel")
@@ -184,21 +188,63 @@ export default function DialerPage() {
     setQueueSize(mockProspects.length)
   }, [selectedSequence, mockProspects.length])
 
-  const startSession = () => {
+  const makeCall = async (slotIndex: number, prospect: typeof mockProspects[0]) => {
+    try {
+      const response = await fetch("/api/calls/make", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: prospect.phone,
+          metadata: {
+            prospectName: prospect.name,
+            prospectCompany: prospect.company,
+            sequence: prospect.sequence,
+          },
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        console.error("Failed to make call:", data.error)
+        return null
+      }
+
+      return {
+        callId: data.callId,
+        twilioSid: data.twilioSid,
+      }
+    } catch (error) {
+      console.error("Error making call:", error)
+      return null
+    }
+  }
+
+  const startSession = async () => {
     setSessionActive(true)
     setSessionPaused(false)
-    // Simulate auto-dialing based on mode
+    // Start dialing based on mode
     const updatedSlots = [...callSlots]
     const slotsToFill = dialMode === "parallel" ? 2 : 1
-    updatedSlots.slice(0, slotsToFill).forEach((slot, idx) => {
-      if (mockProspects[idx]) {
-        slot.contact = mockProspects[idx]
-        slot.status = "ringing"
-        slot.startTime = Date.now()
+
+    for (let idx = 0; idx < slotsToFill && idx < mockProspects.length; idx++) {
+      const prospect = mockProspects[idx]
+      if (prospect) {
+        updatedSlots[idx].contact = prospect
+        updatedSlots[idx].status = "ringing"
+        updatedSlots[idx].startTime = Date.now()
+
+        // Make the actual call
+        const callData = await makeCall(idx, prospect)
+        if (callData) {
+          updatedSlots[idx].callId = callData.callId
+          updatedSlots[idx].twilioSid = callData.twilioSid
+        }
       }
-    })
+    }
+
     setCallSlots(updatedSlots)
-    setQueueSize(prev => prev - slotsToFill)
+    setQueueSize(prev => Math.max(0, prev - slotsToFill))
   }
 
   const pauseSession = () => {
@@ -217,9 +263,27 @@ export default function DialerPage() {
     })))
   }
 
-  const handleCallOutcome = (slotId: string, outcome: "connected" | "voicemail" | "no-answer" | "skip") => {
+  const handleCallOutcome = async (slotId: string, outcome: "connected" | "voicemail" | "no-answer" | "skip") => {
     const slotIndex = callSlots.findIndex(s => s.id === slotId)
     if (slotIndex === -1) return
+
+    const slot = callSlots[slotIndex]
+
+    // Save call outcome to database if we have a callId
+    if (slot.callId && outcome !== "skip") {
+      try {
+        await fetch(`/api/calls/${slot.callId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            outcome: outcome.replace("-", "_"),
+            notes: slot.notes,
+          }),
+        })
+      } catch (error) {
+        console.error("Error saving call outcome:", error)
+      }
+    }
 
     // Update stats
     setStats(prev => ({
@@ -242,16 +306,24 @@ export default function DialerPage() {
     }
 
     // Auto-dial next prospect if session is active and not paused
-    // In single mode, only auto-dial in the first slot
     const shouldAutoDial = sessionActive && !sessionPaused && queueSize > 0
     const canAutoDialThisSlot = dialMode === "parallel" || slotIndex === 0
 
     if (shouldAutoDial && canAutoDialThisSlot) {
       const nextProspectIndex = Math.floor(Math.random() * mockProspects.length)
-      if (mockProspects[nextProspectIndex]) {
-        updatedSlots[slotIndex].contact = mockProspects[nextProspectIndex]
+      const nextProspect = mockProspects[nextProspectIndex]
+      if (nextProspect) {
+        updatedSlots[slotIndex].contact = nextProspect
         updatedSlots[slotIndex].status = "ringing"
         updatedSlots[slotIndex].startTime = Date.now()
+
+        // Make the call
+        const callData = await makeCall(slotIndex, nextProspect)
+        if (callData) {
+          updatedSlots[slotIndex].callId = callData.callId
+          updatedSlots[slotIndex].twilioSid = callData.twilioSid
+        }
+
         setQueueSize(prev => Math.max(0, prev - 1))
       }
     }

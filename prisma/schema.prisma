@@ -97,6 +97,29 @@ model Email {
   @@map("emails")
 }
 
+model Call {
+  id              String      @id @default(cuid())
+  from            String
+  to              String
+  prospectId      String?
+  accountId       String?
+  twilioSid       String?     @unique
+  status          CallStatus  @default(queued)
+  outcome         CallOutcome?
+  duration        Int?
+  recordingUrl    String?
+  transcription   String?
+  notes           String?
+  failureReason   String?
+  startedAt       DateTime?
+  endedAt         DateTime?
+  metadata        Json?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@map("calls")
+}
+
 enum TaskType {
   hot_lead
   interested
@@ -155,4 +178,24 @@ enum EmailStatus {
   sent
   failed
   bounced
+}
+
+enum CallStatus {
+  queued
+  ringing
+  in_progress
+  completed
+  failed
+  busy
+  no_answer
+  canceled
+}
+
+enum CallOutcome {
+  connected
+  voicemail
+  no_answer
+  busy
+  failed
+  gatekeeper
 }

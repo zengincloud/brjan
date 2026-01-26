@@ -137,7 +137,16 @@ export function EmailEditor({ emailId }: EmailEditorProps) {
   const [isTemplate, setIsTemplate] = useState(false)
 
   useEffect(() => {
-    if (emailId) {
+    if (emailId === "new") {
+      // Composing a new email from scratch
+      setSubject("")
+      setBody("")
+      setRecipient("")
+      setRecipientEmail("")
+      setCompany("")
+      setContext(null)
+      setIsTemplate(false)
+    } else if (emailId) {
       const emailData = allEmailsData.find((email) => email.id === emailId)
       if (emailData) {
         setSubject(emailData.subject)
@@ -159,11 +168,54 @@ export function EmailEditor({ emailId }: EmailEditorProps) {
     }
   }, [emailId])
 
-  const handleSend = () => {
-    toast({
-      title: "Email Sent",
-      description: `Email to ${recipient} has been sent successfully.`,
-    })
+  const handleSend = async () => {
+    if (!subject.trim() || !body.trim() || !recipientEmail.trim()) {
+      toast({
+        title: "Error",
+        description: "Please fill in all required fields (recipient, subject, body)",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      const response = await fetch("/api/emails/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: recipientEmail,
+          subject,
+          bodyText: body,
+          bodyHtml: `<p>${body.replace(/\n/g, "<br>")}</p>`,
+          emailType: isTemplate ? "template" : "one_off",
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.details || data.error || "Failed to send email")
+      }
+
+      toast({
+        title: "Email Sent",
+        description: `Email to ${recipient} has been sent successfully.`,
+      })
+
+      // Clear the form
+      setSubject("")
+      setBody("")
+      setRecipient("")
+      setRecipientEmail("")
+      setCompany("")
+    } catch (error: any) {
+      console.error("Error sending email:", error)
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send email",
+        variant: "destructive",
+      })
+    }
   }
 
   const handleSchedule = () => {
@@ -219,15 +271,21 @@ export function EmailEditor({ emailId }: EmailEditorProps) {
       <CardHeader className="pb-2">
         <div className="flex justify-between items-start">
           <div className="flex items-center gap-3">
-            {!isTemplate && (
+            {!isTemplate && emailId !== "new" && (
               <Avatar className="h-8 w-8">
                 <AvatarImage src={`/placeholder.svg?height=32&width=32`} />
-                <AvatarFallback>{recipient.substring(0, 2)}</AvatarFallback>
+                <AvatarFallback>{recipient.substring(0, 2) || "?"}</AvatarFallback>
               </Avatar>
             )}
             <div>
-              <CardTitle className="text-base">{isTemplate ? "Template: " + subject : "To: " + recipient}</CardTitle>
-              {!isTemplate && (
+              <CardTitle className="text-base">
+                {emailId === "new"
+                  ? "New Email"
+                  : isTemplate
+                    ? "Template: " + subject
+                    : "To: " + recipient}
+              </CardTitle>
+              {!isTemplate && emailId !== "new" && (
                 <div className="text-sm text-muted-foreground flex items-center gap-1">
                   <span>{recipientEmail}</span>
                   <span className="mx-1">•</span>
@@ -245,12 +303,34 @@ export function EmailEditor({ emailId }: EmailEditorProps) {
         </div>
       </CardHeader>
       <CardContent className="flex-1 flex flex-col gap-4">
+        {emailId === "new" && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                placeholder="Recipient Name"
+                value={recipient}
+                onChange={(e) => setRecipient(e.target.value)}
+              />
+              <Input
+                placeholder="Company"
+                value={company}
+                onChange={(e) => setCompany(e.target.value)}
+              />
+            </div>
+            <Input
+              placeholder="Recipient Email *"
+              type="email"
+              value={recipientEmail}
+              onChange={(e) => setRecipientEmail(e.target.value)}
+            />
+          </div>
+        )}
         <div>
-          <Input placeholder="Subject" value={subject} onChange={(e) => setSubject(e.target.value)} />
+          <Input placeholder="Subject *" value={subject} onChange={(e) => setSubject(e.target.value)} />
         </div>
         <div className="flex-1">
           <Textarea
-            placeholder="Write your email here..."
+            placeholder="Write your email here... *"
             className="h-full min-h-[300px] resize-none"
             value={body}
             onChange={(e) => setBody(e.target.value)}

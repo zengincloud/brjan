@@ -7,11 +7,18 @@ import { EmailEditor } from "@/components/email-editor"
 import { EmailFilters } from "@/components/email-filters"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Clock, Mail, AlertTriangle } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Clock, Mail, AlertTriangle, Plus } from "lucide-react"
 
 export function EmailerDashboard() {
   const [selectedEmail, setSelectedEmail] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState("sequence")
+  const [isComposingNew, setIsComposingNew] = useState(false)
+
+  const handleComposeNew = () => {
+    setSelectedEmail("new")
+    setIsComposingNew(true)
+  }
 
   return (
     <div className="space-y-6">
@@ -55,9 +62,15 @@ export function EmailerDashboard() {
             <TabsTrigger value="priority">Priority Follow-ups</TabsTrigger>
             <TabsTrigger value="templates">Email Templates</TabsTrigger>
           </TabsList>
-          <Badge variant="outline" className="ml-2">
-            {activeTab === "sequence" ? "42 emails" : activeTab === "priority" ? "8 emails" : "12 templates"}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline">
+              {activeTab === "sequence" ? "42 emails" : activeTab === "priority" ? "8 emails" : "12 templates"}
+            </Badge>
+            <Button onClick={handleComposeNew} size="sm" className="gap-2">
+              <Plus className="h-4 w-4" />
+              Compose New
+            </Button>
+          </div>
         </div>
 
         <EmailFilters activeTab={activeTab} />

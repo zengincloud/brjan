@@ -1,0 +1,25 @@
+-- CreateTable
+CREATE TABLE "emails" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "to" TEXT NOT NULL,
+    "cc" TEXT,
+    "bcc" TEXT,
+    "from" TEXT NOT NULL,
+    "subject" TEXT NOT NULL,
+    "bodyText" TEXT NOT NULL,
+    "bodyHtml" TEXT,
+    "prospectId" TEXT,
+    "accountId" TEXT,
+    "templateId" TEXT,
+    "emailType" TEXT NOT NULL DEFAULT 'one_off',
+    "status" TEXT NOT NULL DEFAULT 'draft',
+    "sendgridId" TEXT,
+    "scheduledFor" DATETIME,
+    "sentAt" DATETIME,
+    "openedAt" DATETIME,
+    "clickedAt" DATETIME,
+    "failureReason" TEXT,
+    "metadata" JSONB,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL
+);

@@ -70,6 +70,33 @@ model Account {
   @@map("accounts")
 }
 
+model Email {
+  id              String      @id @default(cuid())
+  to              String
+  cc              String?
+  bcc             String?
+  from            String
+  subject         String
+  bodyText        String
+  bodyHtml        String?
+  prospectId      String?
+  accountId       String?
+  templateId      String?
+  emailType       EmailType   @default(one_off)
+  status          EmailStatus @default(draft)
+  sendgridId      String?
+  scheduledFor    DateTime?
+  sentAt          DateTime?
+  openedAt        DateTime?
+  clickedAt       DateTime?
+  failureReason   String?
+  metadata        Json?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@map("emails")
+}
+
 enum TaskType {
   hot_lead
   interested
@@ -112,4 +139,20 @@ enum AccountStatus {
   meeting_scheduled
   customer
   churned
+}
+
+enum EmailType {
+  one_off
+  sequence
+  priority
+  template
+}
+
+enum EmailStatus {
+  draft
+  scheduled
+  sending
+  sent
+  failed
+  bounced
 }

@@ -72,6 +72,7 @@ model Prospect {
   updatedAt    DateTime       @updatedAt
   userId       String
   user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  calls        Call[]
 
   @@unique([userId, email])
   @@index([userId])
@@ -94,6 +95,7 @@ model Account {
   updatedAt    DateTime      @updatedAt
   userId       String
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  calls        Call[]
 
   @@unique([userId, name])
   @@index([userId])
@@ -151,8 +153,12 @@ model Call {
   updatedAt       DateTime    @updatedAt
   userId          String
   user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prospect        Prospect?   @relation(fields: [prospectId], references: [id], onDelete: SetNull)
+  account         Account?    @relation(fields: [accountId], references: [id], onDelete: SetNull)
 
   @@index([userId])
+  @@index([prospectId])
+  @@index([accountId])
   @@map("calls")
 }
 

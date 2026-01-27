@@ -3,6 +3,7 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Sidebar } from "@/components/sidebar"
 import { Menu, Mail, Phone, Search, Bell, Zap } from "lucide-react"
@@ -18,11 +19,23 @@ import {
 import { useToast } from "@/components/ui/use-toast"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
+import { createClient } from "@/lib/supabase/client"
+
+interface User {
+  id: string
+  email: string
+  firstName: string | null
+  lastName: string | null
+  avatarUrl: string | null
+}
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const { toast } = useToast()
   const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const [user, setUser] = useState<User | null>(null)
+  const router = useRouter()
+  const supabase = createClient()
 
   const handleCall = () => {
     toast({
@@ -38,11 +51,43 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     })
   }
 
-  const handleProfileAction = (action: string) => {
-    toast({
-      title: action,
-      description: `Opening ${action.toLowerCase()}...`,
-    })
+  useEffect(() => {
+    // Fetch current user
+    const fetchUser = async () => {
+      try {
+        const response = await fetch('/api/auth/user')
+        if (response.ok) {
+          const data = await response.json()
+          setUser(data.user)
+        }
+      } catch (error) {
+        console.error('Error fetching user:', error)
+      }
+    }
+
+    fetchUser()
+  }, [])
+
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut()
+      router.push('/login')
+      router.refresh()
+      toast({
+        title: "Logged out",
+        description: "You have been successfully logged out.",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to log out. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleSettings = () => {
+    router.push('/settings')
   }
 
   useEffect(() => {
@@ -56,6 +101,28 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [])
+
+  const getUserInitials = () => {
+    if (!user) return "U"
+    if (user.firstName && user.lastName) {
+      return `${user.firstName[0]}${user.lastName[0]}`.toUpperCase()
+    }
+    if (user.firstName) {
+      return user.firstName[0].toUpperCase()
+    }
+    return user.email[0].toUpperCase()
+  }
+
+  const getUserDisplayName = () => {
+    if (!user) return "Loading..."
+    if (user.firstName && user.lastName) {
+      return `${user.firstName} ${user.lastName}`
+    }
+    if (user.firstName) {
+      return user.firstName
+    }
+    return user.email
+  }
 
   return (
     <div className="flex h-screen bg-background">
@@ -120,26 +187,25 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" className="gap-2 pl-2 pr-3">
                   <Avatar className="h-7 w-7">
-                    <AvatarImage src="/placeholder.svg" />
-                    <AvatarFallback className="bg-accent/20 text-accent text-xs">JD</AvatarFallback>
+                    <AvatarImage src={user?.avatarUrl || undefined} />
+                    <AvatarFallback className="bg-accent/20 text-accent text-xs">
+                      {getUserInitials()}
+                    </AvatarFallback>
                   </Avatar>
-                  <span className="text-sm font-medium hidden sm:inline">John Doe</span>
+                  <span className="text-sm font-medium hidden sm:inline">{getUserDisplayName()}</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <div className="px-2 py-1.5 text-sm">
-                  <div className="font-medium">John Doe</div>
-                  <div className="text-xs text-muted-foreground">john@company.com</div>
+                  <div className="font-medium">{getUserDisplayName()}</div>
+                  <div className="text-xs text-muted-foreground">{user?.email}</div>
                 </div>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => handleProfileAction("Profile")}>
-                  Profile
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleProfileAction("Settings")}>
+                <DropdownMenuItem onClick={handleSettings}>
                   Settings
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => handleProfileAction("Logout")}>
+                <DropdownMenuItem onClick={handleLogout}>
                   Log out
                 </DropdownMenuItem>
               </DropdownMenuContent>

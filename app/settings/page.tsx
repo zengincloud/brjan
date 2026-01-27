@@ -25,9 +25,56 @@ import {
   CreditCard,
   Settings as SettingsIcon,
 } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
+import { toast } from "sonner"
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState("profile")
+  const [currentPassword, setCurrentPassword] = useState("")
+  const [newPassword, setNewPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false)
+  const supabase = createClient()
+
+  const handlePasswordUpdate = async () => {
+    if (!newPassword || !confirmPassword) {
+      toast.error("Please fill in all password fields")
+      return
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast.error("Passwords do not match")
+      return
+    }
+
+    if (newPassword.length < 6) {
+      toast.error("Password must be at least 6 characters")
+      return
+    }
+
+    setIsUpdatingPassword(true)
+
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      })
+
+      if (error) {
+        toast.error(error.message)
+        return
+      }
+
+      toast.success("Password updated successfully")
+      setCurrentPassword("")
+      setNewPassword("")
+      setConfirmPassword("")
+    } catch (error) {
+      toast.error("Failed to update password")
+      console.error("Password update error:", error)
+    } finally {
+      setIsUpdatingPassword(false)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -524,20 +571,34 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="currentPassword">Current Password</Label>
-                <Input id="currentPassword" type="password" />
-              </div>
-              <div className="space-y-2">
                 <Label htmlFor="newPassword">New Password</Label>
-                <Input id="newPassword" type="password" />
+                <Input
+                  id="newPassword"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  disabled={isUpdatingPassword}
+                  placeholder="Enter new password"
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                <Input id="confirmPassword" type="password" />
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  disabled={isUpdatingPassword}
+                  placeholder="Confirm new password"
+                />
               </div>
               <div className="flex justify-end">
-                <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
-                  Update Password
+                <Button
+                  onClick={handlePasswordUpdate}
+                  disabled={isUpdatingPassword}
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                >
+                  {isUpdatingPassword ? "Updating..." : "Update Password"}
                 </Button>
               </div>
             </CardContent>

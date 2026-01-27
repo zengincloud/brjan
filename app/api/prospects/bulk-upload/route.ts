@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
+import { withAuth } from "@/lib/auth/api-middleware"
 import { prisma } from "@/lib/prisma"
 import Papa from "papaparse"
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (request: NextRequest, userId: string) => {
   try {
     const formData = await request.formData()
     const file = formData.get("file") as File
@@ -46,6 +47,7 @@ export async function POST(request: NextRequest) {
         title,
         company,
         phone,
+        userId,
       })
     }
 
@@ -86,4 +88,4 @@ export async function POST(request: NextRequest) {
     console.error("Error processing bulk upload:", error)
     return NextResponse.json({ error: "Failed to process upload" }, { status: 500 })
   }
-}
+})

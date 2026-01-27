@@ -1,7 +1,72 @@
 import { NextRequest, NextResponse } from "next/server"
+import { withAuth } from "@/lib/auth/api-middleware"
 
 // POST /api/search/people - Search for people using People Data Labs API
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (request: NextRequest, userId: string) => {
+  // Helper to capitalize names properly (title case)
+  function toTitleCase(str: string | null | undefined): string {
+    if (!str) return ""
+    return str
+      .toLowerCase()
+      .split(" ")
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ")
+  }
+
+  // Helper to sort emails - company emails first, then personal emails
+  function sortEmails(emails: any[], companyDomain: string | null): string[] {
+    if (!emails || emails.length === 0) return []
+
+    const emailAddresses = emails
+      .map(e => e.address)
+      .filter(Boolean)
+
+    if (!companyDomain) return emailAddresses
+
+    // Extract domain from company name (e.g., "Salesforce" -> "salesforce.com")
+    const companyDomainLower = companyDomain.toLowerCase().replace(/\s+/g, '')
+
+    // Sort: company emails first, then others
+    return emailAddresses.sort((a, b) => {
+      const aDomain = a.split('@')[1]?.toLowerCase() || ''
+      const bDomain = b.split('@')[1]?.toLowerCase() || ''
+
+      const aIsCompany = aDomain.includes(companyDomainLower) || aDomain.replace('.com', '').includes(companyDomainLower)
+      const bIsCompany = bDomain.includes(companyDomainLower) || bDomain.replace('.com', '').includes(companyDomainLower)
+
+      if (aIsCompany && !bIsCompany) return -1
+      if (!aIsCompany && bIsCompany) return 1
+      return 0
+    })
+  }
+
+  // Helper to calculate buyer intent based on person data
+  function calculateBuyerIntent(person: any): "high" | "medium" | "low" {
+    let score = 0
+
+    // Recent job change
+    if (person.job_start_date) {
+      const startDate = new Date(person.job_start_date)
+      const monthsSinceStart = (Date.now() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 30)
+      if (monthsSinceStart < 6) score += 2
+    }
+
+    // Senior level
+    if (person.job_title_levels?.includes("VP") || person.job_title_levels?.includes("CXO")) {
+      score += 2
+    }
+
+    // Decision maker title keywords
+    const decisionKeywords = ["director", "vp", "head", "chief", "president"]
+    if (person.job_title && decisionKeywords.some(keyword => person.job_title.toLowerCase().includes(keyword))) {
+      score += 1
+    }
+
+    if (score >= 4) return "high"
+    if (score >= 2) return "medium"
+    return "low"
+  }
+
   try {
     const apiKey = process.env.PEOPLE_DATA_LABS_API_KEY
 
@@ -155,68 +220,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
-
-// Helper to capitalize names properly (title case)
-function toTitleCase(str: string | null | undefined): string {
-  if (!str) return ""
-  return str
-    .toLowerCase()
-    .split(" ")
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ")
-}
-
-// Helper to sort emails - company emails first, then personal emails
-function sortEmails(emails: any[], companyDomain: string | null): string[] {
-  if (!emails || emails.length === 0) return []
-
-  const emailAddresses = emails
-    .map(e => e.address)
-    .filter(Boolean)
-
-  if (!companyDomain) return emailAddresses
-
-  // Extract domain from company name (e.g., "Salesforce" -> "salesforce.com")
-  const companyDomainLower = companyDomain.toLowerCase().replace(/\s+/g, '')
-
-  // Sort: company emails first, then others
-  return emailAddresses.sort((a, b) => {
-    const aDomain = a.split('@')[1]?.toLowerCase() || ''
-    const bDomain = b.split('@')[1]?.toLowerCase() || ''
-
-    const aIsCompany = aDomain.includes(companyDomainLower) || aDomain.replace('.com', '').includes(companyDomainLower)
-    const bIsCompany = bDomain.includes(companyDomainLower) || bDomain.replace('.com', '').includes(companyDomainLower)
-
-    if (aIsCompany && !bIsCompany) return -1
-    if (!aIsCompany && bIsCompany) return 1
-    return 0
-  })
-}
-
-// Helper to calculate buyer intent based on person data
-function calculateBuyerIntent(person: any): "high" | "medium" | "low" {
-  let score = 0
-
-  // Recent job change
-  if (person.job_start_date) {
-    const startDate = new Date(person.job_start_date)
-    const monthsSinceStart = (Date.now() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 30)
-    if (monthsSinceStart < 6) score += 2
-  }
-
-  // Senior level
-  if (person.job_title_levels?.includes("VP") || person.job_title_levels?.includes("CXO")) {
-    score += 2
-  }
-
-  // Decision maker title keywords
-  const decisionKeywords = ["director", "vp", "head", "chief", "president"]
-  if (person.job_title && decisionKeywords.some(keyword => person.job_title.toLowerCase().includes(keyword))) {
-    score += 1
-  }
-
-  if (score >= 4) return "high"
-  if (score >= 2) return "medium"
-  return "low"
-}
+})

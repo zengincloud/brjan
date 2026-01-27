@@ -1,7 +1,71 @@
 import { NextRequest, NextResponse } from "next/server"
+import { withAuth } from "@/lib/auth/api-middleware"
 
 // POST /api/search/companies - Search for companies using People Data Labs API
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (request: NextRequest, userId: string) => {
+  // Helper to capitalize names properly (title case)
+  function toTitleCase(str: string | null | undefined): string {
+    if (!str) return ""
+    return str
+      .toLowerCase()
+      .split(" ")
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ")
+  }
+
+  // Helper to format location
+  function formatLocation(company: any): string {
+    const parts = [
+      company.location_locality,
+      company.location_region,
+      company.location_country,
+    ].filter(Boolean)
+    return parts.join(", ")
+  }
+
+  // Helper to get size range
+  function getSizeRange(size: number | null): string {
+    if (!size) return "Unknown"
+    if (size < 50) return "1-49"
+    if (size < 200) return "50-199"
+    if (size < 500) return "200-499"
+    if (size < 1000) return "500-999"
+    if (size < 5000) return "1000-4999"
+    return "5000+"
+  }
+
+  // Helper to calculate buying signals
+  function calculateBuyingSignals(company: any): string[] {
+    const signals: string[] = []
+
+    // Recent funding
+    if (company.last_funding_date) {
+      const fundingDate = new Date(company.last_funding_date)
+      const monthsSinceFunding = (Date.now() - fundingDate.getTime()) / (1000 * 60 * 60 * 24 * 30)
+      if (monthsSinceFunding < 12) {
+        signals.push("Recent Funding")
+      }
+    }
+
+    // Growth indicators
+    if (company.employee_count_by_month) {
+      // Check for growth
+      signals.push("Growth Indicator")
+    }
+
+    // Technology adoption
+    if (company.tags && company.tags.length > 5) {
+      signals.push("Tech Adoption")
+    }
+
+    // Website presence
+    if (company.website) {
+      signals.push("Active Website")
+    }
+
+    return signals
+  }
+
   try {
     const apiKey = process.env.PEOPLE_DATA_LABS_API_KEY
 
@@ -173,67 +237,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
-
-// Helper to capitalize names properly (title case)
-function toTitleCase(str: string | null | undefined): string {
-  if (!str) return ""
-  return str
-    .toLowerCase()
-    .split(" ")
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ")
-}
-
-// Helper to format location
-function formatLocation(company: any): string {
-  const parts = [
-    company.location_locality,
-    company.location_region,
-    company.location_country,
-  ].filter(Boolean)
-  return parts.join(", ")
-}
-
-// Helper to get size range
-function getSizeRange(size: number | null): string {
-  if (!size) return "Unknown"
-  if (size < 50) return "1-49"
-  if (size < 200) return "50-199"
-  if (size < 500) return "200-499"
-  if (size < 1000) return "500-999"
-  if (size < 5000) return "1000-4999"
-  return "5000+"
-}
-
-// Helper to calculate buying signals
-function calculateBuyingSignals(company: any): string[] {
-  const signals: string[] = []
-
-  // Recent funding
-  if (company.last_funding_date) {
-    const fundingDate = new Date(company.last_funding_date)
-    const monthsSinceFunding = (Date.now() - fundingDate.getTime()) / (1000 * 60 * 60 * 24 * 30)
-    if (monthsSinceFunding < 12) {
-      signals.push("Recent Funding")
-    }
-  }
-
-  // Growth indicators
-  if (company.employee_count_by_month) {
-    // Check for growth
-    signals.push("Growth Indicator")
-  }
-
-  // Technology adoption
-  if (company.tags && company.tags.length > 5) {
-    signals.push("Tech Adoption")
-  }
-
-  // Website presence
-  if (company.website) {
-    signals.push("Active Website")
-  }
-
-  return signals
-}
+})

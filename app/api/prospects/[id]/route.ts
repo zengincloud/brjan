@@ -1,13 +1,30 @@
 import { NextRequest, NextResponse } from "next/server"
-import { PrismaClient } from "@prisma/client"
-
-const prisma = new PrismaClient()
+import { prisma } from "@/lib/prisma"
+import { createClient } from "@/lib/supabase/server"
 
 // GET /api/prospects/[id] - Get single prospect
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const prospect = await prisma.prospect.findUnique({
-      where: { id: params.id },
+    const supabase = await createClient()
+    const { data: { user: supabaseUser } } = await supabase.auth.getUser()
+
+    if (!supabaseUser) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { supabaseId: supabaseUser.id },
+    })
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const prospect = await prisma.prospect.findFirst({
+      where: {
+        id: params.id,
+        userId: user.id, // Verify ownership
+      },
     })
 
     if (!prospect) {
@@ -24,12 +41,30 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 // PATCH /api/prospects/[id] - Update prospect
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const supabase = await createClient()
+    const { data: { user: supabaseUser } } = await supabase.auth.getUser()
+
+    if (!supabaseUser) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { supabaseId: supabaseUser.id },
+    })
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
     const body = await request.json()
     const { name, email, phone, title, company, location, linkedin, status } = body
 
-    // Check if prospect exists
-    const existingProspect = await prisma.prospect.findUnique({
-      where: { id: params.id },
+    // Check if prospect exists and belongs to user
+    const existingProspect = await prisma.prospect.findFirst({
+      where: {
+        id: params.id,
+        userId: user.id, // Verify ownership
+      },
     })
 
     if (!existingProspect) {
@@ -41,10 +76,13 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       return NextResponse.json({ error: "Name and email are required" }, { status: 400 })
     }
 
-    // Check if email is being changed and if new email already exists
+    // Check if email is being changed and if new email already exists for this user
     if (email !== existingProspect.email) {
-      const emailExists = await prisma.prospect.findUnique({
-        where: { email },
+      const emailExists = await prisma.prospect.findFirst({
+        where: {
+          email,
+          userId: user.id,
+        },
       })
 
       if (emailExists) {
@@ -84,8 +122,26 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 // DELETE /api/prospects/[id] - Delete prospect
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const prospect = await prisma.prospect.findUnique({
-      where: { id: params.id },
+    const supabase = await createClient()
+    const { data: { user: supabaseUser } } = await supabase.auth.getUser()
+
+    if (!supabaseUser) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { supabaseId: supabaseUser.id },
+    })
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const prospect = await prisma.prospect.findFirst({
+      where: {
+        id: params.id,
+        userId: user.id, // Verify ownership
+      },
     })
 
     if (!prospect) {

@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from "next/server"
+import { withAuth } from "@/lib/auth/api-middleware"
 import { prisma } from "@/lib/prisma"
 
 // GET /api/accounts - Get all accounts
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async (request: NextRequest, userId: string) => {
   try {
     const { searchParams } = new URL(request.url)
     const search = searchParams.get("search")
     const sequence = searchParams.get("sequence")
     const status = searchParams.get("status")
 
-    const where: any = {}
+    const where: any = {
+      userId,
+    }
 
     if (search) {
       where.OR = [
@@ -37,10 +40,10 @@ export async function GET(request: NextRequest) {
     console.error("Error fetching accounts:", error)
     return NextResponse.json({ error: "Failed to fetch accounts" }, { status: 500 })
   }
-}
+})
 
 // POST /api/accounts - Create a new account
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (request: NextRequest, userId: string) => {
   try {
     const body = await request.json()
 
@@ -61,6 +64,7 @@ export async function POST(request: NextRequest) {
         sequence,
         sequenceStep,
         contacts: contacts ? parseInt(contacts) : 0,
+        userId,
       },
     })
 
@@ -75,4 +79,4 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ error: "Failed to create account" }, { status: 500 })
   }
-}
+})

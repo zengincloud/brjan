@@ -5,11 +5,12 @@ import { withAuth } from "@/lib/auth/api-middleware"
 export const dynamic = 'force-dynamic'
 
 // PATCH /api/calls/[id] - Update call outcome and notes
-export const PATCH = withAuth(async (
+export const PATCH = withAuth<{ params: { id: string } }>(async (
   request: NextRequest,
   userId: string,
-  { params }: { params: { id: string } }
+  context
 ) => {
+  const { params } = context!;
   try {
     const body = await request.json()
     const { outcome, notes, duration, endedAt } = body
@@ -52,11 +53,12 @@ export const PATCH = withAuth(async (
 })
 
 // GET /api/calls/[id] - Get call details
-export const GET = withAuth(async (
+export const GET = withAuth<{ params: { id: string } }>(async (
   request: NextRequest,
   userId: string,
-  { params }: { params: { id: string } }
+  context
 ) => {
+  const { params } = context!;
   try {
     const call = await prisma.call.findUnique({
       where: {

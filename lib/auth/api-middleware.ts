@@ -11,11 +11,17 @@ import { prisma } from '@/lib/prisma'
  *   // Your authenticated API logic here
  *   return NextResponse.json({ data: 'success' })
  * })
+ *
+ * For dynamic routes:
+ * export const GET = withAuth(async (request, userId, context) => {
+ *   const { params } = context
+ *   // Use params.id
+ * })
  */
-export function withAuth(
-  handler: (request: NextRequest, userId: string) => Promise<NextResponse>
+export function withAuth<T = any>(
+  handler: (request: NextRequest, userId: string, context?: T) => Promise<NextResponse>
 ) {
-  return async (request: NextRequest) => {
+  return async (request: NextRequest, context?: T) => {
     try {
       const supabase = await createClient()
       const {
@@ -44,7 +50,7 @@ export function withAuth(
         })
       }
 
-      return await handler(request, user.id)
+      return await handler(request, user.id, context)
     } catch (error) {
       console.error('Auth middleware error:', error)
       return NextResponse.json(

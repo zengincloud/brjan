@@ -62,11 +62,11 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
         to: formattedTo,
         from: TWILIO_PHONE_NUMBER,
         // This URL will handle the call flow (TwiML)
-        url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/calls/twiml`,
-        statusCallback: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/calls/status`,
+        url: `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/api/calls/twiml`,
+        statusCallback: `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/api/calls/status`,
         statusCallbackEvent: ["initiated", "ringing", "answered", "completed"],
         record: true, // Enable call recording
-        recordingStatusCallback: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/calls/recording`,
+        recordingStatusCallback: `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/api/calls/recording`,
       })
 
       console.log("Twilio call initiated:", call.sid)

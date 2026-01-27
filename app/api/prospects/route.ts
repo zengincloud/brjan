@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { withAuth } from "@/lib/auth/api-middleware"
 
+export const dynamic = 'force-dynamic'
+
 // GET /api/prospects - Get all prospects
 export const GET = withAuth(async (request: NextRequest, userId: string) => {
   try {

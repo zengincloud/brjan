@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { withAuth } from "@/lib/auth/api-middleware"
 
+export const dynamic = 'force-dynamic'
+
 // POST /api/search/companies - Search for companies using People Data Labs API
 export const POST = withAuth(async (request: NextRequest, userId: string) => {
   // Helper to capitalize names properly (title case)

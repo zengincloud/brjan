@@ -3,6 +3,8 @@ import { withAuth } from "@/lib/auth/api-middleware"
 import { prisma } from "@/lib/prisma"
 import Papa from "papaparse"
 
+export const dynamic = 'force-dynamic'
+
 export const POST = withAuth(async (request: NextRequest, userId: string) => {
   try {
     const formData = await request.formData()

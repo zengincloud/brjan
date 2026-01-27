@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { withAuth } from "@/lib/auth/api-middleware"
 
+export const dynamic = 'force-dynamic'
+
 const serializeTask = (task: {
   id: string
   title: string
@@ -53,7 +55,7 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
             }
           : baseWhere
 
-  const orderBy =
+  const orderBy: any =
     view === "today" || view === "overdue" || view === "upcoming" ? { dueDate: "asc" } : { id: "asc" }
 
   const tasks = await prisma.task.findMany({

@@ -1,19 +1,24 @@
 import { NextRequest, NextResponse } from "next/server"
-import { PrismaClient } from "@prisma/client"
+import { prisma } from "@/lib/prisma"
+import { withAuth } from "@/lib/auth/api-middleware"
 
-const prisma = new PrismaClient()
+export const dynamic = 'force-dynamic'
 
 // PATCH /api/calls/[id] - Update call outcome and notes
-export async function PATCH(
+export const PATCH = withAuth(async (
   request: NextRequest,
+  userId: string,
   { params }: { params: { id: string } }
-) {
+) => {
   try {
     const body = await request.json()
     const { outcome, notes } = body
 
     const call = await prisma.call.findUnique({
-      where: { id: params.id },
+      where: {
+        id: params.id,
+        userId,
+      },
     })
 
     if (!call) {
@@ -22,7 +27,10 @@ export async function PATCH(
 
     // Update call with outcome and notes
     const updatedCall = await prisma.call.update({
-      where: { id: params.id },
+      where: {
+        id: params.id,
+        userId,
+      },
       data: {
         outcome,
         notes,
@@ -38,16 +46,20 @@ export async function PATCH(
       { status: 500 }
     )
   }
-}
+})
 
 // GET /api/calls/[id] - Get call details
-export async function GET(
+export const GET = withAuth(async (
   request: NextRequest,
+  userId: string,
   { params }: { params: { id: string } }
-) {
+) => {
   try {
     const call = await prisma.call.findUnique({
-      where: { id: params.id },
+      where: {
+        id: params.id,
+        userId,
+      },
     })
 
     if (!call) {
@@ -62,4 +74,4 @@ export async function GET(
       { status: 500 }
     )
   }
-}
+})

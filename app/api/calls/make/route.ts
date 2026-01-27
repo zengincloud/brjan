@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
-import { PrismaClient } from "@prisma/client"
+import { prisma } from "@/lib/prisma"
+import { withAuth } from "@/lib/auth/api-middleware"
 import twilio from "twilio"
 
-const prisma = new PrismaClient()
+export const dynamic = 'force-dynamic'
 
 // Initialize Twilio client
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID
@@ -19,7 +20,7 @@ const twilioClient =
     : null
 
 // POST /api/calls/make - Initiate a call via Twilio
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (request: NextRequest, userId: string) => {
   try {
     if (!twilioClient || !TWILIO_PHONE_NUMBER) {
       return NextResponse.json(
@@ -51,6 +52,7 @@ export async function POST(request: NextRequest) {
         accountId,
         status: "queued",
         metadata,
+        userId,
       },
     })
 
@@ -82,7 +84,10 @@ export async function POST(request: NextRequest) {
       // Update prospect's last activity if applicable
       if (prospectId) {
         await prisma.prospect.update({
-          where: { id: prospectId },
+          where: {
+            id: prospectId,
+            userId,
+          },
           data: {
             lastActivity: new Date(),
             status: "contacted",
@@ -126,4 +131,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

@@ -26,6 +26,17 @@ export default function SignupPage() {
   const handleEmailSignup = async (e: React.FormEvent) => {
     e.preventDefault()
 
+    // Validation
+    if (!email) {
+      toast.error('Please enter your email address')
+      return
+    }
+
+    if (!password) {
+      toast.error('Please enter a password')
+      return
+    }
+
     if (password !== confirmPassword) {
       toast.error('Passwords do not match')
       return
@@ -39,6 +50,8 @@ export default function SignupPage() {
     setLoading(true)
 
     try {
+      console.log('Attempting signup with:', { email, hasPassword: !!password })
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -51,21 +64,47 @@ export default function SignupPage() {
         },
       })
 
+      console.log('Signup response:', { data, error })
+
       if (error) {
-        toast.error(error.message)
+        console.error('Signup error details:', error)
+
+        // Provide specific error messages
+        if (error.message.includes('User already registered')) {
+          toast.error('This email is already registered. Try logging in instead.')
+        } else if (error.message.includes('Email rate limit exceeded')) {
+          toast.error('Too many signup attempts. Please wait a few minutes and try again.')
+        } else if (error.message.includes('Invalid email')) {
+          toast.error('Please enter a valid email address')
+        } else if (error.message.includes('Signups not allowed')) {
+          toast.error('Email signups are disabled. Please contact support.')
+        } else {
+          toast.error(`Signup failed: ${error.message}`)
+        }
         return
       }
 
-      if (data.user && !data.user.confirmed_at) {
-        toast.success('Check your email to confirm your account')
-      } else {
-        toast.success('Account created successfully')
-        router.push('/')
-        router.refresh()
+      // Success!
+      if (data.user) {
+        if (!data.user.confirmed_at) {
+          // Email confirmation required
+          toast.success('Success! Check your email to confirm your account', {
+            duration: 6000,
+          })
+        } else {
+          // No confirmation required - user is logged in
+          toast.success('Account created successfully! Redirecting...', {
+            duration: 3000,
+          })
+          setTimeout(() => {
+            router.push('/')
+            router.refresh()
+          }, 1000)
+        }
       }
-    } catch (error) {
-      toast.error('An error occurred during signup')
-      console.error('Signup error:', error)
+    } catch (error: any) {
+      console.error('Unexpected signup error:', error)
+      toast.error(`Unexpected error: ${error.message || 'Please try again'}`)
     } finally {
       setLoading(false)
     }

@@ -24,25 +24,61 @@ export default function LoginPage() {
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    // Validation
+    if (!email) {
+      toast.error('Please enter your email address')
+      return
+    }
+
+    if (!password) {
+      toast.error('Please enter your password')
+      return
+    }
+
     setLoading(true)
 
     try {
+      console.log('Attempting login with:', { email })
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
+      console.log('Login response:', { data, error })
+
       if (error) {
-        toast.error(error.message)
+        console.error('Login error details:', error)
+
+        // Provide specific error messages
+        if (error.message.includes('Invalid login credentials')) {
+          toast.error('Invalid email or password. Please check your credentials and try again.')
+        } else if (error.message.includes('Email not confirmed')) {
+          toast.error('Please confirm your email address before logging in. Check your inbox.')
+        } else if (error.message.includes('Email rate limit exceeded')) {
+          toast.error('Too many login attempts. Please wait a few minutes and try again.')
+        } else if (error.message.includes('not authorized') || error.message.includes('Email link is invalid')) {
+          toast.error('Your session has expired. Please try logging in again.')
+        } else {
+          toast.error(`Login failed: ${error.message}`)
+        }
         return
       }
 
-      toast.success('Logged in successfully')
-      router.push(redirect)
-      router.refresh()
-    } catch (error) {
-      toast.error('An error occurred during login')
-      console.error('Login error:', error)
+      // Success!
+      if (data.user) {
+        toast.success('Logged in successfully! Redirecting...', {
+          duration: 2000,
+        })
+        setTimeout(() => {
+          router.push(redirect)
+          router.refresh()
+        }, 500)
+      }
+    } catch (error: any) {
+      console.error('Unexpected login error:', error)
+      toast.error(`Unexpected error: ${error.message || 'Please try again'}`)
     } finally {
       setLoading(false)
     }

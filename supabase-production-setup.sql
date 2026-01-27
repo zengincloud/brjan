@@ -1,34 +1,54 @@
--- CreateEnum
+-- ============================================
+-- PRODUCTION DATABASE SETUP
+-- This will reset and recreate all tables with auth
+-- ============================================
+
+-- Step 1: Drop all existing tables
+DROP TABLE IF EXISTS "Event" CASCADE;
+DROP TABLE IF EXISTS "calls" CASCADE;
+DROP TABLE IF EXISTS "emails" CASCADE;
+DROP TABLE IF EXISTS "accounts" CASCADE;
+DROP TABLE IF EXISTS "prospects" CASCADE;
+DROP TABLE IF EXISTS "tasks" CASCADE;
+DROP TABLE IF EXISTS "users" CASCADE;
+
+-- Drop all enums
+DROP TYPE IF EXISTS "CallOutcome" CASCADE;
+DROP TYPE IF EXISTS "CallStatus" CASCADE;
+DROP TYPE IF EXISTS "EmailStatus" CASCADE;
+DROP TYPE IF EXISTS "EmailType" CASCADE;
+DROP TYPE IF EXISTS "AccountStatus" CASCADE;
+DROP TYPE IF EXISTS "ProspectStatus" CASCADE;
+DROP TYPE IF EXISTS "EventType" CASCADE;
+DROP TYPE IF EXISTS "TaskPriority" CASCADE;
+DROP TYPE IF EXISTS "TaskStatus" CASCADE;
+DROP TYPE IF EXISTS "TaskType" CASCADE;
+
+-- Step 2: Create all enums
 CREATE TYPE "TaskType" AS ENUM ('hot_lead', 'interested', 'website_visit', 'follow_up', 'other');
-
--- CreateEnum
 CREATE TYPE "TaskStatus" AS ENUM ('to_do', 'in_progress', 'done');
-
--- CreateEnum
 CREATE TYPE "TaskPriority" AS ENUM ('high', 'medium', 'low');
-
--- CreateEnum
 CREATE TYPE "EventType" AS ENUM ('email_sent', 'call_started', 'call_completed');
-
--- CreateEnum
 CREATE TYPE "ProspectStatus" AS ENUM ('new_lead', 'in_sequence', 'contacted', 'meeting_scheduled', 'qualified', 'unqualified');
-
--- CreateEnum
 CREATE TYPE "AccountStatus" AS ENUM ('new_lead', 'in_sequence', 'contacted', 'meeting_scheduled', 'customer', 'churned');
-
--- CreateEnum
 CREATE TYPE "EmailType" AS ENUM ('one_off', 'sequence', 'priority', 'template');
-
--- CreateEnum
 CREATE TYPE "EmailStatus" AS ENUM ('draft', 'scheduled', 'sending', 'sent', 'failed', 'bounced');
-
--- CreateEnum
 CREATE TYPE "CallStatus" AS ENUM ('queued', 'ringing', 'in_progress', 'completed', 'failed', 'busy', 'no_answer', 'canceled');
-
--- CreateEnum
 CREATE TYPE "CallOutcome" AS ENUM ('connected', 'voicemail', 'no_answer', 'busy', 'failed', 'gatekeeper');
 
--- CreateTable
+-- Step 3: Create all tables with userId
+CREATE TABLE "users" (
+    "id" TEXT NOT NULL,
+    "supabaseId" TEXT NOT NULL,
+    "email" TEXT NOT NULL,
+    "firstName" TEXT,
+    "lastName" TEXT,
+    "avatarUrl" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    CONSTRAINT "users_pkey" PRIMARY KEY ("id")
+);
+
 CREATE TABLE "tasks" (
     "id" TEXT NOT NULL,
     "title" TEXT NOT NULL,
@@ -40,22 +60,19 @@ CREATE TABLE "tasks" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "contact" JSONB,
     "company" JSONB,
-
+    "userId" TEXT NOT NULL,
     CONSTRAINT "tasks_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
 CREATE TABLE "Event" (
     "id" TEXT NOT NULL,
     "type" "EventType" NOT NULL,
     "taskId" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "meta" JSONB,
-
     CONSTRAINT "Event_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
 CREATE TABLE "prospects" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
@@ -72,11 +89,10 @@ CREATE TABLE "prospects" (
     "lastActivity" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-
+    "userId" TEXT NOT NULL,
     CONSTRAINT "prospects_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
 CREATE TABLE "accounts" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
@@ -91,11 +107,10 @@ CREATE TABLE "accounts" (
     "contacts" INTEGER NOT NULL DEFAULT 0,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-
+    "userId" TEXT NOT NULL,
     CONSTRAINT "accounts_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
 CREATE TABLE "emails" (
     "id" TEXT NOT NULL,
     "to" TEXT NOT NULL,
@@ -119,11 +134,10 @@ CREATE TABLE "emails" (
     "metadata" JSONB,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-
+    "userId" TEXT NOT NULL,
     CONSTRAINT "emails_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
 CREATE TABLE "calls" (
     "id" TEXT NOT NULL,
     "from" TEXT NOT NULL,
@@ -143,18 +157,26 @@ CREATE TABLE "calls" (
     "metadata" JSONB,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-
+    "userId" TEXT NOT NULL,
     CONSTRAINT "calls_pkey" PRIMARY KEY ("id")
 );
 
--- CreateIndex
-CREATE UNIQUE INDEX "prospects_email_key" ON "prospects"("email");
-
--- CreateIndex
-CREATE UNIQUE INDEX "accounts_name_key" ON "accounts"("name");
-
--- CreateIndex
+-- Step 4: Create indexes
+CREATE UNIQUE INDEX "users_supabaseId_key" ON "users"("supabaseId");
+CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
+CREATE INDEX "tasks_userId_idx" ON "tasks"("userId");
+CREATE INDEX "prospects_userId_idx" ON "prospects"("userId");
+CREATE UNIQUE INDEX "prospects_userId_email_key" ON "prospects"("userId", "email");
+CREATE INDEX "accounts_userId_idx" ON "accounts"("userId");
+CREATE UNIQUE INDEX "accounts_userId_name_key" ON "accounts"("userId", "name");
+CREATE INDEX "emails_userId_idx" ON "emails"("userId");
 CREATE UNIQUE INDEX "calls_twilioSid_key" ON "calls"("twilioSid");
+CREATE INDEX "calls_userId_idx" ON "calls"("userId");
 
--- AddForeignKey
+-- Step 5: Add foreign keys
+ALTER TABLE "tasks" ADD CONSTRAINT "tasks_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "Event" ADD CONSTRAINT "Event_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "tasks"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "prospects" ADD CONSTRAINT "prospects_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "accounts" ADD CONSTRAINT "accounts_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "emails" ADD CONSTRAINT "emails_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "calls" ADD CONSTRAINT "calls_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;

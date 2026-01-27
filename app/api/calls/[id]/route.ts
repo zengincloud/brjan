@@ -12,7 +12,7 @@ export const PATCH = withAuth(async (
 ) => {
   try {
     const body = await request.json()
-    const { outcome, notes } = body
+    const { outcome, notes, duration, endedAt } = body
 
     const call = await prisma.call.findUnique({
       where: {
@@ -25,7 +25,7 @@ export const PATCH = withAuth(async (
       return NextResponse.json({ error: "Call not found" }, { status: 404 })
     }
 
-    // Update call with outcome and notes
+    // Update call with outcome, notes, duration, and completion status
     const updatedCall = await prisma.call.update({
       where: {
         id: params.id,
@@ -34,6 +34,9 @@ export const PATCH = withAuth(async (
       data: {
         outcome,
         notes,
+        duration,
+        endedAt: endedAt ? new Date(endedAt) : undefined,
+        status: "completed",
         updatedAt: new Date(),
       },
     })

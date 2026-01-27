@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { ArrowLeft, Mail, Phone, Linkedin, MapPin, Building, Briefcase, Calendar, Globe } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
+import { CallHistory } from "@/components/call-history"
 
 type Prospect = {
   id: string
@@ -287,6 +288,9 @@ export default function ProspectDetailPage() {
           </Button>
         )}
       </div>
+
+      {/* Call History */}
+      <CallHistory prospectId={prospect.id} />
     </div>
   )
 }

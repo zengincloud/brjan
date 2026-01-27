@@ -33,6 +33,7 @@ import {
   ChevronUp,
   Settings
 } from "lucide-react"
+import { CallHistory } from "@/components/call-history"
 
 type CallStatus = "idle" | "ringing" | "connected" | "completed"
 
@@ -809,6 +810,11 @@ export default function DialerPage() {
             </Card>
           ))}
         </div>
+      </div>
+
+      {/* Call History */}
+      <div className="mt-6">
+        <CallHistory limit={20} />
       </div>
     </div>
   )

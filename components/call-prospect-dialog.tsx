@@ -148,6 +148,8 @@ export function CallProspectDialog({
         body: JSON.stringify({
           outcome: selectedOutcome,
           notes,
+          duration: callDuration,
+          endedAt: new Date().toISOString(),
         }),
       })
 

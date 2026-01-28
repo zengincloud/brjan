@@ -22,6 +22,7 @@ model User {
   accounts   Account[]
   emails     Email[]
   calls      Call[]
+  sequences  Sequence[]
 
   @@map("users")
 }
@@ -70,9 +71,10 @@ model Prospect {
   lastActivity DateTime       @default(now())
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
-  userId       String
-  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  calls        Call[]
+  userId            String
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  calls             Call[]
+  prospectSequences ProspectSequence[]
 
   @@unique([userId, email])
   @@index([userId])
@@ -93,9 +95,10 @@ model Account {
   contacts     Int           @default(0)
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
-  userId       String
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  calls        Call[]
+  userId           String
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  calls            Call[]
+  accountSequences AccountSequence[]
 
   @@unique([userId, name])
   @@index([userId])
@@ -240,4 +243,119 @@ enum CallOutcome {
   busy
   failed
   gatekeeper
+}
+
+model Sequence {
+  id          String         @id @default(cuid())
+  name        String
+  description String?
+  status      SequenceStatus @default(draft)
+  isActive    Boolean        @default(false)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  userId      String
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  steps             SequenceStep[]
+  prospectSequences ProspectSequence[]
+  accountSequences  AccountSequence[]
+
+  @@index([userId])
+  @@map("sequences")
+}
+
+model SequenceStep {
+  id           String           @id @default(cuid())
+  sequenceId   String
+  type         SequenceStepType
+  name         String
+  order        Int
+  delayDays    Int              @default(0)
+  delayHours   Int              @default(0)
+  emailSubject String?
+  emailBody    String?
+  callScript   String?
+  taskNotes    String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  sequence Sequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+
+  @@index([sequenceId])
+  @@map("sequence_steps")
+}
+
+model ProspectSequence {
+  id           String                 @id @default(cuid())
+  prospectId   String
+  sequenceId   String
+  currentStep  Int                    @default(0)
+  status       ProspectSequenceStatus @default(active)
+  startedAt    DateTime               @default(now())
+  completedAt  DateTime?
+  pausedAt     DateTime?
+  failedAt     DateTime?
+  nextActionAt DateTime?
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+
+  prospect Prospect @relation(fields: [prospectId], references: [id], onDelete: Cascade)
+  sequence Sequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+
+  @@unique([prospectId, sequenceId])
+  @@index([sequenceId])
+  @@index([nextActionAt])
+  @@map("prospect_sequences")
+}
+
+model AccountSequence {
+  id           String                @id @default(cuid())
+  accountId    String
+  sequenceId   String
+  currentStep  Int                   @default(0)
+  status       AccountSequenceStatus @default(active)
+  startedAt    DateTime              @default(now())
+  completedAt  DateTime?
+  pausedAt     DateTime?
+  failedAt     DateTime?
+  nextActionAt DateTime?
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+
+  account  Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  sequence Sequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, sequenceId])
+  @@index([sequenceId])
+  @@index([nextActionAt])
+  @@map("account_sequences")
+}
+
+enum SequenceStatus {
+  draft
+  active
+  paused
+  archived
+}
+
+enum SequenceStepType {
+  email
+  call
+  linkedin
+  task
+  wait
+}
+
+enum ProspectSequenceStatus {
+  active
+  paused
+  completed
+  failed
+}
+
+enum AccountSequenceStatus {
+  active
+  paused
+  completed
+  failed
 }

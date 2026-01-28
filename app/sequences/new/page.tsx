@@ -260,7 +260,7 @@ export default function NewSequencePage() {
         </div>
 
         {/* Right: Steps Builder */}
-        <div className="lg:col-span-2 space-y-4">
+        <div className="lg:col-span-2 space-y-0">
           {steps.length === 0 ? (
             <Card>
               <CardContent className="py-12 text-center text-muted-foreground">
@@ -269,42 +269,43 @@ export default function NewSequencePage() {
             </Card>
           ) : (
             steps.map((step, index) => (
-              <Card key={index} className={editingStep === index ? "border-accent" : ""}>
-                <CardHeader className="flex flex-row items-center justify-between pb-3">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="secondary">Step {index + 1}</Badge>
-                    <div className="flex items-center gap-1">
-                      {getStepIcon(step.type)}
-                      <span className="font-medium">{step.name}</span>
+              <div key={index} className="relative">
+                <Card className={editingStep === index ? "border-accent" : ""}>
+                  <CardHeader className="flex flex-row items-center justify-between pb-3">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary">Step {index + 1}</Badge>
+                      <div className="flex items-center gap-1">
+                        {getStepIcon(step.type)}
+                        <span className="font-medium">{step.name}</span>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => moveStep(index, "up")}
-                      disabled={index === 0}
-                    >
-                      <ArrowUp className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => moveStep(index, "down")}
-                      disabled={index === steps.length - 1}
-                    >
-                      <ArrowDown className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => deleteStep(index)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => moveStep(index, "up")}
+                        disabled={index === 0}
+                      >
+                        <ArrowUp className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => moveStep(index, "down")}
+                        disabled={index === steps.length - 1}
+                      >
+                        <ArrowDown className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => deleteStep(index)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
                   <div>
                     <Label>Step Name</Label>
                     <Input
@@ -312,67 +313,6 @@ export default function NewSequencePage() {
                       onChange={(e) => updateStep(index, { name: e.target.value })}
                       placeholder="Name this step"
                     />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Delay Before This Step</Label>
-                    <Select
-                      value={`${step.delayDays}-${step.delayHours}`}
-                      onValueChange={(value) => {
-                        if (value === "custom") return
-                        const [days, hours] = value.split("-").map(Number)
-                        updateStep(index, { delayDays: days, delayHours: hours })
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="0-0">Immediate (no delay)</SelectItem>
-                        <SelectItem value="0-1">1 hour</SelectItem>
-                        <SelectItem value="0-2">2 hours</SelectItem>
-                        <SelectItem value="0-4">4 hours</SelectItem>
-                        <SelectItem value="0-8">8 hours</SelectItem>
-                        <SelectItem value="1-0">1 day</SelectItem>
-                        <SelectItem value="2-0">2 days</SelectItem>
-                        <SelectItem value="3-0">3 days</SelectItem>
-                        <SelectItem value="5-0">5 days</SelectItem>
-                        <SelectItem value="7-0">1 week</SelectItem>
-                        <SelectItem value="14-0">2 weeks</SelectItem>
-                        <SelectItem value="custom">Custom...</SelectItem>
-                      </SelectContent>
-                    </Select>
-
-                    {/* Show custom inputs if not a preset value */}
-                    {!["0-0", "0-1", "0-2", "0-4", "0-8", "1-0", "2-0", "3-0", "5-0", "7-0", "14-0"].includes(`${step.delayDays}-${step.delayHours}`) && (
-                      <div className="grid grid-cols-2 gap-2 pt-2">
-                        <div>
-                          <Label className="text-xs">Days</Label>
-                          <Input
-                            type="number"
-                            min="0"
-                            value={step.delayDays}
-                            onChange={(e) =>
-                              updateStep(index, { delayDays: parseInt(e.target.value) || 0 })
-                            }
-                            className="h-8"
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-xs">Hours</Label>
-                          <Input
-                            type="number"
-                            min="0"
-                            max="23"
-                            value={step.delayHours}
-                            onChange={(e) =>
-                              updateStep(index, { delayHours: parseInt(e.target.value) || 0 })
-                            }
-                            className="h-8"
-                          />
-                        </div>
-                      </div>
-                    )}
                   </div>
 
                   {step.type === "email" && (
@@ -423,31 +363,150 @@ export default function NewSequencePage() {
                     </div>
                   )}
 
-                  {index < steps.length - 1 && (
-                    <div className="text-sm text-muted-foreground pt-2 border-t flex items-center gap-2">
-                      <Clock className="h-3 w-3" />
-                      {step.delayDays === 0 && step.delayHours === 0 ? (
-                        <span>Next step starts immediately</span>
-                      ) : (
-                        <span>
-                          Next step in{" "}
-                          {step.delayDays > 0 && (
-                            <>
-                              {step.delayDays} day{step.delayDays !== 1 ? "s" : ""}
-                            </>
-                          )}
-                          {step.delayDays > 0 && step.delayHours > 0 && " and "}
-                          {step.delayHours > 0 && (
-                            <>
-                              {step.delayHours} hour{step.delayHours !== 1 ? "s" : ""}
-                            </>
-                          )}
-                        </span>
-                      )}
-                    </div>
-                  )}
                 </CardContent>
               </Card>
+
+              {/* Delay Adjuster Between Steps */}
+              {index < steps.length - 1 && (
+                <div className="relative flex items-center justify-center py-4">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t-2 border-dashed border-border"></div>
+                  </div>
+                  <div className="relative z-10 bg-background px-4">
+                    <Card className="border-2">
+                      <CardContent className="p-3">
+                        <div className="flex flex-col gap-3">
+                          <div className="flex items-center gap-4">
+                            <Clock className="h-4 w-4 text-muted-foreground" />
+
+                            <div className="flex items-center gap-2">
+                              <div className="flex flex-col items-center">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6"
+                                  onClick={() => updateStep(index, { delayDays: step.delayDays + 1 })}
+                                >
+                                  <ArrowUp className="h-3 w-3" />
+                                </Button>
+                                <div className="text-center px-2 py-1 min-w-[60px]">
+                                  <div className="text-lg font-bold">{step.delayDays}</div>
+                                  <div className="text-xs text-muted-foreground">days</div>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6"
+                                  onClick={() => updateStep(index, { delayDays: Math.max(0, step.delayDays - 1) })}
+                                >
+                                  <ArrowDown className="h-3 w-3" />
+                                </Button>
+                              </div>
+
+                              <div className="flex flex-col items-center">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6"
+                                  onClick={() => updateStep(index, { delayHours: Math.min(23, step.delayHours + 1) })}
+                                >
+                                  <ArrowUp className="h-3 w-3" />
+                                </Button>
+                                <div className="text-center px-2 py-1 min-w-[60px]">
+                                  <div className="text-lg font-bold">{step.delayHours}</div>
+                                  <div className="text-xs text-muted-foreground">hours</div>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6"
+                                  onClick={() => updateStep(index, { delayHours: Math.max(0, step.delayHours - 1) })}
+                                >
+                                  <ArrowDown className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </div>
+
+                            <div className="text-sm text-muted-foreground">
+                              {step.delayDays === 0 && step.delayHours === 0 ? (
+                                <span>Immediate</span>
+                              ) : (
+                                <span>
+                                  Wait{" "}
+                                  {step.delayDays > 0 && `${step.delayDays}d`}
+                                  {step.delayDays > 0 && step.delayHours > 0 && " "}
+                                  {step.delayHours > 0 && `${step.delayHours}h`}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Quick presets */}
+                          <div className="flex gap-1 flex-wrap">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-6 text-xs"
+                              onClick={() => updateStep(index, { delayDays: 0, delayHours: 0 })}
+                            >
+                              Now
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-6 text-xs"
+                              onClick={() => updateStep(index, { delayDays: 0, delayHours: 2 })}
+                            >
+                              2h
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-6 text-xs"
+                              onClick={() => updateStep(index, { delayDays: 0, delayHours: 4 })}
+                            >
+                              4h
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-6 text-xs"
+                              onClick={() => updateStep(index, { delayDays: 1, delayHours: 0 })}
+                            >
+                              1d
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-6 text-xs"
+                              onClick={() => updateStep(index, { delayDays: 2, delayHours: 0 })}
+                            >
+                              2d
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-6 text-xs"
+                              onClick={() => updateStep(index, { delayDays: 3, delayHours: 0 })}
+                            >
+                              3d
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-6 text-xs"
+                              onClick={() => updateStep(index, { delayDays: 7, delayHours: 0 })}
+                            >
+                              1w
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>
+              )}
+            </div>
             ))
           )}
         </div>

@@ -28,6 +28,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 import { formatDistanceToNow } from "date-fns"
 import { useRouter } from "next/navigation"
+import { useToast } from "@/components/ui/use-toast"
 
 type Sequence = {
   id: string
@@ -56,10 +57,12 @@ type Sequence = {
 
 export function SequencesList() {
   const router = useRouter()
+  const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState("")
   const [activeTab, setActiveTab] = useState("all")
   const [sequences, setSequences] = useState<Sequence[]>([])
   const [loading, setLoading] = useState(true)
+  const [processing, setProcessing] = useState(false)
 
   useEffect(() => {
     loadSequences()
@@ -76,6 +79,33 @@ export function SequencesList() {
       console.error("Error loading sequences:", error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const processSequences = async () => {
+    try {
+      setProcessing(true)
+      const response = await fetch("/api/sequences/process", {
+        method: "POST",
+      })
+      if (!response.ok) throw new Error("Failed to process sequences")
+      const data = await response.json()
+
+      toast({
+        title: "Sequences Processed",
+        description: `Created ${data.callsCreated} calls, ${data.emailsCreated} emails, and ${data.tasksCreated} tasks`,
+      })
+
+      loadSequences()
+    } catch (error) {
+      console.error("Error processing sequences:", error)
+      toast({
+        title: "Error",
+        description: "Failed to process sequences",
+        variant: "destructive",
+      })
+    } finally {
+      setProcessing(false)
     }
   }
 
@@ -126,13 +156,23 @@ export function SequencesList() {
             Filter
           </Button>
         </div>
-        <Button
-          className="gap-2 bg-accent hover:bg-accent/90"
-          onClick={() => router.push("/sequences/new")}
-        >
-          <Plus className="h-4 w-4" />
-          Create Sequence
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={processSequences}
+            disabled={processing}
+          >
+            <Zap className="mr-2 h-4 w-4" />
+            {processing ? "Processing..." : "Process Sequences"}
+          </Button>
+          <Button
+            className="gap-2 bg-accent hover:bg-accent/90"
+            onClick={() => router.push("/sequences/new")}
+          >
+            <Plus className="h-4 w-4" />
+            Create Sequence
+          </Button>
+        </div>
       </div>
 
       {/* Tabs */}

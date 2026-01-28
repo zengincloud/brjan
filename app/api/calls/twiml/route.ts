@@ -6,32 +6,40 @@ const VoiceResponse = twilio.twiml.VoiceResponse
 // POST /api/calls/twiml - Generate TwiML for call handling
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.text()
-    const params = new URLSearchParams(body)
-
-    // Get the SDR's phone number from query params (we'll pass this when initiating the call)
-    const sdrPhone = params.get('SdrPhone')
+    // Get the URL to check for query params
+    const url = new URL(request.url)
+    const clientName = url.searchParams.get('clientName')
 
     const twiml = new VoiceResponse()
 
-    if (!sdrPhone) {
-      // If no SDR phone, just say something for testing
-      twiml.say({
-        voice: "alice",
-      }, "This is a test call from your sales platform. The SDR phone number was not configured. Goodbye.")
-      twiml.hangup()
-    } else {
-      // Bridge the call to the SDR
+    if (clientName) {
+      // Connect to Twilio Client (browser)
       twiml.say({
         voice: "alice",
       }, "Connecting your call.")
 
-      // Dial the SDR's phone number to bridge the call
+      // Add a ring tone before connecting
+      twiml.play({}, 'http://com.twilio.sounds.music.s3.amazonaws.com/MARKOVICHAMP-Borghestral.mp3')
+
       const dial = twiml.dial({
         timeout: 30,
-        callerId: params.get('To'), // Show prospect's number on SDR's caller ID
+        answerOnBridge: true, // Only charge when prospect answers
       })
-      dial.number(sdrPhone)
+      dial.client(clientName)
+    } else {
+      // Fallback for testing without client
+      twiml.say({
+        voice: "alice",
+      }, "This is a test call from your sales platform. Hello!")
+
+      // Pause for 2 seconds
+      twiml.pause({ length: 2 })
+
+      twiml.say({
+        voice: "alice",
+      }, "This call will now end. Goodbye!")
+
+      twiml.hangup()
     }
 
     return new NextResponse(twiml.toString(), {

@@ -6,19 +6,33 @@ const VoiceResponse = twilio.twiml.VoiceResponse
 // POST /api/calls/twiml - Generate TwiML for call handling
 export async function POST(request: NextRequest) {
   try {
+    const body = await request.text()
+    const params = new URLSearchParams(body)
+
+    // Get the SDR's phone number from query params (we'll pass this when initiating the call)
+    const sdrPhone = params.get('SdrPhone')
+
     const twiml = new VoiceResponse()
 
-    // Connect the call to the user's browser/phone
-    // For now, we'll just dial - in production you'd connect to a SIP client or phone
-    twiml.say({
-      voice: "alice",
-    }, "Connecting your call. Please wait.")
+    if (!sdrPhone) {
+      // If no SDR phone, just say something for testing
+      twiml.say({
+        voice: "alice",
+      }, "This is a test call from your sales platform. The SDR phone number was not configured. Goodbye.")
+      twiml.hangup()
+    } else {
+      // Bridge the call to the SDR
+      twiml.say({
+        voice: "alice",
+      }, "Connecting your call.")
 
-    // Dial instruction (Twilio will bridge the call)
-    twiml.dial().number({
-      // This would be the agent's phone or SIP endpoint
-      // For now, it just connects through
-    }, "")
+      // Dial the SDR's phone number to bridge the call
+      const dial = twiml.dial({
+        timeout: 30,
+        callerId: params.get('To'), // Show prospect's number on SDR's caller ID
+      })
+      dial.number(sdrPhone)
+    }
 
     return new NextResponse(twiml.toString(), {
       headers: {

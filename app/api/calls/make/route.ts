@@ -9,6 +9,7 @@ export const dynamic = 'force-dynamic'
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN
 const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER
+const SDR_PHONE_NUMBER = process.env.SDR_PHONE_NUMBER // Your personal phone to receive calls
 
 if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) {
   console.error("Twilio credentials not configured")
@@ -57,16 +58,23 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
     })
 
     try {
+      // Build TwiML URL with SDR phone number
+      const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"
+      const twimlUrl = new URL(`${baseUrl}/api/calls/twiml`)
+      if (SDR_PHONE_NUMBER) {
+        twimlUrl.searchParams.set('SdrPhone', SDR_PHONE_NUMBER)
+      }
+
       // Make call via Twilio
       const call = await twilioClient.calls.create({
         to: formattedTo,
         from: TWILIO_PHONE_NUMBER,
         // This URL will handle the call flow (TwiML)
-        url: `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/api/calls/twiml`,
-        statusCallback: `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/api/calls/status`,
+        url: twimlUrl.toString(),
+        statusCallback: `${baseUrl}/api/calls/status`,
         statusCallbackEvent: ["initiated", "ringing", "answered", "completed"],
         record: true, // Enable call recording
-        recordingStatusCallback: `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/api/calls/recording`,
+        recordingStatusCallback: `${baseUrl}/api/calls/recording`,
       })
 
       console.log("Twilio call initiated:", call.sid)

@@ -247,14 +247,6 @@ export default function NewSequencePage() {
                 <Linkedin className="mr-2 h-4 w-4" />
                 LinkedIn
               </Button>
-              <Button
-                onClick={() => addStep("wait")}
-                variant="outline"
-                className="w-full justify-start"
-              >
-                <Clock className="mr-2 h-4 w-4" />
-                Wait / Delay
-              </Button>
             </CardContent>
           </Card>
         </div>

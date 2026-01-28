@@ -314,30 +314,65 @@ export default function NewSequencePage() {
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>Delay (Days)</Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        value={step.delayDays}
-                        onChange={(e) =>
-                          updateStep(index, { delayDays: parseInt(e.target.value) || 0 })
-                        }
-                      />
-                    </div>
-                    <div>
-                      <Label>Delay (Hours)</Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        max="23"
-                        value={step.delayHours}
-                        onChange={(e) =>
-                          updateStep(index, { delayHours: parseInt(e.target.value) || 0 })
-                        }
-                      />
-                    </div>
+                  <div className="space-y-2">
+                    <Label>Delay Before This Step</Label>
+                    <Select
+                      value={`${step.delayDays}-${step.delayHours}`}
+                      onValueChange={(value) => {
+                        if (value === "custom") return
+                        const [days, hours] = value.split("-").map(Number)
+                        updateStep(index, { delayDays: days, delayHours: hours })
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="0-0">Immediate (no delay)</SelectItem>
+                        <SelectItem value="0-1">1 hour</SelectItem>
+                        <SelectItem value="0-2">2 hours</SelectItem>
+                        <SelectItem value="0-4">4 hours</SelectItem>
+                        <SelectItem value="0-8">8 hours</SelectItem>
+                        <SelectItem value="1-0">1 day</SelectItem>
+                        <SelectItem value="2-0">2 days</SelectItem>
+                        <SelectItem value="3-0">3 days</SelectItem>
+                        <SelectItem value="5-0">5 days</SelectItem>
+                        <SelectItem value="7-0">1 week</SelectItem>
+                        <SelectItem value="14-0">2 weeks</SelectItem>
+                        <SelectItem value="custom">Custom...</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    {/* Show custom inputs if not a preset value */}
+                    {!["0-0", "0-1", "0-2", "0-4", "0-8", "1-0", "2-0", "3-0", "5-0", "7-0", "14-0"].includes(`${step.delayDays}-${step.delayHours}`) && (
+                      <div className="grid grid-cols-2 gap-2 pt-2">
+                        <div>
+                          <Label className="text-xs">Days</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            value={step.delayDays}
+                            onChange={(e) =>
+                              updateStep(index, { delayDays: parseInt(e.target.value) || 0 })
+                            }
+                            className="h-8"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Hours</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            max="23"
+                            value={step.delayHours}
+                            onChange={(e) =>
+                              updateStep(index, { delayHours: parseInt(e.target.value) || 0 })
+                            }
+                            className="h-8"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {step.type === "email" && (
@@ -389,11 +424,26 @@ export default function NewSequencePage() {
                   )}
 
                   {index < steps.length - 1 && (
-                    <div className="text-sm text-muted-foreground pt-2 border-t">
-                      Wait {step.delayDays} day{step.delayDays !== 1 ? "s" : ""}{" "}
-                      {step.delayHours > 0 &&
-                        `and ${step.delayHours} hour${step.delayHours !== 1 ? "s" : ""}`}{" "}
-                      before next step
+                    <div className="text-sm text-muted-foreground pt-2 border-t flex items-center gap-2">
+                      <Clock className="h-3 w-3" />
+                      {step.delayDays === 0 && step.delayHours === 0 ? (
+                        <span>Next step starts immediately</span>
+                      ) : (
+                        <span>
+                          Next step in{" "}
+                          {step.delayDays > 0 && (
+                            <>
+                              {step.delayDays} day{step.delayDays !== 1 ? "s" : ""}
+                            </>
+                          )}
+                          {step.delayDays > 0 && step.delayHours > 0 && " and "}
+                          {step.delayHours > 0 && (
+                            <>
+                              {step.delayHours} hour{step.delayHours !== 1 ? "s" : ""}
+                            </>
+                          )}
+                        </span>
+                      )}
                     </div>
                   )}
                 </CardContent>

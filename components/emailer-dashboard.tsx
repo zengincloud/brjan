@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { EmailList } from "@/components/email-list"
 import { EmailEditor } from "@/components/email-editor"
 import { EmailFilters } from "@/components/email-filters"
+import { EmailTemplateManager } from "@/components/email-template-manager"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -73,24 +74,33 @@ export function EmailerDashboard() {
           </div>
         </div>
 
-        <EmailFilters activeTab={activeTab} />
+        <TabsContent value="templates" className="m-0">
+          <EmailTemplateManager />
+        </TabsContent>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <div className="md:col-span-1">
-            <TabsContent value="sequence" className="m-0">
+        <TabsContent value="sequence" className="m-0">
+          <EmailFilters activeTab={activeTab} />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
+            <div className="md:col-span-1">
               <EmailList type="sequence" onSelectEmail={setSelectedEmail} selectedEmail={selectedEmail} />
-            </TabsContent>
-            <TabsContent value="priority" className="m-0">
+            </div>
+            <div className="md:col-span-1 lg:col-span-2">
+              <EmailEditor emailId={selectedEmail} />
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="priority" className="m-0">
+          <EmailFilters activeTab={activeTab} />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
+            <div className="md:col-span-1">
               <EmailList type="priority" onSelectEmail={setSelectedEmail} selectedEmail={selectedEmail} />
-            </TabsContent>
-            <TabsContent value="templates" className="m-0">
-              <EmailList type="templates" onSelectEmail={setSelectedEmail} selectedEmail={selectedEmail} />
-            </TabsContent>
+            </div>
+            <div className="md:col-span-1 lg:col-span-2">
+              <EmailEditor emailId={selectedEmail} />
+            </div>
           </div>
-          <div className="md:col-span-1 lg:col-span-2">
-            <EmailEditor emailId={selectedEmail} />
-          </div>
-        </div>
+        </TabsContent>
       </Tabs>
     </div>
   )

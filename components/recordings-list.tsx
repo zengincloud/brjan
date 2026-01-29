@@ -163,8 +163,8 @@ export function RecordingsList() {
                       asChild
                     >
                       <a
-                        href={recording.recordingUrl}
-                        download
+                        href={`/api/calls/${recording.id}/recording`}
+                        download={`recording-${recording.id}.mp3`}
                         target="_blank"
                         rel="noopener noreferrer"
                       >
@@ -186,7 +186,7 @@ export function RecordingsList() {
                       onPlay={() => setPlayingId(recording.id)}
                       onPause={() => setPlayingId(null)}
                     >
-                      <source src={recording.recordingUrl} type="audio/mpeg" />
+                      <source src={`/api/calls/${recording.id}/recording`} type="audio/mpeg" />
                       Your browser does not support audio playback.
                     </audio>
                   </div>

@@ -241,16 +241,13 @@ export function Sidebar({ className }: { className?: string }) {
           variant="ghost"
           className={cn(
             "w-full justify-start transition-colors",
-            pathname === "/call-recordings" && "bg-accent/10 text-accent hover:bg-accent/15"
+            pathname === "/recordings" && "bg-accent/10 text-accent hover:bg-accent/15"
           )}
           asChild
         >
-          <Link href="/call-recordings">
+          <Link href="/recordings">
             <Mic className="h-4 w-4 mr-3" />
             <span className="flex-1 text-left">Call Recordings</span>
-            <Badge variant="outline" className="ml-2 text-[10px] bg-accent/10 text-accent border-accent/20">
-              Beta
-            </Badge>
           </Link>
         </Button>
 

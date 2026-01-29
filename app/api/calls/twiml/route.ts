@@ -32,6 +32,11 @@ export async function POST(request: NextRequest) {
         timeout: 30,
         answerOnBridge: true, // Only charge when prospect answers
         callerId: process.env.TWILIO_PHONE_NUMBER, // Use Twilio number as caller ID
+        record: 'record-from-answer-dual', // Record both sides from when call is answered
+        recordingStatusCallback: `${process.env.NEXT_PUBLIC_SITE_URL}/api/calls/recording-status`,
+        recordingStatusCallbackEvent: ['completed'],
+        transcribe: true,
+        transcribeCallback: `${process.env.NEXT_PUBLIC_SITE_URL}/api/calls/transcription-status`,
       })
 
       dial.number(to)

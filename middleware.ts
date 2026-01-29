@@ -14,7 +14,9 @@ export const config = {
      * - favicon.ico (favicon file)
      * - public folder
      * - api/calls/twiml (Twilio webhook endpoint)
+     * - api/calls/recording-status (Twilio recording webhook)
+     * - api/calls/transcription-status (Twilio transcription webhook)
      */
-    '/((?!_next/static|_next/image|favicon.ico|api/calls/twiml|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api/calls/twiml|api/calls/recording-status|api/calls/transcription-status|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

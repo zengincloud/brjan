@@ -192,10 +192,29 @@ export function CallProspectDialog({
       activeCallRef.current = call
 
       // Call event listeners
-      call.on("accept", () => {
+      call.on("accept", async () => {
         console.log("Call accepted (ringing)")
         setCallStatus("ringing")
         setStartTime(Date.now())
+
+        // Get Twilio Call SID and update the call record
+        const twilioCallSid = call.parameters.CallSid
+        if (twilioCallSid && data.callId) {
+          try {
+            await fetch(`/api/calls/${data.callId}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                twilioSid: twilioCallSid,
+                status: "ringing",
+                startedAt: new Date().toISOString(),
+              }),
+            })
+          } catch (error) {
+            console.error("Failed to update call with Twilio SID:", error)
+          }
+        }
+
         toast({
           title: "Call initiated",
           description: `Calling ${prospect.name}...`,

@@ -10,12 +10,20 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
     const { searchParams } = new URL(request.url)
     const prospectId = searchParams.get("prospectId")
     const limit = searchParams.get("limit")
+    const hasRecording = searchParams.get("hasRecording")
 
     const whereClause: any = { userId }
 
     // Filter by prospectId if provided
     if (prospectId) {
       whereClause.prospectId = prospectId
+    }
+
+    // Filter by calls with recordings
+    if (hasRecording === "true") {
+      whereClause.recordingUrl = {
+        not: null,
+      }
     }
 
     const calls = await prisma.call.findMany({

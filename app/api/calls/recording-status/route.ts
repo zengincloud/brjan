@@ -7,33 +7,44 @@ export const dynamic = 'force-dynamic'
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
+    const url = new URL(request.url)
 
     const callSid = formData.get('CallSid') as string
     const recordingSid = formData.get('RecordingSid') as string
     const recordingUrl = formData.get('RecordingUrl') as string
     const recordingDuration = formData.get('RecordingDuration') as string
+    const callId = url.searchParams.get('callId') // Get callId from query param
 
     console.log('Recording status callback:', {
       callSid,
       recordingSid,
       recordingUrl,
       recordingDuration,
+      callId,
     })
 
-    if (!callSid || !recordingSid || !recordingUrl) {
+    if (!recordingSid || !recordingUrl) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
       )
     }
 
-    // Find call by Twilio SID and update with recording info
-    const call = await prisma.call.findUnique({
-      where: { twilioSid: callSid },
-    })
+    // Find call by callId (if provided) or twilioSid
+    let call = null
+
+    if (callId) {
+      call = await prisma.call.findUnique({
+        where: { id: callId },
+      })
+    } else if (callSid) {
+      call = await prisma.call.findUnique({
+        where: { twilioSid: callSid },
+      })
+    }
 
     if (!call) {
-      console.error('Call not found for SID:', callSid)
+      console.error('Call not found for callId/SID:', callId || callSid)
       return NextResponse.json(
         { error: "Call not found" },
         { status: 404 }
@@ -44,6 +55,7 @@ export async function POST(request: NextRequest) {
     await prisma.call.update({
       where: { id: call.id },
       data: {
+        twilioSid: callSid || call.twilioSid, // Save twilioSid if we have it
         recordingSid,
         recordingUrl: `${recordingUrl}.mp3`, // Add .mp3 extension for audio format
         recordingDuration: parseInt(recordingDuration) || 0,

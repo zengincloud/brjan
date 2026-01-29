@@ -44,7 +44,9 @@ export async function POST(request: NextRequest) {
         answerOnBridge: true, // Only charge when prospect answers
         callerId: process.env.TWILIO_PHONE_NUMBER, // Use Twilio number as caller ID
         record: 'record-from-answer-dual', // Record both sides from when call is answered
-        recordingStatusCallback: `${baseUrl}/api/calls/recording-status`,
+        recordingStatusCallback: callId
+          ? `${baseUrl}/api/calls/recording-status?callId=${callId}`
+          : `${baseUrl}/api/calls/recording-status`,
         recordingStatusCallbackEvent: ['completed'],
       })
 

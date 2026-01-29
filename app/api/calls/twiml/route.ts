@@ -6,14 +6,23 @@ const VoiceResponse = twilio.twiml.VoiceResponse
 // POST /api/calls/twiml - Generate TwiML for call handling
 export async function POST(request: NextRequest) {
   try {
-    // Parse the request body to get parameters from Twilio Device
-    const formData = await request.formData()
-    const to = formData.get('To') as string
-    const callId = formData.get('callId') as string
+    // Twilio sends parameters as URL query params when calling from Device SDK
+    const url = new URL(request.url)
+    let to = url.searchParams.get('To')
+    let callId = url.searchParams.get('callId')
+
+    // Log for debugging
+    console.log('TwiML request received:', {
+      to,
+      callId,
+      allParams: Object.fromEntries(url.searchParams.entries())
+    })
 
     const twiml = new VoiceResponse()
 
     if (to) {
+      console.log('Dialing number:', to)
+
       // Dial the prospect's phone number from the browser
       const dial = twiml.dial({
         timeout: 30,
@@ -23,6 +32,8 @@ export async function POST(request: NextRequest) {
 
       dial.number(to)
     } else {
+      console.log('No phone number provided, using fallback')
+
       // Fallback for testing without phone number
       twiml.say({
         voice: "alice",

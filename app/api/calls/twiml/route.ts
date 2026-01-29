@@ -6,16 +6,20 @@ const VoiceResponse = twilio.twiml.VoiceResponse
 // POST /api/calls/twiml - Generate TwiML for call handling
 export async function POST(request: NextRequest) {
   try {
-    // Twilio sends parameters as URL query params when calling from Device SDK
+    // Twilio sends parameters in the request body as form data
+    const formData = await request.formData()
     const url = new URL(request.url)
-    let to = url.searchParams.get('To')
-    let callId = url.searchParams.get('callId')
+
+    // Try to get from both body and query params
+    let to = formData.get('To') as string || url.searchParams.get('To')
+    let callId = formData.get('callId') as string || url.searchParams.get('callId')
 
     // Log for debugging
     console.log('TwiML request received:', {
       to,
       callId,
-      allParams: Object.fromEntries(url.searchParams.entries())
+      bodyParams: Object.fromEntries(formData.entries()),
+      queryParams: Object.fromEntries(url.searchParams.entries())
     })
 
     const twiml = new VoiceResponse()

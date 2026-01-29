@@ -46,8 +46,6 @@ export async function POST(request: NextRequest) {
         record: 'record-from-answer-dual', // Record both sides from when call is answered
         recordingStatusCallback: `${baseUrl}/api/calls/recording-status`,
         recordingStatusCallbackEvent: ['completed'],
-        transcribe: true,
-        transcribeCallback: `${baseUrl}/api/calls/transcription-status`,
       })
 
       dial.number(to)
@@ -75,6 +73,8 @@ export async function POST(request: NextRequest) {
     })
   } catch (error: any) {
     console.error("Error generating TwiML:", error)
+    console.error("Error stack:", error.stack)
+    console.error("Error message:", error.message)
 
     const twiml = new VoiceResponse()
     twiml.say("An error occurred. Please try again later.")

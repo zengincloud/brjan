@@ -6,33 +6,28 @@ const VoiceResponse = twilio.twiml.VoiceResponse
 // POST /api/calls/twiml - Generate TwiML for call handling
 export async function POST(request: NextRequest) {
   try {
-    // Get the URL to check for query params
-    const url = new URL(request.url)
-    const clientName = url.searchParams.get('clientName')
+    // Parse the request body to get parameters from Twilio Device
+    const formData = await request.formData()
+    const to = formData.get('To') as string
+    const callId = formData.get('callId') as string
 
     const twiml = new VoiceResponse()
 
-    if (clientName) {
-      // Connect to Twilio Client (browser)
-      twiml.say({
-        voice: "alice",
-      }, "Connecting your call.")
-
-      // Add a ring tone before connecting
-      twiml.play({}, 'http://com.twilio.sounds.music.s3.amazonaws.com/MARKOVICHAMP-Borghestral.mp3')
-
+    if (to) {
+      // Dial the prospect's phone number from the browser
       const dial = twiml.dial({
         timeout: 30,
         answerOnBridge: true, // Only charge when prospect answers
+        callerId: process.env.TWILIO_PHONE_NUMBER, // Use Twilio number as caller ID
       })
-      dial.client(clientName)
+
+      dial.number(to)
     } else {
-      // Fallback for testing without client
+      // Fallback for testing without phone number
       twiml.say({
         voice: "alice",
       }, "This is a test call from your sales platform. Hello!")
 
-      // Pause for 2 seconds
       twiml.pause({ length: 2 })
 
       twiml.say({

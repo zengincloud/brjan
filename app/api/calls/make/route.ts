@@ -43,10 +43,10 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
     // Format phone number to E.164 if needed
     const formattedTo = to.startsWith("+") ? to : `+1${to.replace(/\D/g, "")}`
 
-    // Create call record in database
+    // Create call record in database (browser client will make the actual call)
     const callRecord = await prisma.call.create({
       data: {
-        from: TWILIO_PHONE_NUMBER,
+        from: TWILIO_PHONE_NUMBER || "Browser Client",
         to: formattedTo,
         prospectId,
         accountId,
@@ -56,75 +56,26 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       },
     })
 
-    try {
-      // Build TwiML URL - for now without client name (will add Twilio Client SDK later)
-      const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"
-      const twimlUrl = `${baseUrl}/api/calls/twiml`
-
-      // Make call via Twilio
-      const call = await twilioClient.calls.create({
-        to: formattedTo,
-        from: TWILIO_PHONE_NUMBER,
-        // This URL will handle the call flow (TwiML)
-        url: twimlUrl,
-        statusCallback: `${baseUrl}/api/calls/status`,
-        statusCallbackEvent: ["initiated", "ringing", "answered", "completed"],
-        record: true, // Enable call recording
-        recordingStatusCallback: `${baseUrl}/api/calls/recording`,
-      })
-
-      console.log("Twilio call initiated:", call.sid)
-
-      // Update call record with Twilio SID
-      await prisma.call.update({
-        where: { id: callRecord.id },
+    // Update prospect's last activity if applicable
+    if (prospectId) {
+      await prisma.prospect.update({
+        where: {
+          id: prospectId,
+          userId,
+        },
         data: {
-          twilioSid: call.sid,
-          status: "ringing",
-          startedAt: new Date(),
+          lastActivity: new Date(),
+          status: "contacted",
         },
       })
-
-      // Update prospect's last activity if applicable
-      if (prospectId) {
-        await prisma.prospect.update({
-          where: {
-            id: prospectId,
-            userId,
-          },
-          data: {
-            lastActivity: new Date(),
-            status: "contacted",
-          },
-        })
-      }
-
-      return NextResponse.json({
-        success: true,
-        callId: callRecord.id,
-        twilioSid: call.sid,
-        status: call.status,
-      })
-    } catch (twilioError: any) {
-      console.error("Twilio call error:", twilioError)
-
-      // Update call record with failure
-      await prisma.call.update({
-        where: { id: callRecord.id },
-        data: {
-          status: "failed",
-          failureReason: twilioError.message || "Unknown error",
-        },
-      })
-
-      return NextResponse.json(
-        {
-          error: "Failed to initiate call",
-          details: twilioError.message,
-        },
-        { status: 500 }
-      )
     }
+
+    return NextResponse.json({
+      success: true,
+      callId: callRecord.id,
+      twilioSid: null, // Will be updated by status callback from Twilio
+      status: "queued",
+    })
   } catch (error: any) {
     console.error("Error in call endpoint:", error)
     return NextResponse.json(

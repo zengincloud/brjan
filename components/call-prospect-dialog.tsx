@@ -1,13 +1,14 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { Phone, PhoneOff, Voicemail, UserCheck, UserX, Clock } from "lucide-react"
+import { Phone, PhoneOff, Voicemail, UserCheck, UserX, Clock, Mic, MicOff, Volume2 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Device, Call as TwilioCall } from "@twilio/voice-sdk"
 
 type Prospect = {
   id: string
@@ -40,6 +41,73 @@ export function CallProspectDialog({
   const [selectedOutcome, setSelectedOutcome] = useState<CallOutcome | null>(null)
   const [callDuration, setCallDuration] = useState(0)
   const [startTime, setStartTime] = useState<number | null>(null)
+  const [isMuted, setIsMuted] = useState(false)
+  const [deviceReady, setDeviceReady] = useState(false)
+
+  const deviceRef = useRef<Device | null>(null)
+  const activeCallRef = useRef<TwilioCall | null>(null)
+
+  // Initialize Twilio Device on mount
+  useEffect(() => {
+    const initDevice = async () => {
+      try {
+        // Fetch access token from API
+        const response = await fetch("/api/calls/token")
+        if (!response.ok) {
+          throw new Error("Failed to fetch access token")
+        }
+        const data = await response.json()
+
+        // Create and setup Twilio Device
+        const device = new Device(data.token, {
+          logLevel: 1,
+          codecPreferences: ["opus", "pcmu"],
+        })
+
+        // Device event listeners
+        device.on("registered", () => {
+          console.log("Twilio Device registered")
+          setDeviceReady(true)
+        })
+
+        device.on("error", (error) => {
+          console.error("Twilio Device error:", error)
+          toast({
+            title: "Device Error",
+            description: error.message || "Failed to initialize calling device",
+            variant: "destructive",
+          })
+        })
+
+        device.on("incoming", (call) => {
+          console.log("Incoming call:", call)
+          // Handle incoming calls if needed
+        })
+
+        // Register the device
+        await device.register()
+        deviceRef.current = device
+
+      } catch (error: any) {
+        console.error("Failed to initialize device:", error)
+        toast({
+          title: "Initialization Error",
+          description: "Failed to initialize calling device. Please refresh the page.",
+          variant: "destructive",
+        })
+      }
+    }
+
+    initDevice()
+
+    // Cleanup on unmount
+    return () => {
+      if (deviceRef.current) {
+        deviceRef.current.unregister()
+        deviceRef.current.destroy()
+      }
+    }
+  }, [toast])
 
   // Timer for call duration
   useEffect(() => {
@@ -77,9 +145,19 @@ export function CallProspectDialog({
       return
     }
 
+    if (!deviceRef.current || !deviceReady) {
+      toast({
+        title: "Error",
+        description: "Calling device not ready. Please wait a moment and try again.",
+        variant: "destructive",
+      })
+      return
+    }
+
     setCallStatus("calling")
 
     try {
+      // First create a call record in the database
       const response = await fetch("/api/calls/make", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -102,20 +180,65 @@ export function CallProspectDialog({
 
       setCallId(data.callId)
       setTwilioSid(data.twilioSid)
-      setCallStatus("ringing")
-      setStartTime(Date.now())
 
-      // Simulate call being answered after 3 seconds (in production, this would come from Twilio webhooks)
-      setTimeout(() => {
-        if (callStatus !== "idle") {
+      // Connect the call using Twilio Device
+      const call = await deviceRef.current.connect({
+        params: {
+          To: prospect.phone,
+          callId: data.callId,
+        },
+      })
+
+      activeCallRef.current = call
+
+      // Call event listeners
+      call.on("accept", () => {
+        console.log("Call accepted (ringing)")
+        setCallStatus("ringing")
+        setStartTime(Date.now())
+        toast({
+          title: "Call initiated",
+          description: `Calling ${prospect.name}...`,
+        })
+      })
+
+      call.on("disconnect", () => {
+        console.log("Call disconnected")
+        setCallStatus("completed")
+        activeCallRef.current = null
+      })
+
+      call.on("cancel", () => {
+        console.log("Call cancelled")
+        setCallStatus("failed")
+        activeCallRef.current = null
+      })
+
+      call.on("reject", () => {
+        console.log("Call rejected")
+        setCallStatus("failed")
+        activeCallRef.current = null
+      })
+
+      call.on("error", (error) => {
+        console.error("Call error:", error)
+        setCallStatus("failed")
+        activeCallRef.current = null
+        toast({
+          title: "Call Error",
+          description: error.message || "An error occurred during the call",
+          variant: "destructive",
+        })
+      })
+
+      // When prospect answers, update status to in_progress
+      call.on("sample", () => {
+        // This fires when audio starts flowing
+        if (callStatus === "ringing") {
           setCallStatus("in_progress")
         }
-      }, 3000)
-
-      toast({
-        title: "Call initiated",
-        description: `Calling ${prospect.name}...`,
       })
+
     } catch (error: any) {
       console.error("Error making call:", error)
       setCallStatus("failed")
@@ -128,7 +251,17 @@ export function CallProspectDialog({
   }
 
   const endCall = () => {
+    if (activeCallRef.current) {
+      activeCallRef.current.disconnect()
+    }
     setCallStatus("completed")
+  }
+
+  const toggleMute = () => {
+    if (activeCallRef.current) {
+      activeCallRef.current.mute(!isMuted)
+      setIsMuted(!isMuted)
+    }
   }
 
   const saveOutcome = async () => {
@@ -236,17 +369,34 @@ export function CallProspectDialog({
 
           {/* Call Controls */}
           {callStatus === "idle" && (
-            <Button onClick={makeCall} className="w-full" size="lg">
+            <Button onClick={makeCall} className="w-full" size="lg" disabled={!deviceReady}>
               <Phone className="mr-2 h-5 w-5" />
-              Start Call
+              {deviceReady ? "Start Call" : "Initializing..."}
             </Button>
           )}
 
           {(callStatus === "calling" || callStatus === "ringing" || callStatus === "in_progress") && (
-            <Button onClick={endCall} variant="destructive" className="w-full" size="lg">
-              <PhoneOff className="mr-2 h-5 w-5" />
-              End Call
-            </Button>
+            <div className="space-y-2">
+              {callStatus === "in_progress" && (
+                <Button onClick={toggleMute} variant="outline" className="w-full" size="lg">
+                  {isMuted ? (
+                    <>
+                      <MicOff className="mr-2 h-5 w-5" />
+                      Unmute
+                    </>
+                  ) : (
+                    <>
+                      <Mic className="mr-2 h-5 w-5" />
+                      Mute
+                    </>
+                  )}
+                </Button>
+              )}
+              <Button onClick={endCall} variant="destructive" className="w-full" size="lg">
+                <PhoneOff className="mr-2 h-5 w-5" />
+                End Call
+              </Button>
+            </div>
           )}
 
           {/* Call Outcome Selection */}

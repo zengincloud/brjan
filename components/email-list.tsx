@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Search, Clock, AlertTriangle, MousePointerClick, Building2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { Skeleton } from "@/components/ui/skeleton"
 
 // Sample data for sequence emails
 const sequenceEmails = [
@@ -172,6 +173,31 @@ interface EmailListProps {
 export function EmailList({ type, onSelectEmail, selectedEmail }: EmailListProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedEmails, setSelectedEmails] = useState<string[]>([])
+  const [realEmails, setRealEmails] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (type !== "templates") {
+      loadRealEmails()
+    } else {
+      setLoading(false)
+    }
+  }, [type])
+
+  const loadRealEmails = async () => {
+    try {
+      setLoading(true)
+      const response = await fetch(`/api/sequence-emails?type=${type}`)
+      if (!response.ok) throw new Error("Failed to load emails")
+      const data = await response.json()
+      setRealEmails(data.emails || [])
+    } catch (error) {
+      console.error("Error loading emails:", error)
+      setRealEmails([])
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const toggleEmailSelection = (id: string) => {
     setSelectedEmails((prev) => (prev.includes(id) ? prev.filter((emailId) => emailId !== id) : [...prev, id]))
@@ -180,14 +206,18 @@ export function EmailList({ type, onSelectEmail, selectedEmail }: EmailListProps
   const getEmails = () => {
     switch (type) {
       case "sequence":
-        return sequenceEmails.filter(
+        // Combine real emails with dummy data
+        const allSequenceEmails = [...realEmails, ...sequenceEmails]
+        return allSequenceEmails.filter(
           (email) =>
             email.recipient.toLowerCase().includes(searchTerm.toLowerCase()) ||
             email.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
             email.subject.toLowerCase().includes(searchTerm.toLowerCase()),
         )
       case "priority":
-        return priorityEmails.filter(
+        // Combine real emails with dummy data
+        const allPriorityEmails = [...realEmails, ...priorityEmails]
+        return allPriorityEmails.filter(
           (email) =>
             email.recipient.toLowerCase().includes(searchTerm.toLowerCase()) ||
             email.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -222,12 +252,27 @@ export function EmailList({ type, onSelectEmail, selectedEmail }: EmailListProps
         return <Clock className="h-3 w-3 text-pink-500" />
       case "objection_handling":
         return <AlertTriangle className="h-3 w-3 text-orange-500" />
+      case "sequence_email":
+        return <Clock className="h-3 w-3 text-accent" />
       default:
         return <Clock className="h-3 w-3 text-gray-500" />
     }
   }
 
   const emails = getEmails()
+
+  if (loading && type !== "templates") {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-10 w-full" />
+        <div className="space-y-2">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-32 w-full" />
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">
@@ -245,7 +290,11 @@ export function EmailList({ type, onSelectEmail, selectedEmail }: EmailListProps
       <div className="space-y-2 max-h-[600px] overflow-y-auto pr-2">
         {emails.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
-            No {type === "templates" ? "templates" : "emails"} found
+            {type === "templates"
+              ? "No templates found"
+              : realEmails.length === 0
+                ? "No emails in active sequences"
+                : "No emails found matching your search"}
           </div>
         ) : (
           emails.map((email) => (
@@ -290,6 +339,11 @@ export function EmailList({ type, onSelectEmail, selectedEmail }: EmailListProps
                         {(email as any).priority === "high" && (
                           <Badge variant="destructive" className="text-xs">
                             High Priority
+                          </Badge>
+                        )}
+                        {(email as any).status === "overdue" && (
+                          <Badge variant="destructive" className="text-xs">
+                            Overdue
                           </Badge>
                         )}
                       </div>

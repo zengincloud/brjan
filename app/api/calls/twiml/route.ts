@@ -6,20 +6,31 @@ const VoiceResponse = twilio.twiml.VoiceResponse
 // POST /api/calls/twiml - Generate TwiML for call handling
 export async function POST(request: NextRequest) {
   try {
-    // Twilio sends parameters in the request body as form data
-    const formData = await request.formData()
     const url = new URL(request.url)
+    let to: string | null = null
+    let callId: string | null = null
 
-    // Try to get from both body and query params
-    let to = formData.get('To') as string || url.searchParams.get('To')
-    let callId = formData.get('callId') as string || url.searchParams.get('callId')
+    // Try to read formData safely
+    try {
+      const formData = await request.formData()
+      to = formData.get('To') as string
+      callId = formData.get('callId') as string
+    } catch (e) {
+      console.log('Could not read formData, using query params')
+    }
+
+    // Fallback to query params if formData failed
+    if (!to) to = url.searchParams.get('To')
+    if (!callId) callId = url.searchParams.get('callId')
+
+    // Get base URL for callbacks
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://app.boilerroom.ai'
 
     // Log for debugging
     console.log('TwiML request received:', {
       to,
       callId,
-      bodyParams: Object.fromEntries(formData.entries()),
-      queryParams: Object.fromEntries(url.searchParams.entries())
+      baseUrl,
     })
 
     const twiml = new VoiceResponse()
@@ -33,10 +44,10 @@ export async function POST(request: NextRequest) {
         answerOnBridge: true, // Only charge when prospect answers
         callerId: process.env.TWILIO_PHONE_NUMBER, // Use Twilio number as caller ID
         record: 'record-from-answer-dual', // Record both sides from when call is answered
-        recordingStatusCallback: `${process.env.NEXT_PUBLIC_SITE_URL}/api/calls/recording-status`,
+        recordingStatusCallback: `${baseUrl}/api/calls/recording-status`,
         recordingStatusCallbackEvent: ['completed'],
         transcribe: true,
-        transcribeCallback: `${process.env.NEXT_PUBLIC_SITE_URL}/api/calls/transcription-status`,
+        transcribeCallback: `${baseUrl}/api/calls/transcription-status`,
       })
 
       dial.number(to)

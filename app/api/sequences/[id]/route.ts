@@ -78,7 +78,7 @@ export const PATCH = withAuth<{ params: { id: string } }>(async (
   const { params } = context!
   try {
     const body = await request.json()
-    const { name, description, status, isActive } = body
+    const { name, description, status, isActive, steps } = body
 
     const sequence = await prisma.sequence.findUnique({
       where: {
@@ -89,6 +89,54 @@ export const PATCH = withAuth<{ params: { id: string } }>(async (
 
     if (!sequence) {
       return NextResponse.json({ error: "Sequence not found" }, { status: 404 })
+    }
+
+    // If steps are provided, update them
+    if (steps && Array.isArray(steps)) {
+      // Get IDs of steps that should be kept
+      const stepIdsToKeep = steps.filter(s => s.id).map(s => s.id)
+
+      // Delete steps that are not in the new list
+      await prisma.sequenceStep.deleteMany({
+        where: {
+          sequenceId: params.id,
+          id: {
+            notIn: stepIdsToKeep,
+          },
+        },
+      })
+
+      // Upsert steps (update existing, create new)
+      for (let i = 0; i < steps.length; i++) {
+        const step = steps[i]
+        const stepData = {
+          type: step.type,
+          name: step.name,
+          order: i,
+          delayDays: step.delayDays || 0,
+          delayHours: step.delayHours || 0,
+          emailSubject: step.emailSubject,
+          emailBody: step.emailBody,
+          callScript: step.callScript,
+          taskNotes: step.taskNotes,
+        }
+
+        if (step.id) {
+          // Update existing step
+          await prisma.sequenceStep.update({
+            where: { id: step.id },
+            data: stepData,
+          })
+        } else {
+          // Create new step
+          await prisma.sequenceStep.create({
+            data: {
+              ...stepData,
+              sequenceId: params.id,
+            },
+          })
+        }
+      }
     }
 
     const updatedSequence = await prisma.sequence.update({

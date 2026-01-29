@@ -17,12 +17,13 @@ model User {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  tasks      Task[]
-  prospects  Prospect[]
-  accounts   Account[]
-  emails     Email[]
-  calls      Call[]
-  sequences  Sequence[]
+  tasks          Task[]
+  prospects      Prospect[]
+  accounts       Account[]
+  emails         Email[]
+  calls          Call[]
+  sequences      Sequence[]
+  emailTemplates EmailTemplate[]
 
   @@map("users")
 }
@@ -361,4 +362,21 @@ enum AccountSequenceStatus {
   paused
   completed
   failed
+}
+
+model EmailTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  subject     String
+  body        String
+  description String?
+  category    String?  @default("general")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("email_templates")
 }

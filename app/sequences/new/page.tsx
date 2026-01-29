@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -20,6 +20,7 @@ import {
   Save,
   ArrowUp,
   ArrowDown,
+  FileText,
 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 
@@ -38,6 +39,14 @@ type SequenceStep = {
   taskNotes?: string
 }
 
+type EmailTemplate = {
+  id: string
+  name: string
+  subject: string
+  body: string
+  category: string
+}
+
 export default function NewSequencePage() {
   const router = useRouter()
   const { toast } = useToast()
@@ -46,6 +55,36 @@ export default function NewSequencePage() {
   const [description, setDescription] = useState("")
   const [steps, setSteps] = useState<SequenceStep[]>([])
   const [editingStep, setEditingStep] = useState<number | null>(null)
+  const [templates, setTemplates] = useState<EmailTemplate[]>([])
+
+  useEffect(() => {
+    loadTemplates()
+  }, [])
+
+  const loadTemplates = async () => {
+    try {
+      const response = await fetch("/api/email-templates")
+      if (!response.ok) throw new Error("Failed to load templates")
+      const data = await response.json()
+      setTemplates(data.templates || [])
+    } catch (error) {
+      console.error("Error loading templates:", error)
+    }
+  }
+
+  const loadTemplate = (index: number, templateId: string) => {
+    const template = templates.find(t => t.id === templateId)
+    if (template) {
+      updateStep(index, {
+        emailSubject: template.subject,
+        emailBody: template.body,
+      })
+      toast({
+        title: "Template loaded",
+        description: `"${template.name}" applied to this step`,
+      })
+    }
+  }
 
   const addStep = (type: StepType) => {
     const newStep: SequenceStep = {
@@ -309,6 +348,26 @@ export default function NewSequencePage() {
 
                   {step.type === "email" && (
                     <>
+                      {templates.length > 0 && (
+                        <div>
+                          <Label>Load from Template</Label>
+                          <Select onValueChange={(value) => loadTemplate(index, value)}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Choose a template..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {templates.map((template) => (
+                                <SelectItem key={template.id} value={template.id}>
+                                  <div className="flex items-center gap-2">
+                                    <FileText className="h-4 w-4" />
+                                    {template.name}
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
                       <div>
                         <Label>Email Subject</Label>
                         <Input

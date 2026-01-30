@@ -250,13 +250,13 @@ async function generateInsights(
   }
 }
 
-export const GET = withAuth(async (request: NextRequest, userId: string, params?: { id: string }) => {
+export const GET = withAuth(async (request: NextRequest, userId: string, context?: { params: { id: string } }) => {
   try {
-    if (!params?.id) {
+    if (!context?.params?.id) {
       return NextResponse.json({ error: 'Account ID is required' }, { status: 400 })
     }
 
-    const accountId = params.id
+    const accountId = context.params.id
 
     // Fetch account with userId check for security
     const account = await prisma.account.findFirst({

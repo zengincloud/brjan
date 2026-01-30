@@ -94,6 +94,8 @@ model Account {
   sequenceStep String?
   lastActivity DateTime      @default(now())
   contacts     Int           @default(0)
+  insights         Json?     // Store cached company insights
+  insightsFetchedAt DateTime? // Track when insights were last fetched
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   userId           String

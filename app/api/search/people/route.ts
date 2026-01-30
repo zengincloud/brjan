@@ -5,6 +5,11 @@ export const dynamic = 'force-dynamic'
 
 // POST /api/search/people - Search for people using People Data Labs API
 export const POST = withAuth(async (request: NextRequest, userId: string) => {
+  // Helper to sanitize SQL input by escaping single quotes
+  function sanitizeSqlInput(str: string): string {
+    return str.replace(/'/g, "''")
+  }
+
   // Helper to capitalize names properly (title case)
   function toTitleCase(str: string | null | undefined): string {
     if (!str) return ""
@@ -100,33 +105,65 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
 
     // Name filter (dedicated name search)
     if (nameFilter) {
-      conditions.push(`full_name LIKE '%${nameFilter}%'`)
+      conditions.push(`full_name LIKE '%${sanitizeSqlInput(nameFilter)}%'`)
     }
 
     // Free-text search
     if (query) {
-      conditions.push(`(full_name LIKE '%${query}%' OR job_title LIKE '%${query}%')`)
+      conditions.push(`(full_name LIKE '%${sanitizeSqlInput(query)}%' OR job_title LIKE '%${sanitizeSqlInput(query)}%')`)
     }
 
     // Job title
     if (jobTitle) {
-      conditions.push(`job_title LIKE '%${jobTitle}%'`)
+      conditions.push(`job_title LIKE '%${sanitizeSqlInput(jobTitle)}%'`)
     }
 
-    // Job function
+    // Job function - search in job_title_role field
     if (jobFunction) {
-      conditions.push(`job_company_industry LIKE '%${jobFunction}%'`)
+      // Map UI values to PDL job_title_role values
+      const functionMap: { [key: string]: string[] } = {
+        'sales': ['sales'],
+        'marketing': ['marketing'],
+        'it': ['information technology', 'it'],
+        'finance': ['finance', 'accounting'],
+        'hr': ['human resources', 'hr'],
+        'operations': ['operations'],
+        'product': ['product'],
+        'engineering': ['engineering']
+      }
+
+      const roles = functionMap[jobFunction.toLowerCase()] || [jobFunction]
+      const roleConditions = roles.map(role => `job_title_role LIKE '%${role}%'`).join(' OR ')
+      conditions.push(`(${roleConditions})`)
     }
 
-    // Seniority level
+    // Seniority level - map UI values to PDL values
     if (seniorityLevel && seniorityLevel.length > 0) {
-      const levels = seniorityLevel.map((l: string) => `'${l}'`).join(", ")
-      conditions.push(`job_title_levels IN (${levels})`)
+      const levelMap: { [key: string]: string[] } = {
+        'C-Suite': ['cxo', 'owner'],
+        'VP': ['vp'],
+        'Director': ['director'],
+        'Manager': ['manager'],
+        'Individual Contributor': ['senior', 'entry', 'training']
+      }
+
+      const pdlLevels: string[] = []
+      seniorityLevel.forEach((level: string) => {
+        const mapped = levelMap[level]
+        if (mapped) {
+          pdlLevels.push(...mapped)
+        }
+      })
+
+      if (pdlLevels.length > 0) {
+        const levelConditions = pdlLevels.map(level => `job_title_levels LIKE '%${level}%'`).join(' OR ')
+        conditions.push(`(${levelConditions})`)
+      }
     }
 
     // Current company
     if (currentCompany) {
-      conditions.push(`job_company_name LIKE '%${currentCompany}%'`)
+      conditions.push(`job_company_name LIKE '%${sanitizeSqlInput(currentCompany)}%'`)
     }
 
     // Company headcount range
@@ -135,18 +172,31 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       conditions.push(`(job_company_size >= ${min} AND job_company_size <= ${max})`)
     }
 
-    // Geography
+    // Geography - map regions to countries
     if (geography) {
-      conditions.push(`location_country = '${geography}'`)
+      const regionMap: { [key: string]: string[] } = {
+        'north-america': ['united states', 'canada', 'mexico'],
+        'europe': ['united kingdom', 'germany', 'france', 'spain', 'italy', 'netherlands', 'switzerland', 'sweden', 'norway', 'denmark', 'poland', 'belgium', 'austria', 'ireland', 'portugal'],
+        'asia-pacific': ['china', 'japan', 'india', 'australia', 'singapore', 'south korea', 'indonesia', 'thailand', 'malaysia', 'philippines', 'vietnam', 'new zealand'],
+        'latin-america': ['brazil', 'argentina', 'chile', 'colombia', 'peru', 'venezuela', 'uruguay'],
+        'middle-east': ['united arab emirates', 'saudi arabia', 'israel', 'egypt', 'qatar', 'kuwait', 'south africa', 'nigeria', 'kenya']
+      }
+
+      const countries = regionMap[geography.toLowerCase()]
+      if (countries) {
+        const countryConditions = countries.map(country => `location_country LIKE '%${country}%'`).join(' OR ')
+        conditions.push(`(${countryConditions})`)
+      }
     }
     if (city) {
-      conditions.push(`location_locality LIKE '%${city}%'`)
+      const sanitizedCity = sanitizeSqlInput(city)
+      conditions.push(`(location_locality LIKE '%${sanitizedCity}%' OR location_region LIKE '%${sanitizedCity}%' OR location_country LIKE '%${sanitizedCity}%')`)
     }
 
-    // Industry
+    // Industry - use LIKE for partial matches
     if (industry && industry.length > 0) {
-      const industries = industry.map((i: string) => `'${i}'`).join(", ")
-      conditions.push(`job_company_industry IN (${industries})`)
+      const industryConditions = industry.map((i: string) => `job_company_industry LIKE '%${i}%'`).join(' OR ')
+      conditions.push(`(${industryConditions})`)
     }
 
     // Build SQL query

@@ -23,6 +23,7 @@ import {
   FileText,
 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
+import { RichTextEditor } from "@/components/rich-text-editor"
 
 type StepType = "email" | "call" | "linkedin" | "task" | "wait"
 
@@ -380,11 +381,10 @@ export default function NewSequencePage() {
                       </div>
                       <div>
                         <Label>Email Body</Label>
-                        <Textarea
-                          value={step.emailBody || ""}
-                          onChange={(e) => updateStep(index, { emailBody: e.target.value })}
-                          placeholder="Email template..."
-                          rows={6}
+                        <RichTextEditor
+                          content={step.emailBody || ""}
+                          onChange={(content) => updateStep(index, { emailBody: content })}
+                          placeholder="Write your email..."
                         />
                       </div>
                     </>

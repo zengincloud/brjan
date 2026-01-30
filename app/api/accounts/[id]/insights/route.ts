@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { withAuth } from '@/lib/auth/api-middleware'
-import { prisma } from '@/lib/db'
+import { prisma } from '@/lib/prisma'
 
 interface CompanyInsights {
   growth: string | null

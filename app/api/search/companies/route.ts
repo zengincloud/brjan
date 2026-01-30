@@ -5,6 +5,11 @@ export const dynamic = 'force-dynamic'
 
 // POST /api/search/companies - Search for companies using People Data Labs API
 export const POST = withAuth(async (request: NextRequest, userId: string) => {
+  // Helper to sanitize SQL input by escaping single quotes
+  function sanitizeSqlInput(str: string): string {
+    return str.replace(/'/g, "''")
+  }
+
   // Helper to capitalize names properly (title case)
   function toTitleCase(str: string | null | undefined): string {
     if (!str) return ""
@@ -99,13 +104,14 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
     // Free-text search
     // PDL uses Elasticsearch SQL where text fields are case-insensitive by default
     if (query) {
-      conditions.push(`(name LIKE '%${query}%' OR website LIKE '%${query}%')`)
+      const sanitizedQuery = sanitizeSqlInput(query)
+      conditions.push(`(name LIKE '%${sanitizedQuery}%' OR website LIKE '%${sanitizedQuery}%')`)
     }
 
-    // Industry
+    // Industry - use LIKE for partial matches
     if (industry && industry.length > 0) {
-      const industries = industry.map((i: string) => `'${i}'`).join(", ")
-      conditions.push(`industry IN (${industries})`)
+      const industryConditions = industry.map((i: string) => `industry LIKE '%${sanitizeSqlInput(i)}%'`).join(' OR ')
+      conditions.push(`(${industryConditions})`)
     }
 
     // Note: PDL doesn't support revenue filtering in SQL queries
@@ -117,34 +123,36 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       conditions.push(`(size >= ${min} AND size <= ${max})`)
     }
 
-    // Location (PDL uses dot notation for nested fields)
+    // Location - map regions to countries
     if (location) {
-      // Map regions to countries
-      const regionToCountries: Record<string, string[]> = {
-        "north-america": ["United States", "Canada", "Mexico"],
-        "europe": ["United Kingdom", "Germany", "France", "Spain", "Italy", "Netherlands", "Sweden", "Poland"],
-        "asia-pacific": ["China", "Japan", "India", "Australia", "Singapore", "South Korea", "Indonesia"],
-        "latin-america": ["Brazil", "Argentina", "Chile", "Colombia", "Peru"],
-        "middle-east": ["United Arab Emirates", "Saudi Arabia", "Israel", "Egypt", "South Africa"],
+      const regionMap: { [key: string]: string[] } = {
+        'north-america': ['united states', 'canada', 'mexico'],
+        'europe': ['united kingdom', 'germany', 'france', 'spain', 'italy', 'netherlands', 'switzerland', 'sweden', 'norway', 'denmark', 'poland', 'belgium', 'austria', 'ireland', 'portugal'],
+        'asia-pacific': ['china', 'japan', 'india', 'australia', 'singapore', 'south korea', 'indonesia', 'thailand', 'malaysia', 'philippines', 'vietnam', 'new zealand'],
+        'latin-america': ['brazil', 'argentina', 'chile', 'colombia', 'peru', 'venezuela', 'uruguay'],
+        'middle-east': ['united arab emirates', 'saudi arabia', 'israel', 'egypt', 'qatar', 'kuwait', 'south africa', 'nigeria', 'kenya']
       }
 
-      const countries = regionToCountries[location]
+      const countries = regionMap[location.toLowerCase()]
       if (countries) {
-        const countryList = countries.map((c) => `'${c}'`).join(", ")
-        conditions.push(`location.country IN (${countryList})`)
+        const countryConditions = countries.map(country => `location_country LIKE '%${country}%'`).join(' OR ')
+        conditions.push(`(${countryConditions})`)
       } else {
-        // If it's not a region, treat it as a specific country
-        conditions.push(`location.country = '${location}'`)
+        // If it's not a region, treat it as a specific location
+        const sanitizedLocation = sanitizeSqlInput(location)
+        conditions.push(`(location_country LIKE '%${sanitizedLocation}%' OR location_region LIKE '%${sanitizedLocation}%')`)
       }
     }
     if (city) {
-      conditions.push(`location.locality LIKE '%${city}%'`)
+      const sanitizedCity = sanitizeSqlInput(city)
+      conditions.push(`(location_locality LIKE '%${sanitizedCity}%' OR location_region LIKE '%${sanitizedCity}%')`)
     }
 
-    // Technologies
+    // Technologies - PDL supports querying array fields directly
     if (technologies && technologies.length > 0) {
-      const techs = technologies.map((t: string) => `'${t}'`).join(", ")
-      conditions.push(`tags IN (${techs})`)
+      // Use IN operator for array field matching
+      const sanitizedTechs = technologies.map((t: string) => `'${sanitizeSqlInput(t.toLowerCase())}'`).join(', ')
+      conditions.push(`tags IN (${sanitizedTechs})`)
     }
 
     // Department headcount

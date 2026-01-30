@@ -7,8 +7,11 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from 'sonner'
+
+const MIN_PASSWORD_LENGTH = 8
 
 export default function SignupPage() {
   const router = useRouter()
@@ -18,6 +21,7 @@ export default function SignupPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
+  const [agreeToTerms, setAgreeToTerms] = useState(false)
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
 
@@ -37,13 +41,18 @@ export default function SignupPage() {
       return
     }
 
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      toast.error(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`)
+      return
+    }
+
     if (password !== confirmPassword) {
       toast.error('Passwords do not match')
       return
     }
 
-    if (password.length < 6) {
-      toast.error('Password must be at least 6 characters')
+    if (!agreeToTerms) {
+      toast.error('Please agree to the Terms of Service and Privacy Policy')
       return
     }
 
@@ -190,6 +199,9 @@ export default function SignupPage() {
                 required
                 disabled={loading}
               />
+              <p className="text-xs text-muted-foreground">
+                Must be at least {MIN_PASSWORD_LENGTH} characters
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirm password</Label>
@@ -202,6 +214,27 @@ export default function SignupPage() {
                 required
                 disabled={loading}
               />
+            </div>
+            <div className="flex items-start space-x-2">
+              <Checkbox
+                id="terms"
+                checked={agreeToTerms}
+                onCheckedChange={(checked) => setAgreeToTerms(checked as boolean)}
+                disabled={loading}
+              />
+              <label
+                htmlFor="terms"
+                className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              >
+                I agree to the{' '}
+                <span className="text-primary hover:underline cursor-pointer">
+                  Terms of Service
+                </span>{' '}
+                and{' '}
+                <span className="text-primary hover:underline cursor-pointer">
+                  Privacy Policy
+                </span>
+              </label>
             </div>
             <Button
               type="submit"

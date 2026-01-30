@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Sidebar } from "@/components/sidebar"
 import { Menu, Mail, Phone, Search, Bell, Zap } from "lucide-react"
@@ -30,12 +30,17 @@ interface User {
 }
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const { toast } = useToast()
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [user, setUser] = useState<User | null>(null)
   const router = useRouter()
   const supabase = createClient()
+
+  // Auth pages that should not have the dashboard shell
+  const authPages = ['/login', '/signup', '/reset-password', '/auth/callback']
+  const isAuthPage = authPages.some(page => pathname?.startsWith(page))
 
   const handleCall = () => {
     toast({
@@ -122,6 +127,11 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       return user.firstName
     }
     return user.email
+  }
+
+  // If on auth page, just render children without shell
+  if (isAuthPage) {
+    return <>{children}</>
   }
 
   return (

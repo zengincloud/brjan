@@ -101,11 +101,18 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
     // Build SQL WHERE conditions
     const conditions: string[] = []
 
-    // Free-text search
+    // Free-text search with prioritized matching
     // PDL uses Elasticsearch SQL where text fields are case-insensitive by default
     if (query) {
       const sanitizedQuery = sanitizeSqlInput(query)
-      conditions.push(`(name LIKE '%${sanitizedQuery}%' OR website LIKE '%${sanitizedQuery}%')`)
+      // Prioritize exact matches, then prefix matches, then contains matches
+      // Use OR to match any of: exact name, starts with, contains, or domain match
+      conditions.push(`(
+        name = '${sanitizedQuery}' OR
+        name LIKE '${sanitizedQuery}%' OR
+        name LIKE '%${sanitizedQuery}%' OR
+        website LIKE '%${sanitizedQuery.toLowerCase().replace(/\s+/g, '')}%'
+      )`)
     }
 
     // Industry - use LIKE for partial matches
@@ -232,7 +239,33 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       founded: company.founded,
       technologies: company.tags || [],
       buyingSignals: calculateBuyingSignals(company),
+      _originalName: company.name, // Keep for sorting
     })) || []
+
+    // Sort results by relevance if there's a query
+    if (query) {
+      const lowerQuery = query.toLowerCase()
+      transformedResults.sort((a: any, b: any) => {
+        const aName = a._originalName.toLowerCase()
+        const bName = b._originalName.toLowerCase()
+
+        // Exact match comes first
+        if (aName === lowerQuery && bName !== lowerQuery) return -1
+        if (bName === lowerQuery && aName !== lowerQuery) return 1
+
+        // Then prefix match
+        const aStartsWith = aName.startsWith(lowerQuery)
+        const bStartsWith = bName.startsWith(lowerQuery)
+        if (aStartsWith && !bStartsWith) return -1
+        if (bStartsWith && !aStartsWith) return 1
+
+        // Then by size (larger companies first for ambiguous matches)
+        return (b.employees || 0) - (a.employees || 0)
+      })
+
+      // Remove the temporary sorting field
+      transformedResults.forEach((result: any) => delete result._originalName)
+    }
 
     return NextResponse.json({
       results: transformedResults,

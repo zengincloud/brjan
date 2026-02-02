@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Check, X, Loader2, ExternalLink } from "lucide-react"
+import { Check, X, Loader2, ExternalLink, AlertCircle } from "lucide-react"
 import { toast } from "sonner"
 
 // Google icon component
@@ -76,9 +76,7 @@ export function GmailIntegration() {
     const params = new URLSearchParams(window.location.search)
     if (params.get("gmail_success") === "true") {
       toast.success("Gmail connected successfully!")
-      // Clean URL
       window.history.replaceState({}, "", "/settings?tab=integrations")
-      // Refresh status
       fetchStatus()
     }
     if (params.get("gmail_error")) {
@@ -103,10 +101,8 @@ export function GmailIntegration() {
       const data = await response.json()
 
       if (data.authUrl) {
-        // Open Google OAuth in a new tab
-        const authWindow = window.open(data.authUrl, "_blank", "noopener,noreferrer")
+        window.open(data.authUrl, "_blank", "noopener,noreferrer")
 
-        // Poll for connection status while window is open
         const pollInterval = setInterval(async () => {
           const newStatus = await fetchStatus()
           if (newStatus?.connected) {
@@ -116,13 +112,11 @@ export function GmailIntegration() {
           }
         }, 2000)
 
-        // Stop polling after 5 minutes
         setTimeout(() => {
           clearInterval(pollInterval)
           setIsConnecting(false)
         }, 5 * 60 * 1000)
 
-        // Also listen for window focus to check status
         const handleFocus = async () => {
           const newStatus = await fetchStatus()
           if (newStatus?.connected) {
@@ -178,45 +172,56 @@ export function GmailIntegration() {
     )
   }
 
+  const isConnected = status?.connected && status.integration?.isActive && status.integration?.tokenValid
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Email Integration</CardTitle>
-        <CardDescription>
-          Connect your Gmail to send emails from your own inbox
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>Email Integration</CardTitle>
+            <CardDescription>
+              Connect your Gmail to send emails from your own inbox
+            </CardDescription>
+          </div>
+          {/* Status indicator */}
+          {isConnected ? (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-green-500/10 border border-green-500/30 rounded-full">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+              <span className="text-sm font-medium text-green-600">Connected</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-yellow-500/10 border border-yellow-500/30 rounded-full">
+              <AlertCircle className="w-4 h-4 text-yellow-600" />
+              <span className="text-sm font-medium text-yellow-600">Not Connected</span>
+            </div>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {status?.connected && status.integration ? (
-          <div className="flex items-center justify-between p-4 border border-primary/30 bg-primary/5 rounded-lg">
+          <div className="flex items-center justify-between p-4 border-2 border-green-500/30 bg-green-500/5 rounded-lg">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-white border flex items-center justify-center">
-                <GoogleIcon className="h-5 w-5" />
+              <div className="w-12 h-12 rounded-full bg-white border-2 border-green-500/30 flex items-center justify-center">
+                <GoogleIcon className="h-6 w-6" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <p className="font-medium">{status.integration.email}</p>
+                  <p className="font-semibold text-lg">{status.integration.email}</p>
                   {status.integration.isActive && status.integration.tokenValid ? (
-                    <Badge
-                      variant="outline"
-                      className="text-green-600 border-green-600"
-                    >
+                    <Badge className="bg-green-500 hover:bg-green-600">
                       <Check className="h-3 w-3 mr-1" />
-                      Connected
+                      Active
                     </Badge>
                   ) : (
-                    <Badge
-                      variant="outline"
-                      className="text-yellow-600 border-yellow-600"
-                    >
+                    <Badge variant="destructive">
                       <X className="h-3 w-3 mr-1" />
                       Reconnect Required
                     </Badge>
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Connected on{" "}
-                  {new Date(status.integration.connectedAt).toLocaleDateString()}
+                <p className="text-sm text-muted-foreground">
+                  Emails will be sent from this address
                 </p>
               </div>
             </div>
@@ -232,21 +237,22 @@ export function GmailIntegration() {
             </Button>
           </div>
         ) : (
-          <div className="flex items-center justify-between p-4 border border-border rounded-lg hover:border-primary/50 transition-colors">
+          <div className="flex items-center justify-between p-4 border-2 border-dashed border-yellow-500/50 bg-yellow-500/5 rounded-lg">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-white border flex items-center justify-center">
-                <GoogleIcon className="h-5 w-5" />
+              <div className="w-12 h-12 rounded-full bg-white border flex items-center justify-center">
+                <GoogleIcon className="h-6 w-6" />
               </div>
               <div>
-                <p className="font-medium">Google Gmail</p>
-                <p className="text-xs text-muted-foreground">
-                  Send emails from your Gmail account
+                <p className="font-semibold text-lg">Google Gmail</p>
+                <p className="text-sm text-yellow-600">
+                  No inbox connected - emails will use shared sender
                 </p>
               </div>
             </div>
             <Button
               onClick={handleConnect}
               disabled={isConnecting}
+              size="lg"
               className="gap-2"
             >
               {isConnecting ? (
@@ -254,7 +260,7 @@ export function GmailIntegration() {
               ) : (
                 <ExternalLink className="h-4 w-4" />
               )}
-              {isConnecting ? "Connecting..." : "Connect"}
+              {isConnecting ? "Connecting..." : "Connect Gmail"}
             </Button>
           </div>
         )}

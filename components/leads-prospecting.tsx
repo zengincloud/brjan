@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -85,6 +85,31 @@ export function LeadsProspecting() {
   const [error, setError] = useState<string | null>(null)
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set())
 
+  // Load saved search state on mount
+  useEffect(() => {
+    const savedState = sessionStorage.getItem('leadsProspectingState')
+    if (savedState) {
+      try {
+        const state = JSON.parse(savedState)
+        setQuery(state.query || "")
+        setNameFilter(state.nameFilter || "")
+        setCurrentCompany(state.currentCompany || "")
+        setJobFunction(state.jobFunction || "")
+        setJobTitle(state.jobTitle || "")
+        setGeography(state.geography || "")
+        setCity(state.city || "")
+        setBuyerIntent(state.buyerIntent || "all")
+        setSeniorityLevels(state.seniorityLevels || [])
+        setIndustries(state.industries || [])
+        setHeadcountRange(state.headcountRange || [10, 5000])
+        setSearchResults(state.searchResults || [])
+        setTotalResults(state.totalResults || 0)
+      } catch (e) {
+        console.error('Error loading saved state:', e)
+      }
+    }
+  }, [])
+
   const handleSearch = async () => {
     setIsLoading(true)
     setError(null)
@@ -116,6 +141,24 @@ export function LeadsProspecting() {
       const data = await response.json()
       setSearchResults(data.results)
       setTotalResults(data.total)
+
+      // Save search state to sessionStorage
+      const stateToSave = {
+        query,
+        nameFilter,
+        currentCompany,
+        jobFunction,
+        jobTitle,
+        geography,
+        city,
+        buyerIntent,
+        seniorityLevels,
+        industries,
+        headcountRange,
+        searchResults: data.results,
+        totalResults: data.total,
+      }
+      sessionStorage.setItem('leadsProspectingState', JSON.stringify(stateToSave))
     } catch (err: any) {
       setError(err.message)
       console.error("Search error:", err)
@@ -139,6 +182,9 @@ export function LeadsProspecting() {
     setSearchResults([])
     setTotalResults(0)
     setError(null)
+
+    // Clear saved state
+    sessionStorage.removeItem('leadsProspectingState')
   }
 
   const toggleExpanded = (leadId: string) => {

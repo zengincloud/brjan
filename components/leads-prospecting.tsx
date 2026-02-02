@@ -247,10 +247,40 @@ export function LeadsProspecting() {
     const sequence = sequences.find(s => s.id === sequenceId)
     if (!sequence) return
 
-    toast({
-      title: "Adding to sequence...",
-      description: `Adding ${lead.name} to ${sequence.name}`,
-    })
+    try {
+      // First add the prospect to prospects list
+      await handleAddToProspects(lead)
+
+      // Then add their company to accounts
+      try {
+        await fetch("/api/accounts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: lead.company,
+            industry: lead.industry,
+            website: `https://${lead.company.toLowerCase().replace(/\s+/g, '')}.com`,
+            size: lead.companySize,
+            source: "PDL Search",
+          }),
+        })
+      } catch (err) {
+        // Account might already exist, that's ok
+        console.log("Account may already exist:", err)
+      }
+
+      toast({
+        title: "Added to sequence!",
+        description: `${lead.name} has been added to ${sequence.name}, your prospects list, and their company to accounts.`,
+      })
+    } catch (err: any) {
+      console.error("Error adding to sequence:", err)
+      toast({
+        title: "Error",
+        description: "Failed to add prospect to sequence. Please try again.",
+        variant: "destructive",
+      })
+    }
   }
 
   const toggleProspectSelection = (prospectId: string) => {
@@ -269,19 +299,54 @@ export function LeadsProspecting() {
     }
   }
 
-  const handleBulkAddToSequence = (sequenceId: string) => {
+  const handleBulkAddToSequence = async (sequenceId: string) => {
     const sequence = sequences.find(s => s.id === sequenceId)
     if (!sequence) return
 
     const selectedLeads = searchResults.filter(lead => selectedProspects.includes(lead.id))
 
-    toast({
-      title: "Adding to sequence...",
-      description: `Adding ${selectedLeads.length} prospect${selectedLeads.length !== 1 ? 's' : ''} to ${sequence.name}`,
-    })
+    try {
+      // Add all selected prospects to prospects list and their companies to accounts
+      await Promise.all(
+        selectedLeads.map(async (lead) => {
+          // Add prospect
+          await handleAddToProspects(lead)
 
-    // Clear selections after action
-    setSelectedProspects([])
+          // Add their company to accounts
+          try {
+            await fetch("/api/accounts", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                name: lead.company,
+                industry: lead.industry,
+                website: `https://${lead.company.toLowerCase().replace(/\s+/g, '')}.com`,
+                size: lead.companySize,
+                source: "PDL Search",
+              }),
+            })
+          } catch (err) {
+            // Account might already exist, that's ok
+            console.log("Account may already exist:", err)
+          }
+        })
+      )
+
+      toast({
+        title: "Added to sequence!",
+        description: `${selectedLeads.length} prospect${selectedLeads.length !== 1 ? 's' : ''} added to ${sequence.name}, your prospects list, and their companies to accounts.`,
+      })
+
+      // Clear selections after action
+      setSelectedProspects([])
+    } catch (err: any) {
+      console.error("Error bulk adding to sequence:", err)
+      toast({
+        title: "Error",
+        description: "Failed to add some prospects. Please try again.",
+        variant: "destructive",
+      })
+    }
   }
 
   const handleOpenAllLinkedIns = () => {
@@ -859,14 +924,10 @@ export function LeadsProspecting() {
                                   </h4>
                                   <div className="text-sm text-muted-foreground bg-muted/30 p-4 rounded-lg">
                                     <p className="mb-2">
-                                      <strong className="text-foreground">{toTitleCase(lead.name)}</strong> is currently working as a {toTitleCase(lead.title)} at {toTitleCase(lead.company)},
+                                      <strong className="text-foreground">Opportunity:</strong> {toTitleCase(lead.name)} is a {toTitleCase(lead.title)} at {toTitleCase(lead.company)},
                                       a {lead.companySize} company in the {lead.industry} industry. Based on their seniority level ({lead.seniorityLevel}),
-                                      they likely have decision-making authority in their department.
-                                    </p>
-                                    <p className="mb-2">
-                                      As a {toTitleCase(lead.title)}, their job entails overseeing team performance, driving strategic initiatives, and managing
-                                      key stakeholder relationships. Things that are important to them include operational efficiency, team productivity,
-                                      scalable processes, and measurable ROI on new investments.
+                                      they likely have decision-making authority. As a {toTitleCase(lead.title)}, their job entails overseeing team performance, driving strategic initiatives, and managing
+                                      key stakeholder relationships. With {getBuyerIntentText(lead.buyerIntent)}, they may be actively evaluating solutions.
                                     </p>
                                     <p className="mb-2">
                                       <strong className="text-foreground">Industry Context:</strong> In the {lead.industry} space, companies like {toTitleCase(lead.company)} are
@@ -874,10 +935,14 @@ export function LeadsProspecting() {
                                       and pressure to modernize legacy systems, this is something they're likely worried about. Market consolidation and
                                       the need for scalable, AI-driven solutions are hot topics right now.
                                     </p>
+                                    <p className="mb-2">
+                                      <strong className="text-foreground">How to Help:</strong> Your platform can help {toTitleCase(lead.name)} address operational efficiency, team productivity,
+                                      and scalable processes while delivering measurable ROI on new investments. Their background suggests they value data-driven solutions.
+                                    </p>
                                     <p>
-                                      With {getBuyerIntentText(lead.buyerIntent)}, this prospect may be actively looking for solutions
-                                      in your space. Their background at TechCorp suggests they value scalable, data-driven solutions.
-                                      Consider leading with ROI metrics and case studies from similar companies.
+                                      <strong className="text-foreground">Angle:</strong> Lead with ROI metrics and case studies from similar companies in the {lead.industry} space.
+                                      Emphasize quick time-to-value and ease of implementation. Focus on how your solution addresses their key priorities: efficiency gains,
+                                      cost reduction, and competitive advantage.
                                     </p>
                                   </div>
                                 </div>

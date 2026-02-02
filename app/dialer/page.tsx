@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -31,7 +32,10 @@ import {
   History,
   ChevronDown,
   ChevronUp,
-  Settings
+  Settings,
+  Edit2,
+  Check,
+  X
 } from "lucide-react"
 import { CallHistory } from "@/components/call-history"
 
@@ -88,6 +92,8 @@ export default function DialerPage() {
   })
   const [expandedSlots, setExpandedSlots] = useState<Set<string>>(new Set())
   const [queueSize, setQueueSize] = useState(0)
+  const [editingPhoneId, setEditingPhoneId] = useState<string | null>(null)
+  const [editedPhone, setEditedPhone] = useState<string>("")
 
   // Available sequences
   const sequences = [
@@ -350,6 +356,70 @@ export default function DialerPage() {
     })
   }
 
+  const dialOneOff = async (prospect: typeof mockProspects[0]) => {
+    // Find first available idle slot
+    const slotIndex = callSlots.findIndex(s => s.status === "idle")
+    if (slotIndex === -1) {
+      toast({
+        title: "All slots busy",
+        description: "Complete an active call before dialing another prospect",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const updatedSlots = [...callSlots]
+    updatedSlots[slotIndex].contact = prospect
+    updatedSlots[slotIndex].status = "ringing"
+    updatedSlots[slotIndex].startTime = Date.now()
+
+    const callData = await makeCall(slotIndex, prospect)
+    if (callData) {
+      updatedSlots[slotIndex].callId = callData.callId
+      updatedSlots[slotIndex].twilioSid = callData.twilioSid
+    }
+
+    setCallSlots(updatedSlots)
+    setQueueSize(prev => Math.max(0, prev - 1))
+
+    toast({
+      title: "Calling...",
+      description: `Dialing ${prospect.name}`,
+    })
+  }
+
+  const startEditingPhone = (slotId: string, currentPhone: string) => {
+    setEditingPhoneId(slotId)
+    setEditedPhone(currentPhone)
+  }
+
+  const saveEditedPhone = (slotId: string) => {
+    setCallSlots(prev => prev.map(slot => {
+      if (slot.id === slotId && slot.contact) {
+        return {
+          ...slot,
+          contact: {
+            ...slot.contact,
+            phone: editedPhone
+          }
+        }
+      }
+      return slot
+    }))
+    setEditingPhoneId(null)
+    setEditedPhone("")
+
+    toast({
+      title: "Phone number updated",
+      description: "Call will use the new number",
+    })
+  }
+
+  const cancelEditingPhone = () => {
+    setEditingPhoneId(null)
+    setEditedPhone("")
+  }
+
   const CallTimer = ({ startTime }: { startTime: number | null }) => {
     const [elapsed, setElapsed] = useState(0)
 
@@ -509,7 +579,15 @@ export default function DialerPage() {
                       <div className="mt-2 space-y-1.5">
                         <div className="flex items-center gap-1.5 text-xs">
                           <Phone className="h-3 w-3 text-muted-foreground" />
-                          <span className="font-mono">{prospect.phone}</span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              dialOneOff(prospect)
+                            }}
+                            className="font-mono text-primary hover:underline cursor-pointer"
+                          >
+                            {prospect.phone}
+                          </button>
                         </div>
                         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                           <Mail className="h-3 w-3" />
@@ -697,7 +775,40 @@ export default function DialerPage() {
                         <div className="mt-2 space-y-1.5">
                           <div className="flex items-center gap-1.5 text-xs">
                             <Phone className="h-3 w-3 text-muted-foreground" />
-                            <span className="font-mono">{slot.contact.phone}</span>
+                            {editingPhoneId === slot.id ? (
+                              <div className="flex items-center gap-1">
+                                <Input
+                                  type="tel"
+                                  value={editedPhone}
+                                  onChange={(e) => setEditedPhone(e.target.value)}
+                                  className="font-mono text-xs h-6 px-2 w-32"
+                                  autoFocus
+                                />
+                                <button
+                                  onClick={() => saveEditedPhone(slot.id)}
+                                  className="p-0.5 hover:bg-primary/10 rounded"
+                                >
+                                  <Check className="h-3 w-3 text-primary" />
+                                </button>
+                                <button
+                                  onClick={cancelEditingPhone}
+                                  className="p-0.5 hover:bg-destructive/10 rounded"
+                                >
+                                  <X className="h-3 w-3 text-destructive" />
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                <span className="font-mono">{slot.contact.phone}</span>
+                                <button
+                                  onClick={() => slot.contact && startEditingPhone(slot.id, slot.contact.phone)}
+                                  className="p-0.5 hover:bg-muted rounded"
+                                  title="Edit phone number"
+                                >
+                                  <Edit2 className="h-3 w-3 text-muted-foreground" />
+                                </button>
+                              </>
+                            )}
                           </div>
                           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                             <Mail className="h-3 w-3" />

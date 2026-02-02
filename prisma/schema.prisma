@@ -8,14 +8,17 @@ datasource db {
 }
 
 model User {
-  id         String   @id @default(cuid())
-  supabaseId String   @unique
-  email      String   @unique
-  firstName  String?
-  lastName   String?
-  avatarUrl  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id             String        @id @default(cuid())
+  supabaseId     String        @unique
+  email          String        @unique
+  firstName      String?
+  lastName       String?
+  avatarUrl      String?
+  role           UserRole      @default(member)
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   tasks            Task[]
   prospects        Prospect[]
@@ -26,7 +29,31 @@ model User {
   emailTemplates   EmailTemplate[]
   gmailIntegration GmailIntegration?
 
+  @@index([organizationId])
   @@map("users")
+}
+
+enum UserRole {
+  owner
+  manager
+  member
+}
+
+model Organization {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?  @db.Text // What the company does
+  targetAudience  String?  @db.Text // Who they sell to / ICP
+  painPoints      String?  @db.Text // Common prospect pain points
+  valueProposition String? @db.Text // Key value prop
+  industry        String?
+  website         String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  users User[]
+
+  @@map("organizations")
 }
 
 model GmailIntegration {

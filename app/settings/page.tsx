@@ -24,10 +24,12 @@ import {
   Zap,
   CreditCard,
   Settings as SettingsIcon,
+  Building2,
 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
 import { GmailIntegration } from "@/components/settings/gmail-integration"
+import { OrganizationSettings } from "@/components/settings/organization-settings"
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState("profile")
@@ -91,6 +93,10 @@ export default function SettingsPage() {
           <TabsTrigger value="profile">
             <User className="h-4 w-4 mr-2" />
             Profile
+          </TabsTrigger>
+          <TabsTrigger value="organization">
+            <Building2 className="h-4 w-4 mr-2" />
+            Organization
           </TabsTrigger>
           <TabsTrigger value="notifications">
             <Bell className="h-4 w-4 mr-2" />
@@ -203,6 +209,11 @@ export default function SettingsPage() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Organization Tab */}
+        <TabsContent value="organization" className="space-y-4">
+          <OrganizationSettings />
         </TabsContent>
 
         {/* Notifications Tab */}

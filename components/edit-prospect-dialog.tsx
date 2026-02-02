@@ -12,11 +12,11 @@ type Prospect = {
   id: string
   name: string
   email: string
-  phone?: string
-  title?: string
-  company?: string
-  location?: string
-  linkedin?: string
+  phone?: string | null
+  title?: string | null
+  company?: string | null
+  location?: string | null
+  linkedin?: string | null
   status: string
 }
 

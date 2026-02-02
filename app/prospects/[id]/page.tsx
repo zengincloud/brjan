@@ -6,9 +6,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { ArrowLeft, Mail, Phone, Linkedin, MapPin, Building, Briefcase, Calendar, Globe } from "lucide-react"
+import { ArrowLeft, Mail, Phone, Linkedin, MapPin, Building, Briefcase, Calendar, Globe, Pencil } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { CallHistory } from "@/components/call-history"
+import { CallProspectDialog } from "@/components/call-prospect-dialog"
+import { EditProspectDialog } from "@/components/edit-prospect-dialog"
+import { SendEmailDialog } from "@/components/send-email-dialog"
+import { CorrespondenceSummary } from "@/components/correspondence-summary"
 
 type Prospect = {
   id: string
@@ -32,6 +36,10 @@ export default function ProspectDetailPage() {
   const router = useRouter()
   const [prospect, setProspect] = useState<Prospect | null>(null)
   const [loading, setLoading] = useState(true)
+  const [callDialogOpen, setCallDialogOpen] = useState(false)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
     if (params.id) {
@@ -53,6 +61,13 @@ export default function ProspectDetailPage() {
       alert("Failed to load prospect details")
     } finally {
       setLoading(false)
+    }
+  }
+
+  const refreshData = () => {
+    if (params.id) {
+      loadProspect(params.id as string)
+      setRefreshKey((prev) => prev + 1)
     }
   }
 
@@ -80,7 +95,11 @@ export default function ProspectDetailPage() {
             {prospect.company && <span>{prospect.company}</span>}
           </p>
         </div>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setEditDialogOpen(true)}>
+            <Pencil className="h-4 w-4 mr-2" />
+            Edit
+          </Button>
           <Badge variant="outline" className="text-sm">
             {prospect.status.replace(/_/g, " ")}
           </Badge>
@@ -269,13 +288,16 @@ export default function ProspectDetailPage() {
         </Card>
       </div>
 
+      {/* AI Correspondence Summary */}
+      <CorrespondenceSummary key={refreshKey} prospectId={prospect.id} prospectName={prospect.name} />
+
       {/* Actions */}
       <div className="flex gap-3">
-        <Button>
+        <Button onClick={() => setEmailDialogOpen(true)} disabled={!prospect.email}>
           <Mail className="mr-2 h-4 w-4" />
           Send Email
         </Button>
-        <Button variant="outline">
+        <Button variant="outline" onClick={() => setCallDialogOpen(true)} disabled={!prospect.phone}>
           <Phone className="mr-2 h-4 w-4" />
           Call
         </Button>
@@ -290,7 +312,29 @@ export default function ProspectDetailPage() {
       </div>
 
       {/* Call History */}
-      <CallHistory prospectId={prospect.id} />
+      <CallHistory prospectId={prospect.id} key={`calls-${refreshKey}`} />
+
+      {/* Dialogs */}
+      <SendEmailDialog
+        open={emailDialogOpen}
+        onOpenChange={setEmailDialogOpen}
+        prospect={prospect}
+        onEmailSent={refreshData}
+      />
+
+      <CallProspectDialog
+        open={callDialogOpen}
+        onOpenChange={setCallDialogOpen}
+        prospect={prospect}
+        onCallCompleted={refreshData}
+      />
+
+      <EditProspectDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        prospect={prospect}
+        onProspectUpdated={refreshData}
+      />
     </div>
   )
 }

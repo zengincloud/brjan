@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from 'sonner'
+import { Mail, CheckCircle2 } from 'lucide-react'
 
 const MIN_PASSWORD_LENGTH = 8
 
@@ -24,6 +25,8 @@ export default function SignupPage() {
   const [agreeToTerms, setAgreeToTerms] = useState(false)
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
+  const [showConfirmation, setShowConfirmation] = useState(false)
+  const [confirmedEmail, setConfirmedEmail] = useState('')
 
   const supabase = createClient()
 
@@ -96,10 +99,9 @@ export default function SignupPage() {
       // Success!
       if (data.user) {
         if (!data.user.confirmed_at) {
-          // Email confirmation required
-          toast.success('Success! Check your email to confirm your account', {
-            duration: 6000,
-          })
+          // Email confirmation required - show confirmation screen
+          setConfirmedEmail(email)
+          setShowConfirmation(true)
         } else {
           // No confirmation required - user is logged in
           toast.success('Account created successfully! Redirecting...', {
@@ -139,6 +141,42 @@ export default function SignupPage() {
       console.error('Google signup error:', error)
       setGoogleLoading(false)
     }
+  }
+
+  // Show confirmation screen after successful signup
+  if (showConfirmation) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-muted/40 p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="space-y-1 text-center">
+            <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-green-100 flex items-center justify-center">
+              <Mail className="h-8 w-8 text-green-600" />
+            </div>
+            <CardTitle className="text-2xl font-bold">Check your email!</CardTitle>
+            <CardDescription className="text-base">
+              We've sent a confirmation link to
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6 text-center">
+            <div className="p-3 bg-muted rounded-lg">
+              <p className="font-medium text-lg">{confirmedEmail}</p>
+            </div>
+            <div className="space-y-2 text-sm text-muted-foreground">
+              <p>Click the link in the email to activate your account.</p>
+              <p>If you don't see it, check your spam folder.</p>
+            </div>
+            <div className="pt-4 border-t">
+              <p className="text-sm text-muted-foreground mb-3">
+                Already confirmed?
+              </p>
+              <Button asChild className="w-full">
+                <Link href="/login">Go to Login</Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (

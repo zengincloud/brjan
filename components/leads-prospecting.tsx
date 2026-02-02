@@ -84,6 +84,7 @@ export function LeadsProspecting() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set())
+  const [selectedProspects, setSelectedProspects] = useState<string[]>([])
 
   // Load saved search state on mount
   useEffect(() => {
@@ -249,6 +250,62 @@ export function LeadsProspecting() {
     toast({
       title: "Adding to sequence...",
       description: `Adding ${lead.name} to ${sequence.name}`,
+    })
+  }
+
+  const toggleProspectSelection = (prospectId: string) => {
+    setSelectedProspects(prev =>
+      prev.includes(prospectId)
+        ? prev.filter(id => id !== prospectId)
+        : [...prev, prospectId]
+    )
+  }
+
+  const selectAllProspects = () => {
+    if (selectedProspects.length === searchResults.length) {
+      setSelectedProspects([])
+    } else {
+      setSelectedProspects(searchResults.map(lead => lead.id))
+    }
+  }
+
+  const handleBulkAddToSequence = (sequenceId: string) => {
+    const sequence = sequences.find(s => s.id === sequenceId)
+    if (!sequence) return
+
+    const selectedLeads = searchResults.filter(lead => selectedProspects.includes(lead.id))
+
+    toast({
+      title: "Adding to sequence...",
+      description: `Adding ${selectedLeads.length} prospect${selectedLeads.length !== 1 ? 's' : ''} to ${sequence.name}`,
+    })
+
+    // Clear selections after action
+    setSelectedProspects([])
+  }
+
+  const handleOpenAllLinkedIns = () => {
+    const selectedLeads = searchResults.filter(lead =>
+      selectedProspects.includes(lead.id) && lead.linkedin
+    )
+
+    if (selectedLeads.length === 0) {
+      toast({
+        title: "No LinkedIn profiles",
+        description: "None of the selected prospects have LinkedIn URLs",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Open all LinkedIn profiles in new tabs
+    selectedLeads.forEach(lead => {
+      window.open(lead.linkedin, '_blank')
+    })
+
+    toast({
+      title: "Opening LinkedIn profiles",
+      description: `Opened ${selectedLeads.length} LinkedIn profile${selectedLeads.length !== 1 ? 's' : ''}`,
     })
   }
 
@@ -570,8 +627,22 @@ export function LeadsProspecting() {
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between mb-6">
-              <div className="text-sm text-muted-foreground">
-                <span className="font-medium">{totalResults}</span> leads found matching your criteria
+              <div className="flex items-center gap-4">
+                <div className="text-sm text-muted-foreground">
+                  <span className="font-medium">{totalResults}</span> leads found matching your criteria
+                </div>
+                {searchResults.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      checked={selectedProspects.length === searchResults.length && searchResults.length > 0}
+                      onCheckedChange={selectAllProspects}
+                      id="select-all"
+                    />
+                    <Label htmlFor="select-all" className="text-sm cursor-pointer">
+                      Select all
+                    </Label>
+                  </div>
+                )}
               </div>
               <Select defaultValue="relevance">
                 <SelectTrigger className="w-[180px]">
@@ -586,6 +657,45 @@ export function LeadsProspecting() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Bulk Actions Bar */}
+            {selectedProspects.length > 0 && (
+              <div className="mb-4 p-4 bg-primary/5 border border-primary/20 rounded-lg flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">
+                    {selectedProspects.length} prospect{selectedProspects.length !== 1 ? 's' : ''} selected
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleOpenAllLinkedIns}
+                  >
+                    <LinkedinIcon className="mr-2 h-4 w-4" />
+                    Open All LinkedIns
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button size="sm">
+                        Add All to Sequence
+                        <ChevronDown className="ml-2 h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {sequences.map((sequence) => (
+                        <DropdownMenuItem
+                          key={sequence.id}
+                          onClick={() => handleBulkAddToSequence(sequence.id)}
+                        >
+                          {sequence.name}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+            )}
 
             {error && (
               <div className="bg-destructive/10 text-destructive px-4 py-3 rounded mb-4">
@@ -621,14 +731,22 @@ export function LeadsProspecting() {
                         <div className="space-y-4">
                           {/* Preview Card (Always Visible) */}
                           <div className="flex items-start justify-between">
-                            <div
-                              className="space-y-2 flex-1"
-                              onClick={() => toggleExpanded(lead.id)}
-                            >
-                              <div className="flex items-center gap-2">
-                                <h3 className="font-semibold text-lg">{toTitleCase(lead.name)}</h3>
-                                {getBuyerIntentBadge(lead.buyerIntent)}
+                            <div className="flex items-start gap-3 flex-1">
+                              <div onClick={(e) => e.stopPropagation()}>
+                                <Checkbox
+                                  checked={selectedProspects.includes(lead.id)}
+                                  onCheckedChange={() => toggleProspectSelection(lead.id)}
+                                  className="mt-1"
+                                />
                               </div>
+                              <div
+                                className="space-y-2 flex-1"
+                                onClick={() => toggleExpanded(lead.id)}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <h3 className="font-semibold text-lg">{toTitleCase(lead.name)}</h3>
+                                  {getBuyerIntentBadge(lead.buyerIntent)}
+                                </div>
                               <p className="text-muted-foreground">{toTitleCase(lead.title)}</p>
                               <div className="flex items-center gap-4 text-sm text-muted-foreground">
                                 <div className="flex items-center gap-1">
@@ -660,6 +778,7 @@ export function LeadsProspecting() {
                                     <span>{lead.phone}</span>
                                   </div>
                                 )}
+                              </div>
                               </div>
                             </div>
                             <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
@@ -748,6 +867,12 @@ export function LeadsProspecting() {
                                       As a {toTitleCase(lead.title)}, their job entails overseeing team performance, driving strategic initiatives, and managing
                                       key stakeholder relationships. Things that are important to them include operational efficiency, team productivity,
                                       scalable processes, and measurable ROI on new investments.
+                                    </p>
+                                    <p className="mb-2">
+                                      <strong className="text-foreground">Industry Context:</strong> In the {lead.industry} space, companies like {toTitleCase(lead.company)} are
+                                      currently facing challenges around digital transformation and data security. With increasing regulatory compliance requirements
+                                      and pressure to modernize legacy systems, this is something they're likely worried about. Market consolidation and
+                                      the need for scalable, AI-driven solutions are hot topics right now.
                                     </p>
                                     <p>
                                       With {getBuyerIntentText(lead.buyerIntent)}, this prospect may be actively looking for solutions

@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Search, ChevronDown, Building2, Briefcase, Zap, Newspaper, Loader2, Globe, Users, Linkedin as LinkedinIcon } from "lucide-react"
+import { Search, ChevronDown, ChevronUp, Building2, Briefcase, Zap, Newspaper, Loader2, Globe, Users, Linkedin as LinkedinIcon, Target, MessageSquare, Lightbulb, TrendingUp, DollarSign } from "lucide-react"
 import { Collapsible } from "@/components/ui/collapsible"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
@@ -52,6 +52,7 @@ export function AccountsProspecting() {
   const [totalResults, setTotalResults] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set())
 
   const handleSearch = async () => {
     setIsLoading(true)
@@ -104,6 +105,16 @@ export function AccountsProspecting() {
     setSearchResults([])
     setTotalResults(0)
     setError(null)
+  }
+
+  const toggleExpanded = (companyId: string) => {
+    const newExpandedCards = new Set(expandedCards)
+    if (newExpandedCards.has(companyId)) {
+      newExpandedCards.delete(companyId)
+    } else {
+      newExpandedCards.add(companyId)
+    }
+    setExpandedCards(newExpandedCards)
   }
 
   const handleAddToAccounts = async (company: CompanyResult) => {
@@ -459,65 +470,168 @@ export function AccountsProspecting() {
               </div>
             ) : (
               <div className="space-y-4">
-                {searchResults.map((company) => (
-                  <Card key={company.id}>
-                    <CardContent className="p-6">
-                      <div className="flex items-start justify-between">
-                        <div className="space-y-2 flex-1">
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-semibold text-lg">{company.name}</h3>
-                            {company.verified && <Badge className="bg-primary/20 text-primary">Verified</Badge>}
+                {searchResults.map((company) => {
+                  const isExpanded = expandedCards.has(company.id)
+
+                  return (
+                    <Card key={company.id}>
+                      <CardContent className="p-6">
+                        <div className="space-y-4">
+                          {/* Preview Card (Always Visible) */}
+                          <div className="flex items-start justify-between">
+                            <div className="space-y-2 flex-1">
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-semibold text-lg">{company.name}</h3>
+                                {company.verified && <Badge className="bg-primary/20 text-primary">Verified</Badge>}
+                              </div>
+                              {company.description && (
+                                <p className="text-sm text-muted-foreground line-clamp-2">{company.description}</p>
+                              )}
+                              <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                                <div className="flex items-center gap-1">
+                                  <Building2 className="h-4 w-4" />
+                                  {company.industry}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <Globe className="h-4 w-4" />
+                                  {company.location}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <Users className="h-4 w-4" />
+                                  {company.employees?.toLocaleString()} employees
+                                </div>
+                              </div>
+                              {company.buyingSignals && company.buyingSignals.length > 0 && (
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  {company.buyingSignals.map((signal, idx) => (
+                                    <Badge key={idx} variant="outline" className="text-xs">
+                                      {signal}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => toggleExpanded(company.id)}
+                                title={isExpanded ? "Show less" : "Show more"}
+                              >
+                                {isExpanded ? (
+                                  <ChevronUp className="h-4 w-4" />
+                                ) : (
+                                  <ChevronDown className="h-4 w-4" />
+                                )}
+                              </Button>
+                              {company.linkedin && (
+                                <Button variant="outline" size="sm" asChild>
+                                  <a href={company.linkedin} target="_blank" rel="noopener noreferrer">
+                                    <LinkedinIcon className="mr-2 h-4 w-4" />
+                                    LinkedIn
+                                  </a>
+                                </Button>
+                              )}
+                              {company.website && (
+                                <Button variant="outline" size="sm" asChild>
+                                  <a href={company.website} target="_blank" rel="noopener noreferrer">
+                                    <Globe className="mr-2 h-4 w-4" />
+                                    Website
+                                  </a>
+                                </Button>
+                              )}
+                              <Button size="sm" onClick={() => handleAddToAccounts(company)}>
+                                Add to Accounts
+                              </Button>
+                            </div>
                           </div>
-                          {company.description && (
-                            <p className="text-sm text-muted-foreground line-clamp-2">{company.description}</p>
-                          )}
-                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                            <div className="flex items-center gap-1">
-                              <Building2 className="h-4 w-4" />
-                              {company.industry}
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Globe className="h-4 w-4" />
-                              {company.location}
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Users className="h-4 w-4" />
-                              {company.employees?.toLocaleString()} employees
-                            </div>
-                          </div>
-                          {company.buyingSignals && company.buyingSignals.length > 0 && (
-                            <div className="flex items-center gap-2 flex-wrap">
-                              {company.buyingSignals.map((signal, idx) => (
-                                <Badge key={idx} variant="outline" className="text-xs">
-                                  {signal}
-                                </Badge>
-                              ))}
-                            </div>
+
+                          {/* Expanded Details */}
+                          {isExpanded && (
+                            <>
+                              <Separator />
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
+                                {/* Intent */}
+                                <div className="space-y-3">
+                                  <h4 className="font-medium text-sm flex items-center gap-2">
+                                    <Target className="h-4 w-4" />
+                                    Intent Signals
+                                  </h4>
+                                  <div className="space-y-2 text-sm text-muted-foreground pl-6">
+                                    <div className="flex items-start gap-2">
+                                      <TrendingUp className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                                      <div>
+                                        <p className="font-medium text-foreground">Recent Funding</p>
+                                        <p className="text-xs">Series B: $25M raised 3 months ago</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-start gap-2">
+                                      <DollarSign className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                                      <div>
+                                        <p className="font-medium text-foreground">Tech Stack Expansion</p>
+                                        <p className="text-xs">Added 3 new tools in last quarter</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-start gap-2">
+                                      <Users className="h-4 w-4 text-purple-500 mt-0.5 flex-shrink-0" />
+                                      <div>
+                                        <p className="font-medium text-foreground">Hiring Spree</p>
+                                        <p className="text-xs">25+ open positions in Sales & Ops</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Past Conversations */}
+                                <div className="space-y-3">
+                                  <h4 className="font-medium text-sm flex items-center gap-2">
+                                    <MessageSquare className="h-4 w-4" />
+                                    Past Conversations
+                                  </h4>
+                                  <div className="space-y-2 text-sm text-muted-foreground pl-6">
+                                    <div className="border-l-2 border-primary/30 pl-3 py-1">
+                                      <p className="text-xs text-muted-foreground mb-1">Nov 15, 2025</p>
+                                      <p className="font-medium text-foreground">Initial Discovery Call</p>
+                                      <p className="text-xs">Discussed scaling challenges with John Smith (VP Sales)</p>
+                                    </div>
+                                    <div className="border-l-2 border-muted pl-3 py-1">
+                                      <p className="text-xs text-muted-foreground mb-1">Oct 3, 2025</p>
+                                      <p className="font-medium text-foreground">Product Demo Request</p>
+                                      <p className="text-xs">Maria Garcia (Director of Ops) attended webinar</p>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* POV */}
+                                <div className="space-y-3">
+                                  <h4 className="font-medium text-sm flex items-center gap-2">
+                                    <Lightbulb className="h-4 w-4" />
+                                    Point of View
+                                  </h4>
+                                  <div className="text-sm text-muted-foreground bg-muted/30 p-4 rounded-lg">
+                                    <p className="mb-2">
+                                      <strong className="text-foreground">Opportunity:</strong> Recent funding and aggressive hiring
+                                      indicate {company.name} is in rapid growth mode and likely experiencing operational scaling challenges.
+                                    </p>
+                                    <p className="mb-2">
+                                      <strong className="text-foreground">How to Help:</strong> Your platform's automation capabilities
+                                      can help them scale their {company.industry.toLowerCase()} operations without proportional headcount increases.
+                                    </p>
+                                    <p>
+                                      <strong className="text-foreground">Angle:</strong> Lead with ROI case studies from similar-sized
+                                      companies. Emphasize time-to-value and ease of implementation given their rapid growth timeline.
+                                      Focus on VP of Sales/Ops who owns scaling challenges.
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            </>
                           )}
                         </div>
-                        <div className="flex gap-2">
-                          {company.linkedin && (
-                            <Button variant="outline" size="sm" asChild>
-                              <a href={company.linkedin} target="_blank" rel="noopener noreferrer">
-                                <LinkedinIcon className="mr-2 h-4 w-4" />
-                                LinkedIn
-                              </a>
-                            </Button>
-                          )}
-                          {company.website && (
-                            <Button variant="outline" size="sm" asChild>
-                              <a href={company.website} target="_blank" rel="noopener noreferrer">
-                                <Globe className="mr-2 h-4 w-4" />
-                                Website
-                              </a>
-                            </Button>
-                          )}
-                          <Button size="sm" onClick={() => handleAddToAccounts(company)}>Add to Accounts</Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                      </CardContent>
+                    </Card>
+                  )
+                })}
               </div>
             )}
           </CardContent>

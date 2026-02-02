@@ -15,6 +15,58 @@ async function fetchNewsAPI(query: string, companyName: string): Promise<any> {
     throw new Error('NewsAPI.ai API key not configured')
   }
 
+  // Get company concept URI first
+  const conceptUri = await getCompanyConceptUri(companyName, apiKey)
+
+  // If we can't find the company, try a direct keyword search instead
+  if (!conceptUri) {
+    console.log(`No concept URI found for ${companyName}, trying keyword search`)
+
+    const response = await fetch(
+      `https://newsapi.ai/api/v1/article/getArticles`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          apiKey,
+          query: {
+            $query: {
+              $and: [
+                { keyword: companyName },
+                { keyword: query },
+              ],
+            },
+            $filter: {
+              forceMaxDataTimeWindow: '90',
+            },
+          },
+          resultType: 'articles',
+          articlesSortBy: 'date',
+          articlesCount: 5,
+          includeArticleSocialScore: false,
+          includeArticleSentiment: false,
+          includeArticleCategories: false,
+          includeArticleLocation: false,
+          includeArticleImage: false,
+          includeArticleVideos: false,
+          includeArticleExtractedDates: false,
+          includeArticleDuplicateList: false,
+          includeArticleOriginalArticle: false,
+        }),
+      }
+    )
+
+    if (!response.ok) {
+      console.error('NewsAPI.ai error:', await response.text())
+      return null
+    }
+
+    return response.json()
+  }
+
+  // Use concept URI for more precise results
   const response = await fetch(
     `https://newsapi.ai/api/v1/article/getArticles`,
     {
@@ -28,7 +80,7 @@ async function fetchNewsAPI(query: string, companyName: string): Promise<any> {
           $query: {
             $and: [
               {
-                conceptUri: await getCompanyConceptUri(companyName, apiKey),
+                conceptUri: conceptUri,
               },
               {
                 $or: [

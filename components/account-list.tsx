@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
-import { MoreHorizontal, Filter, ChevronDown, ChevronUp, Users, Globe, Upload, Plus, Sparkles, TrendingUp, DollarSign, Wrench, Briefcase, RefreshCw } from "lucide-react"
+import { MoreHorizontal, Filter, ChevronDown, ChevronUp, Users, Globe, Upload, Plus, Sparkles, TrendingUp, DollarSign, Wrench, Briefcase, RefreshCw, Pencil, Trash2, FolderInput, ExternalLink } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -14,6 +14,23 @@ import { useToast } from "@/components/ui/use-toast"
 import { formatDistanceToNow } from "date-fns"
 import { UploadAccountsDialog } from "./upload-accounts-dialog"
 import { AddAccountDialog } from "./add-account-dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 type Account = {
   id: string
@@ -58,6 +75,8 @@ export function AccountList() {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
   const [insights, setInsights] = useState<Record<string, CompanyInsights>>({})
   const [loadingInsights, setLoadingInsights] = useState<Set<string>>(new Set())
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [accountToDelete, setAccountToDelete] = useState<Account | null>(null)
 
   useEffect(() => {
     loadAccounts()
@@ -163,6 +182,69 @@ export function AccountList() {
         const newSet = new Set(prev)
         newSet.delete(accountId)
         return newSet
+      })
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!accountToDelete) return
+
+    try {
+      const response = await fetch(`/api/accounts/${accountToDelete.id}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to delete account')
+      }
+
+      toast({
+        title: "Account deleted",
+        description: `${accountToDelete.name} has been deleted successfully.`,
+      })
+
+      // Reload accounts
+      await loadAccounts()
+    } catch (error) {
+      console.error('Error deleting account:', error)
+      toast({
+        title: "Error",
+        description: "Failed to delete account",
+        variant: "destructive",
+      })
+    } finally {
+      setDeleteDialogOpen(false)
+      setAccountToDelete(null)
+    }
+  }
+
+  const handleChangeStatus = async (accountId: string, newStatus: string) => {
+    try {
+      const response = await fetch(`/api/accounts/${accountId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: newStatus }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to update status')
+      }
+
+      toast({
+        title: "Status updated",
+        description: "Account status has been updated successfully.",
+      })
+
+      // Reload accounts
+      await loadAccounts()
+    } catch (error) {
+      console.error('Error updating status:', error)
+      toast({
+        title: "Error",
+        description: "Failed to update account status",
+        variant: "destructive",
       })
     }
   }
@@ -293,15 +375,57 @@ export function AccountList() {
                 <TableCell>{formatLastActivity(account.lastActivity)}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="icon" onClick={() => handleAction("View Contacts", account.name)}>
-                      <Users className="h-4 w-4" />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => router.push(`/accounts/${account.id}`)}
+                      title="View Details"
+                    >
+                      <ExternalLink className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleAction("Visit Website", account.name)}>
-                      <Globe className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleAction("More Options", account.name)}>
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
+                    {account.website && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => window.open(account.website!, '_blank')}
+                        title="Visit Website"
+                      >
+                        <Globe className="h-4 w-4" />
+                      </Button>
+                    )}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => router.push(`/accounts/${account.id}`)}>
+                          <ExternalLink className="mr-2 h-4 w-4" />
+                          View Details
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => handleChangeStatus(account.id, 'qualified')}>
+                          <FolderInput className="mr-2 h-4 w-4" />
+                          Mark as Qualified
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleChangeStatus(account.id, 'customer')}>
+                          <FolderInput className="mr-2 h-4 w-4" />
+                          Mark as Customer
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setAccountToDelete(account)
+                            setDeleteDialogOpen(true)
+                          }}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Delete Account
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </TableCell>
               </TableRow>
@@ -416,6 +540,22 @@ export function AccountList() {
         onOpenChange={setAddDialogOpen}
         onAccountAdded={loadAccounts}
       />
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Account</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {accountToDelete?.name}? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

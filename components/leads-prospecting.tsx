@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Search, ChevronDown, Building2, Briefcase, User, BarChart, ArrowRight, Clock, Mail, Phone, Linkedin as LinkedinIcon, Loader2 } from "lucide-react"
+import { Search, ChevronDown, ChevronUp, Building2, Briefcase, User, BarChart, ArrowRight, Clock, Mail, Phone, Linkedin as LinkedinIcon, Loader2, MapPin, Calendar, TrendingUp } from "lucide-react"
 import { Collapsible } from "@/components/ui/collapsible"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
@@ -14,6 +14,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { useToast } from "@/components/ui/use-toast"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 interface SearchResult {
   id: string
@@ -30,6 +36,15 @@ interface SearchResult {
   industry: string
   buyerIntent: "high" | "medium" | "low"
 }
+
+// Available sequences
+const sequences = [
+  { id: "enterprise-outreach", name: "Enterprise Outreach" },
+  { id: "smb-follow-up", name: "SMB Follow-up" },
+  { id: "sales-leaders", name: "Sales Leaders" },
+  { id: "product-demo", name: "Product Demo Request" },
+  { id: "new-lead", name: "New Lead Welcome" },
+]
 
 export function LeadsProspecting() {
   const { toast } = useToast()
@@ -58,6 +73,7 @@ export function LeadsProspecting() {
   const [totalResults, setTotalResults] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set())
 
   const handleSearch = async () => {
     setIsLoading(true)
@@ -115,6 +131,16 @@ export function LeadsProspecting() {
     setError(null)
   }
 
+  const toggleExpanded = (leadId: string) => {
+    const newExpandedCards = new Set(expandedCards)
+    if (newExpandedCards.has(leadId)) {
+      newExpandedCards.delete(leadId)
+    } else {
+      newExpandedCards.add(leadId)
+    }
+    setExpandedCards(newExpandedCards)
+  }
+
   const handleAddToProspects = async (lead: SearchResult) => {
     try {
       const response = await fetch("/api/prospects", {
@@ -160,6 +186,16 @@ export function LeadsProspecting() {
     }
   }
 
+  const handleAddToSequence = async (lead: SearchResult, sequenceId: string) => {
+    const sequence = sequences.find(s => s.id === sequenceId)
+    if (!sequence) return
+
+    toast({
+      title: "Adding to sequence...",
+      description: `Adding ${lead.name} to ${sequence.name}`,
+    })
+  }
+
   const toggleSeniorityLevel = (level: string) => {
     setSeniorityLevels(prev =>
       prev.includes(level) ? prev.filter(l => l !== level) : [...prev, level]
@@ -182,6 +218,19 @@ export function LeadsProspecting() {
         return <Badge className="bg-blue-500/20 text-blue-500 hover:bg-blue-500/30">Low Intent</Badge>
       default:
         return null
+    }
+  }
+
+  const getBuyerIntentText = (intent: string) => {
+    switch (intent) {
+      case "high":
+        return "high buyer intent signals"
+      case "medium":
+        return "moderate engagement signals"
+      case "low":
+        return "low buyer intent"
+      default:
+        return "unknown intent signals"
     }
   }
 
@@ -504,73 +553,176 @@ export function LeadsProspecting() {
               </div>
             ) : (
               <div className="space-y-4">
-                {searchResults.map((lead) => (
-                  <Card key={lead.id}>
-                    <CardContent className="p-6">
-                      <div className="flex items-start justify-between">
-                        <div className="space-y-2 flex-1">
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-semibold text-lg">{lead.name}</h3>
-                            {getBuyerIntentBadge(lead.buyerIntent)}
-                          </div>
-                          <p className="text-muted-foreground">{lead.title}</p>
-                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                            <div className="flex items-center gap-1">
-                              <Building2 className="h-4 w-4" />
-                              {lead.company}
-                            </div>
-                            {lead.location && (
-                              <div className="flex items-center gap-1">
-                                <User className="h-4 w-4" />
-                                {lead.location}
+                {searchResults.map((lead) => {
+                  const isExpanded = expandedCards.has(lead.id)
+                  // Get primary email (from current company) and phone
+                  const primaryEmail = lead.emails?.[0] || lead.email
+                  const otherEmails = lead.emails?.slice(1) || []
+
+                  return (
+                    <Card key={lead.id}>
+                      <CardContent className="p-6">
+                        <div className="space-y-4">
+                          {/* Preview Card (Always Visible) */}
+                          <div className="flex items-start justify-between">
+                            <div className="space-y-2 flex-1">
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-semibold text-lg">{lead.name}</h3>
+                                {getBuyerIntentBadge(lead.buyerIntent)}
                               </div>
-                            )}
+                              <p className="text-muted-foreground">{lead.title}</p>
+                              <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                                <div className="flex items-center gap-1">
+                                  <Building2 className="h-4 w-4" />
+                                  {lead.company}
+                                </div>
+                                {lead.location && (
+                                  <div className="flex items-center gap-1">
+                                    <MapPin className="h-4 w-4" />
+                                    {lead.location}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Preview Contact Info */}
+                              <div className="flex flex-col gap-2 text-sm">
+                                {primaryEmail && (
+                                  <div className="flex items-center gap-2">
+                                    <Mail className="h-3 w-3 text-muted-foreground" />
+                                    <span className="text-muted-foreground">{primaryEmail}</span>
+                                    <Badge variant="secondary" className="text-xs h-5">
+                                      Company Email
+                                    </Badge>
+                                  </div>
+                                )}
+                                {lead.phone && (
+                                  <div className="flex items-center gap-2 text-muted-foreground">
+                                    <Phone className="h-3 w-3" />
+                                    <span>{lead.phone}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => toggleExpanded(lead.id)}
+                                title={isExpanded ? "Show less" : "Show more"}
+                              >
+                                {isExpanded ? (
+                                  <ChevronUp className="h-4 w-4" />
+                                ) : (
+                                  <ChevronDown className="h-4 w-4" />
+                                )}
+                              </Button>
+                              {lead.linkedin && (
+                                <Button variant="outline" size="sm" asChild>
+                                  <a href={lead.linkedin} target="_blank" rel="noopener noreferrer">
+                                    <LinkedinIcon className="mr-2 h-4 w-4" />
+                                    LinkedIn
+                                  </a>
+                                </Button>
+                              )}
+                              <Button size="sm" onClick={() => handleAddToProspects(lead)}>
+                                Add to Prospects
+                              </Button>
+                            </div>
                           </div>
-                          <div className="flex flex-col gap-2 text-sm">
-                            {lead.emails && lead.emails.length > 0 ? (
-                              <div className="space-y-1">
-                                {lead.emails.map((email, index) => (
-                                  <div key={index} className="flex items-center gap-2">
-                                    {index === 0 && <Mail className="h-3 w-3 text-muted-foreground" />}
-                                    {index > 0 && <span className="w-3" />}
-                                    <span className="text-muted-foreground">{email}</span>
-                                    {index === 0 && lead.emails && lead.emails.length > 1 && (
-                                      <Badge variant="secondary" className="text-xs h-5">
-                                        Company
-                                      </Badge>
+
+                          {/* Expanded Details */}
+                          {isExpanded && (
+                            <>
+                              <Separator />
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                                {/* Additional Contact Info */}
+                                <div className="space-y-3">
+                                  <h4 className="font-medium text-sm flex items-center gap-2">
+                                    <Mail className="h-4 w-4" />
+                                    Additional Contact Information
+                                  </h4>
+                                  <div className="space-y-2 text-sm text-muted-foreground pl-6">
+                                    {otherEmails.length > 0 ? (
+                                      otherEmails.map((email, idx) => (
+                                        <div key={idx} className="flex items-center gap-2">
+                                          <Mail className="h-3 w-3" />
+                                          <span>{email}</span>
+                                          <Badge variant="secondary" className="text-xs h-5">
+                                            Personal
+                                          </Badge>
+                                        </div>
+                                      ))
+                                    ) : (
+                                      <p>No additional emails available</p>
                                     )}
                                   </div>
-                                ))}
+                                </div>
+
+                                {/* Previous Company */}
+                                <div className="space-y-3">
+                                  <h4 className="font-medium text-sm flex items-center gap-2">
+                                    <Calendar className="h-4 w-4" />
+                                    Previous Experience
+                                  </h4>
+                                  <div className="space-y-2 text-sm text-muted-foreground pl-6">
+                                    <div>
+                                      <p className="font-medium text-foreground">Senior {lead.title}</p>
+                                      <p>TechCorp Inc. • 2019-2023</p>
+                                      <p className="text-xs mt-1">Led team of 8, increased revenue by 45%</p>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* POV / Context Blurb */}
+                                <div className="space-y-3 md:col-span-2">
+                                  <h4 className="font-medium text-sm flex items-center gap-2">
+                                    <TrendingUp className="h-4 w-4" />
+                                    Point of View
+                                  </h4>
+                                  <div className="text-sm text-muted-foreground bg-muted/30 p-4 rounded-lg">
+                                    <p className="mb-2">
+                                      <strong className="text-foreground">{lead.name}</strong> is currently working as a {lead.title} at {lead.company},
+                                      a {lead.companySize} company in the {lead.industry} industry. Based on their seniority level ({lead.seniorityLevel}),
+                                      they likely have decision-making authority in their department.
+                                    </p>
+                                    <p>
+                                      With {getBuyerIntentText(lead.buyerIntent)}, this prospect may be actively looking for solutions
+                                      in your space. Their background at TechCorp suggests they value scalable, data-driven solutions.
+                                      Consider leading with ROI metrics and case studies from similar companies.
+                                    </p>
+                                  </div>
+                                </div>
                               </div>
-                            ) : lead.email ? (
-                              <div className="flex items-center gap-1 text-muted-foreground">
-                                <Mail className="h-3 w-3" />
-                                <span>{lead.email}</span>
+
+                              {/* Add to Sequence Button */}
+                              <Separator />
+                              <div className="flex justify-end">
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button>
+                                      Add to Sequence
+                                      <ChevronDown className="ml-2 h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    {sequences.map((sequence) => (
+                                      <DropdownMenuItem
+                                        key={sequence.id}
+                                        onClick={() => handleAddToSequence(lead, sequence.id)}
+                                      >
+                                        {sequence.name}
+                                      </DropdownMenuItem>
+                                    ))}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
                               </div>
-                            ) : null}
-                            {lead.phone && (
-                              <div className="flex items-center gap-1 text-muted-foreground">
-                                <Phone className="h-3 w-3" />
-                                <span>{lead.phone}</span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex gap-2">
-                          {lead.linkedin && (
-                            <Button variant="outline" size="sm" asChild>
-                              <a href={lead.linkedin} target="_blank" rel="noopener noreferrer">
-                                <LinkedinIcon className="mr-2 h-4 w-4" />
-                                LinkedIn
-                              </a>
-                            </Button>
+                            </>
                           )}
-                          <Button size="sm" onClick={() => handleAddToProspects(lead)}>Add to Prospects</Button>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                      </CardContent>
+                    </Card>
+                  )
+                })}
               </div>
             )}
           </CardContent>

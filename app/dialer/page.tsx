@@ -35,7 +35,13 @@ import {
   Settings,
   Edit2,
   Check,
-  X
+  X,
+  FileText,
+  MessageSquare,
+  Lightbulb,
+  Target,
+  Save,
+  Users
 } from "lucide-react"
 import { CallHistory } from "@/components/call-history"
 
@@ -94,6 +100,10 @@ export default function DialerPage() {
   const [queueSize, setQueueSize] = useState(0)
   const [editingPhoneId, setEditingPhoneId] = useState<string | null>(null)
   const [editedPhone, setEditedPhone] = useState<string>("")
+  const [prospectNotes, setProspectNotes] = useState<{ [key: string]: string }>({})
+  const [accountNotes, setAccountNotes] = useState<{ [key: string]: string }>({})
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
+  const [editingNoteType, setEditingNoteType] = useState<"prospect" | "account" | null>(null)
 
   // Available sequences
   const sequences = [
@@ -119,11 +129,23 @@ export default function DialerPage() {
       phone: "+1 (555) 345-6789",
       title: "Director of Ops",
       email: "emily.r@cloudworks.com",
+      industry: "Cloud Infrastructure",
+      companySize: "50-200",
       aiNotes: "Pain point: Manual outreach taking 15hrs/week. Mentioned competitor in last email. Strong buying signals.",
       priorCalls: [],
       lastEmailSent: "2025-01-20",
       sequenceStage: "Step 1 of 5",
-      sequence: "smb"
+      sequence: "smb",
+      correspondenceHistory: [
+        { date: "2025-01-20", type: "email", from: "Sarah M. (SDR)", summary: "Sent intro email about platform automation features" },
+        { date: "2025-01-15", type: "linkedin", from: "Sarah M. (SDR)", summary: "Connection request accepted" }
+      ],
+      pov: {
+        opportunity: "As Director of Ops at a 50-200 person cloud infrastructure company, Emily is responsible for operational efficiency and team productivity. Manual outreach consuming 15 hours per week indicates significant automation opportunity.",
+        industryContext: "In the Cloud Infrastructure space, companies like CloudWorks are facing challenges around scaling operations without proportional headcount increases. With increasing pressure to demonstrate ROI and streamline workflows, automation tools are becoming essential.",
+        howToHelp: "Your platform can help Emily reclaim 80% of the time currently spent on manual outreach, allowing her team to focus on high-value conversations and strategic initiatives.",
+        angle: "Lead with time-savings metrics and show ROI calculator. Emphasize quick implementation and minimal training required. Focus on operational efficiency gains."
+      }
     },
     {
       name: "Michael Chen",
@@ -131,13 +153,26 @@ export default function DialerPage() {
       phone: "+1 (555) 234-5678",
       title: "CTO",
       email: "mchen@datasystems.io",
+      industry: "Data Analytics",
+      companySize: "200-500",
       aiNotes: "Technical decision maker. Team size: 45. Looking to consolidate tools. Budget approved for Q1.",
       priorCalls: [
         { date: "2025-01-12", outcome: "No Answer", notes: "Called at 2pm EST" }
       ],
       lastEmailSent: "2025-01-16",
       sequenceStage: "Step 2 of 5",
-      sequence: "enterprise"
+      sequence: "enterprise",
+      correspondenceHistory: [
+        { date: "2025-01-16", type: "email", from: "Tom R. (AE)", summary: "Follow-up on tool consolidation discussion, shared case study" },
+        { date: "2025-01-12", type: "call", from: "Tom R. (AE)", summary: "Attempted call - no answer" },
+        { date: "2025-01-08", type: "email", from: "Tom R. (AE)", summary: "Initial outreach mentioning Q1 budget cycles" }
+      ],
+      pov: {
+        opportunity: "Michael is the technical decision maker at a 200-500 person data analytics company with budget approved for Q1. His interest in tool consolidation suggests he's looking to streamline operations and reduce tech stack complexity.",
+        industryContext: "In the Data Analytics space, companies like DataSystems Inc are facing challenges around data security, integration complexity, and demonstrating clear ROI on technology investments. Tool consolidation is a hot topic as companies seek to reduce costs and improve efficiency.",
+        howToHelp: "Your platform can help Michael consolidate multiple tools into a single solution, reducing integration overhead and total cost of ownership while improving team productivity.",
+        angle: "Lead with integration capabilities and total cost of ownership analysis. Emphasize technical architecture and security features. Focus on Q1 implementation timeline to align with approved budget."
+      }
     },
     {
       name: "Jessica Taylor",
@@ -145,6 +180,8 @@ export default function DialerPage() {
       phone: "+1 (555) 567-8901",
       title: "Head of Marketing",
       email: "jtaylor@enterprisesolutions.com",
+      industry: "Enterprise Software",
+      companySize: "1000-5000",
       aiNotes: "Previously churned customer (2023). New leadership, different pain points. Opportunity to re-engage.",
       priorCalls: [
         { date: "2025-01-08", outcome: "Voicemail", notes: "Mentioned new product features" },
@@ -152,7 +189,19 @@ export default function DialerPage() {
       ],
       lastEmailSent: "2025-01-17",
       sequenceStage: "Step 3 of 5",
-      sequence: "enterprise"
+      sequence: "enterprise",
+      correspondenceHistory: [
+        { date: "2025-01-17", type: "email", from: "Lisa K. (CSM)", summary: "Re-engagement email highlighting new features since 2023" },
+        { date: "2025-01-08", type: "call", from: "Lisa K. (CSM)", summary: "Left voicemail mentioning product improvements" },
+        { date: "2025-01-05", type: "call", from: "Lisa K. (CSM)", summary: "Reached EA, scheduled follow-up" },
+        { date: "2023-06-15", type: "note", from: "Previous CSM", summary: "Account churned - pricing concerns and feature gaps cited" }
+      ],
+      pov: {
+        opportunity: "Jessica is new leadership at a previously churned account. The company's pain points may have evolved, and our platform has added significant features since 2023. This represents a strong re-engagement opportunity.",
+        industryContext: "In the Enterprise Software space, companies like Enterprise Solutions are facing increasing pressure to consolidate vendors and demonstrate marketing ROI. With new leadership often comes budget reallocation and tool evaluation.",
+        howToHelp: "Your platform's new features directly address the gaps that led to churn in 2023. Updated automation capabilities, improved analytics, and competitive pricing make this a strong fit for their current needs.",
+        angle: "Acknowledge past relationship, highlight what's changed since 2023. Lead with new features and improved value proposition. Position as a fresh look with new leadership. Focus on marketing ROI metrics."
+      }
     },
     {
       name: "David Park",
@@ -160,13 +209,26 @@ export default function DialerPage() {
       phone: "+1 (555) 456-7890",
       title: "CEO",
       email: "dpark@innovationlabs.co",
+      industry: "SaaS",
+      companySize: "20-50",
       aiNotes: "Referral from existing customer. Fast-growing startup (Series B). Urgency: High - scaling SDR team.",
       priorCalls: [
         { date: "2025-01-14", outcome: "Connected", notes: "Requested pricing, mentioned 20-seat license" }
       ],
       lastEmailSent: "2025-01-19",
       sequenceStage: "Step 4 of 5",
-      sequence: "referral"
+      sequence: "referral",
+      correspondenceHistory: [
+        { date: "2025-01-19", type: "email", from: "Alex D. (AE)", summary: "Sent pricing proposal for 20-seat license with implementation timeline" },
+        { date: "2025-01-14", type: "call", from: "Alex D. (AE)", summary: "Connected - discussed SDR team scaling challenges, pricing questions" },
+        { date: "2025-01-10", type: "email", from: "Alex D. (AE)", summary: "Warm intro from TechCorp (existing customer)" }
+      ],
+      pov: {
+        opportunity: "David is the CEO of a Series B startup actively scaling their SDR team. The referral from an existing customer (TechCorp) significantly increases trust. His direct engagement with pricing indicates high intent and urgency.",
+        industryContext: "In the SaaS space, companies like Innovation Labs are facing challenges around rapid growth and scaling go-to-market operations efficiently. Post-Series B startups need to demonstrate quick returns on investment and prove unit economics to investors.",
+        howToHelp: "Your platform can help David scale his SDR team efficiently without proportional cost increases. Proven results from the referring customer (TechCorp) provide social proof and reduce perceived risk.",
+        angle: "Lead with referral success story from TechCorp. Emphasize fast time-to-value and onboarding support for rapidly scaling teams. Focus on metrics that matter to investors: efficiency gains, cost per acquisition, and revenue impact."
+      }
     },
     {
       name: "Sarah Johnson",
@@ -174,6 +236,8 @@ export default function DialerPage() {
       phone: "+1 (555) 123-4567",
       title: "VP of Sales",
       email: "sarah.j@techcorp.com",
+      industry: "Technology",
+      companySize: "500-1000",
       aiNotes: "High-intent prospect. Recently visited pricing page 3x. Company is actively evaluating sales engagement platforms.",
       priorCalls: [
         { date: "2025-01-15", outcome: "Connected", notes: "Interested in demo, asked about integrations" },
@@ -181,7 +245,19 @@ export default function DialerPage() {
       ],
       lastEmailSent: "2025-01-18",
       sequenceStage: "Step 3 of 5",
-      sequence: "sales-leaders"
+      sequence: "sales-leaders",
+      correspondenceHistory: [
+        { date: "2025-01-18", type: "email", from: "Mike P. (AE)", summary: "Follow-up with demo recording and integration documentation" },
+        { date: "2025-01-15", type: "call", from: "Mike P. (AE)", summary: "Connected - demo discussion, integration requirements gathered" },
+        { date: "2025-01-10", type: "call", from: "Mike P. (AE)", summary: "Left voicemail requesting callback" },
+        { date: "2025-01-08", type: "email", from: "Mike P. (AE)", summary: "Initial outreach - sales automation platform overview" }
+      ],
+      pov: {
+        opportunity: "Sarah is a VP of Sales at a 500-1000 person technology company showing high buying intent (3 pricing page visits). Active evaluation of sales engagement platforms indicates budget allocation and decision timeline are likely defined.",
+        industryContext: "In the Technology sector, companies like TechCorp are facing increasing pressure to improve sales efficiency, reduce cost per acquisition, and demonstrate clear pipeline impact. Sales leaders are being asked to do more with the same or smaller teams.",
+        howToHelp: "Your platform can help Sarah's sales team increase productivity through automation, improve visibility into pipeline health, and demonstrate ROI through detailed analytics and reporting.",
+        angle: "Lead with integration capabilities since she specifically asked about this. Show pipeline impact metrics from similar-sized companies. Emphasize executive reporting features that help VPs demonstrate team effectiveness to leadership."
+      }
     },
   ]
 
@@ -418,6 +494,35 @@ export default function DialerPage() {
   const cancelEditingPhone = () => {
     setEditingPhoneId(null)
     setEditedPhone("")
+  }
+
+  const saveNote = (contactId: string, noteType: "prospect" | "account", noteText: string) => {
+    if (noteType === "prospect") {
+      setProspectNotes(prev => ({ ...prev, [contactId]: noteText }))
+    } else {
+      setAccountNotes(prev => ({ ...prev, [contactId]: noteText }))
+    }
+    setEditingNoteId(null)
+    setEditingNoteType(null)
+
+    toast({
+      title: "Note saved",
+      description: `${noteType === "prospect" ? "Prospect" : "Account"} note updated successfully`,
+    })
+  }
+
+  const getHistorySummary = (history: any[]) => {
+    if (!history || history.length === 0) {
+      return "No previous history for this prospect"
+    }
+
+    const sortedHistory = [...history].sort((a, b) =>
+      new Date(b.date).getTime() - new Date(a.date).getTime()
+    )
+
+    return sortedHistory.map(item =>
+      `${item.date}: ${item.from} - ${item.summary}`
+    ).join(" | ")
   }
 
   const CallTimer = ({ startTime }: { startTime: number | null }) => {
@@ -861,6 +966,169 @@ export default function DialerPage() {
                                     <p className="text-xs text-muted-foreground">{call.notes}</p>
                                   </div>
                                 ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Correspondence History Summary */}
+                        <div className="mt-3 p-2 rounded-lg bg-muted/30 border border-border">
+                          <div className="flex items-start gap-2">
+                            <MessageSquare className="h-3.5 w-3.5 text-muted-foreground mt-0.5 flex-shrink-0" />
+                            <div className="flex-1">
+                              <p className="text-xs font-medium text-foreground mb-1">Correspondence History</p>
+                              <p className="text-xs text-muted-foreground leading-relaxed">
+                                {getHistorySummary((slot.contact as any).correspondenceHistory)}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Point of View */}
+                        {(slot.contact as any).pov && (
+                          <div className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                            <div className="flex items-start gap-2 mb-2">
+                              <Lightbulb className="h-3.5 w-3.5 text-primary mt-0.5 flex-shrink-0" />
+                              <p className="text-xs font-medium text-primary">Point of View</p>
+                            </div>
+                            <div className="space-y-2 text-xs text-foreground leading-relaxed">
+                              <p>
+                                <strong className="text-primary">Opportunity:</strong> {(slot.contact as any).pov.opportunity}
+                              </p>
+                              <p>
+                                <strong className="text-primary">Industry Context:</strong> {(slot.contact as any).pov.industryContext}
+                              </p>
+                              <p>
+                                <strong className="text-primary">How to Help:</strong> {(slot.contact as any).pov.howToHelp}
+                              </p>
+                              <p>
+                                <strong className="text-primary">Angle:</strong> {(slot.contact as any).pov.angle}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Prospect Notes */}
+                        {slot.contact && (
+                          <div className="mt-3">
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="flex items-center gap-1.5">
+                                <FileText className="h-3 w-3 text-muted-foreground" />
+                                <p className="text-xs font-medium text-foreground">Prospect Notes</p>
+                              </div>
+                              {editingNoteId !== `${slot.id}-prospect` && (
+                                <button
+                                  onClick={() => {
+                                    setEditingNoteId(`${slot.id}-prospect`)
+                                    setEditingNoteType("prospect")
+                                  }}
+                                  className="text-xs text-primary hover:underline"
+                                >
+                                  {prospectNotes[slot.contact.email] ? "Edit" : "Add"}
+                                </button>
+                              )}
+                            </div>
+                            {editingNoteId === `${slot.id}-prospect` ? (
+                              <div className="space-y-2">
+                                <Textarea
+                                  placeholder="Add notes about this prospect..."
+                                  defaultValue={prospectNotes[slot.contact.email] || ""}
+                                  className="min-h-[60px] text-xs"
+                                  id={`prospect-note-${slot.id}`}
+                                />
+                                <div className="flex gap-2">
+                                  <Button
+                                    size="sm"
+                                    onClick={() => {
+                                      if (slot.contact) {
+                                        const textarea = document.getElementById(`prospect-note-${slot.id}`) as HTMLTextAreaElement
+                                        saveNote(slot.contact.email, "prospect", textarea.value)
+                                      }
+                                    }}
+                                    className="h-7 text-xs"
+                                  >
+                                    <Save className="h-3 w-3 mr-1" />
+                                    Save
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setEditingNoteId(null)
+                                      setEditingNoteType(null)
+                                    }}
+                                    className="h-7 text-xs"
+                                  >
+                                    Cancel
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="text-xs text-muted-foreground p-2 bg-muted/30 rounded border border-border">
+                                {prospectNotes[slot.contact.email] || "No notes yet"}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Account Notes */}
+                        {slot.contact && (
+                          <div className="mt-3">
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="flex items-center gap-1.5">
+                                <Users className="h-3 w-3 text-muted-foreground" />
+                                <p className="text-xs font-medium text-foreground">Account Notes ({slot.contact.company})</p>
+                              </div>
+                              {editingNoteId !== `${slot.id}-account` && (
+                                <button
+                                  onClick={() => {
+                                    setEditingNoteId(`${slot.id}-account`)
+                                    setEditingNoteType("account")
+                                  }}
+                                  className="text-xs text-primary hover:underline"
+                                >
+                                  {accountNotes[slot.contact.company] ? "Edit" : "Add"}
+                                </button>
+                              )}
+                            </div>
+                            {editingNoteId === `${slot.id}-account` ? (
+                              <div className="space-y-2">
+                                <Textarea
+                                  placeholder="Add notes about this account..."
+                                  defaultValue={accountNotes[slot.contact.company] || ""}
+                                  className="min-h-[60px] text-xs"
+                                  id={`account-note-${slot.id}`}
+                                />
+                                <div className="flex gap-2">
+                                  <Button
+                                    size="sm"
+                                    onClick={() => {
+                                      if (slot.contact) {
+                                        const textarea = document.getElementById(`account-note-${slot.id}`) as HTMLTextAreaElement
+                                        saveNote(slot.contact.company, "account", textarea.value)
+                                      }
+                                    }}
+                                    className="h-7 text-xs"
+                                  >
+                                    <Save className="h-3 w-3 mr-1" />
+                                    Save
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setEditingNoteId(null)
+                                      setEditingNoteType(null)
+                                    }}
+                                    className="h-7 text-xs"
+                                  >
+                                    Cancel
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="text-xs text-muted-foreground p-2 bg-muted/30 rounded border border-border">
+                                {accountNotes[slot.contact.company] || "No notes yet"}
                               </div>
                             )}
                           </div>

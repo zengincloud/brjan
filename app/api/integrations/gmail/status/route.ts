@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { withAuth } from "@/lib/auth/api-middleware"
-import { getGmailIntegration } from "@/lib/gmail/oauth"
+import { getGmailIntegration, refreshAccessToken } from "@/lib/gmail/oauth"
 
 export const dynamic = "force-dynamic"
 
@@ -8,14 +8,33 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
   try {
     const integration = await getGmailIntegration(userId)
 
+    if (!integration) {
+      return NextResponse.json({
+        connected: false,
+        integration: null,
+      })
+    }
+
+    // Check if token is expired and try to refresh it
+    let tokenValid = integration.tokenExpiresAt > new Date()
+
+    if (!tokenValid && integration.isActive) {
+      // Try to refresh the token
+      const newToken = await refreshAccessToken(userId)
+      tokenValid = !!newToken
+    }
+
+    // Re-fetch integration in case it was updated during refresh
+    const updatedIntegration = await getGmailIntegration(userId)
+
     return NextResponse.json({
-      connected: !!integration,
-      integration: integration
+      connected: !!updatedIntegration,
+      integration: updatedIntegration
         ? {
-            email: integration.gmailEmail,
-            isActive: integration.isActive,
-            connectedAt: integration.createdAt,
-            tokenValid: integration.tokenExpiresAt > new Date(),
+            email: updatedIntegration.gmailEmail,
+            isActive: updatedIntegration.isActive,
+            connectedAt: updatedIntegration.createdAt,
+            tokenValid: updatedIntegration.isActive && tokenValid,
           }
         : null,
     })

@@ -10,6 +10,10 @@ export const metadata = {
   title: "boilerroom.ai",
   description: "AI-powered sales engagement platform",
   generator: "v0.app",
+  icons: {
+    icon: "/brgradientfav.png",
+    apple: "/brgradientfav.png",
+  },
 }
 
 export default function RootLayout({

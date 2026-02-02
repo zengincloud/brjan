@@ -27,6 +27,7 @@ import {
 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
+import { GmailIntegration } from "@/components/settings/gmail-integration"
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState("profile")
@@ -481,6 +482,8 @@ export default function SettingsPage() {
 
         {/* Integrations Tab */}
         <TabsContent value="integrations" className="space-y-4">
+          <GmailIntegration />
+
           <Card>
             <CardHeader>
               <CardTitle>CRM Integration</CardTitle>

@@ -22,6 +22,15 @@ function LoginContent() {
 
   const supabase = createClient()
 
+  // Use production URL for OAuth redirects
+  const getSiteUrl = () => {
+    if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL
+    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+      return window.location.origin
+    }
+    return 'https://boilerroom.ai'
+  }
+
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -91,7 +100,7 @@ function LoginContent() {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback?redirect=${redirect}`,
+          redirectTo: `${getSiteUrl()}/auth/callback?redirect=${redirect}`,
         },
       })
 

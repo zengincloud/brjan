@@ -22,13 +22,22 @@ function ResetPasswordContent() {
 
   const supabase = createClient()
 
+  // Use production URL for email redirects
+  const getSiteUrl = () => {
+    if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL
+    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+      return window.location.origin
+    }
+    return 'https://boilerroom.ai'
+  }
+
   const handleResetRequest = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password?type=recovery`,
+        redirectTo: `${getSiteUrl()}/reset-password?type=recovery`,
       })
 
       if (error) {

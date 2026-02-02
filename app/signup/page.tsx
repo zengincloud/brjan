@@ -30,6 +30,15 @@ export default function SignupPage() {
 
   const supabase = createClient()
 
+  // Use production URL for email redirects, fallback to current origin for local dev
+  const getSiteUrl = () => {
+    if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL
+    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+      return window.location.origin
+    }
+    return 'https://boilerroom.ai'
+  }
+
   const handleEmailSignup = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -72,7 +81,7 @@ export default function SignupPage() {
             firstName,
             lastName,
           },
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          emailRedirectTo: `${getSiteUrl()}/auth/callback`,
         },
       })
 
@@ -128,7 +137,7 @@ export default function SignupPage() {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: `${getSiteUrl()}/auth/callback`,
         },
       })
 

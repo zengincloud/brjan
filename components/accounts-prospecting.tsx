@@ -31,6 +31,16 @@ interface CompanyResult {
   buyingSignals: string[]
 }
 
+// Helper function to convert text to title case
+function toTitleCase(str: string | null | undefined): string {
+  if (!str) return ""
+  return str
+    .toLowerCase()
+    .split(" ")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ")
+}
+
 export function AccountsProspecting() {
   const { toast } = useToast()
   const [isCompanyAttributesOpen, setIsCompanyAttributesOpen] = useState(true)
@@ -474,14 +484,17 @@ export function AccountsProspecting() {
                   const isExpanded = expandedCards.has(company.id)
 
                   return (
-                    <Card key={company.id}>
+                    <Card key={company.id} className="cursor-pointer hover:shadow-md transition-shadow">
                       <CardContent className="p-6">
                         <div className="space-y-4">
                           {/* Preview Card (Always Visible) */}
                           <div className="flex items-start justify-between">
-                            <div className="space-y-2 flex-1">
+                            <div
+                              className="space-y-2 flex-1"
+                              onClick={() => toggleExpanded(company.id)}
+                            >
                               <div className="flex items-center gap-2">
-                                <h3 className="font-semibold text-lg">{company.name}</h3>
+                                <h3 className="font-semibold text-lg">{toTitleCase(company.name)}</h3>
                                 {company.verified && <Badge className="bg-primary/20 text-primary">Verified</Badge>}
                               </div>
                               {company.description && (
@@ -490,11 +503,11 @@ export function AccountsProspecting() {
                               <div className="flex items-center gap-4 text-sm text-muted-foreground">
                                 <div className="flex items-center gap-1">
                                   <Building2 className="h-4 w-4" />
-                                  {company.industry}
+                                  {toTitleCase(company.industry)}
                                 </div>
                                 <div className="flex items-center gap-1">
                                   <Globe className="h-4 w-4" />
-                                  {company.location}
+                                  {toTitleCase(company.location)}
                                 </div>
                                 <div className="flex items-center gap-1">
                                   <Users className="h-4 w-4" />
@@ -511,7 +524,7 @@ export function AccountsProspecting() {
                                 </div>
                               )}
                             </div>
-                            <div className="flex gap-2">
+                            <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -611,7 +624,7 @@ export function AccountsProspecting() {
                                   <div className="text-sm text-muted-foreground bg-muted/30 p-4 rounded-lg">
                                     <p className="mb-2">
                                       <strong className="text-foreground">Opportunity:</strong> Recent funding and aggressive hiring
-                                      indicate {company.name} is in rapid growth mode and likely experiencing operational scaling challenges.
+                                      indicate {toTitleCase(company.name)} is in rapid growth mode and likely experiencing operational scaling challenges.
                                     </p>
                                     <p className="mb-2">
                                       <strong className="text-foreground">How to Help:</strong> Your platform's automation capabilities

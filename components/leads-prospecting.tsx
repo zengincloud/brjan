@@ -46,6 +46,16 @@ const sequences = [
   { id: "new-lead", name: "New Lead Welcome" },
 ]
 
+// Helper function to convert text to title case
+function toTitleCase(str: string | null | undefined): string {
+  if (!str) return ""
+  return str
+    .toLowerCase()
+    .split(" ")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ")
+}
+
 export function LeadsProspecting() {
   const { toast } = useToast()
   const [isCompanyOpen, setIsCompanyOpen] = useState(true)
@@ -560,26 +570,29 @@ export function LeadsProspecting() {
                   const otherEmails = lead.emails?.slice(1) || []
 
                   return (
-                    <Card key={lead.id}>
+                    <Card key={lead.id} className="cursor-pointer hover:shadow-md transition-shadow">
                       <CardContent className="p-6">
                         <div className="space-y-4">
                           {/* Preview Card (Always Visible) */}
                           <div className="flex items-start justify-between">
-                            <div className="space-y-2 flex-1">
+                            <div
+                              className="space-y-2 flex-1"
+                              onClick={() => toggleExpanded(lead.id)}
+                            >
                               <div className="flex items-center gap-2">
-                                <h3 className="font-semibold text-lg">{lead.name}</h3>
+                                <h3 className="font-semibold text-lg">{toTitleCase(lead.name)}</h3>
                                 {getBuyerIntentBadge(lead.buyerIntent)}
                               </div>
-                              <p className="text-muted-foreground">{lead.title}</p>
+                              <p className="text-muted-foreground">{toTitleCase(lead.title)}</p>
                               <div className="flex items-center gap-4 text-sm text-muted-foreground">
                                 <div className="flex items-center gap-1">
                                   <Building2 className="h-4 w-4" />
-                                  {lead.company}
+                                  {toTitleCase(lead.company)}
                                 </div>
                                 {lead.location && (
                                   <div className="flex items-center gap-1">
                                     <MapPin className="h-4 w-4" />
-                                    {lead.location}
+                                    {toTitleCase(lead.location)}
                                   </div>
                                 )}
                               </div>
@@ -603,7 +616,7 @@ export function LeadsProspecting() {
                                 )}
                               </div>
                             </div>
-                            <div className="flex gap-2">
+                            <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -681,9 +694,14 @@ export function LeadsProspecting() {
                                   </h4>
                                   <div className="text-sm text-muted-foreground bg-muted/30 p-4 rounded-lg">
                                     <p className="mb-2">
-                                      <strong className="text-foreground">{lead.name}</strong> is currently working as a {lead.title} at {lead.company},
+                                      <strong className="text-foreground">{toTitleCase(lead.name)}</strong> is currently working as a {toTitleCase(lead.title)} at {toTitleCase(lead.company)},
                                       a {lead.companySize} company in the {lead.industry} industry. Based on their seniority level ({lead.seniorityLevel}),
                                       they likely have decision-making authority in their department.
+                                    </p>
+                                    <p className="mb-2">
+                                      As a {toTitleCase(lead.title)}, their job entails overseeing team performance, driving strategic initiatives, and managing
+                                      key stakeholder relationships. Things that are important to them include operational efficiency, team productivity,
+                                      scalable processes, and measurable ROI on new investments.
                                     </p>
                                     <p>
                                       With {getBuyerIntentText(lead.buyerIntent)}, this prospect may be actively looking for solutions

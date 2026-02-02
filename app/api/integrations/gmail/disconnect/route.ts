@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { withAuth } from "@/lib/auth/api-middleware"
 import { deleteGmailIntegration } from "@/lib/gmail/oauth"
 
+export const dynamic = "force-dynamic"
+
 export const POST = withAuth(async (request: NextRequest, userId: string) => {
   try {
     const result = await deleteGmailIntegration(userId)

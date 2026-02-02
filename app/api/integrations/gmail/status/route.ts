@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { withAuth } from "@/lib/auth/api-middleware"
 import { getGmailIntegration } from "@/lib/gmail/oauth"
 
+export const dynamic = "force-dynamic"
+
 export const GET = withAuth(async (request: NextRequest, userId: string) => {
   try {
     const integration = await getGmailIntegration(userId)

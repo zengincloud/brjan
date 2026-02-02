@@ -3,6 +3,8 @@ import { withAuth } from "@/lib/auth/api-middleware"
 import { getAuthUrl } from "@/lib/gmail/oauth"
 import crypto from "crypto"
 
+export const dynamic = "force-dynamic"
+
 export const GET = withAuth(async (request: NextRequest, userId: string) => {
   try {
     // Check if Gmail OAuth is configured

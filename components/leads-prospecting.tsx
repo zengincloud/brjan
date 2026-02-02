@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -58,6 +59,7 @@ function toTitleCase(str: string | null | undefined): string {
 
 export function LeadsProspecting() {
   const { toast } = useToast()
+  const searchParams = useSearchParams()
   const [isCompanyOpen, setIsCompanyOpen] = useState(true)
   const [isRoleOpen, setIsRoleOpen] = useState(true)
   const [isPersonalOpen, setIsPersonalOpen] = useState(true)
@@ -110,6 +112,36 @@ export function LeadsProspecting() {
       }
     }
   }, [])
+
+  // Handle multithread URL params
+  useEffect(() => {
+    const company = searchParams.get('company')
+    const seniorityLevelsParam = searchParams.get('seniorityLevels')
+    const autoSearch = searchParams.get('autoSearch')
+
+    if (company || seniorityLevelsParam) {
+      // Set filters from URL params
+      if (company) {
+        setCurrentCompany(company)
+      }
+      if (seniorityLevelsParam) {
+        try {
+          const levels = JSON.parse(seniorityLevelsParam)
+          setSeniorityLevels(levels)
+        } catch (e) {
+          console.error('Error parsing seniority levels:', e)
+        }
+      }
+
+      // Auto-trigger search if requested
+      if (autoSearch === 'true') {
+        // Small delay to ensure state is set
+        setTimeout(() => {
+          handleSearch()
+        }, 100)
+      }
+    }
+  }, [searchParams])
 
   const handleSearch = async () => {
     setIsLoading(true)

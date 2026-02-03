@@ -144,6 +144,8 @@ export default function DialerPage() {
       email: "emily.r@cloudworks.com",
       industry: "Cloud Infrastructure",
       companySize: "50-200",
+      businessDescription: "CloudWorks provides cloud infrastructure solutions including hosting, storage, and compute services for mid-market businesses.",
+      whatTheySell: "Cloud hosting, managed infrastructure, and DevOps automation tools",
       aiNotes: "Pain point: Manual outreach taking 15hrs/week. Mentioned competitor in last email. Strong buying signals.",
       priorCalls: [],
       lastEmailSent: "2025-01-20",
@@ -168,6 +170,8 @@ export default function DialerPage() {
       email: "mchen@datasystems.io",
       industry: "Data Analytics",
       companySize: "200-500",
+      businessDescription: "DataSystems Inc offers enterprise data analytics and business intelligence solutions for Fortune 500 companies.",
+      whatTheySell: "Data warehousing, BI dashboards, and predictive analytics software",
       aiNotes: "Technical decision maker. Team size: 45. Looking to consolidate tools. Budget approved for Q1.",
       priorCalls: [
         { date: "2025-01-12", outcome: "No Answer", notes: "Called at 2pm EST" }
@@ -195,6 +199,8 @@ export default function DialerPage() {
       email: "jtaylor@enterprisesolutions.com",
       industry: "Enterprise Software",
       companySize: "1000-5000",
+      businessDescription: "Enterprise Solutions develops enterprise resource planning (ERP) and workflow management software for large organizations.",
+      whatTheySell: "ERP systems, process automation, and enterprise collaboration tools",
       aiNotes: "Previously churned customer (2023). New leadership, different pain points. Opportunity to re-engage.",
       priorCalls: [
         { date: "2025-01-08", outcome: "Voicemail", notes: "Mentioned new product features" },
@@ -224,6 +230,8 @@ export default function DialerPage() {
       email: "dpark@innovationlabs.co",
       industry: "SaaS",
       companySize: "20-50",
+      businessDescription: "Innovation Labs is a fast-growing Series B startup building AI-powered productivity tools for modern teams.",
+      whatTheySell: "AI productivity software, team collaboration platform, and workflow automation",
       aiNotes: "Referral from existing customer. Fast-growing startup (Series B). Urgency: High - scaling SDR team.",
       priorCalls: [
         { date: "2025-01-14", outcome: "Connected", notes: "Requested pricing, mentioned 20-seat license" }
@@ -251,6 +259,8 @@ export default function DialerPage() {
       email: "sarah.j@techcorp.com",
       industry: "Technology",
       companySize: "500-1000",
+      businessDescription: "TechCorp is a technology company specializing in custom software development and IT consulting services for enterprise clients.",
+      whatTheySell: "Custom software development, IT consulting, and digital transformation services",
       aiNotes: "High-intent prospect. Recently visited pricing page 3x. Company is actively evaluating sales engagement platforms.",
       priorCalls: [
         { date: "2025-01-15", outcome: "Connected", notes: "Interested in demo, asked about integrations" },
@@ -805,13 +815,23 @@ export default function DialerPage() {
                         </div>
                       </div>
 
-                      {/* AI Notes */}
-                      <div className="mt-3 p-2 rounded-lg bg-primary/5 border border-primary/20">
+                      {/* Insights */}
+                      <div className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
                         <div className="flex items-start gap-2">
                           <Sparkles className="h-3.5 w-3.5 text-primary mt-0.5 flex-shrink-0" />
-                          <div className="flex-1">
-                            <p className="text-xs font-medium text-primary mb-1">AI Insights</p>
-                            <p className="text-xs text-foreground leading-relaxed">{prospect.aiNotes}</p>
+                          <div className="flex-1 space-y-2">
+                            <p className="text-xs font-medium text-primary">Insights</p>
+                            <div className="space-y-1.5">
+                              <p className="text-xs text-foreground leading-relaxed">
+                                <span className="font-medium text-muted-foreground">What they do:</span> {(prospect as any).businessDescription}
+                              </p>
+                              <p className="text-xs text-foreground leading-relaxed">
+                                <span className="font-medium text-muted-foreground">What they sell:</span> {(prospect as any).whatTheySell}
+                              </p>
+                              <p className="text-xs text-foreground leading-relaxed">
+                                <span className="font-medium text-muted-foreground">Key intel:</span> {prospect.aiNotes}
+                              </p>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -851,17 +871,6 @@ export default function DialerPage() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-3">
-                  <Textarea
-                    placeholder="Pre-call notes or strategy..."
-                    className="min-h-[60px] text-sm"
-                  />
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">
-                      Ready to dial when session starts
-                    </span>
-                  </div>
-                </CardContent>
               </Card>
             ))}
           </div>
@@ -1117,7 +1126,7 @@ export default function DialerPage() {
                         <span>{expandedSlots.has(slot.id) ? "Hide" : "Show"} Details</span>
                         <span className="text-muted-foreground/60">•</span>
                         <Sparkles className="h-3 w-3 text-primary" />
-                        <span className="text-primary">AI Insights</span>
+                        <span className="text-primary">Insights</span>
                         {slot.contact.priorCalls.length > 0 && (
                           <>
                             <span className="text-muted-foreground/60">•</span>
@@ -1134,7 +1143,7 @@ export default function DialerPage() {
                             <div className="flex items-start gap-2">
                               <Sparkles className="h-3.5 w-3.5 text-primary mt-0.5 flex-shrink-0" />
                               <div className="flex-1">
-                                <p className="text-xs font-medium text-primary mb-1">AI Insights</p>
+                                <p className="text-xs font-medium text-primary mb-1">Insights</p>
                                 <p className="text-xs text-foreground leading-relaxed">{slot.contact.aiNotes}</p>
                               </div>
                             </div>

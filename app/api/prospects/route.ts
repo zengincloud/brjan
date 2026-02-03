@@ -135,7 +135,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
         sequence,
         sequenceStep,
         pdlData,
-        povData, // Include generated POV data
+        ...(povData && { povData }), // Include generated POV data if not null
         userId, // Associate with current user
       },
     })

@@ -85,7 +85,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
         title,
         company,
         phone,
-        povData,
+        ...(povData && { povData }),
         userId,
       })
     }

@@ -54,6 +54,8 @@ import {
   Star
 } from "lucide-react"
 import { CallHistory } from "@/components/call-history"
+import { SendEmailDialog } from "@/components/send-email-dialog"
+import { Calendar } from "lucide-react"
 
 type CallStatus = "idle" | "ringing" | "connected" | "completed"
 
@@ -114,6 +116,8 @@ export default function DialerPage() {
   const [editedPhone, setEditedPhone] = useState<string>("")
   const [prospectNotes, setProspectNotes] = useState<{ [key: string]: string }>({})
   const [accountNotes, setAccountNotes] = useState<{ [key: string]: string }>({})
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false)
+  const [emailProspect, setEmailProspect] = useState<{ id: string; name: string; email: string; title?: string; company?: string } | null>(null)
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
   const [editingNoteType, setEditingNoteType] = useState<"prospect" | "account" | null>(null)
 
@@ -527,6 +531,39 @@ export default function DialerPage() {
     setCallSlots(prev => prev.map(slot =>
       slot.id === slotId ? { ...slot, notes } : slot
     ))
+  }
+
+  // Open email dialog for a contact
+  const openEmailDialog = (contact: typeof mockProspects[0]) => {
+    setEmailProspect({
+      id: contact.email, // Use email as ID for mock data
+      name: contact.name,
+      email: contact.email,
+      title: contact.title,
+      company: contact.company,
+    })
+    setEmailDialogOpen(true)
+  }
+
+  // Open Google Calendar with pre-filled meeting details
+  const openCalendarInvite = (contact: typeof mockProspects[0]) => {
+    const title = encodeURIComponent(`Meeting with ${contact.name} - ${contact.company}`)
+    const details = encodeURIComponent(`Follow-up call with ${contact.name}, ${contact.title} at ${contact.company}\n\nEmail: ${contact.email}\nPhone: ${contact.phone}`)
+
+    // Default to 30 min meeting starting tomorrow at 10am
+    const tomorrow = new Date()
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    tomorrow.setHours(10, 0, 0, 0)
+    const endTime = new Date(tomorrow)
+    endTime.setMinutes(endTime.getMinutes() + 30)
+
+    const formatDate = (date: Date) => date.toISOString().replace(/-|:|\.\d\d\d/g, "")
+    const startStr = formatDate(tomorrow)
+    const endStr = formatDate(endTime)
+
+    const calendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&details=${details}&dates=${startStr}/${endStr}&add=${encodeURIComponent(contact.email)}`
+
+    window.open(calendarUrl, "_blank")
   }
 
   const toggleExpanded = (slotId: string) => {
@@ -1109,6 +1146,25 @@ export default function DialerPage() {
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
+                        <div className="border-l border-border h-6 mx-1" />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => slot.contact && openEmailDialog(slot.contact)}
+                          className="h-8"
+                        >
+                          <Mail className="h-3 w-3 mr-1" />
+                          Email
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => slot.contact && openCalendarInvite(slot.contact)}
+                          className="h-8"
+                        >
+                          <Calendar className="h-3 w-3 mr-1" />
+                          Calendar
+                        </Button>
                       </div>
                     </div>
 
@@ -1541,6 +1597,13 @@ export default function DialerPage() {
       <div className="mt-6">
         <CallHistory limit={20} />
       </div>
+
+      {/* Email Dialog */}
+      <SendEmailDialog
+        open={emailDialogOpen}
+        onOpenChange={setEmailDialogOpen}
+        prospect={emailProspect}
+      />
     </div>
   )
 }

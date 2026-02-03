@@ -298,16 +298,7 @@ export default function ProspectDetailPage() {
       </div>
 
       {/* Point of View */}
-      <ProspectPOV
-        key={`pov-${refreshKey}`}
-        prospectId={prospect.id}
-        prospectName={prospect.name}
-        company={prospect.company}
-        title={prospect.title}
-        industry={pdlData?.industry}
-        povData={prospect.povData}
-        onPOVGenerated={refreshData}
-      />
+      <ProspectPOV povData={prospect.povData} />
 
       {/* AI Correspondence Summary */}
       <CorrespondenceSummary key={refreshKey} prospectId={prospect.id} prospectName={prospect.name} />

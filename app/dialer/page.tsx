@@ -82,7 +82,7 @@ export default function DialerPage() {
   const [sessionPaused, setSessionPaused] = useState(false)
   const [dialMode, setDialMode] = useState<"parallel" | "single">("parallel")
   const [selectedSequence, setSelectedSequence] = useState<string>("all")
-  const [selectedPhone, setSelectedPhone] = useState<string>("+1 (555) 000-0001")
+  const [selectedPhone, setSelectedPhone] = useState<string>("+16282253832")
   const [callSlots, setCallSlots] = useState<CallSlot[]>([
     { id: "1", status: "idle", contact: null, startTime: null, notes: "" },
     { id: "2", status: "idle", contact: null, startTime: null, notes: "" },
@@ -114,8 +114,9 @@ export default function DialerPage() {
     { id: "referral", name: "Referral Follow-up" },
   ]
 
-  // Available phone numbers
+  // Available phone numbers (including Twilio-provided number)
   const phoneNumbers = [
+    { id: "+16282253832", label: "+1 (628) 225-3832 (Twilio)" },
     { id: "+1 (555) 000-0001", label: "+1 (555) 000-0001 (Main)" },
     { id: "+1 (555) 000-0002", label: "+1 (555) 000-0002 (Sales)" },
     { id: "+1 (555) 000-0003", label: "+1 (555) 000-0003 (Support)" },
@@ -278,6 +279,7 @@ export default function DialerPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           to: prospect.phone,
+          from: selectedPhone,
           metadata: {
             prospectName: prospect.name,
             prospectCompany: prospect.company,
@@ -841,354 +843,523 @@ export default function DialerPage() {
             </Badge>
           </div>
         </div>
-        <div className={`grid gap-4 ${dialMode === "parallel" ? "md:grid-cols-2" : "md:grid-cols-1 max-w-2xl"}`}>
-          {callSlots.slice(0, dialMode === "parallel" ? 4 : 1).map((slot) => (
-            <Card
-              key={slot.id}
-              className={`border-border ${
-                slot.status === "ringing"
-                  ? "border-primary/50 bg-primary/5"
-                  : slot.status === "connected"
-                  ? "border-primary bg-primary/10"
-                  : "bg-card"
-              }`}
-            >
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    {slot.contact ? (
-                      <>
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <CardTitle className="text-base">{slot.contact.name}</CardTitle>
-                            <div className="flex items-center gap-2 mt-1">
-                              <Building2 className="h-3 w-3 text-muted-foreground" />
-                              <span className="text-xs text-muted-foreground">{slot.contact.company}</span>
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-0.5">{slot.contact.title}</p>
-                          </div>
-                          <div className="flex flex-col items-end gap-1">
-                            {slot.status === "ringing" && (
-                              <Badge className="bg-primary/20 text-primary border-0">Ringing</Badge>
-                            )}
-                            {slot.status === "connected" && (
-                              <Badge className="bg-primary text-primary-foreground border-0">Connected</Badge>
-                            )}
-                            {slot.startTime && <CallTimer startTime={slot.startTime} />}
-                          </div>
+
+        {/* Row-based layout when session is active, card-based when not */}
+        {sessionActive ? (
+          <div className="space-y-3">
+            {callSlots.slice(0, dialMode === "parallel" ? 4 : 1).map((slot) => (
+              <div
+                key={slot.id}
+                className={`rounded-lg border p-4 ${
+                  slot.status === "ringing"
+                    ? "border-primary/50 bg-primary/5"
+                    : slot.status === "connected"
+                    ? "border-primary bg-primary/10"
+                    : "border-border bg-card"
+                }`}
+              >
+                {slot.contact ? (
+                  <div className="space-y-3">
+                    {/* Main row with key info */}
+                    <div className="flex items-center gap-4 flex-wrap">
+                      {/* Status and Timer */}
+                      <div className="flex items-center gap-2 min-w-[100px]">
+                        {slot.status === "ringing" && (
+                          <Badge className="bg-primary/20 text-primary border-0">Ringing</Badge>
+                        )}
+                        {slot.status === "connected" && (
+                          <Badge className="bg-primary text-primary-foreground border-0">Connected</Badge>
+                        )}
+                        {slot.status === "idle" && (
+                          <Badge variant="outline">Idle</Badge>
+                        )}
+                        {slot.startTime && <CallTimer startTime={slot.startTime} />}
+                      </div>
+
+                      {/* Contact Info */}
+                      <div className="flex-1 min-w-[200px]">
+                        <div className="flex items-center gap-3">
+                          <span className="font-semibold text-sm">{slot.contact.name}</span>
+                          <span className="text-xs text-muted-foreground">•</span>
+                          <span className="text-xs text-muted-foreground">{slot.contact.title}</span>
                         </div>
-                        <div className="mt-2 space-y-1.5">
-                          <div className="flex items-center gap-1.5 text-xs">
-                            <Phone className="h-3 w-3 text-muted-foreground" />
-                            {editingPhoneId === slot.id ? (
-                              <div className="flex items-center gap-1">
-                                <Input
-                                  type="tel"
-                                  value={editedPhone}
-                                  onChange={(e) => setEditedPhone(e.target.value)}
-                                  className="font-mono text-xs h-6 px-2 w-32"
-                                  autoFocus
-                                />
-                                <button
-                                  onClick={() => saveEditedPhone(slot.id)}
-                                  className="p-0.5 hover:bg-primary/10 rounded"
-                                >
-                                  <Check className="h-3 w-3 text-primary" />
-                                </button>
-                                <button
-                                  onClick={cancelEditingPhone}
-                                  className="p-0.5 hover:bg-destructive/10 rounded"
-                                >
-                                  <X className="h-3 w-3 text-destructive" />
-                                </button>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <Building2 className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">{slot.contact.company}</span>
+                        </div>
+                      </div>
+
+                      {/* Phone */}
+                      <div className="flex items-center gap-1.5">
+                        <Phone className="h-3 w-3 text-muted-foreground" />
+                        {editingPhoneId === slot.id ? (
+                          <div className="flex items-center gap-1">
+                            <Input
+                              type="tel"
+                              value={editedPhone}
+                              onChange={(e) => setEditedPhone(e.target.value)}
+                              className="font-mono text-xs h-6 px-2 w-32"
+                              autoFocus
+                            />
+                            <button
+                              onClick={() => saveEditedPhone(slot.id)}
+                              className="p-0.5 hover:bg-primary/10 rounded"
+                            >
+                              <Check className="h-3 w-3 text-primary" />
+                            </button>
+                            <button
+                              onClick={cancelEditingPhone}
+                              className="p-0.5 hover:bg-destructive/10 rounded"
+                            >
+                              <X className="h-3 w-3 text-destructive" />
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <span className="font-mono text-xs">{slot.contact.phone}</span>
+                            <button
+                              onClick={() => slot.contact && startEditingPhone(slot.id, slot.contact.phone)}
+                              className="p-0.5 hover:bg-muted rounded"
+                              title="Edit phone number"
+                            >
+                              <Edit2 className="h-3 w-3 text-muted-foreground" />
+                            </button>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Outcome Buttons */}
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => handleCallOutcome(slot.id, "connected")}
+                          className="bg-primary hover:bg-primary/90 text-primary-foreground h-8"
+                        >
+                          <UserCheck className="h-3 w-3 mr-1" />
+                          Connected
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleCallOutcome(slot.id, "voicemail")}
+                          className="h-8"
+                        >
+                          <Voicemail className="h-3 w-3 mr-1" />
+                          VM
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleCallOutcome(slot.id, "no-answer")}
+                          className="h-8"
+                        >
+                          <UserX className="h-3 w-3 mr-1" />
+                          No Answer
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleCallOutcome(slot.id, "skip")}
+                          className="h-8"
+                        >
+                          <SkipForward className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Expandable details section */}
+                    <div>
+                      <button
+                        onClick={() => toggleExpanded(slot.id)}
+                        className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        {expandedSlots.has(slot.id) ? (
+                          <ChevronUp className="h-3 w-3" />
+                        ) : (
+                          <ChevronDown className="h-3 w-3" />
+                        )}
+                        <span>{expandedSlots.has(slot.id) ? "Hide" : "Show"} Details</span>
+                        <span className="text-muted-foreground/60">•</span>
+                        <Sparkles className="h-3 w-3 text-primary" />
+                        <span className="text-primary">AI Insights</span>
+                        {slot.contact.priorCalls.length > 0 && (
+                          <>
+                            <span className="text-muted-foreground/60">•</span>
+                            <History className="h-3 w-3" />
+                            <span>{slot.contact.priorCalls.length} prior calls</span>
+                          </>
+                        )}
+                      </button>
+
+                      {expandedSlots.has(slot.id) && (
+                        <div className="mt-3 space-y-3 pl-4 border-l-2 border-border">
+                          {/* AI Notes */}
+                          <div className="p-2 rounded-lg bg-primary/5 border border-primary/20">
+                            <div className="flex items-start gap-2">
+                              <Sparkles className="h-3.5 w-3.5 text-primary mt-0.5 flex-shrink-0" />
+                              <div className="flex-1">
+                                <p className="text-xs font-medium text-primary mb-1">AI Insights</p>
+                                <p className="text-xs text-foreground leading-relaxed">{slot.contact.aiNotes}</p>
                               </div>
-                            ) : (
-                              <>
-                                <span className="font-mono">{slot.contact.phone}</span>
-                                <button
-                                  onClick={() => slot.contact && startEditingPhone(slot.id, slot.contact.phone)}
-                                  className="p-0.5 hover:bg-muted rounded"
-                                  title="Edit phone number"
-                                >
-                                  <Edit2 className="h-3 w-3 text-muted-foreground" />
-                                </button>
-                              </>
-                            )}
+                            </div>
                           </div>
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <Mail className="h-3 w-3" />
-                            <span>{slot.contact.email}</span>
-                          </div>
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+
+                          {/* Contact details */}
+                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                            <div className="flex items-center gap-1.5">
+                              <Mail className="h-3 w-3" />
+                              <span>{slot.contact.email}</span>
+                            </div>
                             <Badge variant="outline" className="text-xs h-5">
                               {slot.contact.sequenceStage}
                             </Badge>
-                            <span>• Last email: {slot.contact.lastEmailSent}</span>
+                            <span>Last email: {slot.contact.lastEmailSent}</span>
                           </div>
-                        </div>
 
-                        {/* AI Notes */}
-                        <div className="mt-3 p-2 rounded-lg bg-primary/5 border border-primary/20">
-                          <div className="flex items-start gap-2">
-                            <Sparkles className="h-3.5 w-3.5 text-primary mt-0.5 flex-shrink-0" />
-                            <div className="flex-1">
-                              <p className="text-xs font-medium text-primary mb-1">AI Insights</p>
-                              <p className="text-xs text-foreground leading-relaxed">{slot.contact.aiNotes}</p>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Prior Call History */}
-                        {slot.contact.priorCalls.length > 0 && (
-                          <div className="mt-3">
-                            <button
-                              onClick={() => toggleExpanded(slot.id)}
-                              className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors w-full"
-                            >
-                              <History className="h-3 w-3" />
-                              <span>Call History ({slot.contact.priorCalls.length})</span>
-                              {expandedSlots.has(slot.id) ? (
-                                <ChevronUp className="h-3 w-3 ml-auto" />
-                              ) : (
-                                <ChevronDown className="h-3 w-3 ml-auto" />
-                              )}
-                            </button>
-                            {expandedSlots.has(slot.id) && (
-                              <div className="mt-2 space-y-2">
-                                {slot.contact.priorCalls.map((call, idx) => (
-                                  <div key={idx} className="p-2 rounded bg-secondary/30 border border-border">
-                                    <div className="flex items-center justify-between mb-1">
-                                      <span className="text-xs font-medium">{call.date}</span>
-                                      <Badge variant="outline" className="text-xs h-5">
-                                        {call.outcome}
-                                      </Badge>
-                                    </div>
-                                    <p className="text-xs text-muted-foreground">{call.notes}</p>
+                          {/* Prior Call History */}
+                          {slot.contact.priorCalls.length > 0 && (
+                            <div className="space-y-2">
+                              <p className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                                <History className="h-3 w-3" />
+                                Call History
+                              </p>
+                              {slot.contact.priorCalls.map((call, idx) => (
+                                <div key={idx} className="p-2 rounded bg-secondary/30 border border-border">
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className="text-xs font-medium">{call.date}</span>
+                                    <Badge variant="outline" className="text-xs h-5">
+                                      {call.outcome}
+                                    </Badge>
                                   </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )}
+                                  <p className="text-xs text-muted-foreground">{call.notes}</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
 
-                        {/* Correspondence History Summary */}
-                        <div className="mt-3 p-2 rounded-lg bg-muted/30 border border-border">
-                          <div className="flex items-start gap-2">
-                            <MessageSquare className="h-3.5 w-3.5 text-muted-foreground mt-0.5 flex-shrink-0" />
-                            <div className="flex-1">
-                              <p className="text-xs font-medium text-foreground mb-1">Correspondence History</p>
-                              <p className="text-xs text-muted-foreground leading-relaxed">
-                                {getHistorySummary((slot.contact as any).correspondenceHistory)}
-                              </p>
+                          {/* Correspondence History Summary */}
+                          <div className="p-2 rounded-lg bg-muted/30 border border-border">
+                            <div className="flex items-start gap-2">
+                              <MessageSquare className="h-3.5 w-3.5 text-muted-foreground mt-0.5 flex-shrink-0" />
+                              <div className="flex-1">
+                                <p className="text-xs font-medium text-foreground mb-1">Correspondence History</p>
+                                <p className="text-xs text-muted-foreground leading-relaxed">
+                                  {getHistorySummary((slot.contact as any).correspondenceHistory)}
+                                </p>
+                              </div>
                             </div>
                           </div>
+
+                          {/* Point of View */}
+                          {(slot.contact as any).pov && (
+                            <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
+                              <div className="flex items-start gap-2 mb-2">
+                                <Lightbulb className="h-3.5 w-3.5 text-primary mt-0.5 flex-shrink-0" />
+                                <p className="text-xs font-medium text-primary">Point of View</p>
+                              </div>
+                              <div className="space-y-2 text-xs text-foreground leading-relaxed">
+                                <p>
+                                  <strong className="text-primary">Opportunity:</strong> {(slot.contact as any).pov.opportunity}
+                                </p>
+                                <p>
+                                  <strong className="text-primary">Industry Context:</strong> {(slot.contact as any).pov.industryContext}
+                                </p>
+                                <p>
+                                  <strong className="text-primary">How to Help:</strong> {(slot.contact as any).pov.howToHelp}
+                                </p>
+                                <p>
+                                  <strong className="text-primary">Angle:</strong> {(slot.contact as any).pov.angle}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Notes row */}
+                          <div className="grid grid-cols-2 gap-3">
+                            {/* Prospect Notes */}
+                            <div>
+                              <div className="flex items-center justify-between mb-1">
+                                <div className="flex items-center gap-1.5">
+                                  <FileText className="h-3 w-3 text-muted-foreground" />
+                                  <p className="text-xs font-medium text-foreground">Prospect Notes</p>
+                                </div>
+                                {editingNoteId !== `${slot.id}-prospect` && (
+                                  <button
+                                    onClick={() => {
+                                      setEditingNoteId(`${slot.id}-prospect`)
+                                      setEditingNoteType("prospect")
+                                    }}
+                                    className="text-xs text-primary hover:underline"
+                                  >
+                                    {prospectNotes[slot.contact.email] ? "Edit" : "Add"}
+                                  </button>
+                                )}
+                              </div>
+                              {editingNoteId === `${slot.id}-prospect` ? (
+                                <div className="space-y-2">
+                                  <Textarea
+                                    placeholder="Add notes about this prospect..."
+                                    defaultValue={prospectNotes[slot.contact.email] || ""}
+                                    className="min-h-[60px] text-xs"
+                                    id={`prospect-note-${slot.id}`}
+                                  />
+                                  <div className="flex gap-2">
+                                    <Button
+                                      size="sm"
+                                      onClick={() => {
+                                        if (slot.contact) {
+                                          const textarea = document.getElementById(`prospect-note-${slot.id}`) as HTMLTextAreaElement
+                                          saveNote(slot.contact.email, "prospect", textarea.value)
+                                        }
+                                      }}
+                                      className="h-7 text-xs"
+                                    >
+                                      <Save className="h-3 w-3 mr-1" />
+                                      Save
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => {
+                                        setEditingNoteId(null)
+                                        setEditingNoteType(null)
+                                      }}
+                                      className="h-7 text-xs"
+                                    >
+                                      Cancel
+                                    </Button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="text-xs text-muted-foreground p-2 bg-muted/30 rounded border border-border">
+                                  {prospectNotes[slot.contact.email] || "No notes yet"}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Account Notes */}
+                            <div>
+                              <div className="flex items-center justify-between mb-1">
+                                <div className="flex items-center gap-1.5">
+                                  <Users className="h-3 w-3 text-muted-foreground" />
+                                  <p className="text-xs font-medium text-foreground">Account Notes ({slot.contact.company})</p>
+                                </div>
+                                {editingNoteId !== `${slot.id}-account` && (
+                                  <button
+                                    onClick={() => {
+                                      setEditingNoteId(`${slot.id}-account`)
+                                      setEditingNoteType("account")
+                                    }}
+                                    className="text-xs text-primary hover:underline"
+                                  >
+                                    {accountNotes[slot.contact.company] ? "Edit" : "Add"}
+                                  </button>
+                                )}
+                              </div>
+                              {editingNoteId === `${slot.id}-account` ? (
+                                <div className="space-y-2">
+                                  <Textarea
+                                    placeholder="Add notes about this account..."
+                                    defaultValue={accountNotes[slot.contact.company] || ""}
+                                    className="min-h-[60px] text-xs"
+                                    id={`account-note-${slot.id}`}
+                                  />
+                                  <div className="flex gap-2">
+                                    <Button
+                                      size="sm"
+                                      onClick={() => {
+                                        if (slot.contact) {
+                                          const textarea = document.getElementById(`account-note-${slot.id}`) as HTMLTextAreaElement
+                                          saveNote(slot.contact.company, "account", textarea.value)
+                                        }
+                                      }}
+                                      className="h-7 text-xs"
+                                    >
+                                      <Save className="h-3 w-3 mr-1" />
+                                      Save
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => {
+                                        setEditingNoteId(null)
+                                        setEditingNoteType(null)
+                                      }}
+                                      className="h-7 text-xs"
+                                    >
+                                      Cancel
+                                    </Button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="text-xs text-muted-foreground p-2 bg-muted/30 rounded border border-border">
+                                  {accountNotes[slot.contact.company] || "No notes yet"}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Call notes */}
+                          <Textarea
+                            placeholder="Call notes..."
+                            value={slot.notes}
+                            onChange={(e) => updateNotes(slot.id, e.target.value)}
+                            className="min-h-[60px] text-sm"
+                          />
                         </div>
-
-                        {/* Point of View */}
-                        {(slot.contact as any).pov && (
-                          <div className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
-                            <div className="flex items-start gap-2 mb-2">
-                              <Lightbulb className="h-3.5 w-3.5 text-primary mt-0.5 flex-shrink-0" />
-                              <p className="text-xs font-medium text-primary">Point of View</p>
-                            </div>
-                            <div className="space-y-2 text-xs text-foreground leading-relaxed">
-                              <p>
-                                <strong className="text-primary">Opportunity:</strong> {(slot.contact as any).pov.opportunity}
-                              </p>
-                              <p>
-                                <strong className="text-primary">Industry Context:</strong> {(slot.contact as any).pov.industryContext}
-                              </p>
-                              <p>
-                                <strong className="text-primary">How to Help:</strong> {(slot.contact as any).pov.howToHelp}
-                              </p>
-                              <p>
-                                <strong className="text-primary">Angle:</strong> {(slot.contact as any).pov.angle}
-                              </p>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Prospect Notes */}
-                        {slot.contact && (
-                          <div className="mt-3">
-                            <div className="flex items-center justify-between mb-1">
-                              <div className="flex items-center gap-1.5">
-                                <FileText className="h-3 w-3 text-muted-foreground" />
-                                <p className="text-xs font-medium text-foreground">Prospect Notes</p>
-                              </div>
-                              {editingNoteId !== `${slot.id}-prospect` && (
-                                <button
-                                  onClick={() => {
-                                    setEditingNoteId(`${slot.id}-prospect`)
-                                    setEditingNoteType("prospect")
-                                  }}
-                                  className="text-xs text-primary hover:underline"
-                                >
-                                  {prospectNotes[slot.contact.email] ? "Edit" : "Add"}
-                                </button>
-                              )}
-                            </div>
-                            {editingNoteId === `${slot.id}-prospect` ? (
-                              <div className="space-y-2">
-                                <Textarea
-                                  placeholder="Add notes about this prospect..."
-                                  defaultValue={prospectNotes[slot.contact.email] || ""}
-                                  className="min-h-[60px] text-xs"
-                                  id={`prospect-note-${slot.id}`}
-                                />
-                                <div className="flex gap-2">
-                                  <Button
-                                    size="sm"
-                                    onClick={() => {
-                                      if (slot.contact) {
-                                        const textarea = document.getElementById(`prospect-note-${slot.id}`) as HTMLTextAreaElement
-                                        saveNote(slot.contact.email, "prospect", textarea.value)
-                                      }
-                                    }}
-                                    className="h-7 text-xs"
-                                  >
-                                    <Save className="h-3 w-3 mr-1" />
-                                    Save
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => {
-                                      setEditingNoteId(null)
-                                      setEditingNoteType(null)
-                                    }}
-                                    className="h-7 text-xs"
-                                  >
-                                    Cancel
-                                  </Button>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="text-xs text-muted-foreground p-2 bg-muted/30 rounded border border-border">
-                                {prospectNotes[slot.contact.email] || "No notes yet"}
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Account Notes */}
-                        {slot.contact && (
-                          <div className="mt-3">
-                            <div className="flex items-center justify-between mb-1">
-                              <div className="flex items-center gap-1.5">
-                                <Users className="h-3 w-3 text-muted-foreground" />
-                                <p className="text-xs font-medium text-foreground">Account Notes ({slot.contact.company})</p>
-                              </div>
-                              {editingNoteId !== `${slot.id}-account` && (
-                                <button
-                                  onClick={() => {
-                                    setEditingNoteId(`${slot.id}-account`)
-                                    setEditingNoteType("account")
-                                  }}
-                                  className="text-xs text-primary hover:underline"
-                                >
-                                  {accountNotes[slot.contact.company] ? "Edit" : "Add"}
-                                </button>
-                              )}
-                            </div>
-                            {editingNoteId === `${slot.id}-account` ? (
-                              <div className="space-y-2">
-                                <Textarea
-                                  placeholder="Add notes about this account..."
-                                  defaultValue={accountNotes[slot.contact.company] || ""}
-                                  className="min-h-[60px] text-xs"
-                                  id={`account-note-${slot.id}`}
-                                />
-                                <div className="flex gap-2">
-                                  <Button
-                                    size="sm"
-                                    onClick={() => {
-                                      if (slot.contact) {
-                                        const textarea = document.getElementById(`account-note-${slot.id}`) as HTMLTextAreaElement
-                                        saveNote(slot.contact.company, "account", textarea.value)
-                                      }
-                                    }}
-                                    className="h-7 text-xs"
-                                  >
-                                    <Save className="h-3 w-3 mr-1" />
-                                    Save
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => {
-                                      setEditingNoteId(null)
-                                      setEditingNoteType(null)
-                                    }}
-                                    className="h-7 text-xs"
-                                  >
-                                    Cancel
-                                  </Button>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="text-xs text-muted-foreground p-2 bg-muted/30 rounded border border-border">
-                                {accountNotes[slot.contact.company] || "No notes yet"}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <div className="text-sm text-muted-foreground">Waiting for next call...</div>
-                    )}
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {slot.contact && (
-                  <>
-                    <Textarea
-                      placeholder="Call notes..."
-                      value={slot.notes}
-                      onChange={(e) => updateNotes(slot.id, e.target.value)}
-                      className="min-h-[60px] text-sm"
-                    />
-                    <div className="grid grid-cols-2 gap-2">
-                      <Button
-                        size="sm"
-                        onClick={() => handleCallOutcome(slot.id, "connected")}
-                        className="bg-primary hover:bg-primary/90 text-primary-foreground"
-                      >
-                        <UserCheck className="h-3 w-3 mr-1" />
-                        Connected
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleCallOutcome(slot.id, "voicemail")}
-                      >
-                        <Voicemail className="h-3 w-3 mr-1" />
-                        Voicemail
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleCallOutcome(slot.id, "no-answer")}
-                      >
-                        <UserX className="h-3 w-3 mr-1" />
-                        No Answer
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleCallOutcome(slot.id, "skip")}
-                      >
-                        <SkipForward className="h-3 w-3 mr-1" />
-                        Skip
-                      </Button>
+                      )}
                     </div>
-                  </>
+                  </div>
+                ) : (
+                  <div className="text-sm text-muted-foreground py-2">Waiting for next call...</div>
                 )}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          /* Card-based layout when session is not active */
+          <div className={`grid gap-4 ${dialMode === "parallel" ? "md:grid-cols-2" : "md:grid-cols-1 max-w-2xl"}`}>
+            {callSlots.slice(0, dialMode === "parallel" ? 4 : 1).map((slot) => (
+              <Card
+                key={slot.id}
+                className={`border-border ${
+                  slot.status === "ringing"
+                    ? "border-primary/50 bg-primary/5"
+                    : slot.status === "connected"
+                    ? "border-primary bg-primary/10"
+                    : "bg-card"
+                }`}
+              >
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      {slot.contact ? (
+                        <>
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <CardTitle className="text-base">{slot.contact.name}</CardTitle>
+                              <div className="flex items-center gap-2 mt-1">
+                                <Building2 className="h-3 w-3 text-muted-foreground" />
+                                <span className="text-xs text-muted-foreground">{slot.contact.company}</span>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-0.5">{slot.contact.title}</p>
+                            </div>
+                            <div className="flex flex-col items-end gap-1">
+                              {slot.status === "ringing" && (
+                                <Badge className="bg-primary/20 text-primary border-0">Ringing</Badge>
+                              )}
+                              {slot.status === "connected" && (
+                                <Badge className="bg-primary text-primary-foreground border-0">Connected</Badge>
+                              )}
+                              {slot.startTime && <CallTimer startTime={slot.startTime} />}
+                            </div>
+                          </div>
+                          <div className="mt-2 space-y-1.5">
+                            <div className="flex items-center gap-1.5 text-xs">
+                              <Phone className="h-3 w-3 text-muted-foreground" />
+                              {editingPhoneId === slot.id ? (
+                                <div className="flex items-center gap-1">
+                                  <Input
+                                    type="tel"
+                                    value={editedPhone}
+                                    onChange={(e) => setEditedPhone(e.target.value)}
+                                    className="font-mono text-xs h-6 px-2 w-32"
+                                    autoFocus
+                                  />
+                                  <button
+                                    onClick={() => saveEditedPhone(slot.id)}
+                                    className="p-0.5 hover:bg-primary/10 rounded"
+                                  >
+                                    <Check className="h-3 w-3 text-primary" />
+                                  </button>
+                                  <button
+                                    onClick={cancelEditingPhone}
+                                    className="p-0.5 hover:bg-destructive/10 rounded"
+                                  >
+                                    <X className="h-3 w-3 text-destructive" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <>
+                                  <span className="font-mono">{slot.contact.phone}</span>
+                                  <button
+                                    onClick={() => slot.contact && startEditingPhone(slot.id, slot.contact.phone)}
+                                    className="p-0.5 hover:bg-muted rounded"
+                                    title="Edit phone number"
+                                  >
+                                    <Edit2 className="h-3 w-3 text-muted-foreground" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                              <Mail className="h-3 w-3" />
+                              <span>{slot.contact.email}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                              <Badge variant="outline" className="text-xs h-5">
+                                {slot.contact.sequenceStage}
+                              </Badge>
+                              <span>• Last email: {slot.contact.lastEmailSent}</span>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-sm text-muted-foreground">Waiting for next call...</div>
+                      )}
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {slot.contact && (
+                    <>
+                      <Textarea
+                        placeholder="Call notes..."
+                        value={slot.notes}
+                        onChange={(e) => updateNotes(slot.id, e.target.value)}
+                        className="min-h-[60px] text-sm"
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => handleCallOutcome(slot.id, "connected")}
+                          className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                        >
+                          <UserCheck className="h-3 w-3 mr-1" />
+                          Connected
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleCallOutcome(slot.id, "voicemail")}
+                        >
+                          <Voicemail className="h-3 w-3 mr-1" />
+                          Voicemail
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleCallOutcome(slot.id, "no-answer")}
+                        >
+                          <UserX className="h-3 w-3 mr-1" />
+                          No Answer
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleCallOutcome(slot.id, "skip")}
+                        >
+                          <SkipForward className="h-3 w-3 mr-1" />
+                          Skip
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Call History */}

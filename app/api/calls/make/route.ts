@@ -30,7 +30,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
     }
 
     const body = await request.json()
-    const { to, prospectId, accountId, metadata } = body
+    const { to, from, prospectId, accountId, metadata } = body
 
     // Validation
     if (!to) {
@@ -43,10 +43,13 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
     // Format phone number to E.164 if needed
     const formattedTo = to.startsWith("+") ? to : `+1${to.replace(/\D/g, "")}`
 
+    // Use the provided from number, or fall back to env variable
+    const callerIdToUse = from || TWILIO_PHONE_NUMBER || "Browser Client"
+
     // Create call record in database (browser client will make the actual call)
     const callRecord = await prisma.call.create({
       data: {
-        from: TWILIO_PHONE_NUMBER || "Browser Client",
+        from: callerIdToUse,
         to: formattedTo,
         prospectId,
         accountId,

@@ -114,6 +114,7 @@ model Prospect {
   sequence     String?
   sequenceStep String?
   pdlData      Json?
+  povData      Json?          // AI-generated point of view data
   lastActivity DateTime       @default(now())
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt

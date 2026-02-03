@@ -13,6 +13,14 @@ import { CallProspectDialog } from "@/components/call-prospect-dialog"
 import { EditProspectDialog } from "@/components/edit-prospect-dialog"
 import { SendEmailDialog } from "@/components/send-email-dialog"
 import { CorrespondenceSummary } from "@/components/correspondence-summary"
+import { ProspectPOV } from "@/components/prospect-pov"
+
+type POVData = {
+  opportunity: string
+  industryContext: string
+  howToHelp: string
+  angle: string
+}
 
 type Prospect = {
   id: string
@@ -27,6 +35,7 @@ type Prospect = {
   sequence?: string | null
   sequenceStep?: string | null
   pdlData?: any
+  povData?: POVData | null
   lastActivity: string
   createdAt: string
 }
@@ -287,6 +296,18 @@ export default function ProspectDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Point of View */}
+      <ProspectPOV
+        key={`pov-${refreshKey}`}
+        prospectId={prospect.id}
+        prospectName={prospect.name}
+        company={prospect.company}
+        title={prospect.title}
+        industry={pdlData?.industry}
+        povData={prospect.povData}
+        onPOVGenerated={refreshData}
+      />
 
       {/* AI Correspondence Summary */}
       <CorrespondenceSummary key={refreshKey} prospectId={prospect.id} prospectName={prospect.name} />

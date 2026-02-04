@@ -175,10 +175,32 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       conditions.push(`job_company_name LIKE '%${sanitizeSqlInput(currentCompany)}%'`)
     }
 
-    // Company headcount range
+    // Company headcount range - PDL uses string ranges like "1-10", "51-200", etc.
     if (companyHeadcount && companyHeadcount.length === 2) {
       const [min, max] = companyHeadcount
-      conditions.push(`(job_company_size >= ${min} AND job_company_size <= ${max})`)
+
+      // PDL employee count ranges
+      const sizeRanges = [
+        { range: "1-10", minVal: 1, maxVal: 10 },
+        { range: "11-50", minVal: 11, maxVal: 50 },
+        { range: "51-200", minVal: 51, maxVal: 200 },
+        { range: "201-500", minVal: 201, maxVal: 500 },
+        { range: "501-1000", minVal: 501, maxVal: 1000 },
+        { range: "1001-5000", minVal: 1001, maxVal: 5000 },
+        { range: "5001-10000", minVal: 5001, maxVal: 10000 },
+        { range: "10001+", minVal: 10001, maxVal: Infinity },
+      ]
+
+      // Find ranges that overlap with our filter
+      const matchingRanges = sizeRanges.filter(r => {
+        // Range overlaps if: range.max >= filter.min AND range.min <= filter.max
+        return r.maxVal >= min && r.minVal <= max
+      })
+
+      if (matchingRanges.length > 0) {
+        const sizeConditions = matchingRanges.map(r => `job_company_size='${r.range}'`).join(' OR ')
+        conditions.push(`(${sizeConditions})`)
+      }
     }
 
     // Geography - map regions to countries

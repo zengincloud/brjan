@@ -113,9 +113,18 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       conditions.push(`(full_name LIKE '%${sanitizeSqlInput(query)}%' OR job_title LIKE '%${sanitizeSqlInput(query)}%')`)
     }
 
-    // Job title
+    // Job title - supports both string and array
     if (jobTitle) {
-      conditions.push(`job_title LIKE '%${sanitizeSqlInput(jobTitle)}%'`)
+      const titles = Array.isArray(jobTitle) ? jobTitle : [jobTitle]
+      if (titles.length > 0) {
+        const titleConditions = titles
+          .filter((t: string) => t && t.trim())
+          .map((t: string) => `job_title LIKE '%${sanitizeSqlInput(t.trim())}%'`)
+          .join(' OR ')
+        if (titleConditions) {
+          conditions.push(`(${titleConditions})`)
+        }
+      }
     }
 
     // Job function - search in job_title_role field

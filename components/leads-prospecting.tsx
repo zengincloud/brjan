@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Search, ChevronDown, ChevronUp, Building2, Briefcase, User, BarChart, ArrowRight, Clock, Mail, Phone, Linkedin as LinkedinIcon, Loader2, MapPin, Calendar, TrendingUp, X } from "lucide-react"
+import { Search, ChevronDown, ChevronUp, Building2, Briefcase, User, BarChart, ArrowRight, Clock, Mail, Phone, Linkedin as LinkedinIcon, Loader2, MapPin, Calendar, TrendingUp, X, Save, FolderOpen, Trash2, Ban } from "lucide-react"
 import { Collapsible } from "@/components/ui/collapsible"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
@@ -20,7 +20,15 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
 
 interface SearchResult {
   id: string
@@ -36,6 +44,30 @@ interface SearchResult {
   companySize: string
   industry: string
   buyerIntent: "high" | "medium" | "low"
+}
+
+interface SavedSearch {
+  id: string
+  name: string
+  filters: {
+    query: string
+    nameFilter: string
+    currentCompany: string
+    jobFunction: string
+    jobTitles: string[]
+    geography: string
+    cities: string[]
+    buyerIntent: string
+    seniorityLevels: string[]
+    industries: string[]
+    headcountRange: number[]
+    // Exclusions
+    excludedNames: string[]
+    excludedCompanies: string[]
+    excludedTitles: string[]
+    excludedIndustries: string[]
+  }
+  createdAt: string
 }
 
 // Available sequences
@@ -82,6 +114,22 @@ export function LeadsProspecting() {
   const [seniorityLevels, setSeniorityLevels] = useState<string[]>([])
   const [industries, setIndustries] = useState<string[]>([])
 
+  // Exclusion filters
+  const [excludedNames, setExcludedNames] = useState<string[]>([])
+  const [excludedNameInput, setExcludedNameInput] = useState("")
+  const [excludedCompanies, setExcludedCompanies] = useState<string[]>([])
+  const [excludedCompanyInput, setExcludedCompanyInput] = useState("")
+  const [excludedTitles, setExcludedTitles] = useState<string[]>([])
+  const [excludedTitleInput, setExcludedTitleInput] = useState("")
+  const [excludedIndustries, setExcludedIndustries] = useState<string[]>([])
+  const [excludedIndustryInput, setExcludedIndustryInput] = useState("")
+  const [isExclusionsOpen, setIsExclusionsOpen] = useState(false)
+
+  // Saved searches
+  const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([])
+  const [showSaveDialog, setShowSaveDialog] = useState(false)
+  const [saveSearchName, setSaveSearchName] = useState("")
+
   // Search results
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [totalResults, setTotalResults] = useState(0)
@@ -89,6 +137,18 @@ export function LeadsProspecting() {
   const [error, setError] = useState<string | null>(null)
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set())
   const [selectedProspects, setSelectedProspects] = useState<string[]>([])
+
+  // Load saved searches from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('leadsSavedSearches')
+    if (saved) {
+      try {
+        setSavedSearches(JSON.parse(saved))
+      } catch (e) {
+        console.error('Error loading saved searches:', e)
+      }
+    }
+  }, [])
 
   // Load saved search state on mount
   useEffect(() => {
@@ -109,6 +169,11 @@ export function LeadsProspecting() {
         setHeadcountRange(state.headcountRange || [10, 5000])
         setSearchResults(state.searchResults || [])
         setTotalResults(state.totalResults || 0)
+        // Load exclusions
+        setExcludedNames(state.excludedNames || [])
+        setExcludedCompanies(state.excludedCompanies || [])
+        setExcludedTitles(state.excludedTitles || [])
+        setExcludedIndustries(state.excludedIndustries || [])
       } catch (e) {
         console.error('Error loading saved state:', e)
       }
@@ -164,6 +229,11 @@ export function LeadsProspecting() {
           geography,
           city: cities,
           industry: industries,
+          // Exclusions
+          excludedNames,
+          excludedCompanies,
+          excludedTitles,
+          excludedIndustries,
           limit: 1,
         }),
       })
@@ -190,6 +260,10 @@ export function LeadsProspecting() {
         seniorityLevels,
         industries,
         headcountRange,
+        excludedNames,
+        excludedCompanies,
+        excludedTitles,
+        excludedIndustries,
         searchResults: data.results,
         totalResults: data.total,
       }
@@ -216,6 +290,15 @@ export function LeadsProspecting() {
     setSeniorityLevels([])
     setIndustries([])
     setHeadcountRange([10, 5000])
+    // Clear exclusions
+    setExcludedNames([])
+    setExcludedNameInput("")
+    setExcludedCompanies([])
+    setExcludedCompanyInput("")
+    setExcludedTitles([])
+    setExcludedTitleInput("")
+    setExcludedIndustries([])
+    setExcludedIndustryInput("")
     setSearchResults([])
     setTotalResults(0)
     setError(null)
@@ -259,6 +342,124 @@ export function LeadsProspecting() {
 
   const removeCity = (cityToRemove: string) => {
     setCities(cities.filter(c => c !== cityToRemove))
+  }
+
+  // Exclusion chip handlers
+  const handleExcludedNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && excludedNameInput.trim()) {
+      e.preventDefault()
+      const value = excludedNameInput.trim()
+      if (!excludedNames.includes(value)) {
+        setExcludedNames([...excludedNames, value])
+      }
+      setExcludedNameInput("")
+    } else if (e.key === "Backspace" && !excludedNameInput && excludedNames.length > 0) {
+      setExcludedNames(excludedNames.slice(0, -1))
+    }
+  }
+
+  const handleExcludedCompanyKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && excludedCompanyInput.trim()) {
+      e.preventDefault()
+      const value = excludedCompanyInput.trim()
+      if (!excludedCompanies.includes(value)) {
+        setExcludedCompanies([...excludedCompanies, value])
+      }
+      setExcludedCompanyInput("")
+    } else if (e.key === "Backspace" && !excludedCompanyInput && excludedCompanies.length > 0) {
+      setExcludedCompanies(excludedCompanies.slice(0, -1))
+    }
+  }
+
+  const handleExcludedTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && excludedTitleInput.trim()) {
+      e.preventDefault()
+      const value = excludedTitleInput.trim()
+      if (!excludedTitles.includes(value)) {
+        setExcludedTitles([...excludedTitles, value])
+      }
+      setExcludedTitleInput("")
+    } else if (e.key === "Backspace" && !excludedTitleInput && excludedTitles.length > 0) {
+      setExcludedTitles(excludedTitles.slice(0, -1))
+    }
+  }
+
+  const handleExcludedIndustryKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && excludedIndustryInput.trim()) {
+      e.preventDefault()
+      const value = excludedIndustryInput.trim()
+      if (!excludedIndustries.includes(value)) {
+        setExcludedIndustries([...excludedIndustries, value])
+      }
+      setExcludedIndustryInput("")
+    } else if (e.key === "Backspace" && !excludedIndustryInput && excludedIndustries.length > 0) {
+      setExcludedIndustries(excludedIndustries.slice(0, -1))
+    }
+  }
+
+  // Save search functions
+  const handleSaveSearch = () => {
+    if (!saveSearchName.trim()) {
+      toast({ title: "Please enter a name", variant: "destructive" })
+      return
+    }
+
+    const newSearch: SavedSearch = {
+      id: Date.now().toString(),
+      name: saveSearchName.trim(),
+      filters: {
+        query,
+        nameFilter,
+        currentCompany,
+        jobFunction,
+        jobTitles,
+        geography,
+        cities,
+        buyerIntent,
+        seniorityLevels,
+        industries,
+        headcountRange,
+        excludedNames,
+        excludedCompanies,
+        excludedTitles,
+        excludedIndustries,
+      },
+      createdAt: new Date().toISOString(),
+    }
+
+    const updated = [...savedSearches, newSearch]
+    setSavedSearches(updated)
+    localStorage.setItem('leadsSavedSearches', JSON.stringify(updated))
+    setShowSaveDialog(false)
+    setSaveSearchName("")
+    toast({ title: "Search saved!", description: `"${newSearch.name}" has been saved.` })
+  }
+
+  const handleLoadSearch = (search: SavedSearch) => {
+    const f = search.filters
+    setQuery(f.query || "")
+    setNameFilter(f.nameFilter || "")
+    setCurrentCompany(f.currentCompany || "")
+    setJobFunction(f.jobFunction || "")
+    setJobTitles(f.jobTitles || [])
+    setGeography(f.geography || "")
+    setCities(f.cities || [])
+    setBuyerIntent(f.buyerIntent || "all")
+    setSeniorityLevels(f.seniorityLevels || [])
+    setIndustries(f.industries || [])
+    setHeadcountRange(f.headcountRange || [10, 5000])
+    setExcludedNames(f.excludedNames || [])
+    setExcludedCompanies(f.excludedCompanies || [])
+    setExcludedTitles(f.excludedTitles || [])
+    setExcludedIndustries(f.excludedIndustries || [])
+    toast({ title: "Search loaded!", description: `"${search.name}" filters applied.` })
+  }
+
+  const handleDeleteSavedSearch = (id: string) => {
+    const updated = savedSearches.filter(s => s.id !== id)
+    setSavedSearches(updated)
+    localStorage.setItem('leadsSavedSearches', JSON.stringify(updated))
+    toast({ title: "Search deleted" })
   }
 
   const toggleExpanded = (leadId: string) => {
@@ -499,11 +700,82 @@ export function LeadsProspecting() {
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
           />
         </div>
-        <Button onClick={handleSearch} disabled={isLoading}>
-          {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-          {isLoading ? "Searching..." : "Search"}
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={handleSearch} disabled={isLoading}>
+            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+            {isLoading ? "Searching..." : "Search"}
+          </Button>
+          <Button variant="outline" onClick={() => setShowSaveDialog(true)}>
+            <Save className="mr-2 h-4 w-4" />
+            Save
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" disabled={savedSearches.length === 0}>
+                <FolderOpen className="mr-2 h-4 w-4" />
+                Load
+                <ChevronDown className="ml-2 h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              {savedSearches.map((search) => (
+                <DropdownMenuItem
+                  key={search.id}
+                  className="flex items-center justify-between"
+                >
+                  <span
+                    className="flex-1 cursor-pointer"
+                    onClick={() => handleLoadSearch(search)}
+                  >
+                    {search.name}
+                  </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDeleteSavedSearch(search.id)
+                    }}
+                    className="ml-2 p-1 hover:bg-destructive/20 rounded"
+                  >
+                    <Trash2 className="h-3 w-3 text-destructive" />
+                  </button>
+                </DropdownMenuItem>
+              ))}
+              {savedSearches.length === 0 && (
+                <DropdownMenuItem disabled>No saved searches</DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
+
+      {/* Save Search Dialog */}
+      <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Save Search</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="search-name">Search Name</Label>
+              <Input
+                id="search-name"
+                placeholder="e.g., Sales Directors in Tech"
+                value={saveSearchName}
+                onChange={(e) => setSaveSearchName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSaveSearch()}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSaveDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveSearch}>
+              Save Search
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Filters Section */}
       <div className="grid gap-6 md:grid-cols-[300px_1fr]">
@@ -798,6 +1070,123 @@ export function LeadsProspecting() {
                     </Label>
                   </div>
                 </RadioGroup>
+              </CardContent>
+            </Collapsible>
+          </Card>
+
+          {/* Exclusions */}
+          <Card>
+            <CardHeader className="py-3 cursor-pointer" onClick={() => setIsExclusionsOpen(!isExclusionsOpen)}>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-md flex items-center">
+                  <Ban className="h-4 w-4 mr-2" />
+                  Exclusions
+                  {(excludedNames.length > 0 || excludedCompanies.length > 0 || excludedTitles.length > 0 || excludedIndustries.length > 0) && (
+                    <Badge variant="secondary" className="ml-2 text-xs">
+                      {excludedNames.length + excludedCompanies.length + excludedTitles.length + excludedIndustries.length}
+                    </Badge>
+                  )}
+                </CardTitle>
+                <ChevronDown className={`h-4 w-4 transition-transform ${isExclusionsOpen ? "rotate-180" : ""}`} />
+              </div>
+            </CardHeader>
+            <Collapsible open={isExclusionsOpen}>
+              <CardContent className="pt-0 space-y-5">
+                {/* Exclude Names */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Exclude Names</Label>
+                  <div className="flex flex-wrap gap-1.5 p-2 min-h-[38px] border rounded-md bg-background focus-within:ring-2 focus-within:ring-ring">
+                    {excludedNames.map((name) => (
+                      <Badge key={name} variant="destructive" className="flex items-center gap-1 px-2 py-0.5 text-xs">
+                        {name}
+                        <button type="button" onClick={() => setExcludedNames(excludedNames.filter(n => n !== name))} className="ml-1 hover:bg-white/20 rounded-full p-0.5">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                    <input
+                      type="text"
+                      placeholder={excludedNames.length === 0 ? "Name to exclude..." : ""}
+                      value={excludedNameInput}
+                      onChange={(e) => setExcludedNameInput(e.target.value)}
+                      onKeyDown={handleExcludedNameKeyDown}
+                      className="flex-1 min-w-[100px] bg-transparent border-none outline-none text-sm placeholder:text-muted-foreground"
+                    />
+                  </div>
+                </div>
+
+                {/* Exclude Companies */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Exclude Companies</Label>
+                  <div className="flex flex-wrap gap-1.5 p-2 min-h-[38px] border rounded-md bg-background focus-within:ring-2 focus-within:ring-ring">
+                    {excludedCompanies.map((company) => (
+                      <Badge key={company} variant="destructive" className="flex items-center gap-1 px-2 py-0.5 text-xs">
+                        {company}
+                        <button type="button" onClick={() => setExcludedCompanies(excludedCompanies.filter(c => c !== company))} className="ml-1 hover:bg-white/20 rounded-full p-0.5">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                    <input
+                      type="text"
+                      placeholder={excludedCompanies.length === 0 ? "Company to exclude..." : ""}
+                      value={excludedCompanyInput}
+                      onChange={(e) => setExcludedCompanyInput(e.target.value)}
+                      onKeyDown={handleExcludedCompanyKeyDown}
+                      className="flex-1 min-w-[100px] bg-transparent border-none outline-none text-sm placeholder:text-muted-foreground"
+                    />
+                  </div>
+                </div>
+
+                {/* Exclude Titles */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Exclude Titles</Label>
+                  <div className="flex flex-wrap gap-1.5 p-2 min-h-[38px] border rounded-md bg-background focus-within:ring-2 focus-within:ring-ring">
+                    {excludedTitles.map((title) => (
+                      <Badge key={title} variant="destructive" className="flex items-center gap-1 px-2 py-0.5 text-xs">
+                        {title}
+                        <button type="button" onClick={() => setExcludedTitles(excludedTitles.filter(t => t !== title))} className="ml-1 hover:bg-white/20 rounded-full p-0.5">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                    <input
+                      type="text"
+                      placeholder={excludedTitles.length === 0 ? "Title to exclude..." : ""}
+                      value={excludedTitleInput}
+                      onChange={(e) => setExcludedTitleInput(e.target.value)}
+                      onKeyDown={handleExcludedTitleKeyDown}
+                      className="flex-1 min-w-[100px] bg-transparent border-none outline-none text-sm placeholder:text-muted-foreground"
+                    />
+                  </div>
+                </div>
+
+                {/* Exclude Industries */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Exclude Industries</Label>
+                  <div className="flex flex-wrap gap-1.5 p-2 min-h-[38px] border rounded-md bg-background focus-within:ring-2 focus-within:ring-ring">
+                    {excludedIndustries.map((industry) => (
+                      <Badge key={industry} variant="destructive" className="flex items-center gap-1 px-2 py-0.5 text-xs">
+                        {industry}
+                        <button type="button" onClick={() => setExcludedIndustries(excludedIndustries.filter(i => i !== industry))} className="ml-1 hover:bg-white/20 rounded-full p-0.5">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                    <input
+                      type="text"
+                      placeholder={excludedIndustries.length === 0 ? "Industry to exclude..." : ""}
+                      value={excludedIndustryInput}
+                      onChange={(e) => setExcludedIndustryInput(e.target.value)}
+                      onKeyDown={handleExcludedIndustryKeyDown}
+                      className="flex-1 min-w-[100px] bg-transparent border-none outline-none text-sm placeholder:text-muted-foreground"
+                    />
+                  </div>
+                </div>
+
+                <p className="text-xs text-muted-foreground">
+                  Press enter to add exclusions
+                </p>
               </CardContent>
             </Collapsible>
           </Card>

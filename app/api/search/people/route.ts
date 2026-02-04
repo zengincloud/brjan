@@ -96,6 +96,11 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       geography,
       city,
       industry,
+      // Exclusions
+      excludedNames,
+      excludedCompanies,
+      excludedTitles,
+      excludedIndustries,
       limit = 5,
       offset = 0,
     } = body
@@ -240,6 +245,39 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
     if (industry && industry.length > 0) {
       const industryConditions = industry.map((i: string) => `job_company_industry LIKE '%${i}%'`).join(' OR ')
       conditions.push(`(${industryConditions})`)
+    }
+
+    // Exclusions - use NOT LIKE
+    if (excludedNames && excludedNames.length > 0) {
+      excludedNames.forEach((name: string) => {
+        if (name && name.trim()) {
+          conditions.push(`full_name NOT LIKE '%${sanitizeSqlInput(name.trim())}%'`)
+        }
+      })
+    }
+
+    if (excludedCompanies && excludedCompanies.length > 0) {
+      excludedCompanies.forEach((company: string) => {
+        if (company && company.trim()) {
+          conditions.push(`job_company_name NOT LIKE '%${sanitizeSqlInput(company.trim())}%'`)
+        }
+      })
+    }
+
+    if (excludedTitles && excludedTitles.length > 0) {
+      excludedTitles.forEach((title: string) => {
+        if (title && title.trim()) {
+          conditions.push(`job_title NOT LIKE '%${sanitizeSqlInput(title.trim())}%'`)
+        }
+      })
+    }
+
+    if (excludedIndustries && excludedIndustries.length > 0) {
+      excludedIndustries.forEach((ind: string) => {
+        if (ind && ind.trim()) {
+          conditions.push(`job_company_industry NOT LIKE '%${sanitizeSqlInput(ind.trim())}%'`)
+        }
+      })
     }
 
     // Build SQL query

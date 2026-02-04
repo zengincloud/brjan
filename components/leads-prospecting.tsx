@@ -76,7 +76,8 @@ export function LeadsProspecting() {
   const [jobTitles, setJobTitles] = useState<string[]>([])
   const [jobTitleInput, setJobTitleInput] = useState("")
   const [geography, setGeography] = useState("")
-  const [city, setCity] = useState("")
+  const [cities, setCities] = useState<string[]>([])
+  const [cityInput, setCityInput] = useState("")
   const [buyerIntent, setBuyerIntent] = useState("all")
   const [seniorityLevels, setSeniorityLevels] = useState<string[]>([])
   const [industries, setIndustries] = useState<string[]>([])
@@ -101,7 +102,7 @@ export function LeadsProspecting() {
         setJobFunction(state.jobFunction || "")
         setJobTitles(state.jobTitles || [])
         setGeography(state.geography || "")
-        setCity(state.city || "")
+        setCities(state.cities || [])
         setBuyerIntent(state.buyerIntent || "all")
         setSeniorityLevels(state.seniorityLevels || [])
         setIndustries(state.industries || [])
@@ -161,7 +162,7 @@ export function LeadsProspecting() {
           seniorityLevel: seniorityLevels,
           companyHeadcount: headcountRange,
           geography,
-          city,
+          city: cities,
           industry: industries,
           limit: 1,
         }),
@@ -184,7 +185,7 @@ export function LeadsProspecting() {
         jobFunction,
         jobTitles,
         geography,
-        city,
+        cities,
         buyerIntent,
         seniorityLevels,
         industries,
@@ -209,7 +210,8 @@ export function LeadsProspecting() {
     setJobTitles([])
     setJobTitleInput("")
     setGeography("")
-    setCity("")
+    setCities([])
+    setCityInput("")
     setBuyerIntent("all")
     setSeniorityLevels([])
     setIndustries([])
@@ -239,6 +241,24 @@ export function LeadsProspecting() {
 
   const removeJobTitle = (titleToRemove: string) => {
     setJobTitles(jobTitles.filter(t => t !== titleToRemove))
+  }
+
+  // Handle city chip input
+  const handleCityKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && cityInput.trim()) {
+      e.preventDefault()
+      const newCity = cityInput.trim()
+      if (!cities.includes(newCity)) {
+        setCities([...cities, newCity])
+      }
+      setCityInput("")
+    } else if (e.key === "Backspace" && !cityInput && cities.length > 0) {
+      setCities(cities.slice(0, -1))
+    }
+  }
+
+  const removeCity = (cityToRemove: string) => {
+    setCities(cities.filter(c => c !== cityToRemove))
   }
 
   const toggleExpanded = (leadId: string) => {
@@ -683,12 +703,35 @@ export function LeadsProspecting() {
                       <SelectItem value="middle-east">Middle East & Africa</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Input
-                    placeholder="City or Country"
-                    className="mt-2"
-                    value={city}
-                    onChange={(e) => setCity(e.target.value)}
-                  />
+                  <div className="flex flex-wrap gap-1.5 p-2 min-h-[42px] border rounded-md bg-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 mt-2">
+                    {cities.map((c) => (
+                      <Badge
+                        key={c}
+                        variant="secondary"
+                        className="flex items-center gap-1 px-2 py-1 text-xs"
+                      >
+                        {c}
+                        <button
+                          type="button"
+                          onClick={() => removeCity(c)}
+                          className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                    <input
+                      type="text"
+                      placeholder={cities.length === 0 ? "City or country, press enter..." : ""}
+                      value={cityInput}
+                      onChange={(e) => setCityInput(e.target.value)}
+                      onKeyDown={handleCityKeyDown}
+                      className="flex-1 min-w-[120px] bg-transparent border-none outline-none text-sm placeholder:text-muted-foreground"
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Press enter to add multiple locations
+                  </p>
                 </div>
 
                 <Separator />

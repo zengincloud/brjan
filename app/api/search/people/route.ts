@@ -197,9 +197,21 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
         conditions.push(`(${countryConditions})`)
       }
     }
+    // City/Country - supports both string and array
     if (city) {
-      const sanitizedCity = sanitizeSqlInput(city)
-      conditions.push(`(location_locality LIKE '%${sanitizedCity}%' OR location_region LIKE '%${sanitizedCity}%' OR location_country LIKE '%${sanitizedCity}%')`)
+      const cityList = Array.isArray(city) ? city : [city]
+      if (cityList.length > 0) {
+        const cityConditions = cityList
+          .filter((c: string) => c && c.trim())
+          .map((c: string) => {
+            const sanitizedCity = sanitizeSqlInput(c.trim())
+            return `(location_locality LIKE '%${sanitizedCity}%' OR location_region LIKE '%${sanitizedCity}%' OR location_country LIKE '%${sanitizedCity}%')`
+          })
+          .join(' OR ')
+        if (cityConditions) {
+          conditions.push(`(${cityConditions})`)
+        }
+      }
     }
 
     // Industry - use LIKE for partial matches

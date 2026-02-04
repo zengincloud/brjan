@@ -57,10 +57,26 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       },
     })
 
+    // Also create a task for this follow-up email
+    const task = await prisma.task.create({
+      data: {
+        userId,
+        title: `Send email to ${prospectName || to}`,
+        description: `Follow-up email: "${subject}"`,
+        type: "follow_up",
+        status: "to_do",
+        priority: "medium",
+        dueDate: new Date(), // Due today
+        contact: prospectName ? { name: prospectName, email: to } : { email: to },
+        company: null,
+      },
+    })
+
     return NextResponse.json({
       success: true,
       emailId: emailRecord.id,
-      message: "Email queued successfully",
+      taskId: task.id,
+      message: "Email queued and task created",
     })
   } catch (error: any) {
     console.error("Error queuing email:", error)

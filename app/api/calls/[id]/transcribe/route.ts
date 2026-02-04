@@ -4,7 +4,9 @@ import { withAuth } from "@/lib/auth/api-middleware"
 import {
   submitTranscription,
   getTranscriptionStatus,
-  formatTranscript
+  formatTranscript,
+  analyzeTranscript,
+  calculateOverallSentiment
 } from "@/lib/assemblyai/transcribe"
 
 export const dynamic = 'force-dynamic'
@@ -171,7 +173,30 @@ export const GET = withAuth<{ params: { id: string } }>(async (
       const prospectName = call.prospect?.name || "Prospect"
       const formattedTranscript = formatTranscript(result, "You", prospectName)
 
-      // Store the formatted transcript
+      // Calculate sentiment from AssemblyAI's sentiment analysis
+      const sentimentData = calculateOverallSentiment(result.sentiment_analysis_results)
+
+      // Get AI analysis using LeMUR
+      const aiAnalysis = await analyzeTranscript(transcriptId)
+
+      // Merge sentiment and AI analysis
+      if (formattedTranscript) {
+        formattedTranscript.analysis = aiAnalysis || {
+          sentiment: sentimentData.sentiment,
+          sentimentScore: sentimentData.score,
+          outcome: "unknown",
+          summary: "",
+          keyPoints: [],
+          nextSteps: null,
+        }
+
+        // Update sentiment score from actual sentiment analysis if AI didn't provide it
+        if (formattedTranscript.analysis && !aiAnalysis) {
+          formattedTranscript.analysis.sentimentScore = sentimentData.score
+        }
+      }
+
+      // Store the formatted transcript with analysis
       await prisma.call.update({
         where: { id: call.id },
         data: {

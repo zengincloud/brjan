@@ -5,7 +5,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Loader2, FileText, RefreshCw, User, Users } from "lucide-react"
+import { Loader2, FileText, RefreshCw, User, Users, TrendingUp, TrendingDown, Minus, Target, Lightbulb, ArrowRight } from "lucide-react"
+
+interface CallAnalysis {
+  sentiment: "positive" | "neutral" | "negative" | "mixed"
+  sentimentScore: number
+  outcome: "interested" | "not_interested" | "follow_up" | "meeting_booked" | "voicemail" | "gatekeeper" | "unknown"
+  summary: string
+  keyPoints: string[]
+  nextSteps: string | null
+}
 
 interface TranscriptSegment {
   speaker: string
@@ -18,6 +27,7 @@ interface FormattedTranscript {
   fullText: string
   segments: TranscriptSegment[]
   duration: number
+  analysis?: CallAnalysis
 }
 
 interface CallTranscriptProps {
@@ -31,6 +41,39 @@ function formatTimestamp(seconds: number): string {
   const mins = Math.floor(seconds / 60)
   const secs = Math.floor(seconds % 60)
   return `${mins}:${secs.toString().padStart(2, "0")}`
+}
+
+const sentimentConfig = {
+  positive: {
+    label: "Positive",
+    color: "bg-green-500/10 text-green-600 border-green-500/20",
+    icon: TrendingUp,
+  },
+  neutral: {
+    label: "Neutral",
+    color: "bg-gray-500/10 text-gray-600 border-gray-500/20",
+    icon: Minus,
+  },
+  negative: {
+    label: "Negative",
+    color: "bg-red-500/10 text-red-600 border-red-500/20",
+    icon: TrendingDown,
+  },
+  mixed: {
+    label: "Mixed",
+    color: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20",
+    icon: Minus,
+  },
+}
+
+const outcomeConfig: Record<string, { label: string; color: string }> = {
+  interested: { label: "Interested", color: "bg-green-500/10 text-green-600 border-green-500/20" },
+  not_interested: { label: "Not Interested", color: "bg-red-500/10 text-red-600 border-red-500/20" },
+  follow_up: { label: "Follow Up Needed", color: "bg-blue-500/10 text-blue-600 border-blue-500/20" },
+  meeting_booked: { label: "Meeting Booked", color: "bg-purple-500/10 text-purple-600 border-purple-500/20" },
+  voicemail: { label: "Voicemail", color: "bg-orange-500/10 text-orange-600 border-orange-500/20" },
+  gatekeeper: { label: "Gatekeeper", color: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20" },
+  unknown: { label: "Unknown", color: "bg-gray-500/10 text-gray-600 border-gray-500/20" },
 }
 
 export function CallTranscript({
@@ -124,6 +167,10 @@ export function CallTranscript({
     )
   }
 
+  const analysis = transcript?.analysis
+  const sentimentInfo = analysis ? sentimentConfig[analysis.sentiment] : null
+  const outcomeInfo = analysis ? outcomeConfig[analysis.outcome] : null
+
   return (
     <div className="space-y-4">
       {/* Header with status */}
@@ -182,9 +229,76 @@ export function CallTranscript({
         </div>
       )}
 
+      {/* Analysis boxes - Sentiment & Call Outcome */}
+      {status === "completed" && analysis && (
+        <div className="grid grid-cols-2 gap-3">
+          {/* Sentiment Analysis Box */}
+          <div className={`rounded-lg border p-4 ${sentimentInfo?.color || ""}`}>
+            <div className="flex items-center gap-2 mb-2">
+              {sentimentInfo && <sentimentInfo.icon className="h-4 w-4" />}
+              <span className="text-xs font-medium uppercase tracking-wide">Sentiment Analysis</span>
+            </div>
+            <p className="text-lg font-semibold">{sentimentInfo?.label || "Unknown"}</p>
+            {analysis.sentimentScore !== undefined && (
+              <p className="text-xs mt-1 opacity-70">
+                Score: {(analysis.sentimentScore * 100).toFixed(0)}%
+              </p>
+            )}
+          </div>
+
+          {/* Call Outcome Box */}
+          <div className={`rounded-lg border p-4 ${outcomeInfo?.color || ""}`}>
+            <div className="flex items-center gap-2 mb-2">
+              <Target className="h-4 w-4" />
+              <span className="text-xs font-medium uppercase tracking-wide">Call Outcome</span>
+            </div>
+            <p className="text-lg font-semibold">{outcomeInfo?.label || "Unknown"}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Summary & Key Points */}
+      {status === "completed" && analysis && (analysis.summary || analysis.keyPoints.length > 0) && (
+        <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+          {analysis.summary && (
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">Summary</p>
+              <p className="text-sm">{analysis.summary}</p>
+            </div>
+          )}
+
+          {analysis.keyPoints.length > 0 && (
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2 flex items-center gap-1">
+                <Lightbulb className="h-3 w-3" />
+                Key Points
+              </p>
+              <ul className="space-y-1">
+                {analysis.keyPoints.map((point, idx) => (
+                  <li key={idx} className="text-sm flex items-start gap-2">
+                    <span className="text-muted-foreground">•</span>
+                    {point}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {analysis.nextSteps && (
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1 flex items-center gap-1">
+                <ArrowRight className="h-3 w-3" />
+                Next Steps
+              </p>
+              <p className="text-sm">{analysis.nextSteps}</p>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Transcript content */}
       {status === "completed" && transcript && (
-        <ScrollArea className="h-[400px] rounded-md border p-4">
+        <ScrollArea className="h-[300px] rounded-md border p-4">
           <div className="space-y-4">
             {transcript.segments.length > 0 ? (
               // Speaker-diarized view

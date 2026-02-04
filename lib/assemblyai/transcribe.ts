@@ -20,14 +20,33 @@ interface TranscriptUtterance {
   words: TranscriptWord[]
 }
 
+interface SentimentResult {
+  text: string
+  start: number
+  end: number
+  sentiment: "POSITIVE" | "NEUTRAL" | "NEGATIVE"
+  confidence: number
+  speaker: string | null
+}
+
 export interface TranscriptionResult {
   id: string
   status: "queued" | "processing" | "completed" | "error"
   text: string | null
   utterances: TranscriptUtterance[] | null
   words: TranscriptWord[] | null
+  sentiment_analysis_results: SentimentResult[] | null
   audio_duration: number | null
   error: string | null
+}
+
+export interface CallAnalysis {
+  sentiment: "positive" | "neutral" | "negative" | "mixed"
+  sentimentScore: number // -1 to 1
+  outcome: "interested" | "not_interested" | "follow_up" | "meeting_booked" | "voicemail" | "gatekeeper" | "unknown"
+  summary: string
+  keyPoints: string[]
+  nextSteps: string | null
 }
 
 export interface FormattedTranscript {
@@ -39,6 +58,7 @@ export interface FormattedTranscript {
     endTime: number
   }[]
   duration: number
+  analysis?: CallAnalysis
 }
 
 /**
@@ -61,6 +81,7 @@ export async function submitTranscription(audioUrl: string): Promise<{ id: strin
         audio_url: audioUrl,
         speaker_labels: true, // Enable speaker diarization
         speakers_expected: 2, // Expecting 2 speakers (caller and prospect)
+        sentiment_analysis: true, // Enable sentiment analysis
       }),
     })
 
@@ -122,6 +143,7 @@ export async function getTranscriptionStatus(transcriptId: string): Promise<Tran
       text: data.text,
       utterances: data.utterances,
       words: data.words,
+      sentiment_analysis_results: data.sentiment_analysis_results,
       audio_duration: data.audio_duration,
       error: data.error,
     }
@@ -133,10 +155,126 @@ export async function getTranscriptionStatus(transcriptId: string): Promise<Tran
       text: null,
       utterances: null,
       words: null,
+      sentiment_analysis_results: null,
       audio_duration: null,
       error: error.message || "Failed to check transcription status",
     }
   }
+}
+
+/**
+ * Analyze transcript using AssemblyAI LeMUR for call outcome
+ */
+export async function analyzeTranscript(transcriptId: string): Promise<CallAnalysis | null> {
+  if (!ASSEMBLYAI_API_KEY) {
+    return null
+  }
+
+  try {
+    const response = await fetch("https://api.assemblyai.com/lemur/v3/generate/task", {
+      method: "POST",
+      headers: {
+        "Authorization": ASSEMBLYAI_API_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        transcript_ids: [transcriptId],
+        prompt: `Analyze this sales call transcript and provide:
+1. Overall sentiment (positive, neutral, negative, or mixed)
+2. Call outcome - choose one: interested (prospect showed interest), not_interested (prospect declined), follow_up (needs follow up), meeting_booked (meeting was scheduled), voicemail (left voicemail), gatekeeper (spoke to gatekeeper not decision maker), unknown
+3. A brief 1-2 sentence summary of the call
+4. 2-4 key points from the conversation
+5. Recommended next steps if any
+
+Respond in this exact JSON format:
+{
+  "sentiment": "positive|neutral|negative|mixed",
+  "outcome": "interested|not_interested|follow_up|meeting_booked|voicemail|gatekeeper|unknown",
+  "summary": "Brief summary here",
+  "keyPoints": ["point 1", "point 2"],
+  "nextSteps": "Next steps or null"
+}`,
+        final_model: "anthropic/claude-3-haiku",
+      }),
+    })
+
+    if (!response.ok) {
+      console.error("LeMUR analysis error:", await response.text())
+      return null
+    }
+
+    const data = await response.json()
+
+    // Parse the LeMUR response
+    try {
+      const analysisText = data.response
+      // Extract JSON from the response
+      const jsonMatch = analysisText.match(/\{[\s\S]*\}/)
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0])
+        return {
+          sentiment: parsed.sentiment || "neutral",
+          sentimentScore: parsed.sentiment === "positive" ? 0.7 : parsed.sentiment === "negative" ? -0.7 : 0,
+          outcome: parsed.outcome || "unknown",
+          summary: parsed.summary || "",
+          keyPoints: parsed.keyPoints || [],
+          nextSteps: parsed.nextSteps || null,
+        }
+      }
+    } catch (parseError) {
+      console.error("Error parsing LeMUR response:", parseError)
+    }
+
+    return null
+  } catch (error: any) {
+    console.error("LeMUR analysis error:", error)
+    return null
+  }
+}
+
+/**
+ * Calculate overall sentiment from sentiment analysis results
+ */
+export function calculateOverallSentiment(
+  sentimentResults: SentimentResult[] | null
+): { sentiment: "positive" | "neutral" | "negative" | "mixed"; score: number } {
+  if (!sentimentResults || sentimentResults.length === 0) {
+    return { sentiment: "neutral", score: 0 }
+  }
+
+  let positiveCount = 0
+  let negativeCount = 0
+  let neutralCount = 0
+  let totalConfidence = 0
+
+  sentimentResults.forEach((result) => {
+    const weight = result.confidence
+    totalConfidence += weight
+
+    if (result.sentiment === "POSITIVE") positiveCount += weight
+    else if (result.sentiment === "NEGATIVE") negativeCount += weight
+    else neutralCount += weight
+  })
+
+  const total = positiveCount + negativeCount + neutralCount
+  if (total === 0) return { sentiment: "neutral", score: 0 }
+
+  const positiveRatio = positiveCount / total
+  const negativeRatio = negativeCount / total
+
+  // Calculate score from -1 to 1
+  const score = positiveRatio - negativeRatio
+
+  // Determine sentiment category
+  if (positiveRatio > 0.4 && negativeRatio > 0.3) {
+    return { sentiment: "mixed", score }
+  } else if (positiveRatio > 0.5) {
+    return { sentiment: "positive", score }
+  } else if (negativeRatio > 0.5) {
+    return { sentiment: "negative", score }
+  }
+
+  return { sentiment: "neutral", score }
 }
 
 /**

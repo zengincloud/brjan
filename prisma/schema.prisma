@@ -222,6 +222,7 @@ enum TaskType {
   interested
   website_visit
   follow_up
+  linkedin
   other
 }
 

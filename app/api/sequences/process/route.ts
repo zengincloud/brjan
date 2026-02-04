@@ -146,13 +146,12 @@ export const POST = withAuth(async (
             break
 
           case 'linkedin':
-          case 'task':
             // Create task for LinkedIn outreach
             await prisma.task.create({
               data: {
                 title: `LinkedIn: ${prospect.name}`,
                 description: currentStep.taskNotes || `Reach out to ${prospect.name} on LinkedIn`,
-                type: 'follow_up',
+                type: 'linkedin',
                 status: 'to_do',
                 priority: 'medium',
                 dueDate: now,
@@ -162,6 +161,29 @@ export const POST = withAuth(async (
                   name: prospect.name,
                   email: prospect.email,
                   linkedin: prospect.linkedin,
+                  company: prospect.company,
+                  title: prospect.title,
+                },
+              }
+            })
+            tasksCreated++
+            break
+
+          case 'task':
+            // Create generic task
+            await prisma.task.create({
+              data: {
+                title: currentStep.name || `Task for ${prospect.name}`,
+                description: currentStep.taskNotes || `Complete task for ${prospect.name}`,
+                type: 'follow_up',
+                status: 'to_do',
+                priority: 'medium',
+                dueDate: now,
+                userId,
+                contact: {
+                  prospectId: prospect.id,
+                  name: prospect.name,
+                  email: prospect.email,
                   company: prospect.company,
                   title: prospect.title,
                 },

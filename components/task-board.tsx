@@ -30,12 +30,13 @@ import {
   Calendar,
   Filter,
   Plus,
+  Linkedin,
 } from "lucide-react"
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd"
 import { cn } from "@/lib/utils"
 
 // Task types
-type TaskType = "hot_lead" | "interested" | "website_visit" | "follow_up" | "other"
+type TaskType = "hot_lead" | "interested" | "website_visit" | "follow_up" | "linkedin" | "other"
 
 // Task priority
 type Priority = "high" | "medium" | "low"
@@ -52,6 +53,7 @@ interface Task {
     company?: string
     email?: string
     phone?: string
+    linkedin?: string
   }
   company?: {
     name: string
@@ -262,6 +264,8 @@ const getTaskTypeIcon = (type: TaskType) => {
       return <MousePointerClick className="h-4 w-4 text-blue-500" />
     case "follow_up":
       return <Clock className="h-4 w-4 text-yellow-500" />
+    case "linkedin":
+      return <Linkedin className="h-4 w-4 text-[#0A66C2]" />
     default:
       return <CalendarClock className="h-4 w-4 text-gray-500" />
   }
@@ -278,6 +282,8 @@ const getTaskTypeLabel = (type: TaskType) => {
       return "Website Visit"
     case "follow_up":
       return "Follow Up"
+    case "linkedin":
+      return "LinkedIn"
     default:
       return "Task"
   }
@@ -573,6 +579,16 @@ export function TaskBoard() {
                                     >
                                       <Phone className="h-3 w-3" />
                                     </Button>
+                                    {task.contact?.linkedin && (
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-6 w-6"
+                                        onClick={() => window.open(task.contact?.linkedin, "_blank")}
+                                      >
+                                        <Linkedin className="h-3 w-3 text-[#0A66C2]" />
+                                      </Button>
+                                    )}
                                     <Button variant="ghost" size="icon" className="h-6 w-6">
                                       <MoreHorizontal className="h-3 w-3" />
                                     </Button>
@@ -678,6 +694,16 @@ export function TaskBoard() {
                           >
                             <Mail className="h-3 w-3" />
                           </Button>
+                          {task.contact?.linkedin && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => window.open(task.contact?.linkedin, "_blank")}
+                            >
+                              <Linkedin className="h-3 w-3 text-[#0A66C2]" />
+                            </Button>
+                          )}
                           <Button variant="ghost" size="icon" className="h-7 w-7">
                             <MoreHorizontal className="h-3 w-3" />
                           </Button>

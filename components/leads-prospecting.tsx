@@ -224,7 +224,7 @@ export function LeadsProspecting() {
 
   // Handle job title chip input
   const handleJobTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if ((e.key === " " || e.key === "Enter") && jobTitleInput.trim()) {
+    if (e.key === "Enter" && jobTitleInput.trim()) {
       e.preventDefault()
       const newTitle = jobTitleInput.trim()
       if (!jobTitles.includes(newTitle)) {
@@ -604,7 +604,7 @@ export function LeadsProspecting() {
                     ))}
                     <input
                       type="text"
-                      placeholder={jobTitles.length === 0 ? "Type and press space..." : ""}
+                      placeholder={jobTitles.length === 0 ? "Type and press enter..." : ""}
                       value={jobTitleInput}
                       onChange={(e) => setJobTitleInput(e.target.value)}
                       onKeyDown={handleJobTitleKeyDown}
@@ -612,7 +612,7 @@ export function LeadsProspecting() {
                     />
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Press space or enter to add multiple titles
+                    Press enter to add multiple titles
                   </p>
                 </div>
 

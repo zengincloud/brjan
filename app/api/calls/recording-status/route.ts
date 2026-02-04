@@ -4,6 +4,25 @@ import { submitTranscription } from "@/lib/assemblyai/transcribe"
 
 export const dynamic = 'force-dynamic'
 
+const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID
+const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN
+
+/**
+ * Create an authenticated Twilio recording URL that external services can access
+ * Twilio requires Basic Auth to download recordings
+ */
+function getAuthenticatedRecordingUrl(recordingUrl: string): string {
+  if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) {
+    return recordingUrl
+  }
+
+  // Convert https://api.twilio.com/... to https://SID:TOKEN@api.twilio.com/...
+  const url = new URL(recordingUrl)
+  url.username = TWILIO_ACCOUNT_SID
+  url.password = TWILIO_AUTH_TOKEN
+  return url.toString()
+}
+
 // POST /api/calls/recording-status - Webhook from Twilio when recording is complete
 export async function POST(request: NextRequest) {
   try {
@@ -68,8 +87,10 @@ export async function POST(request: NextRequest) {
     console.log('Call updated with recording info:', call.id)
 
     // Auto-transcribe the recording using AssemblyAI
+    // Use authenticated URL since Twilio recordings require Basic Auth
     try {
-      const { id: transcriptId, error: transcriptError } = await submitTranscription(fullRecordingUrl)
+      const authenticatedUrl = getAuthenticatedRecordingUrl(fullRecordingUrl)
+      const { id: transcriptId, error: transcriptError } = await submitTranscription(authenticatedUrl)
 
       if (transcriptId && !transcriptError) {
         // Store the transcript ID for polling

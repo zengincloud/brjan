@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Search, ChevronDown, ChevronUp, Building2, Briefcase, User, BarChart, ArrowRight, Clock, Mail, Phone, Linkedin as LinkedinIcon, Loader2, MapPin, Calendar, TrendingUp } from "lucide-react"
+import { Search, ChevronDown, ChevronUp, Building2, Briefcase, User, BarChart, ArrowRight, Clock, Mail, Phone, Linkedin as LinkedinIcon, Loader2, MapPin, Calendar, TrendingUp, X } from "lucide-react"
 import { Collapsible } from "@/components/ui/collapsible"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
@@ -73,7 +73,8 @@ export function LeadsProspecting() {
   const [nameFilter, setNameFilter] = useState("")
   const [currentCompany, setCurrentCompany] = useState("")
   const [jobFunction, setJobFunction] = useState("")
-  const [jobTitle, setJobTitle] = useState("")
+  const [jobTitles, setJobTitles] = useState<string[]>([])
+  const [jobTitleInput, setJobTitleInput] = useState("")
   const [geography, setGeography] = useState("")
   const [city, setCity] = useState("")
   const [buyerIntent, setBuyerIntent] = useState("all")
@@ -98,7 +99,7 @@ export function LeadsProspecting() {
         setNameFilter(state.nameFilter || "")
         setCurrentCompany(state.currentCompany || "")
         setJobFunction(state.jobFunction || "")
-        setJobTitle(state.jobTitle || "")
+        setJobTitles(state.jobTitles || [])
         setGeography(state.geography || "")
         setCity(state.city || "")
         setBuyerIntent(state.buyerIntent || "all")
@@ -156,7 +157,7 @@ export function LeadsProspecting() {
           nameFilter,
           currentCompany,
           jobFunction,
-          jobTitle,
+          jobTitle: jobTitles,
           seniorityLevel: seniorityLevels,
           companyHeadcount: headcountRange,
           geography,
@@ -181,7 +182,7 @@ export function LeadsProspecting() {
         nameFilter,
         currentCompany,
         jobFunction,
-        jobTitle,
+        jobTitles,
         geography,
         city,
         buyerIntent,
@@ -205,7 +206,8 @@ export function LeadsProspecting() {
     setNameFilter("")
     setCurrentCompany("")
     setJobFunction("")
-    setJobTitle("")
+    setJobTitles([])
+    setJobTitleInput("")
     setGeography("")
     setCity("")
     setBuyerIntent("all")
@@ -218,6 +220,25 @@ export function LeadsProspecting() {
 
     // Clear saved state
     sessionStorage.removeItem('leadsProspectingState')
+  }
+
+  // Handle job title chip input
+  const handleJobTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if ((e.key === " " || e.key === "Enter") && jobTitleInput.trim()) {
+      e.preventDefault()
+      const newTitle = jobTitleInput.trim()
+      if (!jobTitles.includes(newTitle)) {
+        setJobTitles([...jobTitles, newTitle])
+      }
+      setJobTitleInput("")
+    } else if (e.key === "Backspace" && !jobTitleInput && jobTitles.length > 0) {
+      // Remove last chip on backspace if input is empty
+      setJobTitles(jobTitles.slice(0, -1))
+    }
+  }
+
+  const removeJobTitle = (titleToRemove: string) => {
+    setJobTitles(jobTitles.filter(t => t !== titleToRemove))
   }
 
   const toggleExpanded = (leadId: string) => {
@@ -498,21 +519,26 @@ export function LeadsProspecting() {
                   <div className="flex items-center justify-between">
                     <Label className="text-sm font-medium">Company Headcount</Label>
                     <span className="text-xs font-medium text-primary">
-                      {headcountRange[0] === 10 ? "Any" : headcountRange[0].toLocaleString()} - {headcountRange[1] === 5000 ? "Any" : headcountRange[1].toLocaleString()}
+                      {headcountRange[0] === 10 ? "Any" : headcountRange[0].toLocaleString()} - {headcountRange[1] >= 5000 ? "5,000+" : headcountRange[1].toLocaleString()}
                     </span>
                   </div>
                   <div className="px-2">
                     <Slider
-                      value={headcountRange}
+                      value={headcountRange.map(v => v >= 5000 ? 2100 : v)}
                       min={10}
-                      max={5000}
-                      step={50}
-                      onValueChange={setHeadcountRange}
+                      max={2100}
+                      step={10}
+                      onValueChange={(values) => {
+                        // Map 2100 to 5000+ for the actual value
+                        setHeadcountRange(values.map(v => v >= 2100 ? 5000 : v))
+                      }}
                       className="my-5"
                     />
                     <div className="flex justify-between text-xs text-muted-foreground">
                       <span>10</span>
-                      <span>2,500</span>
+                      <span>500</span>
+                      <span>1,000</span>
+                      <span>2,000</span>
                       <span>5,000+</span>
                     </div>
                   </div>
@@ -556,14 +582,38 @@ export function LeadsProspecting() {
 
                 <Separator />
 
-                {/* Current Job Title */}
+                {/* Current Job Title - Chip Input */}
                 <div className="space-y-3">
                   <Label className="text-sm font-medium">Current Job Title</Label>
-                  <Input
-                    placeholder="Enter job title"
-                    value={jobTitle}
-                    onChange={(e) => setJobTitle(e.target.value)}
-                  />
+                  <div className="flex flex-wrap gap-1.5 p-2 min-h-[42px] border rounded-md bg-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
+                    {jobTitles.map((title) => (
+                      <Badge
+                        key={title}
+                        variant="secondary"
+                        className="flex items-center gap-1 px-2 py-1 text-xs"
+                      >
+                        {title}
+                        <button
+                          type="button"
+                          onClick={() => removeJobTitle(title)}
+                          className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                    <input
+                      type="text"
+                      placeholder={jobTitles.length === 0 ? "Type and press space..." : ""}
+                      value={jobTitleInput}
+                      onChange={(e) => setJobTitleInput(e.target.value)}
+                      onKeyDown={handleJobTitleKeyDown}
+                      className="flex-1 min-w-[120px] bg-transparent border-none outline-none text-sm placeholder:text-muted-foreground"
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Press space or enter to add multiple titles
+                  </p>
                 </div>
 
                 <Separator />

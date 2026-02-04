@@ -88,12 +88,19 @@ export function CallTranscript({
   const [error, setError] = useState<string | null>(null)
   const [pollCount, setPollCount] = useState(0)
 
-  // Load existing transcription on mount
+  // Auto-start or load transcription when component mounts (when user expands the section)
   useEffect(() => {
     if (initialStatus === "completed") {
+      // Load existing completed transcription
       fetchTranscription()
+    } else if (initialStatus === "queued" || initialStatus === "processing") {
+      // Already in progress, just poll for status
+      fetchTranscription()
+    } else if (initialStatus === "none" || !initialStatus) {
+      // Auto-start transcription when opened
+      startTranscription()
     }
-  }, [callId, initialStatus])
+  }, [callId]) // Only run on mount
 
   // Poll for status when processing
   useEffect(() => {
@@ -178,38 +185,24 @@ export function CallTranscript({
         <div className="flex items-center gap-2">
           <FileText className="h-4 w-4" />
           <span className="font-medium">Transcript</span>
-          {status !== "none" && status !== "completed" && (
+          {status !== "completed" && (
             <Badge variant="secondary" className="text-xs">
-              {status === "queued" && "Queued"}
-              {status === "processing" && "Processing..."}
-              {status === "error" && "Error"}
+              {(status === "none" || isLoading) && "Starting..."}
+              {status === "queued" && !isLoading && "Queued"}
+              {status === "processing" && !isLoading && "Processing..."}
+              {status === "error" && !isLoading && "Error"}
             </Badge>
           )}
         </div>
 
-        {status === "none" && (
-          <Button
-            size="sm"
-            onClick={startTranscription}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <FileText className="h-4 w-4 mr-2" />
-            )}
-            Transcribe
-          </Button>
-        )}
-
-        {(status === "queued" || status === "processing") && (
+        {(status === "none" || status === "queued" || status === "processing" || isLoading) && status !== "error" && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
             <span>Transcribing...</span>
           </div>
         )}
 
-        {status === "error" && (
+        {status === "error" && !isLoading && (
           <Button
             size="sm"
             variant="outline"
@@ -334,7 +327,7 @@ export function CallTranscript({
       )}
 
       {/* Processing placeholder */}
-      {(status === "queued" || status === "processing") && (
+      {(status === "none" || status === "queued" || status === "processing" || isLoading) && status !== "completed" && (
         <div className="h-[200px] rounded-md border flex items-center justify-center">
           <div className="text-center space-y-2">
             <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />

@@ -79,7 +79,7 @@ export async function submitTranscription(audioUrl: string): Promise<{ id: strin
       },
       body: JSON.stringify({
         audio_url: audioUrl,
-        speech_model: "universal", // Required speech model
+        speech_models: ["universal"], // Required speech models array
         speaker_labels: true, // Enable speaker diarization
         speakers_expected: 2, // Expecting 2 speakers (caller and prospect)
         sentiment_analysis: true, // Enable sentiment analysis

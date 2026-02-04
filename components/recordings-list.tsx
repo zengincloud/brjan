@@ -5,9 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Phone, Search, User, Building2, Calendar, Clock, Download } from "lucide-react"
+import { Phone, Search, User, Building2, Calendar, Clock, Download, ChevronDown, ChevronUp } from "lucide-react"
 import { format } from "date-fns"
 import { Skeleton } from "@/components/ui/skeleton"
+import { CallTranscript } from "@/components/call-transcript"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 
 type CallRecording = {
   id: string
@@ -35,6 +37,17 @@ export function RecordingsList() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [playingId, setPlayingId] = useState<string | null>(null)
+  const [expandedTranscripts, setExpandedTranscripts] = useState<Set<string>>(new Set())
+
+  const toggleTranscript = (id: string) => {
+    const newExpanded = new Set(expandedTranscripts)
+    if (newExpanded.has(id)) {
+      newExpanded.delete(id)
+    } else {
+      newExpanded.add(id)
+    }
+    setExpandedTranscripts(newExpanded)
+  }
 
   useEffect(() => {
     loadRecordings()
@@ -192,27 +205,30 @@ export function RecordingsList() {
                   </div>
                 )}
 
-                {/* Transcription */}
-                {recording.transcription ? (
-                  <div>
-                    <p className="text-sm font-medium mb-2">Transcription</p>
-                    <div className="bg-muted p-4 rounded-lg">
-                      <p className="text-sm whitespace-pre-wrap">{recording.transcription}</p>
-                    </div>
-                  </div>
-                ) : recording.transcriptionStatus === "in-progress" ? (
-                  <div className="bg-muted p-4 rounded-lg">
-                    <p className="text-sm text-muted-foreground italic">
-                      Transcription in progress...
-                    </p>
-                  </div>
-                ) : (
-                  <div className="bg-muted p-4 rounded-lg">
-                    <p className="text-sm text-muted-foreground italic">
-                      No transcription available
-                    </p>
-                  </div>
-                )}
+                {/* Transcription with speaker diarization */}
+                <Collapsible
+                  open={expandedTranscripts.has(recording.id)}
+                  onOpenChange={() => toggleTranscript(recording.id)}
+                >
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" className="w-full justify-between p-0 h-auto hover:bg-transparent">
+                      <span className="text-sm font-medium">Transcript</span>
+                      {expandedTranscripts.has(recording.id) ? (
+                        <ChevronUp className="h-4 w-4" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="pt-4">
+                    <CallTranscript
+                      callId={recording.id}
+                      hasRecording={!!recording.recordingUrl}
+                      transcriptionStatus={recording.transcriptionStatus}
+                      onTranscriptionComplete={loadRecordings}
+                    />
+                  </CollapsibleContent>
+                </Collapsible>
               </CardContent>
             </Card>
           ))}

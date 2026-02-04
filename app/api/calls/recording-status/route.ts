@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { submitTranscription } from "@/lib/assemblyai/transcribe"
 
 export const dynamic = 'force-dynamic'
 
@@ -51,18 +52,49 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const fullRecordingUrl = `${recordingUrl}.mp3`
+
     // Update call with recording information
     await prisma.call.update({
       where: { id: call.id },
       data: {
         twilioSid: callSid || call.twilioSid, // Save twilioSid if we have it
         recordingSid,
-        recordingUrl: `${recordingUrl}.mp3`, // Add .mp3 extension for audio format
+        recordingUrl: fullRecordingUrl,
         recordingDuration: parseInt(recordingDuration) || 0,
       },
     })
 
     console.log('Call updated with recording info:', call.id)
+
+    // Auto-transcribe the recording using AssemblyAI
+    try {
+      const { id: transcriptId, error: transcriptError } = await submitTranscription(fullRecordingUrl)
+
+      if (transcriptId && !transcriptError) {
+        // Store the transcript ID for polling
+        const existingMetadata = (call.metadata as Record<string, unknown>) || {}
+
+        await prisma.call.update({
+          where: { id: call.id },
+          data: {
+            transcriptionStatus: "queued",
+            metadata: {
+              ...existingMetadata,
+              assemblyaiTranscriptId: transcriptId,
+              transcriptionStartedAt: new Date().toISOString(),
+            },
+          },
+        })
+
+        console.log('Auto-transcription started for call:', call.id, 'transcriptId:', transcriptId)
+      } else {
+        console.error('Failed to start auto-transcription:', transcriptError)
+      }
+    } catch (transcriptError) {
+      // Don't fail the webhook if transcription fails
+      console.error('Error starting auto-transcription:', transcriptError)
+    }
 
     return NextResponse.json({ success: true })
   } catch (error: any) {

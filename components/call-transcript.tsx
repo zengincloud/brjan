@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -86,65 +86,143 @@ export function CallTranscript({
   const [transcript, setTranscript] = useState<FormattedTranscript | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [pollCount, setPollCount] = useState(0)
+  const initRef = useRef(false)
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Auto-start or load transcription when component mounts (when user expands the section)
+  // Initialize: check current status and auto-start if needed
   useEffect(() => {
-    if (initialStatus === "completed") {
-      // Load existing completed transcription
-      fetchTranscription()
-    } else if (initialStatus === "queued" || initialStatus === "processing") {
-      // Already in progress, just poll for status
-      fetchTranscription()
-    } else if (initialStatus === "none" || !initialStatus) {
-      // Auto-start transcription when opened
-      startTranscription()
+    if (initRef.current) return
+    initRef.current = true
+
+    const initialize = async () => {
+      setIsLoading(true)
+      setError(null)
+
+      try {
+        // First, always fetch current status from API
+        const response = await fetch(`/api/calls/${callId}/transcribe`)
+        const data = await response.json()
+
+        if (data.status === "completed" && data.transcript) {
+          setTranscript(data.transcript)
+          setStatus("completed")
+          setIsLoading(false)
+          onTranscriptionComplete?.()
+          return
+        }
+
+        if (data.status === "queued" || data.status === "processing") {
+          setStatus(data.status)
+          setIsLoading(false)
+          // Polling will start via the other useEffect
+          return
+        }
+
+        if (data.status === "error") {
+          setError(data.error || "Transcription failed")
+          setStatus("error")
+          setIsLoading(false)
+          return
+        }
+
+        // Status is "none" - start transcription
+        const startResponse = await fetch(`/api/calls/${callId}/transcribe`, {
+          method: "POST",
+        })
+        const startData = await startResponse.json()
+
+        if (!startResponse.ok) {
+          // Check if it's "already in progress" - that's fine, just poll
+          if (startData.status) {
+            setStatus(startData.status)
+          } else {
+            setError(startData.error || "Failed to start transcription")
+            setStatus("error")
+          }
+        } else {
+          setStatus(startData.status || "queued")
+        }
+      } catch (err: any) {
+        setError(err.message || "Failed to load transcription")
+        setStatus("error")
+      } finally {
+        setIsLoading(false)
+      }
     }
-  }, [callId]) // Only run on mount
+
+    initialize()
+
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+      }
+    }
+  }, [callId])
 
   // Poll for status when processing
   useEffect(() => {
+    // Clear any existing interval
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current)
+      pollIntervalRef.current = null
+    }
+
     if (status === "queued" || status === "processing") {
-      const interval = setInterval(() => {
-        fetchTranscription()
-        setPollCount((c) => c + 1)
-      }, 3000) // Poll every 3 seconds
+      let pollCount = 0
 
-      // Stop polling after 5 minutes (100 polls)
-      if (pollCount > 100) {
-        clearInterval(interval)
-        setError("Transcription timed out. Please try again.")
-        setStatus("error")
-      }
+      pollIntervalRef.current = setInterval(async () => {
+        pollCount++
 
-      return () => clearInterval(interval)
+        // Stop polling after 5 minutes (100 polls at 3s each)
+        if (pollCount > 100) {
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current)
+            pollIntervalRef.current = null
+          }
+          setError("Transcription timed out. Please try again.")
+          setStatus("error")
+          return
+        }
+
+        try {
+          const response = await fetch(`/api/calls/${callId}/transcribe`)
+          const data = await response.json()
+
+          if (data.status === "completed" && data.transcript) {
+            setTranscript(data.transcript)
+            setStatus("completed")
+            if (pollIntervalRef.current) {
+              clearInterval(pollIntervalRef.current)
+              pollIntervalRef.current = null
+            }
+            onTranscriptionComplete?.()
+          } else if (data.status === "error") {
+            setError(data.error || "Transcription failed")
+            setStatus("error")
+            if (pollIntervalRef.current) {
+              clearInterval(pollIntervalRef.current)
+              pollIntervalRef.current = null
+            }
+          } else {
+            setStatus(data.status)
+          }
+        } catch (err) {
+          console.error("Error polling transcription:", err)
+        }
+      }, 3000)
     }
-  }, [status, pollCount])
 
-  const fetchTranscription = async () => {
-    try {
-      const response = await fetch(`/api/calls/${callId}/transcribe`)
-      const data = await response.json()
-
-      if (data.status === "completed" && data.transcript) {
-        setTranscript(data.transcript)
-        setStatus("completed")
-        onTranscriptionComplete?.()
-      } else if (data.status === "error") {
-        setError(data.error || "Transcription failed")
-        setStatus("error")
-      } else {
-        setStatus(data.status)
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+        pollIntervalRef.current = null
       }
-    } catch (err) {
-      console.error("Error fetching transcription:", err)
     }
-  }
+  }, [status, callId])
 
-  const startTranscription = async () => {
+  const retryTranscription = async () => {
     setIsLoading(true)
     setError(null)
-    setPollCount(0)
 
     try {
       const response = await fetch(`/api/calls/${callId}/transcribe`, {
@@ -155,12 +233,14 @@ export function CallTranscript({
 
       if (!response.ok) {
         setError(data.error || "Failed to start transcription")
+        setStatus("error")
         return
       }
 
       setStatus(data.status || "queued")
     } catch (err: any) {
       setError(err.message || "Failed to start transcription")
+      setStatus("error")
     } finally {
       setIsLoading(false)
     }
@@ -206,7 +286,7 @@ export function CallTranscript({
           <Button
             size="sm"
             variant="outline"
-            onClick={startTranscription}
+            onClick={retryTranscription}
             disabled={isLoading}
           >
             <RefreshCw className="h-4 w-4 mr-2" />

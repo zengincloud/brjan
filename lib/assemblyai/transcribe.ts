@@ -152,6 +152,15 @@ export async function submitTranscription(
     // Check if this is a Twilio URL that needs authentication
     const isTwilioUrl = audioUrl.includes("api.twilio.com") || audioUrl.includes("twilio.com")
 
+    // Debug logging to trace the upload path
+    console.log("submitTranscription called:", {
+      audioUrl: audioUrl.substring(0, 50) + "...",
+      isTwilioUrl,
+      hasTwilioSid: !!twilioAccountSid,
+      hasTwilioToken: !!twilioAuthToken,
+      willUpload: isTwilioUrl && !!twilioAccountSid && !!twilioAuthToken,
+    })
+
     if (isTwilioUrl && twilioAccountSid && twilioAuthToken) {
       console.log("Detected Twilio URL, fetching and uploading to AssemblyAI...")
 
@@ -176,8 +185,18 @@ export async function submitTranscription(
       }
 
       console.log("Audio uploaded to AssemblyAI, submitting for transcription...")
+      console.log("Upload URL received:", upload_url.substring(0, 60) + "...")
       finalAudioUrl = upload_url
+    } else if (isTwilioUrl) {
+      // Twilio URL but missing credentials - log warning
+      console.warn("WARNING: Twilio URL detected but missing credentials!", {
+        hasTwilioSid: !!twilioAccountSid,
+        hasTwilioToken: !!twilioAuthToken,
+      })
+      console.warn("AssemblyAI will try to download directly and likely fail.")
     }
+
+    console.log("Submitting to AssemblyAI with URL:", finalAudioUrl.substring(0, 60) + "...")
 
     const response = await fetch("https://api.assemblyai.com/v2/transcript", {
       method: "POST",

@@ -54,6 +54,12 @@ export const POST = withAuth<{ params: { id: string } }>(async (
     }
 
     // Submit to AssemblyAI - pass Twilio credentials so it can fetch and upload the audio
+    console.log('Manual transcription request with credentials:', {
+      hasTwilioSid: !!TWILIO_ACCOUNT_SID,
+      hasTwilioToken: !!TWILIO_AUTH_TOKEN,
+      recordingUrl: call.recordingUrl.substring(0, 50) + '...',
+    })
+
     const { id: transcriptId, error } = await submitTranscription(
       call.recordingUrl,
       TWILIO_ACCOUNT_SID,

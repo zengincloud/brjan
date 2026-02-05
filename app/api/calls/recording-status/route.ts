@@ -72,6 +72,12 @@ export async function POST(request: NextRequest) {
 
     // Auto-transcribe the recording using AssemblyAI
     // Pass Twilio credentials so the function can fetch and upload the audio
+    console.log('Starting auto-transcription with credentials:', {
+      hasTwilioSid: !!TWILIO_ACCOUNT_SID,
+      hasTwilioToken: !!TWILIO_AUTH_TOKEN,
+      recordingUrl: fullRecordingUrl.substring(0, 50) + '...',
+    })
+
     try {
       const { id: transcriptId, error: transcriptError } = await submitTranscription(
         fullRecordingUrl,

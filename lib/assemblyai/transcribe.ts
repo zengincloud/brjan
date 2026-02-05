@@ -62,15 +62,123 @@ export interface FormattedTranscript {
 }
 
 /**
+ * Upload audio file to AssemblyAI's servers
+ * This is needed for Twilio recordings which require authentication
+ */
+export async function uploadAudioToAssemblyAI(
+  audioBuffer: Buffer
+): Promise<{ upload_url: string; error?: string }> {
+  if (!ASSEMBLYAI_API_KEY) {
+    return { upload_url: "", error: "AssemblyAI API key not configured" }
+  }
+
+  try {
+    // Convert Buffer to Uint8Array for fetch compatibility
+    const uint8Array = new Uint8Array(audioBuffer)
+
+    const response = await fetch("https://api.assemblyai.com/v2/upload", {
+      method: "POST",
+      headers: {
+        "Authorization": ASSEMBLYAI_API_KEY,
+        "Content-Type": "application/octet-stream",
+      },
+      body: uint8Array,
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      console.error("AssemblyAI upload error:", error)
+      return { upload_url: "", error: error.error || "Failed to upload audio" }
+    }
+
+    const data = await response.json()
+    return { upload_url: data.upload_url }
+  } catch (error: any) {
+    console.error("AssemblyAI upload error:", error)
+    return { upload_url: "", error: error.message || "Failed to upload audio" }
+  }
+}
+
+/**
+ * Fetch audio from a URL with optional Basic Auth
+ */
+export async function fetchAudioWithAuth(
+  url: string,
+  username?: string,
+  password?: string
+): Promise<{ buffer: Buffer; error?: string }> {
+  try {
+    const headers: Record<string, string> = {}
+
+    if (username && password) {
+      const auth = Buffer.from(`${username}:${password}`).toString("base64")
+      headers["Authorization"] = `Basic ${auth}`
+    }
+
+    console.log("Fetching audio from:", url.replace(/:[^:@]+@/, ":***@"))
+
+    const response = await fetch(url, { headers })
+
+    if (!response.ok) {
+      console.error("Failed to fetch audio:", response.status, response.statusText)
+      return { buffer: Buffer.from([]), error: `Failed to fetch audio: ${response.status}` }
+    }
+
+    const arrayBuffer = await response.arrayBuffer()
+    return { buffer: Buffer.from(arrayBuffer) }
+  } catch (error: any) {
+    console.error("Error fetching audio:", error)
+    return { buffer: Buffer.from([]), error: error.message || "Failed to fetch audio" }
+  }
+}
+
+/**
  * Submit an audio file URL for transcription
+ * For Twilio URLs, fetches the audio and uploads to AssemblyAI first
  * Returns the transcript ID for polling
  */
-export async function submitTranscription(audioUrl: string): Promise<{ id: string; error?: string }> {
+export async function submitTranscription(
+  audioUrl: string,
+  twilioAccountSid?: string,
+  twilioAuthToken?: string
+): Promise<{ id: string; error?: string }> {
   if (!ASSEMBLYAI_API_KEY) {
     return { id: "", error: "AssemblyAI API key not configured" }
   }
 
   try {
+    let finalAudioUrl = audioUrl
+
+    // Check if this is a Twilio URL that needs authentication
+    const isTwilioUrl = audioUrl.includes("api.twilio.com") || audioUrl.includes("twilio.com")
+
+    if (isTwilioUrl && twilioAccountSid && twilioAuthToken) {
+      console.log("Detected Twilio URL, fetching and uploading to AssemblyAI...")
+
+      // Fetch the audio from Twilio with auth
+      const { buffer, error: fetchError } = await fetchAudioWithAuth(
+        audioUrl,
+        twilioAccountSid,
+        twilioAuthToken
+      )
+
+      if (fetchError || buffer.length === 0) {
+        return { id: "", error: fetchError || "Failed to fetch audio from Twilio" }
+      }
+
+      console.log(`Fetched ${buffer.length} bytes, uploading to AssemblyAI...`)
+
+      // Upload to AssemblyAI
+      const { upload_url, error: uploadError } = await uploadAudioToAssemblyAI(buffer)
+
+      if (uploadError || !upload_url) {
+        return { id: "", error: uploadError || "Failed to upload audio to AssemblyAI" }
+      }
+
+      console.log("Audio uploaded to AssemblyAI, submitting for transcription...")
+      finalAudioUrl = upload_url
+    }
+
     const response = await fetch("https://api.assemblyai.com/v2/transcript", {
       method: "POST",
       headers: {
@@ -78,7 +186,7 @@ export async function submitTranscription(audioUrl: string): Promise<{ id: strin
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        audio_url: audioUrl,
+        audio_url: finalAudioUrl,
         speech_model: "best", // Use best model for accuracy
         speaker_labels: true, // Enable speaker diarization
         speakers_expected: 2, // Expecting 2 speakers (caller and prospect)

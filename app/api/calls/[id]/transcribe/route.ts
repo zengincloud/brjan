@@ -14,22 +14,6 @@ export const dynamic = 'force-dynamic'
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN
 
-/**
- * Create an authenticated Twilio recording URL that external services can access
- * Twilio requires Basic Auth to download recordings
- */
-function getAuthenticatedRecordingUrl(recordingUrl: string): string {
-  if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) {
-    return recordingUrl
-  }
-
-  // Convert https://api.twilio.com/... to https://SID:TOKEN@api.twilio.com/...
-  const url = new URL(recordingUrl)
-  url.username = TWILIO_ACCOUNT_SID
-  url.password = TWILIO_AUTH_TOKEN
-  return url.toString()
-}
-
 // POST /api/calls/[id]/transcribe - Start transcription for a call recording
 export const POST = withAuth<{ params: { id: string } }>(async (
   request: NextRequest,
@@ -69,9 +53,12 @@ export const POST = withAuth<{ params: { id: string } }>(async (
       )
     }
 
-    // Submit to AssemblyAI with authenticated URL (Twilio requires Basic Auth)
-    const authenticatedUrl = getAuthenticatedRecordingUrl(call.recordingUrl)
-    const { id: transcriptId, error } = await submitTranscription(authenticatedUrl)
+    // Submit to AssemblyAI - pass Twilio credentials so it can fetch and upload the audio
+    const { id: transcriptId, error } = await submitTranscription(
+      call.recordingUrl,
+      TWILIO_ACCOUNT_SID,
+      TWILIO_AUTH_TOKEN
+    )
 
     if (error || !transcriptId) {
       console.error("Failed to submit transcription:", error)

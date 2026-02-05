@@ -399,8 +399,14 @@ export function CallTranscript({
                 </div>
               ))
             ) : (
-              // Plain text fallback
-              <p className="text-sm whitespace-pre-wrap">{transcript.fullText}</p>
+              // Plain text fallback when speaker detection unavailable
+              <div className="space-y-3">
+                <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded flex items-center gap-2">
+                  <Users className="h-3 w-3" />
+                  Speaker detection unavailable for this recording
+                </div>
+                <p className="text-sm whitespace-pre-wrap">{transcript.fullText}</p>
+              </div>
             )}
           </div>
         </ScrollArea>

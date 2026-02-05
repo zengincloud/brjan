@@ -79,7 +79,7 @@ export async function submitTranscription(audioUrl: string): Promise<{ id: strin
       },
       body: JSON.stringify({
         audio_url: audioUrl,
-        speech_models: ["universal"], // Required speech models array
+        speech_model: "best", // Use best model for accuracy
         speaker_labels: true, // Enable speaker diarization
         speakers_expected: 2, // Expecting 2 speakers (caller and prospect)
         sentiment_analysis: true, // Enable sentiment analysis
@@ -111,6 +111,7 @@ export async function getTranscriptionStatus(transcriptId: string): Promise<Tran
       text: null,
       utterances: null,
       words: null,
+      sentiment_analysis_results: null,
       audio_duration: null,
       error: "AssemblyAI API key not configured",
     }
@@ -131,6 +132,7 @@ export async function getTranscriptionStatus(transcriptId: string): Promise<Tran
         text: null,
         utterances: null,
         words: null,
+        sentiment_analysis_results: null,
         audio_duration: null,
         error: error.error || "Failed to get transcription status",
       }
@@ -287,7 +289,7 @@ export function formatTranscript(
   callerName: string = "You",
   prospectName: string = "Prospect"
 ): FormattedTranscript | null {
-  if (result.status !== "completed" || !result.utterances) {
+  if (result.status !== "completed" || !result.text) {
     return null
   }
 
@@ -296,21 +298,62 @@ export function formatTranscript(
   const speakerMap: { [key: string]: string } = {}
   let speakerCount = 0
 
-  const segments = result.utterances.map((utterance) => {
-    // Assign names to speakers as they appear
-    if (!speakerMap[utterance.speaker]) {
-      speakerCount++
-      // First speaker is usually the caller (you)
-      speakerMap[utterance.speaker] = speakerCount === 1 ? callerName : prospectName
+  let segments: FormattedTranscript["segments"] = []
+
+  // Try to use utterances first (preferred for speaker diarization)
+  if (result.utterances && result.utterances.length > 0) {
+    segments = result.utterances.map((utterance) => {
+      // Assign names to speakers as they appear
+      if (!speakerMap[utterance.speaker]) {
+        speakerCount++
+        // First speaker is usually the caller (you)
+        speakerMap[utterance.speaker] = speakerCount === 1 ? callerName : prospectName
+      }
+
+      return {
+        speaker: speakerMap[utterance.speaker],
+        text: utterance.text,
+        startTime: utterance.start / 1000, // Convert ms to seconds
+        endTime: utterance.end / 1000,
+      }
+    })
+  } else if (result.words && result.words.length > 0) {
+    // Fallback: Try to build segments from words with speaker labels
+    let currentSegment: { speaker: string; text: string; startTime: number; endTime: number } | null = null
+
+    for (const word of result.words) {
+      const speakerLabel = word.speaker || "A"
+
+      if (!speakerMap[speakerLabel]) {
+        speakerCount++
+        speakerMap[speakerLabel] = speakerCount === 1 ? callerName : prospectName
+      }
+
+      const speakerName = speakerMap[speakerLabel]
+
+      if (!currentSegment || currentSegment.speaker !== speakerName) {
+        // Start new segment
+        if (currentSegment) {
+          segments.push(currentSegment)
+        }
+        currentSegment = {
+          speaker: speakerName,
+          text: word.text,
+          startTime: word.start / 1000,
+          endTime: word.end / 1000,
+        }
+      } else {
+        // Append to current segment
+        currentSegment.text += " " + word.text
+        currentSegment.endTime = word.end / 1000
+      }
     }
 
-    return {
-      speaker: speakerMap[utterance.speaker],
-      text: utterance.text,
-      startTime: utterance.start / 1000, // Convert ms to seconds
-      endTime: utterance.end / 1000,
+    // Don't forget the last segment
+    if (currentSegment) {
+      segments.push(currentSegment)
     }
-  })
+  }
 
   return {
     fullText: result.text || "",

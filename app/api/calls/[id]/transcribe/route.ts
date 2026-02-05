@@ -189,9 +189,29 @@ export const GET = withAuth<{ params: { id: string } }>(async (
     }
 
     if (result.status === "completed") {
+      // Log debug info for speaker diarization
+      console.log("Transcription completed:", {
+        hasText: !!result.text,
+        textLength: result.text?.length,
+        hasUtterances: !!result.utterances,
+        utteranceCount: result.utterances?.length || 0,
+        hasWords: !!result.words,
+        wordCount: result.words?.length || 0,
+        hasSentiment: !!result.sentiment_analysis_results,
+      })
+
       // Format the transcript with speaker labels
       const prospectName = call.prospect?.name || "Prospect"
-      const formattedTranscript = formatTranscript(result, "You", prospectName)
+      let formattedTranscript = formatTranscript(result, "You", prospectName)
+
+      // Fallback if formatTranscript returns null but we have text
+      if (!formattedTranscript && result.text) {
+        formattedTranscript = {
+          fullText: result.text,
+          segments: [],
+          duration: result.audio_duration || 0,
+        }
+      }
 
       // Calculate sentiment from AssemblyAI's sentiment analysis
       const sentimentData = calculateOverallSentiment(result.sentiment_analysis_results)
@@ -225,6 +245,7 @@ export const GET = withAuth<{ params: { id: string } }>(async (
           metadata: {
             ...metadata,
             transcriptionCompletedAt: new Date().toISOString(),
+            speakerDiarizationAvailable: (formattedTranscript?.segments?.length || 0) > 0,
           },
         },
       })

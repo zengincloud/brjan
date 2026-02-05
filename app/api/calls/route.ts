@@ -30,7 +30,21 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
       where: whereClause,
       orderBy: { createdAt: "desc" },
       take: limit ? parseInt(limit) : undefined,
-      include: {
+      select: {
+        id: true,
+        from: true,
+        to: true,
+        status: true,
+        outcome: true,
+        duration: true,
+        notes: true,
+        startedAt: true,
+        endedAt: true,
+        createdAt: true,
+        recordingUrl: true,
+        recordingDuration: true,
+        transcription: true,
+        transcriptionStatus: true,
         prospect: {
           select: {
             id: true,

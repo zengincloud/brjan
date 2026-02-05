@@ -86,71 +86,55 @@ export function CallTranscript({
   const [transcript, setTranscript] = useState<FormattedTranscript | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const initRef = useRef(false)
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const currentCallIdRef = useRef<string | null>(null)
 
-  // Initialize: check current status and auto-start if needed
+  // Initialize: check current status only (do NOT auto-start transcription)
   useEffect(() => {
-    if (initRef.current) return
-    initRef.current = true
+    // Reset state when callId changes
+    if (currentCallIdRef.current !== callId) {
+      currentCallIdRef.current = callId
+      setStatus(initialStatus || "none")
+      setTranscript(null)
+      setError(null)
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+        pollIntervalRef.current = null
+      }
+    }
 
-    const initialize = async () => {
+    const checkStatus = async () => {
       setIsLoading(true)
       setError(null)
 
       try {
-        // First, always fetch current status from API
+        // Only fetch current status from API - do NOT start transcription
         const response = await fetch(`/api/calls/${callId}/transcribe`)
         const data = await response.json()
 
         if (data.status === "completed" && data.transcript) {
           setTranscript(data.transcript)
           setStatus("completed")
-          setIsLoading(false)
           onTranscriptionComplete?.()
-          return
-        }
-
-        if (data.status === "queued" || data.status === "processing") {
+        } else if (data.status === "queued" || data.status === "processing") {
           setStatus(data.status)
-          setIsLoading(false)
           // Polling will start via the other useEffect
-          return
-        }
-
-        if (data.status === "error") {
+        } else if (data.status === "error") {
           setError(data.error || "Transcription failed")
           setStatus("error")
-          setIsLoading(false)
-          return
-        }
-
-        // Status is "none" - start transcription
-        const startResponse = await fetch(`/api/calls/${callId}/transcribe`, {
-          method: "POST",
-        })
-        const startData = await startResponse.json()
-
-        if (!startResponse.ok) {
-          // Check if it's "already in progress" - that's fine, just poll
-          if (startData.status) {
-            setStatus(startData.status)
-          } else {
-            setError(startData.error || "Failed to start transcription")
-            setStatus("error")
-          }
         } else {
-          setStatus(startData.status || "queued")
+          // Status is "none" - just show the button, don't auto-start
+          setStatus("none")
         }
       } catch (err: any) {
-        setError(err.message || "Failed to load transcription")
+        setError(err.message || "Failed to load transcription status")
         setStatus("error")
       } finally {
         setIsLoading(false)
       }
     }
 
-    initialize()
+    checkStatus()
 
     return () => {
       if (pollIntervalRef.current) {
@@ -265,9 +249,9 @@ export function CallTranscript({
         <div className="flex items-center gap-2">
           <FileText className="h-4 w-4" />
           <span className="font-medium">Transcript</span>
-          {status !== "completed" && (
+          {status !== "completed" && status !== "none" && (
             <Badge variant="secondary" className="text-xs">
-              {(status === "none" || isLoading) && "Starting..."}
+              {isLoading && "Loading..."}
               {status === "queued" && !isLoading && "Queued"}
               {status === "processing" && !isLoading && "Processing..."}
               {status === "error" && !isLoading && "Error"}
@@ -275,7 +259,7 @@ export function CallTranscript({
           )}
         </div>
 
-        {(status === "none" || status === "queued" || status === "processing" || isLoading) && status !== "error" && (
+        {(status === "queued" || status === "processing") && !isLoading && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
             <span>Transcribing...</span>
@@ -412,8 +396,24 @@ export function CallTranscript({
         </ScrollArea>
       )}
 
+      {/* Not started - show transcribe button */}
+      {status === "none" && !isLoading && (
+        <div className="h-[200px] rounded-md border flex items-center justify-center">
+          <div className="text-center space-y-3">
+            <FileText className="h-8 w-8 mx-auto text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
+              Transcription not started yet
+            </p>
+            <Button onClick={retryTranscription} disabled={isLoading}>
+              <FileText className="h-4 w-4 mr-2" />
+              Start Transcription
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Processing placeholder */}
-      {(status === "none" || status === "queued" || status === "processing" || isLoading) && status !== "completed" && (
+      {(status === "queued" || status === "processing" || isLoading) && status !== "completed" && (
         <div className="h-[200px] rounded-md border flex items-center justify-center">
           <div className="text-center space-y-2">
             <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />

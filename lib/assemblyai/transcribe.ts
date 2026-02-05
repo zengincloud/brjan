@@ -206,7 +206,7 @@ export async function submitTranscription(
       },
       body: JSON.stringify({
         audio_url: finalAudioUrl,
-        speech_model: "best", // Use best model for accuracy
+        speech_models: ["best"], // Use best model for accuracy
         speaker_labels: true, // Enable speaker diarization
         speakers_expected: 2, // Expecting 2 speakers (caller and prospect)
         sentiment_analysis: true, // Enable sentiment analysis

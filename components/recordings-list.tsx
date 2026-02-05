@@ -308,7 +308,6 @@ export function RecordingsList() {
                           callId={selectedRecording.id}
                           hasRecording={!!selectedRecording.recordingUrl}
                           transcriptionStatus={selectedRecording.transcriptionStatus}
-                          onTranscriptionComplete={loadRecordings}
                         />
                       )}
                     </div>

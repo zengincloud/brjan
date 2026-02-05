@@ -235,7 +235,7 @@ export function CallHistory({ prospectId, limit }: { prospectId?: string; limit?
                       <audio
                         controls
                         className="w-full h-8"
-                        src={selectedCall.recordingUrl}
+                        src={`/api/calls/${selectedCall.id}/recording`}
                       >
                         Your browser does not support audio playback.
                       </audio>

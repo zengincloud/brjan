@@ -6,11 +6,14 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Phone, Search, User, Building2, Calendar, Clock, Download, Play, FileText } from "lucide-react"
-import { format } from "date-fns"
+import { Phone, Search, User, Building2, CalendarIcon, Clock, Download, Play, FileText, X } from "lucide-react"
+import { format, isWithinInterval, startOfDay, endOfDay } from "date-fns"
 import { Skeleton } from "@/components/ui/skeleton"
 import { CallTranscript } from "@/components/call-transcript"
 import { cn } from "@/lib/utils"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import type { DateRange } from "react-day-picker"
 
 type CallRecording = {
   id: string
@@ -41,6 +44,7 @@ export function RecordingsList() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedRecording, setSelectedRecording] = useState<CallRecording | null>(null)
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined)
 
   useEffect(() => {
     loadRecordings()
@@ -65,12 +69,23 @@ export function RecordingsList() {
   }
 
   const filteredRecordings = recordings.filter((recording) => {
+    // Text search filter
     const searchLower = searchTerm.toLowerCase()
-    return (
+    const matchesSearch =
       recording.to.toLowerCase().includes(searchLower) ||
       recording.prospect?.name.toLowerCase().includes(searchLower) ||
       recording.prospect?.company?.toLowerCase().includes(searchLower)
-    )
+
+    // Date range filter
+    let matchesDateRange = true
+    if (dateRange?.from) {
+      const recordingDate = new Date(recording.createdAt)
+      const start = startOfDay(dateRange.from)
+      const end = dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from)
+      matchesDateRange = isWithinInterval(recordingDate, { start, end })
+    }
+
+    return matchesSearch && matchesDateRange
   })
 
   const formatDuration = (seconds: number | null) => {
@@ -120,15 +135,62 @@ export function RecordingsList() {
 
   return (
     <div className="space-y-4">
-      {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search by name, company, or phone..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-9"
-        />
+      {/* Search and Date Range Filter */}
+      <div className="flex items-center gap-3">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search by name, company, or phone..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              className={cn(
+                "justify-start text-left font-normal min-w-[240px]",
+                !dateRange && "text-muted-foreground"
+              )}
+            >
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              {dateRange?.from ? (
+                dateRange.to ? (
+                  <>
+                    {format(dateRange.from, "MMM d, yyyy")} - {format(dateRange.to, "MMM d, yyyy")}
+                  </>
+                ) : (
+                  format(dateRange.from, "MMM d, yyyy")
+                )
+              ) : (
+                "Filter by date"
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="end">
+            <Calendar
+              mode="range"
+              defaultMonth={dateRange?.from}
+              selected={dateRange}
+              onSelect={setDateRange}
+              numberOfMonths={2}
+            />
+          </PopoverContent>
+        </Popover>
+
+        {dateRange && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setDateRange(undefined)}
+            className="h-9 w-9"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        )}
       </div>
 
       {/* Main Card with Split Pane */}
@@ -145,8 +207,8 @@ export function RecordingsList() {
               <Phone className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
               <p className="text-lg font-medium mb-1">No recordings found</p>
               <p className="text-sm text-muted-foreground">
-                {searchTerm
-                  ? "Try adjusting your search"
+                {searchTerm || dateRange
+                  ? "Try adjusting your search or date range"
                   : "Call recordings will appear here automatically"}
               </p>
             </div>

@@ -1,6 +1,9 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { prisma } from "@/lib/prisma"
+import { withAuth } from "@/lib/auth/api-middleware"
+
+export const dynamic = 'force-dynamic'
 
 const statusEnum = z.enum(["to_do", "in_progress", "done"])
 const priorityEnum = z.enum(["high", "medium", "low"])
@@ -72,3 +75,31 @@ export async function PATCH(request: Request, context: { params: { id: string } 
     return NextResponse.json({ error: "Task not found" }, { status: 404 })
   }
 }
+
+export const DELETE = withAuth(async (request: NextRequest, userId: string, context?: { params: { id: string } }) => {
+  const id = context?.params?.id
+
+  if (!id) {
+    return NextResponse.json({ error: "Task ID is required" }, { status: 400 })
+  }
+
+  try {
+    // Verify task belongs to user before deleting
+    const task = await prisma.task.findFirst({
+      where: { id, userId },
+    })
+
+    if (!task) {
+      return NextResponse.json({ error: "Task not found" }, { status: 404 })
+    }
+
+    await prisma.task.delete({
+      where: { id },
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error("Error deleting task:", error)
+    return NextResponse.json({ error: "Failed to delete task" }, { status: 500 })
+  }
+})

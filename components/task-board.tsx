@@ -65,10 +65,10 @@ interface Task {
   createdAt: string
 }
 
-// Sample tasks data
-const initialTasks: Task[] = [
+// Sample dummy tasks data - these won't update backend when moved
+const dummyTasks: Task[] = [
   {
-    id: "task-1",
+    id: "dummy-1",
     type: "hot_lead",
     title: "Follow up with Sarah from TechCorp",
     description: "Showed high interest in our enterprise solution",
@@ -83,13 +83,13 @@ const initialTasks: Task[] = [
       name: "TechCorp",
       website: "techcorp.com",
     },
-    dueDate: "2023-06-15",
+    dueDate: "2024-02-15",
     priority: "high",
     status: "to_do",
-    createdAt: "2023-06-10",
+    createdAt: "2024-02-10",
   },
   {
-    id: "task-2",
+    id: "dummy-2",
     type: "interested",
     title: "Send proposal to Michael at GlobalTech",
     description: "Requested pricing information for 50 seats",
@@ -104,48 +104,14 @@ const initialTasks: Task[] = [
       name: "GlobalTech",
       website: "globaltech.com",
     },
-    dueDate: "2023-06-18",
+    dueDate: "2024-02-18",
     priority: "medium",
     status: "to_do",
-    createdAt: "2023-06-11",
+    createdAt: "2024-02-11",
   },
   {
-    id: "task-3",
-    type: "website_visit",
-    title: "Reach out to InnovateCo",
-    description: "Visited pricing page 5 times in the last week",
-    company: {
-      name: "InnovateCo",
-      website: "innovateco.com",
-    },
-    priority: "medium",
-    status: "to_do",
-    createdAt: "2023-06-12",
-  },
-  {
-    id: "task-4",
+    id: "dummy-3",
     type: "follow_up",
-    title: "Quarterly check-in with FutureSoft",
-    description: "Regular account maintenance call",
-    contact: {
-      name: "Emily Davis",
-      title: "Customer Success Manager",
-      company: "FutureSoft",
-      email: "emily@futuresoft.com",
-      phone: "+1 (555) 234-5678",
-    },
-    company: {
-      name: "FutureSoft",
-      website: "futuresoft.com",
-    },
-    dueDate: "2023-06-20",
-    priority: "low",
-    status: "to_do",
-    createdAt: "2023-06-13",
-  },
-  {
-    id: "task-5",
-    type: "hot_lead",
     title: "Demo for NextGen Solutions",
     description: "CEO requested a personalized demo",
     contact: {
@@ -159,13 +125,13 @@ const initialTasks: Task[] = [
       name: "NextGen Solutions",
       website: "nextgensolutions.com",
     },
-    dueDate: "2023-06-16",
+    dueDate: "2024-02-16",
     priority: "high",
     status: "in_progress",
-    createdAt: "2023-06-09",
+    createdAt: "2024-02-09",
   },
   {
-    id: "task-6",
+    id: "dummy-4",
     type: "website_visit",
     title: "Follow up with DataDrive",
     description: "Downloaded whitepaper on data security",
@@ -175,10 +141,10 @@ const initialTasks: Task[] = [
     },
     priority: "low",
     status: "in_progress",
-    createdAt: "2023-06-14",
+    createdAt: "2024-02-14",
   },
   {
-    id: "task-7",
+    id: "dummy-5",
     type: "interested",
     title: "Schedule demo with CloudNine",
     description: "Interested in our analytics platform",
@@ -193,33 +159,29 @@ const initialTasks: Task[] = [
       name: "CloudNine",
       website: "cloudnine.com",
     },
-    dueDate: "2023-06-19",
+    dueDate: "2024-02-19",
     priority: "medium",
     status: "done",
-    createdAt: "2023-06-08",
-  },
-  {
-    id: "task-8",
-    type: "follow_up",
-    title: "Contract renewal with AlphaTech",
-    description: "Current contract expires next month",
-    contact: {
-      name: "David Wilson",
-      title: "Procurement Manager",
-      company: "AlphaTech",
-      email: "david@alphatech.com",
-      phone: "+1 (555) 567-8901",
-    },
-    company: {
-      name: "AlphaTech",
-      website: "alphatech.com",
-    },
-    dueDate: "2023-06-25",
-    priority: "high",
-    status: "done",
-    createdAt: "2023-06-07",
+    createdAt: "2024-02-08",
   },
 ]
+
+// Aggregated LinkedIn task card interface
+interface LinkedInAggregateCard {
+  id: string
+  type: "linkedin_aggregate"
+  subType: "connection" | "message"
+  count: number
+  status: string
+  tasks: Task[]
+}
+
+// Type for board items (can be regular task or LinkedIn aggregate)
+type BoardItem = Task | LinkedInAggregateCard
+
+const isLinkedInAggregate = (item: BoardItem): item is LinkedInAggregateCard => {
+  return "type" in item && item.type === "linkedin_aggregate"
+}
 
 // Column definitions
 const columns = {
@@ -304,7 +266,8 @@ const getPriorityColor = (priority: Priority) => {
 }
 
 export function TaskBoard() {
-  const [tasks, setTasks] = useState<Task[]>(initialTasks)
+  const [realTasks, setRealTasks] = useState<Task[]>([])
+  const [dummyTasksState, setDummyTasksState] = useState<Task[]>(dummyTasks)
   const [activeTab, setActiveTab] = useState<"board" | "list">("board")
   const [emailOpen, setEmailOpen] = useState(false)
   const [emailTask, setEmailTask] = useState<Task | null>(null)
@@ -315,6 +278,51 @@ export function TaskBoard() {
   const [emailStatus, setEmailStatus] = useState<"idle" | "sending" | "error">("idle")
   const [emailError, setEmailError] = useState<string | null>(null)
   const router = useRouter()
+
+  // Combine real and dummy tasks, but separate LinkedIn tasks for aggregation
+  const allTasks = [...realTasks, ...dummyTasksState]
+  const nonLinkedInTasks = allTasks.filter(t => t.type !== "linkedin")
+  const linkedInTasks = allTasks.filter(t => t.type === "linkedin")
+
+  // Create LinkedIn aggregate counts by status
+  const getLinkedInAggregates = (status: string): LinkedInAggregateCard[] => {
+    const tasksForStatus = linkedInTasks.filter(t => t.status === status)
+    if (tasksForStatus.length === 0) return []
+
+    // Group by connection vs message based on title keywords
+    const connectionTasks = tasksForStatus.filter(t =>
+      t.title.toLowerCase().includes("connect") || t.title.toLowerCase().includes("connection")
+    )
+    const messageTasks = tasksForStatus.filter(t =>
+      !t.title.toLowerCase().includes("connect") && !t.title.toLowerCase().includes("connection")
+    )
+
+    const aggregates: LinkedInAggregateCard[] = []
+
+    if (connectionTasks.length > 0) {
+      aggregates.push({
+        id: `linkedin-connections-${status}`,
+        type: "linkedin_aggregate",
+        subType: "connection",
+        count: connectionTasks.length,
+        status,
+        tasks: connectionTasks,
+      })
+    }
+
+    if (messageTasks.length > 0) {
+      aggregates.push({
+        id: `linkedin-messages-${status}`,
+        type: "linkedin_aggregate",
+        subType: "message",
+        count: messageTasks.length,
+        status,
+        tasks: messageTasks,
+      })
+    }
+
+    return aggregates
+  }
 
   useEffect(() => {
     let isMounted = true
@@ -327,7 +335,7 @@ export function TaskBoard() {
         }
         const data = (await response.json()) as { tasks: ApiTask[] }
         if (isMounted) {
-          setTasks(data.tasks.map(normalizeTask))
+          setRealTasks(data.tasks.map(normalizeTask))
         }
       } catch (error) {
         console.error(error)
@@ -385,17 +393,14 @@ export function TaskBoard() {
     }
   }
 
-  // Group tasks by status
-  const tasksByStatus = tasks.reduce(
-    (acc, task) => {
-      if (!acc[task.status]) {
-        acc[task.status] = []
-      }
-      acc[task.status].push(task)
-      return acc
-    },
-    {} as Record<string, Task[]>,
-  )
+  // Group non-LinkedIn tasks by status and add LinkedIn aggregates
+  const getItemsByStatus = (status: string): BoardItem[] => {
+    const regularTasks = nonLinkedInTasks.filter(t => t.status === status)
+    const linkedInAggregates = getLinkedInAggregates(status)
+    return [...linkedInAggregates, ...regularTasks]
+  }
+
+  const totalTaskCount = allTasks.length
 
   // Handle drag end
   const handleDragEnd = async (result: any) => {
@@ -406,16 +411,37 @@ export function TaskBoard() {
       return
     }
 
-    // Update the task's status
-    const updatedTasks = tasks.map((task) => {
-      if (task.id === draggableId) {
-        return { ...task, status: destination.droppableId }
-      }
-      return task
-    })
+    // Don't allow dragging LinkedIn aggregate cards
+    if (draggableId.startsWith("linkedin-")) {
+      return
+    }
 
-    const previousTasks = tasks
-    setTasks(updatedTasks)
+    // Check if this is a dummy task
+    const isDummyTask = draggableId.startsWith("dummy-")
+
+    if (isDummyTask) {
+      // Just update local state for dummy tasks, no backend call
+      setDummyTasksState((current) =>
+        current.map((task) => {
+          if (task.id === draggableId) {
+            return { ...task, status: destination.droppableId }
+          }
+          return task
+        })
+      )
+      return
+    }
+
+    // Real task - update backend
+    const previousTasks = realTasks
+    setRealTasks((current) =>
+      current.map((task) => {
+        if (task.id === draggableId) {
+          return { ...task, status: destination.droppableId }
+        }
+        return task
+      })
+    )
 
     try {
       const response = await fetch(`/api/tasks/${draggableId}`, {
@@ -433,12 +459,12 @@ export function TaskBoard() {
       const data = (await response.json()) as { task: ApiTask }
       const normalizedTask = normalizeTask(data.task)
 
-      setTasks((current) =>
+      setRealTasks((current) =>
         current.map((task) => (task.id === normalizedTask.id ? { ...task, ...normalizedTask } : task)),
       )
     } catch (error) {
       console.error(error)
-      setTasks(previousTasks)
+      setRealTasks(previousTasks)
     }
   }
 
@@ -448,7 +474,7 @@ export function TaskBoard() {
       <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-secondary/20">
         <span className="text-xs text-muted-foreground">Task Manager</span>
         <div className="ml-auto flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">{tasks.length} tasks</span>
+          <span className="text-xs text-muted-foreground">{totalTaskCount} tasks</span>
         </div>
       </div>
 
@@ -486,123 +512,160 @@ export function TaskBoard() {
           <TabsContent value="board">
             <DragDropContext onDragEnd={handleDragEnd}>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {Object.values(columns).map((column) => (
-                  <div key={column.id} className="flex flex-col h-full">
-                    <div className="mb-2">
-                      <h3 className="text-sm font-medium">{column.title}</h3>
-                      <p className="text-xs text-muted-foreground">{column.description}</p>
-                    </div>
-                    <Droppable droppableId={column.id}>
-                      {(provided, snapshot) => (
-                        <div
-                          ref={provided.innerRef}
-                          {...provided.droppableProps}
-                          className={cn(
-                            "flex-1 p-2 rounded-md min-h-[400px] border border-dashed",
-                            snapshot.isDraggingOver ? "bg-accent/50" : "bg-muted/30",
-                          )}
-                        >
-                          {tasksByStatus[column.id]?.map((task, index) => (
-                            <Draggable key={task.id} draggableId={task.id} index={index}>
-                              {(provided, snapshot) => (
-                                <div
-                                  ref={provided.innerRef}
-                                  {...provided.draggableProps}
-                                  {...provided.dragHandleProps}
-                                  className={cn(
-                                    "mb-2 p-3 rounded-md border bg-card",
-                                    snapshot.isDragging ? "shadow-lg" : "",
-                                  )}
-                                >
-                                  <div className="flex items-start justify-between">
+                {Object.values(columns).map((column) => {
+                  const items = getItemsByStatus(column.id)
+                  return (
+                    <div key={column.id} className="flex flex-col h-full">
+                      <div className="mb-2">
+                        <h3 className="text-sm font-medium">{column.title}</h3>
+                        <p className="text-xs text-muted-foreground">{column.description}</p>
+                      </div>
+                      <Droppable droppableId={column.id}>
+                        {(provided, snapshot) => (
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.droppableProps}
+                            className={cn(
+                              "flex-1 p-2 rounded-md min-h-[400px] border border-dashed",
+                              snapshot.isDraggingOver ? "bg-accent/50" : "bg-muted/30",
+                            )}
+                          >
+                            {items.map((item, index) => {
+                              // Render LinkedIn aggregate card
+                              if (isLinkedInAggregate(item)) {
+                                return (
+                                  <div
+                                    key={item.id}
+                                    className="mb-2 p-3 rounded-md border bg-[#0A66C2]/5 border-[#0A66C2]/20 cursor-pointer hover:bg-[#0A66C2]/10 transition-colors"
+                                    onClick={() => router.push("/activity/tasks?view=linkedin")}
+                                  >
                                     <div className="flex items-center gap-2">
-                                      {getTaskTypeIcon(task.type)}
-                                      <Badge variant="outline" className="text-xs">
-                                        {getTaskTypeLabel(task.type)}
+                                      <Linkedin className="h-4 w-4 text-[#0A66C2]" />
+                                      <Badge variant="outline" className="text-xs border-[#0A66C2]/30 text-[#0A66C2]">
+                                        LinkedIn
                                       </Badge>
                                     </div>
-                                    <Badge className={cn("text-xs", getPriorityColor(task.priority))}>
-                                      {task.priority}
-                                    </Badge>
+                                    <h4 className="font-medium mt-2 text-[#0A66C2]">
+                                      {item.count} {item.subType === "connection" ? "connection request" : "message"}{item.count !== 1 ? "s" : ""}
+                                    </h4>
+                                    <p className="text-sm text-muted-foreground mt-1">
+                                      Click to view all in Tasks tab
+                                    </p>
                                   </div>
-                                  <h4 className="font-medium mt-2">{task.title}</h4>
-                                  <p className="text-sm text-muted-foreground mt-1">{task.description}</p>
+                                )
+                              }
 
-                                  {task.contact && (
-                                    <div className="flex items-center gap-2 mt-3">
-                                      <Avatar className="h-6 w-6">
-                                        <AvatarImage src="/placeholder.svg" />
-                                        <AvatarFallback>
-                                          {task.contact.name
-                                            .split(" ")
-                                            .map((n) => n[0])
-                                            .join("")}
-                                        </AvatarFallback>
-                                      </Avatar>
-                                      <div className="text-xs">
-                                        <div className="font-medium">{task.contact.name}</div>
-                                        {task.contact.title && (
-                                          <div className="text-muted-foreground">{task.contact.title}</div>
+                              // Render regular task card
+                              const task = item as Task
+                              return (
+                                <Draggable key={task.id} draggableId={task.id} index={index}>
+                                  {(provided, snapshot) => (
+                                    <div
+                                      ref={provided.innerRef}
+                                      {...provided.draggableProps}
+                                      {...provided.dragHandleProps}
+                                      className={cn(
+                                        "mb-2 p-3 rounded-md border bg-card",
+                                        snapshot.isDragging ? "shadow-lg" : "",
+                                        task.id.startsWith("dummy-") ? "border-dashed opacity-80" : "",
+                                      )}
+                                    >
+                                      <div className="flex items-start justify-between">
+                                        <div className="flex items-center gap-2">
+                                          {getTaskTypeIcon(task.type)}
+                                          <Badge variant="outline" className="text-xs">
+                                            {getTaskTypeLabel(task.type)}
+                                          </Badge>
+                                          {task.id.startsWith("dummy-") && (
+                                            <Badge variant="secondary" className="text-xs">
+                                              Demo
+                                            </Badge>
+                                          )}
+                                        </div>
+                                        <Badge className={cn("text-xs", getPriorityColor(task.priority))}>
+                                          {task.priority}
+                                        </Badge>
+                                      </div>
+                                      <h4 className="font-medium mt-2">{task.title}</h4>
+                                      <p className="text-sm text-muted-foreground mt-1">{task.description}</p>
+
+                                      {task.contact && (
+                                        <div className="flex items-center gap-2 mt-3">
+                                          <Avatar className="h-6 w-6">
+                                            <AvatarImage src="/placeholder.svg" />
+                                            <AvatarFallback>
+                                              {task.contact.name
+                                                .split(" ")
+                                                .map((n) => n[0])
+                                                .join("")}
+                                            </AvatarFallback>
+                                          </Avatar>
+                                          <div className="text-xs">
+                                            <div className="font-medium">{task.contact.name}</div>
+                                            {task.contact.title && (
+                                              <div className="text-muted-foreground">{task.contact.title}</div>
+                                            )}
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {task.company && (
+                                        <div className="flex items-center gap-2 mt-2">
+                                          <Building2 className="h-3 w-3 text-muted-foreground" />
+                                          <span className="text-xs">{task.company.name}</span>
+                                        </div>
+                                      )}
+
+                                      {task.dueDate && (
+                                        <div className="flex items-center gap-2 mt-2">
+                                          <Calendar className="h-3 w-3 text-muted-foreground" />
+                                          <span className="text-xs">Due: {task.dueDate}</span>
+                                        </div>
+                                      )}
+
+                                      <div className="flex justify-end mt-3">
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-6 w-6"
+                                          onClick={() => openEmailComposer(task)}
+                                        >
+                                          <Mail className="h-3 w-3" />
+                                        </Button>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-6 w-6"
+                                          onClick={() => router.push(`/dialer?taskId=${task.id}`)}
+                                        >
+                                          <Phone className="h-3 w-3" />
+                                        </Button>
+                                        {task.contact?.linkedin && (
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-6 w-6"
+                                            onClick={() => window.open(task.contact?.linkedin, "_blank")}
+                                          >
+                                            <Linkedin className="h-3 w-3 text-[#0A66C2]" />
+                                          </Button>
                                         )}
+                                        <Button variant="ghost" size="icon" className="h-6 w-6">
+                                          <MoreHorizontal className="h-3 w-3" />
+                                        </Button>
                                       </div>
                                     </div>
                                   )}
-
-                                  {task.company && (
-                                    <div className="flex items-center gap-2 mt-2">
-                                      <Building2 className="h-3 w-3 text-muted-foreground" />
-                                      <span className="text-xs">{task.company.name}</span>
-                                    </div>
-                                  )}
-
-                                  {task.dueDate && (
-                                    <div className="flex items-center gap-2 mt-2">
-                                      <Calendar className="h-3 w-3 text-muted-foreground" />
-                                      <span className="text-xs">Due: {task.dueDate}</span>
-                                    </div>
-                                  )}
-
-                                  <div className="flex justify-end mt-3">
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-6 w-6"
-                                      onClick={() => openEmailComposer(task)}
-                                    >
-                                      <Mail className="h-3 w-3" />
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-6 w-6"
-                                      onClick={() => router.push(`/dialer?taskId=${task.id}`)}
-                                    >
-                                      <Phone className="h-3 w-3" />
-                                    </Button>
-                                    {task.contact?.linkedin && (
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-6 w-6"
-                                        onClick={() => window.open(task.contact?.linkedin, "_blank")}
-                                      >
-                                        <Linkedin className="h-3 w-3 text-[#0A66C2]" />
-                                      </Button>
-                                    )}
-                                    <Button variant="ghost" size="icon" className="h-6 w-6">
-                                      <MoreHorizontal className="h-3 w-3" />
-                                    </Button>
-                                  </div>
-                                </div>
-                              )}
-                            </Draggable>
-                          ))}
-                          {provided.placeholder}
-                        </div>
-                      )}
-                    </Droppable>
-                  </div>
-                ))}
+                                </Draggable>
+                              )
+                            })}
+                            {provided.placeholder}
+                          </div>
+                        )}
+                      </Droppable>
+                    </div>
+                  )
+                })}
               </div>
             </DragDropContext>
           </TabsContent>
@@ -622,7 +685,7 @@ export function TaskBoard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {tasks.map((task) => (
+                  {allTasks.map((task) => (
                     <tr key={task.id} className="border-b hover:bg-muted/30">
                       <td className="p-3">
                         <div className="flex items-center gap-2">

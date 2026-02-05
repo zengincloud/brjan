@@ -5,11 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Phone, Search, User, Building2, Calendar, Clock, Download, ChevronDown, ChevronUp } from "lucide-react"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Phone, Search, User, Building2, Calendar, Clock, Download, Play, FileText } from "lucide-react"
 import { format } from "date-fns"
 import { Skeleton } from "@/components/ui/skeleton"
 import { CallTranscript } from "@/components/call-transcript"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { cn } from "@/lib/utils"
 
 type CallRecording = {
   id: string
@@ -18,6 +19,7 @@ type CallRecording = {
   status: string
   outcome: string | null
   duration: number | null
+  notes: string | null
   recordingUrl: string | null
   recordingDuration: number | null
   transcription: string | null
@@ -28,7 +30,9 @@ type CallRecording = {
   prospect: {
     id: string
     name: string
+    email: string
     company: string | null
+    title: string | null
   } | null
 }
 
@@ -36,18 +40,7 @@ export function RecordingsList() {
   const [recordings, setRecordings] = useState<CallRecording[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
-  const [playingId, setPlayingId] = useState<string | null>(null)
-  const [expandedTranscripts, setExpandedTranscripts] = useState<Set<string>>(new Set())
-
-  const toggleTranscript = (id: string) => {
-    const newExpanded = new Set(expandedTranscripts)
-    if (newExpanded.has(id)) {
-      newExpanded.delete(id)
-    } else {
-      newExpanded.add(id)
-    }
-    setExpandedTranscripts(newExpanded)
-  }
+  const [selectedRecording, setSelectedRecording] = useState<CallRecording | null>(null)
 
   useEffect(() => {
     loadRecordings()
@@ -60,6 +53,10 @@ export function RecordingsList() {
       if (!response.ok) throw new Error("Failed to load recordings")
       const data = await response.json()
       setRecordings(data.calls || [])
+      // Auto-select first recording if available
+      if (data.calls?.length > 0 && !selectedRecording) {
+        setSelectedRecording(data.calls[0])
+      }
     } catch (error) {
       console.error("Error loading recordings:", error)
     } finally {
@@ -76,31 +73,53 @@ export function RecordingsList() {
     )
   })
 
-  const formatDuration = (seconds: number) => {
+  const formatDuration = (seconds: number | null) => {
+    if (!seconds) return "0:00"
     const mins = Math.floor(seconds / 60)
     const secs = seconds % 60
     return `${mins}:${secs.toString().padStart(2, "0")}`
   }
 
+  const getOutcomeBadge = (outcome: string | null) => {
+    if (!outcome) return null
+
+    const variants: Record<string, { variant: "default" | "secondary" | "destructive" | "outline", label: string }> = {
+      connected: { variant: "default", label: "Connected" },
+      voicemail: { variant: "secondary", label: "Voicemail" },
+      no_answer: { variant: "outline", label: "No Answer" },
+      busy: { variant: "outline", label: "Busy" },
+      failed: { variant: "destructive", label: "Failed" },
+      gatekeeper: { variant: "secondary", label: "Gatekeeper" },
+    }
+
+    const config = variants[outcome] || { variant: "outline" as const, label: outcome.replace(/_/g, " ") }
+
+    return (
+      <Badge variant={config.variant} className="text-xs capitalize">
+        {config.label}
+      </Badge>
+    )
+  }
+
   if (loading) {
     return (
-      <div className="space-y-4">
-        {[1, 2, 3].map((i) => (
-          <Card key={i}>
-            <CardHeader>
-              <Skeleton className="h-6 w-1/3" />
-            </CardHeader>
-            <CardContent>
-              <Skeleton className="h-20 w-full" />
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Call Recordings</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-20 w-full" />
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     )
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Search */}
       <div className="relative max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -112,128 +131,198 @@ export function RecordingsList() {
         />
       </div>
 
-      {/* Recordings List */}
-      {filteredRecordings.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <Phone className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <p className="text-lg font-medium mb-1">No recordings found</p>
-            <p className="text-sm text-muted-foreground">
-              {searchTerm
-                ? "Try adjusting your search"
-                : "Call recordings will appear here automatically"}
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-4">
-          {filteredRecordings.map((recording) => (
-            <Card key={recording.id}>
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      {recording.prospect && (
-                        <>
-                          <User className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-semibold">{recording.prospect.name}</span>
-                        </>
-                      )}
-                      {!recording.prospect && (
-                        <span className="font-semibold">{recording.to}</span>
-                      )}
-                      {recording.outcome && (
-                        <Badge variant="outline" className="capitalize">
-                          {recording.outcome.replace(/_/g, " ")}
-                        </Badge>
-                      )}
-                    </div>
-                    {recording.prospect?.company && (
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Building2 className="h-3 w-3" />
-                        {recording.prospect.company}
-                      </div>
-                    )}
-                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                      {recording.startedAt && (
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          {format(new Date(recording.startedAt), "MMM d, yyyy 'at' h:mm a")}
-                        </div>
-                      )}
-                      {recording.recordingDuration && (
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {formatDuration(recording.recordingDuration)}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  {recording.recordingUrl && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      asChild
-                    >
-                      <a
-                        href={`/api/calls/${recording.id}/recording`}
-                        download={`recording-${recording.id}.mp3`}
-                        target="_blank"
-                        rel="noopener noreferrer"
+      {/* Main Card with Split Pane */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Phone className="h-4 w-4" />
+            Call Recordings ({filteredRecordings.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {filteredRecordings.length === 0 ? (
+            <div className="py-12 text-center">
+              <Phone className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+              <p className="text-lg font-medium mb-1">No recordings found</p>
+              <p className="text-sm text-muted-foreground">
+                {searchTerm
+                  ? "Try adjusting your search"
+                  : "Call recordings will appear here automatically"}
+              </p>
+            </div>
+          ) : (
+            <div className="flex h-[600px]">
+              {/* Left side - Recording list */}
+              <div className="w-[300px] border-r">
+                <ScrollArea className="h-full">
+                  <div className="p-2 space-y-1">
+                    {filteredRecordings.map((recording) => (
+                      <button
+                        key={recording.id}
+                        onClick={() => setSelectedRecording(recording)}
+                        className={cn(
+                          "w-full text-left p-3 rounded-lg transition-colors",
+                          "hover:bg-muted/50",
+                          selectedRecording?.id === recording.id
+                            ? "bg-muted border border-border"
+                            : "border border-transparent"
+                        )}
                       >
-                        <Download className="h-4 w-4 mr-2" />
-                        Download
-                      </a>
-                    </Button>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Audio Player */}
-                {recording.recordingUrl && (
-                  <div>
-                    <p className="text-sm font-medium mb-2">Recording</p>
-                    <audio
-                      controls
-                      className="w-full"
-                      onPlay={() => setPlayingId(recording.id)}
-                      onPause={() => setPlayingId(null)}
-                    >
-                      <source src={`/api/calls/${recording.id}/recording`} type="audio/mpeg" />
-                      Your browser does not support audio playback.
-                    </audio>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            {recording.prospect ? (
+                              <p className="text-sm font-medium truncate">
+                                {recording.prospect.name}
+                              </p>
+                            ) : (
+                              <p className="text-sm font-medium truncate">
+                                Unknown Contact
+                              </p>
+                            )}
+                            <p className="text-xs text-muted-foreground font-mono truncate">
+                              {recording.to}
+                            </p>
+                            {recording.prospect?.company && (
+                              <p className="text-xs text-muted-foreground truncate">
+                                {recording.prospect.company}
+                              </p>
+                            )}
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {format(new Date(recording.createdAt), "MMM d, h:mm a")}
+                            </p>
+                          </div>
+                          <div className="flex flex-col items-end gap-1 shrink-0">
+                            {recording.outcome && getOutcomeBadge(recording.outcome)}
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <Clock className="h-3 w-3" />
+                              <span>{formatDuration(recording.recordingDuration)}</span>
+                            </div>
+                            {recording.transcriptionStatus === "completed" && (
+                              <FileText className="h-3 w-3 text-green-500" />
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </div>
+
+              {/* Right side - Recording details and transcript */}
+              <div className="flex-1 overflow-hidden">
+                {selectedRecording ? (
+                  <ScrollArea className="h-full">
+                    <div className="p-4 space-y-4">
+                      {/* Recording header */}
+                      <div className="space-y-2">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            {selectedRecording.prospect ? (
+                              <>
+                                <div className="flex items-center gap-2">
+                                  <User className="h-4 w-4 text-muted-foreground" />
+                                  <span className="font-medium">{selectedRecording.prospect.name}</span>
+                                </div>
+                                {selectedRecording.prospect.company && (
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <Building2 className="h-4 w-4 text-muted-foreground" />
+                                    <span className="text-sm text-muted-foreground">
+                                      {selectedRecording.prospect.title && `${selectedRecording.prospect.title} at `}
+                                      {selectedRecording.prospect.company}
+                                    </span>
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <span className="font-medium">Unknown Contact</span>
+                            )}
+                          </div>
+
+                          {selectedRecording.recordingUrl && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              asChild
+                            >
+                              <a
+                                href={`/api/calls/${selectedRecording.id}/recording`}
+                                download={`recording-${selectedRecording.id}.mp3`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                <Download className="h-4 w-4 mr-2" />
+                                Download
+                              </a>
+                            </Button>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-4 text-sm">
+                          <div className="flex items-center gap-2">
+                            <Phone className="h-4 w-4 text-muted-foreground" />
+                            <span className="font-mono">{selectedRecording.to}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-4 w-4 text-muted-foreground" />
+                            <span>{formatDuration(selectedRecording.recordingDuration)}</span>
+                          </div>
+                          {selectedRecording.outcome && getOutcomeBadge(selectedRecording.outcome)}
+                        </div>
+
+                        <p className="text-xs text-muted-foreground">
+                          {format(new Date(selectedRecording.createdAt), "MMMM d, yyyy 'at' h:mm a")}
+                        </p>
+                      </div>
+
+                      {/* Recording player */}
+                      {selectedRecording.recordingUrl && (
+                        <div className="p-3 rounded-lg border bg-muted/30">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Play className="h-4 w-4" />
+                            <span className="text-sm font-medium">Recording</span>
+                            <span className="text-xs text-muted-foreground">
+                              ({formatDuration(selectedRecording.recordingDuration)})
+                            </span>
+                          </div>
+                          <audio
+                            controls
+                            className="w-full h-8"
+                            src={`/api/calls/${selectedRecording.id}/recording`}
+                          >
+                            Your browser does not support audio playback.
+                          </audio>
+                        </div>
+                      )}
+
+                      {/* Notes */}
+                      {selectedRecording.notes && (
+                        <div className="p-3 rounded-lg border">
+                          <p className="text-sm font-medium mb-1">Notes</p>
+                          <p className="text-sm text-muted-foreground">{selectedRecording.notes}</p>
+                        </div>
+                      )}
+
+                      {/* Transcript */}
+                      {selectedRecording.recordingUrl && (
+                        <CallTranscript
+                          callId={selectedRecording.id}
+                          hasRecording={!!selectedRecording.recordingUrl}
+                          transcriptionStatus={selectedRecording.transcriptionStatus}
+                          onTranscriptionComplete={loadRecordings}
+                        />
+                      )}
+                    </div>
+                  </ScrollArea>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-muted-foreground">
+                    <p className="text-sm">Select a recording to view details</p>
                   </div>
                 )}
-
-                {/* Transcription with speaker diarization */}
-                <Collapsible
-                  open={expandedTranscripts.has(recording.id)}
-                  onOpenChange={() => toggleTranscript(recording.id)}
-                >
-                  <CollapsibleTrigger asChild>
-                    <Button variant="ghost" className="w-full justify-between p-0 h-auto hover:bg-transparent">
-                      <span className="text-sm font-medium">Transcript</span>
-                      {expandedTranscripts.has(recording.id) ? (
-                        <ChevronUp className="h-4 w-4" />
-                      ) : (
-                        <ChevronDown className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="pt-4">
-                    <CallTranscript
-                      callId={recording.id}
-                      hasRecording={!!recording.recordingUrl}
-                      transcriptionStatus={recording.transcriptionStatus}
-                      onTranscriptionComplete={loadRecordings}
-                    />
-                  </CollapsibleContent>
-                </Collapsible>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

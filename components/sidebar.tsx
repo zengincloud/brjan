@@ -129,6 +129,20 @@ export function Sidebar({ className }: { className?: string }) {
           variant="ghost"
           className={cn(
             "w-full justify-start transition-colors",
+            pathname === "/tasks" && "bg-accent/10 text-accent hover:bg-accent/15"
+          )}
+          asChild
+        >
+          <Link href="/tasks">
+            <CheckSquare className="h-4 w-4 mr-3" />
+            Tasks
+          </Link>
+        </Button>
+
+        <Button
+          variant="ghost"
+          className={cn(
+            "w-full justify-start transition-colors",
             pathname === "/emailer" && "bg-accent/10 text-accent hover:bg-accent/15"
           )}
           asChild

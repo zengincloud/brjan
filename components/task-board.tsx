@@ -393,11 +393,9 @@ export function TaskBoard() {
     }
   }
 
-  // Group non-LinkedIn tasks by status and add LinkedIn aggregates
-  const getItemsByStatus = (status: string): BoardItem[] => {
-    const regularTasks = nonLinkedInTasks.filter(t => t.status === status)
-    const linkedInAggregates = getLinkedInAggregates(status)
-    return [...linkedInAggregates, ...regularTasks]
+  // Group all tasks by status - showing individually for drag support
+  const getItemsByStatus = (status: string): Task[] => {
+    return allTasks.filter(t => t.status === status)
   }
 
   const totalTaskCount = allTasks.length
@@ -530,57 +528,34 @@ export function TaskBoard() {
                               snapshot.isDraggingOver ? "bg-accent/50" : "bg-muted/30",
                             )}
                           >
-                            {items.map((item, index) => {
-                              // Render LinkedIn aggregate card
-                              if (isLinkedInAggregate(item)) {
-                                return (
+                            {items.map((task, index) => (
+                              <Draggable key={task.id} draggableId={task.id} index={index}>
+                                {(provided, snapshot) => (
                                   <div
-                                    key={item.id}
-                                    className="mb-2 p-3 rounded-md border bg-[#0A66C2]/5 border-[#0A66C2]/20 cursor-pointer hover:bg-[#0A66C2]/10 transition-colors"
-                                    onClick={() => router.push("/activity/tasks?view=linkedin")}
+                                    ref={provided.innerRef}
+                                    {...provided.draggableProps}
+                                    {...provided.dragHandleProps}
+                                    className={cn(
+                                      "mb-2 p-3 rounded-md border bg-card",
+                                      snapshot.isDragging ? "shadow-lg" : "",
+                                      task.id.startsWith("dummy-") ? "border-dashed opacity-80" : "",
+                                      task.type === "linkedin" ? "border-[#0A66C2]/30" : "",
+                                    )}
                                   >
-                                    <div className="flex items-center gap-2">
-                                      <Linkedin className="h-4 w-4 text-[#0A66C2]" />
-                                      <Badge variant="outline" className="text-xs border-[#0A66C2]/30 text-[#0A66C2]">
-                                        LinkedIn
-                                      </Badge>
-                                    </div>
-                                    <h4 className="font-medium mt-2 text-[#0A66C2]">
-                                      {item.count} {item.subType === "connection" ? "connection request" : "message"}{item.count !== 1 ? "s" : ""}
-                                    </h4>
-                                    <p className="text-sm text-muted-foreground mt-1">
-                                      Click to view all in Tasks tab
-                                    </p>
-                                  </div>
-                                )
-                              }
-
-                              // Render regular task card
-                              const task = item as Task
-                              return (
-                                <Draggable key={task.id} draggableId={task.id} index={index}>
-                                  {(provided, snapshot) => (
-                                    <div
-                                      ref={provided.innerRef}
-                                      {...provided.draggableProps}
-                                      {...provided.dragHandleProps}
-                                      className={cn(
-                                        "mb-2 p-3 rounded-md border bg-card",
-                                        snapshot.isDragging ? "shadow-lg" : "",
-                                        task.id.startsWith("dummy-") ? "border-dashed opacity-80" : "",
-                                      )}
-                                    >
-                                      <div className="flex items-start justify-between">
-                                        <div className="flex items-center gap-2">
-                                          {getTaskTypeIcon(task.type)}
-                                          <Badge variant="outline" className="text-xs">
-                                            {getTaskTypeLabel(task.type)}
+                                    <div className="flex items-start justify-between">
+                                      <div className="flex items-center gap-2">
+                                        {getTaskTypeIcon(task.type)}
+                                        <Badge variant="outline" className={cn(
+                                          "text-xs",
+                                          task.type === "linkedin" && "border-[#0A66C2]/30 text-[#0A66C2]"
+                                        )}>
+                                          {getTaskTypeLabel(task.type)}
+                                        </Badge>
+                                        {task.id.startsWith("dummy-") && (
+                                          <Badge variant="secondary" className="text-xs">
+                                            Demo
                                           </Badge>
-                                          {task.id.startsWith("dummy-") && (
-                                            <Badge variant="secondary" className="text-xs">
-                                              Demo
-                                            </Badge>
-                                          )}
+                                        )}
                                         </div>
                                         <Badge className={cn("text-xs", getPriorityColor(task.priority))}>
                                           {task.priority}
@@ -657,8 +632,8 @@ export function TaskBoard() {
                                     </div>
                                   )}
                                 </Draggable>
-                              )
-                            })}
+                              ))
+                            }
                             {provided.placeholder}
                           </div>
                         )}

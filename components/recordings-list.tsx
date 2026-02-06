@@ -100,6 +100,10 @@ export function RecordingsList() {
 
     const variants: Record<string, { variant: "default" | "secondary" | "destructive" | "outline", label: string }> = {
       connected: { variant: "default", label: "Connected" },
+      connected_intro_booked: { variant: "default", label: "Intro Booked" },
+      connected_referral: { variant: "default", label: "Referral" },
+      connected_not_interested: { variant: "secondary", label: "Not Interested" },
+      connected_info_gathered: { variant: "default", label: "Info Gathered" },
       voicemail: { variant: "secondary", label: "Voicemail" },
       no_answer: { variant: "outline", label: "No Answer" },
       busy: { variant: "outline", label: "Busy" },

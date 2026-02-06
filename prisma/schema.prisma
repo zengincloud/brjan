@@ -291,6 +291,10 @@ enum CallStatus {
 
 enum CallOutcome {
   connected
+  connected_intro_booked
+  connected_referral
+  connected_not_interested
+  connected_info_gathered
   voicemail
   no_answer
   busy

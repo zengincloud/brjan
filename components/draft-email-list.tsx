@@ -5,10 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Skeleton } from "@/components/ui/skeleton"
+import { RichTextEditor } from "@/components/rich-text-editor"
 import {
   Mail,
   Send,
@@ -48,7 +48,8 @@ export function DraftEmailList({
   const [loading, setLoading] = useState(true)
   const [selectedDraft, setSelectedDraft] = useState<DraftEmail | null>(null)
   const [editedSubject, setEditedSubject] = useState("")
-  const [editedBody, setEditedBody] = useState("")
+  const [editedBodyHtml, setEditedBodyHtml] = useState("")
+  const [editedBodyText, setEditedBodyText] = useState("")
   const [sending, setSending] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
 
@@ -76,7 +77,13 @@ export function DraftEmailList({
   const selectDraft = (draft: DraftEmail) => {
     setSelectedDraft(draft)
     setEditedSubject(draft.subject)
-    setEditedBody(draft.bodyText)
+    // Use existing HTML if available, otherwise convert plain text to HTML
+    if (draft.bodyHtml) {
+      setEditedBodyHtml(draft.bodyHtml)
+    } else {
+      setEditedBodyHtml(`<p>${draft.bodyText.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</p>`)
+    }
+    setEditedBodyText(draft.bodyText)
   }
 
   const handleSend = async () => {
@@ -90,8 +97,8 @@ export function DraftEmailList({
         body: JSON.stringify({
           to: selectedDraft.to,
           subject: editedSubject,
-          bodyText: editedBody,
-          bodyHtml: `<p>${editedBody.replace(/\n/g, "<br>")}</p>`,
+          bodyText: editedBodyText,
+          bodyHtml: editedBodyHtml,
           emailType: "one_off",
           draftId: selectedDraft.id, // Include draft ID to mark as sent
         }),
@@ -282,14 +289,13 @@ export function DraftEmailList({
 
               {/* Body */}
               <div className="space-y-2">
-                <Label htmlFor="body">Message</Label>
-                <Textarea
-                  id="body"
-                  value={editedBody}
-                  onChange={(e) => setEditedBody(e.target.value)}
+                <Label>Message</Label>
+                <RichTextEditor
+                  content={editedBodyHtml}
+                  onChange={setEditedBodyHtml}
+                  onTextChange={setEditedBodyText}
                   placeholder="Write your message..."
-                  rows={12}
-                  className="resize-none"
+                  minHeight="250px"
                 />
               </div>
 
@@ -304,7 +310,7 @@ export function DraftEmailList({
                 </Button>
                 <Button
                   onClick={handleSend}
-                  disabled={sending || !editedSubject.trim() || !editedBody.trim()}
+                  disabled={sending || !editedSubject.trim() || !editedBodyText.trim()}
                 >
                   {sending ? (
                     <>

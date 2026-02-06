@@ -20,7 +20,7 @@ type Prospect = {
 }
 
 type CallStatus = "idle" | "calling" | "ringing" | "in_progress" | "completed" | "failed"
-type CallOutcome = "connected" | "voicemail" | "no_answer" | "busy" | "failed" | "gatekeeper"
+type CallOutcome = "connected" | "connected_intro_booked" | "connected_referral" | "connected_not_interested" | "connected_info_gathered" | "voicemail" | "no_answer" | "busy" | "failed" | "gatekeeper"
 
 export function CallProspectDialog({
   open,
@@ -422,55 +422,91 @@ export function CallProspectDialog({
           {callStatus === "completed" && !selectedOutcome && (
             <div className="space-y-3">
               <div className="text-sm font-medium">Select Call Outcome</div>
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  variant={selectedOutcome === "connected" ? "default" : "outline"}
-                  onClick={() => setSelectedOutcome("connected")}
-                  className="justify-start"
-                >
-                  <UserCheck className="mr-2 h-4 w-4" />
-                  Connected
-                </Button>
-                <Button
-                  variant={selectedOutcome === "voicemail" ? "default" : "outline"}
-                  onClick={() => setSelectedOutcome("voicemail")}
-                  className="justify-start"
-                >
-                  <Voicemail className="mr-2 h-4 w-4" />
-                  Voicemail
-                </Button>
-                <Button
-                  variant={selectedOutcome === "no_answer" ? "default" : "outline"}
-                  onClick={() => setSelectedOutcome("no_answer")}
-                  className="justify-start"
-                >
-                  <UserX className="mr-2 h-4 w-4" />
-                  No Answer
-                </Button>
-                <Button
-                  variant={selectedOutcome === "busy" ? "default" : "outline"}
-                  onClick={() => setSelectedOutcome("busy")}
-                  className="justify-start"
-                >
-                  <Clock className="mr-2 h-4 w-4" />
-                  Busy
-                </Button>
-                <Button
-                  variant={selectedOutcome === "gatekeeper" ? "default" : "outline"}
-                  onClick={() => setSelectedOutcome("gatekeeper")}
-                  className="justify-start"
-                >
-                  <UserX className="mr-2 h-4 w-4" />
-                  Gatekeeper
-                </Button>
-                <Button
-                  variant={selectedOutcome === "failed" ? "default" : "outline"}
-                  onClick={() => setSelectedOutcome("failed")}
-                  className="justify-start"
-                >
-                  <PhoneOff className="mr-2 h-4 w-4" />
-                  Failed
-                </Button>
+
+              {/* Connected Outcomes */}
+              <div className="space-y-2">
+                <div className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Connected</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant={selectedOutcome === "connected_intro_booked" ? "default" : "outline"}
+                    onClick={() => setSelectedOutcome("connected_intro_booked")}
+                    className="justify-start"
+                  >
+                    <UserCheck className="mr-2 h-4 w-4" />
+                    Intro Booked
+                  </Button>
+                  <Button
+                    variant={selectedOutcome === "connected_referral" ? "default" : "outline"}
+                    onClick={() => setSelectedOutcome("connected_referral")}
+                    className="justify-start"
+                  >
+                    <UserCheck className="mr-2 h-4 w-4" />
+                    Referral
+                  </Button>
+                  <Button
+                    variant={selectedOutcome === "connected_not_interested" ? "default" : "outline"}
+                    onClick={() => setSelectedOutcome("connected_not_interested")}
+                    className="justify-start"
+                  >
+                    <UserX className="mr-2 h-4 w-4" />
+                    Not Interested
+                  </Button>
+                  <Button
+                    variant={selectedOutcome === "connected_info_gathered" ? "default" : "outline"}
+                    onClick={() => setSelectedOutcome("connected_info_gathered")}
+                    className="justify-start"
+                  >
+                    <UserCheck className="mr-2 h-4 w-4" />
+                    Info Gathered
+                  </Button>
+                </div>
+              </div>
+
+              {/* Other Outcomes */}
+              <div className="space-y-2">
+                <div className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Other</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant={selectedOutcome === "voicemail" ? "default" : "outline"}
+                    onClick={() => setSelectedOutcome("voicemail")}
+                    className="justify-start"
+                  >
+                    <Voicemail className="mr-2 h-4 w-4" />
+                    Voicemail
+                  </Button>
+                  <Button
+                    variant={selectedOutcome === "no_answer" ? "default" : "outline"}
+                    onClick={() => setSelectedOutcome("no_answer")}
+                    className="justify-start"
+                  >
+                    <UserX className="mr-2 h-4 w-4" />
+                    No Answer
+                  </Button>
+                  <Button
+                    variant={selectedOutcome === "busy" ? "default" : "outline"}
+                    onClick={() => setSelectedOutcome("busy")}
+                    className="justify-start"
+                  >
+                    <Clock className="mr-2 h-4 w-4" />
+                    Busy
+                  </Button>
+                  <Button
+                    variant={selectedOutcome === "gatekeeper" ? "default" : "outline"}
+                    onClick={() => setSelectedOutcome("gatekeeper")}
+                    className="justify-start"
+                  >
+                    <UserX className="mr-2 h-4 w-4" />
+                    Gatekeeper
+                  </Button>
+                  <Button
+                    variant={selectedOutcome === "failed" ? "default" : "outline"}
+                    onClick={() => setSelectedOutcome("failed")}
+                    className="justify-start"
+                  >
+                    <PhoneOff className="mr-2 h-4 w-4" />
+                    Failed
+                  </Button>
+                </div>
               </div>
             </div>
           )}

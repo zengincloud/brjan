@@ -4,9 +4,9 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { RichTextEditor } from "@/components/rich-text-editor"
 import {
   Send,
   Clock,
@@ -129,7 +129,8 @@ interface EmailEditorProps {
 export function EmailEditor({ emailId }: EmailEditorProps) {
   const { toast } = useToast()
   const [subject, setSubject] = useState("")
-  const [body, setBody] = useState("")
+  const [bodyHtml, setBodyHtml] = useState("")
+  const [bodyText, setBodyText] = useState("")
   const [recipient, setRecipient] = useState("")
   const [recipientEmail, setRecipientEmail] = useState("")
   const [company, setCompany] = useState("")
@@ -140,7 +141,8 @@ export function EmailEditor({ emailId }: EmailEditorProps) {
     if (emailId === "new") {
       // Composing a new email from scratch
       setSubject("")
-      setBody("")
+      setBodyHtml("")
+      setBodyText("")
       setRecipient("")
       setRecipientEmail("")
       setCompany("")
@@ -150,7 +152,9 @@ export function EmailEditor({ emailId }: EmailEditorProps) {
       const emailData = allEmailsData.find((email) => email.id === emailId)
       if (emailData) {
         setSubject(emailData.subject)
-        setBody(emailData.body)
+        // Convert plain text to HTML for the editor
+        setBodyHtml(`<p>${emailData.body.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</p>`)
+        setBodyText(emailData.body)
         setRecipient(emailData.recipient)
         setRecipientEmail(emailData.recipientEmail || "")
         setCompany(emailData.company)
@@ -169,7 +173,7 @@ export function EmailEditor({ emailId }: EmailEditorProps) {
   }, [emailId])
 
   const handleSend = async () => {
-    if (!subject.trim() || !body.trim() || !recipientEmail.trim()) {
+    if (!subject.trim() || !bodyText.trim() || !recipientEmail.trim()) {
       toast({
         title: "Error",
         description: "Please fill in all required fields (recipient, subject, body)",
@@ -185,8 +189,8 @@ export function EmailEditor({ emailId }: EmailEditorProps) {
         body: JSON.stringify({
           to: recipientEmail,
           subject,
-          bodyText: body,
-          bodyHtml: `<p>${body.replace(/\n/g, "<br>")}</p>`,
+          bodyText: bodyText,
+          bodyHtml: bodyHtml,
           emailType: isTemplate ? "template" : "one_off",
         }),
       })
@@ -204,7 +208,8 @@ export function EmailEditor({ emailId }: EmailEditorProps) {
 
       // Clear the form
       setSubject("")
-      setBody("")
+      setBodyHtml("")
+      setBodyText("")
       setRecipient("")
       setRecipientEmail("")
       setCompany("")
@@ -329,11 +334,12 @@ export function EmailEditor({ emailId }: EmailEditorProps) {
           <Input placeholder="Subject *" value={subject} onChange={(e) => setSubject(e.target.value)} />
         </div>
         <div className="flex-1">
-          <Textarea
-            placeholder="Write your email here... *"
-            className="h-full min-h-[300px] resize-none"
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
+          <RichTextEditor
+            content={bodyHtml}
+            onChange={setBodyHtml}
+            onTextChange={setBodyText}
+            placeholder="Write your email here..."
+            minHeight="300px"
           />
         </div>
       </CardContent>

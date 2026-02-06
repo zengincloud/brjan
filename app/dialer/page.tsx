@@ -53,7 +53,6 @@ import {
   Handshake,
   Star
 } from "lucide-react"
-import { CallHistory } from "@/components/call-history"
 import { SendEmailDialog } from "@/components/send-email-dialog"
 import { Calendar } from "lucide-react"
 
@@ -89,6 +88,39 @@ type SessionStats = {
   callsPerHour: number
 }
 
+type DialerProspect = {
+  id: string
+  taskId?: string | null
+  prospectId?: string | null
+  name: string
+  company: string
+  phone: string
+  title: string
+  email: string
+  linkedin?: string | null
+  industry?: string
+  companySize?: string
+  businessDescription?: string
+  whatTheySell?: string
+  aiNotes?: string
+  priorCalls?: { date: string; outcome: string; notes: string }[]
+  lastEmailSent?: string | null
+  sequenceStage?: string
+  sequence?: string | null
+  sequenceId?: string | null
+  callScript?: string
+  correspondenceHistory?: { date: string; type: string; from: string; summary: string }[]
+  pov?: {
+    opportunity: string
+    industryContext: string
+    howToHelp: string
+    angle: string
+  }
+  priority?: string
+  dueDate?: Date | string | null
+  status?: string
+}
+
 export default function DialerPage() {
   const { toast } = useToast()
   const [sessionActive, setSessionActive] = useState(false)
@@ -120,6 +152,8 @@ export default function DialerPage() {
   const [emailProspect, setEmailProspect] = useState<{ id: string; name: string; email: string; title?: string; company?: string } | null>(null)
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
   const [editingNoteType, setEditingNoteType] = useState<"prospect" | "account" | null>(null)
+  const [apiProspects, setApiProspects] = useState<DialerProspect[]>([])
+  const [loadingProspects, setLoadingProspects] = useState(true)
 
   // Available sequences
   const sequences = [
@@ -138,7 +172,31 @@ export default function DialerPage() {
     { id: "+1 (555) 000-0003", label: "+1 (555) 000-0003 (Support)" },
   ]
 
-  // Mock prospects data with extended info - sorted by company (account)
+  // Fetch prospects from API
+  useEffect(() => {
+    const fetchProspects = async () => {
+      try {
+        setLoadingProspects(true)
+        const params = new URLSearchParams()
+        if (selectedSequence !== 'all') {
+          params.append('sequenceId', selectedSequence)
+        }
+        const response = await fetch(`/api/dialer/queue?${params}`)
+        if (response.ok) {
+          const data = await response.json()
+          setApiProspects(data.queue || [])
+        }
+      } catch (error) {
+        console.error('Error fetching dialer queue:', error)
+      } finally {
+        setLoadingProspects(false)
+      }
+    }
+
+    fetchProspects()
+  }, [selectedSequence])
+
+  // Demo prospects data (fallback when no API data)
   const allProspects = [
     {
       name: "Emily Rodriguez",
@@ -288,17 +346,22 @@ export default function DialerPage() {
     },
   ]
 
-  // Filter prospects based on selected sequence
-  const mockProspects = selectedSequence === "all"
+  // Combine API prospects with demo prospects (API prospects first)
+  const demoProspects = selectedSequence === "all"
     ? allProspects
     : allProspects.filter(p => p.sequence === selectedSequence)
 
-  // Update queue size when sequence changes
+  // Use API prospects if available, otherwise use demo data
+  const mockProspects: DialerProspect[] = apiProspects.length > 0
+    ? apiProspects.filter(p => p.phone) // Only include prospects with phone numbers
+    : demoProspects.map(p => ({ ...p, id: `demo-${p.email}` }))
+
+  // Update queue size when prospects change
   useEffect(() => {
     setQueueSize(mockProspects.length)
-  }, [selectedSequence, mockProspects.length])
+  }, [mockProspects.length])
 
-  const makeCall = async (slotIndex: number, prospect: typeof mockProspects[0]) => {
+  const makeCall = async (slotIndex: number, prospect: DialerProspect) => {
     try {
       const response = await fetch("/api/calls/make", {
         method: "POST",
@@ -534,7 +597,7 @@ export default function DialerPage() {
   }
 
   // Open email dialog for a contact
-  const openEmailDialog = (contact: typeof mockProspects[0]) => {
+  const openEmailDialog = (contact: DialerProspect) => {
     setEmailProspect({
       id: contact.email, // Use email as ID for mock data
       name: contact.name,
@@ -546,7 +609,7 @@ export default function DialerPage() {
   }
 
   // Open Google Calendar with pre-filled meeting details
-  const openCalendarInvite = (contact: typeof mockProspects[0]) => {
+  const openCalendarInvite = (contact: DialerProspect) => {
     const title = encodeURIComponent(`Meeting with ${contact.name} - ${contact.company}`)
     const details = encodeURIComponent(`Follow-up call with ${contact.name}, ${contact.title} at ${contact.company}\n\nEmail: ${contact.email}\nPhone: ${contact.phone}`)
 
@@ -578,7 +641,7 @@ export default function DialerPage() {
     })
   }
 
-  const dialOneOff = async (prospect: typeof mockProspects[0]) => {
+  const dialOneOff = async (prospect: DialerProspect) => {
     // Find first available idle slot
     const slotIndex = callSlots.findIndex(s => s.status === "idle")
     if (slotIndex === -1) {
@@ -1591,11 +1654,6 @@ export default function DialerPage() {
             ))}
           </div>
         )}
-      </div>
-
-      {/* Call History */}
-      <div className="mt-6">
-        <CallHistory limit={20} />
       </div>
 
       {/* Email Dialog */}

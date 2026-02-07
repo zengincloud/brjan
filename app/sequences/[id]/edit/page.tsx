@@ -20,6 +20,7 @@ import {
   ArrowUp,
   ArrowDown,
   FileText,
+  ClipboardList,
 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -233,8 +234,9 @@ export default function EditSequencePage() {
       case "call":
         return <Phone className="h-4 w-4" />
       case "linkedin":
-      case "task":
         return <Linkedin className="h-4 w-4" />
+      case "task":
+        return <ClipboardList className="h-4 w-4" />
       case "wait":
         return <Clock className="h-4 w-4" />
     }
@@ -324,6 +326,14 @@ export default function EditSequencePage() {
               >
                 <Linkedin className="mr-2 h-4 w-4" />
                 LinkedIn
+              </Button>
+              <Button
+                onClick={() => addStep("task")}
+                variant="outline"
+                className="w-full justify-start"
+              >
+                <ClipboardList className="mr-2 h-4 w-4" />
+                Task
               </Button>
             </CardContent>
           </Card>

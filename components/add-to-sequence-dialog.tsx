@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, Zap, Mail, Phone, Linkedin, CheckSquare, Clock } from "lucide-react"
+import { Loader2, Zap, Mail, Phone, Linkedin, CheckSquare, Clock, ClipboardList } from "lucide-react"
 import { toast } from "sonner"
 
 type SequenceStep = {
@@ -133,7 +133,7 @@ export function AddToSequenceDialog({
       case "linkedin":
         return <Linkedin className="h-3 w-3" />
       case "task":
-        return <CheckSquare className="h-3 w-3" />
+        return <ClipboardList className="h-3 w-3" />
       case "wait":
         return <Clock className="h-3 w-3" />
       default:

@@ -110,20 +110,33 @@ export default function ProspectDetailPage() {
   const removeFromSequence = async () => {
     if (!prospect?.currentStepDetails) return
 
+    const sequenceId = prospect.currentStepDetails.sequenceId
+    const sequenceName = prospect.sequence
+
+    // Optimistic update - clear sequence info from UI immediately
+    setProspect({
+      ...prospect,
+      sequence: null,
+      sequenceStep: null,
+      currentStepDetails: null,
+      status: 'contacted',
+    })
+    setRemoveSequenceDialogOpen(false)
+
     try {
       setRemovingFromSequence(true)
       const response = await fetch(
-        `/api/sequences/${prospect.currentStepDetails.sequenceId}/prospects/${prospect.id}`,
+        `/api/sequences/${sequenceId}/prospects/${prospect.id}`,
         { method: "DELETE" }
       )
 
       if (!response.ok) throw new Error("Failed to remove from sequence")
 
-      toast.success("Removed from sequence")
-      setRemoveSequenceDialogOpen(false)
-      refreshData()
+      toast.success(`Removed from "${sequenceName}"`)
     } catch (error) {
       console.error(error)
+      // Revert on error - reload the data
+      loadProspect(params.id as string)
       toast.error("Failed to remove from sequence")
     } finally {
       setRemovingFromSequence(false)

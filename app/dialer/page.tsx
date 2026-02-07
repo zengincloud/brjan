@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -24,6 +24,7 @@ import { useToast } from "@/components/ui/use-toast"
 import {
   Phone,
   PhoneOff,
+  PhoneCall,
   Play,
   Pause,
   SkipForward,
@@ -51,10 +52,14 @@ import {
   Rocket,
   CalendarCheck,
   Handshake,
-  Star
+  Star,
+  Mic,
+  MicOff,
+  Loader2,
 } from "lucide-react"
 import { SendEmailDialog } from "@/components/send-email-dialog"
 import { Calendar } from "lucide-react"
+import { Device, Call as TwilioCall } from "@twilio/voice-sdk"
 
 type CallStatus = "idle" | "ringing" | "connected" | "completed"
 
@@ -155,6 +160,19 @@ export default function DialerPage() {
   const [apiProspects, setApiProspects] = useState<DialerProspect[]>([])
   const [loadingProspects, setLoadingProspects] = useState(true)
 
+  // Twilio state
+  const [deviceReady, setDeviceReady] = useState(false)
+  const [deviceError, setDeviceError] = useState<string | null>(null)
+  const [currentProspectIndex, setCurrentProspectIndex] = useState(0)
+  const [isMuted, setIsMuted] = useState(false)
+  const [callDuration, setCallDuration] = useState(0)
+  const [showOutcomeButtons, setShowOutcomeButtons] = useState(false)
+
+  // Twilio refs
+  const deviceRef = useRef<Device | null>(null)
+  const activeCallRef = useRef<TwilioCall | null>(null)
+  const callStartTimeRef = useRef<number | null>(null)
+
   // Available sequences
   const sequences = [
     { id: "all", name: "All Sequences" },
@@ -195,6 +213,71 @@ export default function DialerPage() {
 
     fetchProspects()
   }, [selectedSequence])
+
+  // Initialize Twilio Device
+  useEffect(() => {
+    const initDevice = async () => {
+      try {
+        const response = await fetch("/api/calls/token")
+        if (!response.ok) {
+          throw new Error("Failed to fetch access token")
+        }
+        const data = await response.json()
+
+        const device = new Device(data.token, {
+          logLevel: 1,
+          codecPreferences: ["opus", "pcmu"],
+        })
+
+        device.on("registered", () => {
+          console.log("Twilio Device registered")
+          setDeviceReady(true)
+          setDeviceError(null)
+        })
+
+        device.on("error", (error) => {
+          console.error("Twilio Device error:", error)
+          setDeviceError(error.message || "Device error")
+          toast({
+            title: "Device Error",
+            description: error.message || "Failed to initialize calling device",
+            variant: "destructive",
+          })
+        })
+
+        await device.register()
+        deviceRef.current = device
+      } catch (error: any) {
+        console.error("Failed to initialize device:", error)
+        setDeviceError(error.message || "Failed to initialize")
+        toast({
+          title: "Initialization Error",
+          description: "Failed to initialize calling device. Please refresh the page.",
+          variant: "destructive",
+        })
+      }
+    }
+
+    initDevice()
+
+    return () => {
+      if (deviceRef.current) {
+        deviceRef.current.unregister()
+        deviceRef.current.destroy()
+      }
+    }
+  }, [toast])
+
+  // Call duration timer
+  useEffect(() => {
+    let interval: NodeJS.Timeout
+    if (callStartTimeRef.current && callSlots.some(s => s.status === "connected")) {
+      interval = setInterval(() => {
+        setCallDuration(Math.floor((Date.now() - callStartTimeRef.current!) / 1000))
+      }, 1000)
+    }
+    return () => clearInterval(interval)
+  }, [callSlots])
 
   // Demo prospects data (fallback when no API data)
   const allProspects = [
@@ -361,14 +444,35 @@ export default function DialerPage() {
     setQueueSize(mockProspects.length)
   }, [mockProspects.length])
 
-  const makeCall = async (slotIndex: number, prospect: DialerProspect) => {
+  // Actually connect a call via Twilio
+  const connectCall = useCallback(async (prospect: DialerProspect, slotIndex: number) => {
+    if (!deviceRef.current || !deviceReady) {
+      toast({
+        title: "Error",
+        description: "Calling device not ready. Please wait a moment.",
+        variant: "destructive",
+      })
+      return null
+    }
+
+    if (!prospect.phone) {
+      toast({
+        title: "Error",
+        description: "No phone number available for this prospect",
+        variant: "destructive",
+      })
+      return null
+    }
+
     try {
+      // First create a call record in the database
       const response = await fetch("/api/calls/make", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           to: prospect.phone,
           from: selectedPhone,
+          prospectId: prospect.prospectId,
           metadata: {
             prospectName: prospect.name,
             prospectCompany: prospect.company,
@@ -380,45 +484,231 @@ export default function DialerPage() {
       const data = await response.json()
 
       if (!response.ok) {
-        console.error("Failed to make call:", data.error)
-        return null
+        throw new Error(data.error || "Failed to create call record")
       }
 
-      return {
-        callId: data.callId,
-        twilioSid: data.twilioSid,
-      }
-    } catch (error) {
+      // Update slot to ringing state
+      setCallSlots(prev => prev.map((slot, idx) =>
+        idx === slotIndex
+          ? { ...slot, contact: prospect, status: "ringing" as CallStatus, startTime: Date.now(), callId: data.callId }
+          : slot
+      ))
+
+      // Connect the call using Twilio Device
+      const call = await deviceRef.current.connect({
+        params: {
+          To: prospect.phone,
+          callId: data.callId,
+        },
+      })
+
+      activeCallRef.current = call
+
+      // Call event listeners
+      call.on("accept", async () => {
+        console.log("Call accepted (ringing)")
+        callStartTimeRef.current = Date.now()
+
+        // Update call record with Twilio SID
+        const twilioCallSid = call.parameters.CallSid
+        if (twilioCallSid && data.callId) {
+          try {
+            await fetch(`/api/calls/${data.callId}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                twilioSid: twilioCallSid,
+                status: "ringing",
+                startedAt: new Date().toISOString(),
+              }),
+            })
+          } catch (error) {
+            console.error("Failed to update call with Twilio SID:", error)
+          }
+        }
+
+        toast({
+          title: "Calling...",
+          description: `Dialing ${prospect.name}`,
+        })
+      })
+
+      call.on("disconnect", () => {
+        console.log("Call disconnected")
+        activeCallRef.current = null
+        setIsMuted(false)
+        setShowOutcomeButtons(true)
+
+        // Update slot to completed
+        setCallSlots(prev => prev.map((slot, idx) =>
+          idx === slotIndex
+            ? { ...slot, status: "completed" as CallStatus }
+            : slot
+        ))
+      })
+
+      call.on("cancel", () => {
+        console.log("Call cancelled")
+        activeCallRef.current = null
+        // Mark as no answer and auto-advance
+        handleCallOutcomeAndAdvance(slotIndex, "no_answer")
+      })
+
+      call.on("reject", () => {
+        console.log("Call rejected")
+        activeCallRef.current = null
+        handleCallOutcomeAndAdvance(slotIndex, "busy")
+      })
+
+      call.on("error", (error) => {
+        console.error("Call error:", error)
+        activeCallRef.current = null
+        toast({
+          title: "Call Error",
+          description: error.message || "An error occurred during the call",
+          variant: "destructive",
+        })
+        handleCallOutcomeAndAdvance(slotIndex, "failed")
+      })
+
+      // When prospect answers, update status to connected
+      call.on("sample", () => {
+        setCallSlots(prev => {
+          const current = prev[slotIndex]
+          if (current?.status === "ringing") {
+            return prev.map((slot, idx) =>
+              idx === slotIndex
+                ? { ...slot, status: "connected" as CallStatus }
+                : slot
+            )
+          }
+          return prev
+        })
+      })
+
+      return { callId: data.callId, twilioSid: null }
+    } catch (error: any) {
       console.error("Error making call:", error)
+      toast({
+        title: "Call failed",
+        description: error.message || "Failed to initiate call",
+        variant: "destructive",
+      })
       return null
     }
-  }
+  }, [deviceReady, selectedPhone, toast])
 
-  const startSession = async () => {
-    setSessionActive(true)
-    setSessionPaused(false)
-    // Start dialing based on mode
-    const updatedSlots = [...callSlots]
-    const slotsToFill = dialMode === "parallel" ? 2 : 1
+  // Handle call outcome and advance to next prospect
+  const handleCallOutcomeAndAdvance = useCallback(async (slotIndex: number, outcome: string) => {
+    const slot = callSlots[slotIndex]
 
-    for (let idx = 0; idx < slotsToFill && idx < mockProspects.length; idx++) {
-      const prospect = mockProspects[idx]
-      if (prospect) {
-        updatedSlots[idx].contact = prospect
-        updatedSlots[idx].status = "ringing"
-        updatedSlots[idx].startTime = Date.now()
-
-        // Make the actual call
-        const callData = await makeCall(idx, prospect)
-        if (callData) {
-          updatedSlots[idx].callId = callData.callId
-          updatedSlots[idx].twilioSid = callData.twilioSid
-        }
+    // Save outcome to database
+    if (slot?.callId) {
+      try {
+        await fetch(`/api/calls/${slot.callId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            outcome,
+            notes: slot.notes,
+            endedAt: new Date().toISOString(),
+          }),
+        })
+      } catch (error) {
+        console.error("Error saving call outcome:", error)
       }
     }
 
-    setCallSlots(updatedSlots)
-    setQueueSize(prev => Math.max(0, prev - slotsToFill))
+    // Update stats
+    setStats(prev => ({
+      ...prev,
+      totalCalls: prev.totalCalls + 1,
+      connected: outcome.startsWith("connected") ? prev.connected + 1 : prev.connected,
+      voicemail: outcome === "voicemail" ? prev.voicemail + 1 : prev.voicemail,
+      noAnswer: outcome === "no_answer" ? prev.noAnswer + 1 : prev.noAnswer,
+    }))
+
+    // Reset slot
+    setCallSlots(prev => prev.map((s, idx) =>
+      idx === slotIndex
+        ? { id: s.id, status: "idle" as CallStatus, contact: null, startTime: null, notes: "" }
+        : s
+    ))
+    setShowOutcomeButtons(false)
+    setCallDuration(0)
+    callStartTimeRef.current = null
+
+    // Auto-advance to next prospect if session is active
+    if (sessionActive && !sessionPaused) {
+      const nextIndex = currentProspectIndex + 1
+      if (nextIndex < mockProspects.length) {
+        setCurrentProspectIndex(nextIndex)
+        setQueueSize(prev => Math.max(0, prev - 1))
+
+        // Small delay before next call
+        setTimeout(() => {
+          const nextProspect = mockProspects[nextIndex]
+          if (nextProspect) {
+            connectCall(nextProspect, 0)
+          }
+        }, 1500)
+      } else {
+        // No more prospects
+        setSessionActive(false)
+        toast({
+          title: "Session Complete",
+          description: "You've reached the end of the call queue.",
+        })
+      }
+    }
+  }, [callSlots, sessionActive, sessionPaused, currentProspectIndex, mockProspects, connectCall, toast])
+
+  // End current call
+  const endCall = useCallback(() => {
+    if (activeCallRef.current) {
+      activeCallRef.current.disconnect()
+    }
+  }, [])
+
+  // Toggle mute
+  const toggleMute = useCallback(() => {
+    if (activeCallRef.current) {
+      activeCallRef.current.mute(!isMuted)
+      setIsMuted(!isMuted)
+    }
+  }, [isMuted])
+
+  // Start power dial session
+  const startSession = async () => {
+    if (!deviceReady) {
+      toast({
+        title: "Not Ready",
+        description: "Calling device is still initializing. Please wait.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (mockProspects.length === 0) {
+      toast({
+        title: "No Prospects",
+        description: "No prospects available to call.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setSessionActive(true)
+    setSessionPaused(false)
+    setCurrentProspectIndex(0)
+    setShowOutcomeButtons(false)
+
+    // Start with the first prospect
+    const firstProspect = mockProspects[0]
+    if (firstProspect) {
+      await connectCall(firstProspect, 0)
+      setQueueSize(mockProspects.length - 1)
+    }
   }
 
   const pauseSession = () => {
@@ -426,8 +716,18 @@ export default function DialerPage() {
   }
 
   const stopSession = () => {
+    // End any active call
+    if (activeCallRef.current) {
+      activeCallRef.current.disconnect()
+      activeCallRef.current = null
+    }
+
     setSessionActive(false)
     setSessionPaused(false)
+    setShowOutcomeButtons(false)
+    setCallDuration(0)
+    callStartTimeRef.current = null
+    setCurrentProspectIndex(0)
     setCallSlots(callSlots.map(slot => ({
       ...slot,
       status: "idle",
@@ -451,68 +751,15 @@ export default function DialerPage() {
     const slotIndex = callSlots.findIndex(s => s.id === slotId)
     if (slotIndex === -1) return
 
-    const slot = callSlots[slotIndex]
-
-    // Save call outcome to database if we have a callId
-    if (slot.callId && outcome !== "skip") {
-      try {
-        await fetch(`/api/calls/${slot.callId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            outcome: outcome.replace("-", "_"),
-            notes: slot.notes,
-          }),
-        })
-      } catch (error) {
-        console.error("Error saving call outcome:", error)
-      }
+    // Map old outcome names to new enum values
+    const outcomeMap: Record<string, string> = {
+      "connected": "connected",
+      "voicemail": "voicemail",
+      "no-answer": "no_answer",
+      "skip": "no_answer",
     }
 
-    // Update stats
-    setStats(prev => ({
-      ...prev,
-      totalCalls: prev.totalCalls + 1,
-      connected: outcome === "connected" ? prev.connected + 1 : prev.connected,
-      voicemail: outcome === "voicemail" ? prev.voicemail + 1 : prev.voicemail,
-      noAnswer: outcome === "no-answer" ? prev.noAnswer + 1 : prev.noAnswer,
-      callsPerHour: Math.round((prev.totalCalls + 1) / ((Date.now() - (callSlots[0].startTime || Date.now())) / 3600000) || 0),
-    }))
-
-    // Complete current call and start next
-    const updatedSlots = [...callSlots]
-    updatedSlots[slotIndex] = {
-      id: slotId,
-      status: "idle",
-      contact: null,
-      startTime: null,
-      notes: "",
-    }
-
-    // Auto-dial next prospect if session is active and not paused
-    const shouldAutoDial = sessionActive && !sessionPaused && queueSize > 0
-    const canAutoDialThisSlot = dialMode === "parallel" || slotIndex === 0
-
-    if (shouldAutoDial && canAutoDialThisSlot) {
-      const nextProspectIndex = Math.floor(Math.random() * mockProspects.length)
-      const nextProspect = mockProspects[nextProspectIndex]
-      if (nextProspect) {
-        updatedSlots[slotIndex].contact = nextProspect
-        updatedSlots[slotIndex].status = "ringing"
-        updatedSlots[slotIndex].startTime = Date.now()
-
-        // Make the call
-        const callData = await makeCall(slotIndex, nextProspect)
-        if (callData) {
-          updatedSlots[slotIndex].callId = callData.callId
-          updatedSlots[slotIndex].twilioSid = callData.twilioSid
-        }
-
-        setQueueSize(prev => Math.max(0, prev - 1))
-      }
-    }
-
-    setCallSlots(updatedSlots)
+    await handleCallOutcomeAndAdvance(slotIndex, outcomeMap[outcome] || outcome)
   }
 
   const handlePipelineOutcome = async (slotId: string, pipelineStage: PipelineStage) => {
@@ -564,6 +811,8 @@ export default function DialerPage() {
       notes: "",
     }
 
+    setCallSlots(updatedSlots)
+
     // Auto-dial next prospect if session is active and not paused
     const shouldAutoDial = sessionActive && !sessionPaused && queueSize > 0
     const canAutoDialThisSlot = dialMode === "parallel" || slotIndex === 0
@@ -572,22 +821,10 @@ export default function DialerPage() {
       const nextProspectIndex = Math.floor(Math.random() * mockProspects.length)
       const nextProspect = mockProspects[nextProspectIndex]
       if (nextProspect) {
-        updatedSlots[slotIndex].contact = nextProspect
-        updatedSlots[slotIndex].status = "ringing"
-        updatedSlots[slotIndex].startTime = Date.now()
-
-        // Make the call
-        const callData = await makeCall(slotIndex, nextProspect)
-        if (callData) {
-          updatedSlots[slotIndex].callId = callData.callId
-          updatedSlots[slotIndex].twilioSid = callData.twilioSid
-        }
-
+        await connectCall(nextProspect, slotIndex)
         setQueueSize(prev => Math.max(0, prev - 1))
       }
     }
-
-    setCallSlots(updatedSlots)
   }
 
   const updateNotes = (slotId: string, notes: string) => {
@@ -653,24 +890,8 @@ export default function DialerPage() {
       return
     }
 
-    const updatedSlots = [...callSlots]
-    updatedSlots[slotIndex].contact = prospect
-    updatedSlots[slotIndex].status = "ringing"
-    updatedSlots[slotIndex].startTime = Date.now()
-
-    const callData = await makeCall(slotIndex, prospect)
-    if (callData) {
-      updatedSlots[slotIndex].callId = callData.callId
-      updatedSlots[slotIndex].twilioSid = callData.twilioSid
-    }
-
-    setCallSlots(updatedSlots)
+    await connectCall(prospect, slotIndex)
     setQueueSize(prev => Math.max(0, prev - 1))
-
-    toast({
-      title: "Calling...",
-      description: `Dialing ${prospect.name}`,
-    })
   }
 
   const startEditingPhone = (slotId: string, currentPhone: string) => {
@@ -769,14 +990,70 @@ export default function DialerPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Device Status */}
+          {deviceError ? (
+            <Badge variant="destructive" className="flex items-center gap-1">
+              <PhoneOff className="h-3 w-3" />
+              Device Error
+            </Badge>
+          ) : deviceReady ? (
+            <Badge variant="outline" className="flex items-center gap-1 border-green-500/50 text-green-600">
+              <Phone className="h-3 w-3" />
+              Ready
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="flex items-center gap-1">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Initializing...
+            </Badge>
+          )}
+
           {!sessionActive ? (
-            <Button onClick={startSession} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+            <Button
+              onClick={startSession}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground"
+              disabled={!deviceReady}
+            >
               <Play className="h-4 w-4 mr-2" />
               Start Session
             </Button>
           ) : (
             <>
-              <Button onClick={pauseSession} variant="outline">
+              {/* Active call controls */}
+              {callSlots.some(s => s.status === "ringing" || s.status === "connected") && (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/30">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                    <span className="text-sm font-medium">
+                      {String(Math.floor(callDuration / 60)).padStart(2, '0')}:{String(callDuration % 60).padStart(2, '0')}
+                    </span>
+                  </div>
+                  <div className="border-l border-primary/30 h-5 mx-1" />
+                  <Button
+                    size="sm"
+                    variant={isMuted ? "secondary" : "ghost"}
+                    onClick={toggleMute}
+                    className="h-7 px-2"
+                    title={isMuted ? "Unmute" : "Mute"}
+                  >
+                    {isMuted ? <MicOff className="h-3 w-3" /> : <Mic className="h-3 w-3" />}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={endCall}
+                    className="h-7 px-2"
+                  >
+                    <PhoneOff className="h-3 w-3 mr-1" />
+                    End
+                  </Button>
+                </div>
+              )}
+              <Button
+                onClick={pauseSession}
+                variant="outline"
+                disabled={callSlots.some(s => s.status === "ringing" || s.status === "connected")}
+              >
                 {sessionPaused ? <Play className="h-4 w-4 mr-2" /> : <Pause className="h-4 w-4 mr-2" />}
                 {sessionPaused ? "Resume" : "Pause"}
               </Button>
@@ -1077,13 +1354,53 @@ export default function DialerPage() {
                   <div className="space-y-3">
                     {/* Main row with key info */}
                     <div className="flex items-center gap-4 flex-wrap">
-                      {/* Status and Timer */}
-                      <div className="flex items-center gap-2 min-w-[100px]">
+                      {/* Status, Timer, and Call Controls */}
+                      <div className="flex items-center gap-2 min-w-[180px]">
                         {slot.status === "ringing" && (
-                          <Badge className="bg-primary/20 text-primary border-0">Ringing</Badge>
+                          <>
+                            <Badge className="bg-primary/20 text-primary border-0 animate-pulse">
+                              <PhoneCall className="h-3 w-3 mr-1" />
+                              Ringing
+                            </Badge>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={endCall}
+                              className="h-7 px-2"
+                            >
+                              <PhoneOff className="h-3 w-3" />
+                            </Button>
+                          </>
                         )}
                         {slot.status === "connected" && (
-                          <Badge className="bg-primary text-primary-foreground border-0">Connected</Badge>
+                          <>
+                            <Badge className="bg-primary text-primary-foreground border-0">
+                              <PhoneCall className="h-3 w-3 mr-1" />
+                              Connected
+                            </Badge>
+                            <Button
+                              size="sm"
+                              variant={isMuted ? "secondary" : "outline"}
+                              onClick={toggleMute}
+                              className="h-7 px-2"
+                              title={isMuted ? "Unmute" : "Mute"}
+                            >
+                              {isMuted ? <MicOff className="h-3 w-3" /> : <Mic className="h-3 w-3" />}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={endCall}
+                              className="h-7 px-2"
+                            >
+                              <PhoneOff className="h-3 w-3" />
+                            </Button>
+                          </>
+                        )}
+                        {slot.status === "completed" && showOutcomeButtons && (
+                          <Badge variant="outline" className="border-orange-500/50 text-orange-600">
+                            Select outcome below
+                          </Badge>
                         )}
                         {slot.status === "idle" && (
                           <Badge variant="outline">Idle</Badge>

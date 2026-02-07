@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { ArrowLeft, Mail, Phone, Linkedin, MapPin, Building, Briefcase, Calendar, Globe, Pencil } from "lucide-react"
+import { ArrowLeft, Mail, Phone, Linkedin, MapPin, Building, Briefcase, Calendar, Globe, Pencil, Zap, X } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { CallHistory } from "@/components/call-history"
 import { CallProspectDialog } from "@/components/call-prospect-dialog"
@@ -14,6 +14,7 @@ import { EditProspectDialog } from "@/components/edit-prospect-dialog"
 import { SendEmailDialog } from "@/components/send-email-dialog"
 import { CorrespondenceSummary } from "@/components/correspondence-summary"
 import { ProspectPOV } from "@/components/prospect-pov"
+import { AddToSequenceDialog } from "@/components/add-to-sequence-dialog"
 
 type POVData = {
   opportunity: string
@@ -48,6 +49,7 @@ export default function ProspectDetailPage() {
   const [callDialogOpen, setCallDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [emailDialogOpen, setEmailDialogOpen] = useState(false)
+  const [sequenceDialogOpen, setSequenceDialogOpen] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
@@ -278,19 +280,56 @@ export default function ProspectDetailPage() {
 
         {/* Sequence Information */}
         <Card>
-          <CardHeader>
+          <CardHeader className="pb-3">
             <CardTitle>Sequence Status</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <p className="text-sm text-muted-foreground">Current Sequence</p>
-              <p className="text-sm font-medium">{prospect.sequence || "Not in sequence"}</p>
-            </div>
+            {prospect.sequence ? (
+              <>
+                <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Zap className="h-4 w-4 text-primary" />
+                      <p className="text-sm font-medium">{prospect.sequence}</p>
+                    </div>
+                    <Badge variant="outline" className="text-xs border-primary/30 text-primary">
+                      Active
+                    </Badge>
+                  </div>
+                  {prospect.sequenceStep && (
+                    <p className="text-xs text-muted-foreground">
+                      Current step: {prospect.sequenceStep}
+                    </p>
+                  )}
+                </div>
 
-            {prospect.sequenceStep && (
-              <div>
-                <p className="text-sm text-muted-foreground">Current Step</p>
-                <p className="text-sm font-medium">{prospect.sequenceStep}</p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => setSequenceDialogOpen(true)}
+                  >
+                    <Zap className="h-3 w-3 mr-1" />
+                    Change Sequence
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-3">
+                <div className="p-3 rounded-lg bg-muted/50 border border-dashed text-center">
+                  <Zap className="h-5 w-5 text-muted-foreground mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">Not in any sequence</p>
+                </div>
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => setSequenceDialogOpen(true)}
+                >
+                  <Zap className="h-3 w-3 mr-1" />
+                  Add to Sequence
+                </Button>
               </div>
             )}
           </CardContent>
@@ -346,6 +385,15 @@ export default function ProspectDetailPage() {
         onOpenChange={setEditDialogOpen}
         prospect={prospect}
         onProspectUpdated={refreshData}
+      />
+
+      <AddToSequenceDialog
+        open={sequenceDialogOpen}
+        onOpenChange={setSequenceDialogOpen}
+        prospectId={prospect.id}
+        prospectName={prospect.name}
+        currentSequence={prospect.sequence}
+        onSequenceAdded={refreshData}
       />
     </div>
   )

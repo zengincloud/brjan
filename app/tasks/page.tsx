@@ -23,9 +23,12 @@ import {
   CalendarClock,
   MoreHorizontal,
   Loader2,
+  GripVertical,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
+import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd"
+import { toast } from "sonner"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -267,25 +270,81 @@ function TasksContent() {
     setDeleteDialogOpen(true)
   }
 
-  const renderTaskCard = (task: Task) => {
+  const updateTaskStatus = async (taskId: string, newStatus: TaskStatus) => {
+    setUpdatingTasks((prev) => new Set(prev).add(taskId))
+
+    // Optimistic update
+    const previousTasks = tasks
+    setTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t))
+    )
+
+    try {
+      const response = await fetch(`/api/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      })
+
+      if (!response.ok) throw new Error("Failed to update task")
+
+      toast.success(`Task moved to ${statusConfig[newStatus].label}`)
+    } catch (error) {
+      console.error("Error updating task:", error)
+      setTasks(previousTasks) // Revert on error
+      toast.error("Failed to update task")
+    } finally {
+      setUpdatingTasks((prev) => {
+        const newSet = new Set(prev)
+        newSet.delete(taskId)
+        return newSet
+      })
+    }
+  }
+
+  const handleDragEnd = (result: DropResult) => {
+    const { destination, source, draggableId } = result
+
+    // If no destination or dropped in same place
+    if (!destination ||
+        (destination.droppableId === source.droppableId &&
+         destination.index === source.index)) {
+      return
+    }
+
+    const newStatus = destination.droppableId as TaskStatus
+    updateTaskStatus(draggableId, newStatus)
+  }
+
+  const renderTaskCard = (task: Task, index: number) => {
     const isUpdating = updatingTasks.has(task.id)
     const isSelected = selectedTasks.has(task.id)
 
     return (
-      <div
-        key={task.id}
-        className={cn(
-          "p-4 rounded-lg border bg-card transition-colors",
-          isSelected && "ring-2 ring-primary",
-          task.status === "done" && "opacity-70"
-        )}
-      >
-        <div className="flex items-start gap-3">
-          <Checkbox
-            checked={isSelected}
-            onCheckedChange={() => handleSelectTask(task.id)}
-            className="mt-1"
-          />
+      <Draggable key={task.id} draggableId={task.id} index={index}>
+        {(provided, snapshot) => (
+          <div
+            ref={provided.innerRef}
+            {...provided.draggableProps}
+            className={cn(
+              "p-4 rounded-lg border bg-card transition-colors",
+              isSelected && "ring-2 ring-primary",
+              task.status === "done" && "opacity-70",
+              snapshot.isDragging && "shadow-lg ring-2 ring-primary/50"
+            )}
+          >
+            <div className="flex items-start gap-3">
+              <div
+                {...provided.dragHandleProps}
+                className="mt-1 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
+              >
+                <GripVertical className="h-4 w-4" />
+              </div>
+              <Checkbox
+                checked={isSelected}
+                onCheckedChange={() => handleSelectTask(task.id)}
+                className="mt-1"
+              />
 
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-2">
@@ -384,7 +443,9 @@ function TasksContent() {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-      </div>
+          </div>
+        )}
+      </Draggable>
     )
   }
 
@@ -476,67 +537,105 @@ function TasksContent() {
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* To Do Column */}
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <h3 className="text-sm font-medium">To Do</h3>
-                  <Badge variant="secondary" className="text-xs">
-                    {tasksByStatus.to_do.length}
-                  </Badge>
-                </div>
-                <ScrollArea className="h-[500px]">
-                  <div className="space-y-3 pr-4">
-                    {tasksByStatus.to_do.map(renderTaskCard)}
-                    {tasksByStatus.to_do.length === 0 && (
-                      <p className="text-sm text-muted-foreground text-center py-8">
-                        No tasks to do
-                      </p>
-                    )}
+            <DragDropContext onDragEnd={handleDragEnd}>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* To Do Column */}
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <h3 className="text-sm font-medium">To Do</h3>
+                    <Badge variant="secondary" className="text-xs">
+                      {tasksByStatus.to_do.length}
+                    </Badge>
                   </div>
-                </ScrollArea>
-              </div>
+                  <Droppable droppableId="to_do">
+                    {(provided, snapshot) => (
+                      <div
+                        ref={provided.innerRef}
+                        {...provided.droppableProps}
+                        className={cn(
+                          "min-h-[500px] p-2 rounded-lg border border-dashed transition-colors",
+                          snapshot.isDraggingOver ? "bg-primary/10 border-primary" : "bg-muted/30 border-transparent"
+                        )}
+                      >
+                        <div className="space-y-3">
+                          {tasksByStatus.to_do.map((task, index) => renderTaskCard(task, index))}
+                          {tasksByStatus.to_do.length === 0 && !snapshot.isDraggingOver && (
+                            <p className="text-sm text-muted-foreground text-center py-8">
+                              No tasks to do
+                            </p>
+                          )}
+                        </div>
+                        {provided.placeholder}
+                      </div>
+                    )}
+                  </Droppable>
+                </div>
 
-              {/* In Progress Column */}
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <h3 className="text-sm font-medium">In Progress</h3>
-                  <Badge variant="secondary" className="text-xs">
-                    {tasksByStatus.in_progress.length}
-                  </Badge>
-                </div>
-                <ScrollArea className="h-[500px]">
-                  <div className="space-y-3 pr-4">
-                    {tasksByStatus.in_progress.map(renderTaskCard)}
-                    {tasksByStatus.in_progress.length === 0 && (
-                      <p className="text-sm text-muted-foreground text-center py-8">
-                        No tasks in progress
-                      </p>
-                    )}
+                {/* In Progress Column */}
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <h3 className="text-sm font-medium">In Progress</h3>
+                    <Badge variant="secondary" className="text-xs">
+                      {tasksByStatus.in_progress.length}
+                    </Badge>
                   </div>
-                </ScrollArea>
-              </div>
+                  <Droppable droppableId="in_progress">
+                    {(provided, snapshot) => (
+                      <div
+                        ref={provided.innerRef}
+                        {...provided.droppableProps}
+                        className={cn(
+                          "min-h-[500px] p-2 rounded-lg border border-dashed transition-colors",
+                          snapshot.isDraggingOver ? "bg-primary/10 border-primary" : "bg-muted/30 border-transparent"
+                        )}
+                      >
+                        <div className="space-y-3">
+                          {tasksByStatus.in_progress.map((task, index) => renderTaskCard(task, index))}
+                          {tasksByStatus.in_progress.length === 0 && !snapshot.isDraggingOver && (
+                            <p className="text-sm text-muted-foreground text-center py-8">
+                              No tasks in progress
+                            </p>
+                          )}
+                        </div>
+                        {provided.placeholder}
+                      </div>
+                    )}
+                  </Droppable>
+                </div>
 
-              {/* Done Column */}
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <h3 className="text-sm font-medium">Done</h3>
-                  <Badge variant="secondary" className="text-xs">
-                    {tasksByStatus.done.length}
-                  </Badge>
-                </div>
-                <ScrollArea className="h-[500px]">
-                  <div className="space-y-3 pr-4">
-                    {tasksByStatus.done.map(renderTaskCard)}
-                    {tasksByStatus.done.length === 0 && (
-                      <p className="text-sm text-muted-foreground text-center py-8">
-                        No completed tasks
-                      </p>
-                    )}
+                {/* Done Column */}
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <h3 className="text-sm font-medium">Done</h3>
+                    <Badge variant="secondary" className="text-xs">
+                      {tasksByStatus.done.length}
+                    </Badge>
                   </div>
-                </ScrollArea>
+                  <Droppable droppableId="done">
+                    {(provided, snapshot) => (
+                      <div
+                        ref={provided.innerRef}
+                        {...provided.droppableProps}
+                        className={cn(
+                          "min-h-[500px] p-2 rounded-lg border border-dashed transition-colors",
+                          snapshot.isDraggingOver ? "bg-primary/10 border-primary" : "bg-muted/30 border-transparent"
+                        )}
+                      >
+                        <div className="space-y-3">
+                          {tasksByStatus.done.map((task, index) => renderTaskCard(task, index))}
+                          {tasksByStatus.done.length === 0 && !snapshot.isDraggingOver && (
+                            <p className="text-sm text-muted-foreground text-center py-8">
+                              No completed tasks
+                            </p>
+                          )}
+                        </div>
+                        {provided.placeholder}
+                      </div>
+                    )}
+                  </Droppable>
+                </div>
               </div>
-            </div>
+            </DragDropContext>
           )}
         </CardContent>
       </Card>

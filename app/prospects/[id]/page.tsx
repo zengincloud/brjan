@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { ArrowLeft, Mail, Phone, Linkedin, MapPin, Building, Briefcase, Calendar, Globe, Pencil, Zap, X, ClipboardList } from "lucide-react"
+import { ArrowLeft, Mail, Phone, Linkedin, MapPin, Building, Briefcase, Calendar, Globe, Pencil, Zap, X, ClipboardList, Clock, ExternalLink } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { CallHistory } from "@/components/call-history"
 import { CallProspectDialog } from "@/components/call-prospect-dialog"
@@ -24,6 +24,15 @@ type POVData = {
   angle: string
 }
 
+type CurrentStepDetails = {
+  id: string
+  name: string
+  type: 'email' | 'call' | 'linkedin' | 'task' | 'wait'
+  order: number
+  sequenceId: string
+  sequenceName: string
+}
+
 type Prospect = {
   id: string
   name: string
@@ -36,6 +45,7 @@ type Prospect = {
   status: string
   sequence?: string | null
   sequenceStep?: string | null
+  currentStepDetails?: CurrentStepDetails | null
   pdlData?: any
   povData?: POVData | null
   lastActivity: string
@@ -93,6 +103,66 @@ export default function ProspectDetailPage() {
   }
 
   const pdlData = prospect.pdlData || {}
+
+  const getStepIcon = (type: string) => {
+    switch (type) {
+      case 'email':
+        return <Mail className="h-4 w-4" />
+      case 'call':
+        return <Phone className="h-4 w-4" />
+      case 'linkedin':
+        return <Linkedin className="h-4 w-4" />
+      case 'task':
+        return <ClipboardList className="h-4 w-4" />
+      case 'wait':
+        return <Clock className="h-4 w-4" />
+      default:
+        return <Zap className="h-4 w-4" />
+    }
+  }
+
+  const handleStepAction = () => {
+    if (!prospect.currentStepDetails) return
+
+    const stepType = prospect.currentStepDetails.type
+
+    switch (stepType) {
+      case 'email':
+        setEmailDialogOpen(true)
+        break
+      case 'call':
+        setCallDialogOpen(true)
+        break
+      case 'linkedin':
+        if (prospect.linkedin) {
+          window.open(prospect.linkedin, '_blank')
+        }
+        break
+      case 'task':
+        setTaskDialogOpen(true)
+        break
+      case 'wait':
+        // Wait steps don't have an action
+        break
+    }
+  }
+
+  const getStepActionLabel = (type: string) => {
+    switch (type) {
+      case 'email':
+        return 'Send Email'
+      case 'call':
+        return 'Make Call'
+      case 'linkedin':
+        return 'Open LinkedIn'
+      case 'task':
+        return 'Do Task'
+      case 'wait':
+        return 'Waiting...'
+      default:
+        return 'Action'
+    }
+  }
 
   return (
     <div className="container mx-auto py-8 space-y-6">
@@ -298,7 +368,35 @@ export default function ProspectDetailPage() {
                       Active
                     </Badge>
                   </div>
-                  {prospect.sequenceStep && (
+                  {prospect.currentStepDetails ? (
+                    <div className="mt-3 p-2 rounded-md bg-background border">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="p-1.5 rounded bg-primary/10 text-primary">
+                            {getStepIcon(prospect.currentStepDetails.type)}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium">{prospect.currentStepDetails.name}</p>
+                            <p className="text-xs text-muted-foreground capitalize">
+                              {prospect.currentStepDetails.type} step
+                            </p>
+                          </div>
+                        </div>
+                        {prospect.currentStepDetails.type !== 'wait' && (
+                          <Button
+                            size="sm"
+                            onClick={handleStepAction}
+                            disabled={prospect.currentStepDetails.type === 'linkedin' && !prospect.linkedin}
+                          >
+                            {prospect.currentStepDetails.type === 'linkedin' ? (
+                              <ExternalLink className="h-3 w-3 mr-1" />
+                            ) : getStepIcon(prospect.currentStepDetails.type)}
+                            <span className="ml-1">{getStepActionLabel(prospect.currentStepDetails.type)}</span>
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ) : prospect.sequenceStep && (
                     <p className="text-xs text-muted-foreground">
                       Current step: {prospect.sequenceStep}
                     </p>

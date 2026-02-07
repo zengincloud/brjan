@@ -27,13 +27,53 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         id: params.id,
         userId: user.id, // Verify ownership
       },
+      include: {
+        prospectSequences: {
+          where: { status: 'active' },
+          include: {
+            sequence: {
+              include: {
+                steps: {
+                  orderBy: { order: 'asc' }
+                }
+              }
+            }
+          },
+          take: 1,
+        }
+      }
     })
 
     if (!prospect) {
       return NextResponse.json({ error: "Prospect not found" }, { status: 404 })
     }
 
-    return NextResponse.json({ prospect })
+    // Extract current step details if in an active sequence
+    let currentStepDetails = null
+    if (prospect.prospectSequences?.[0]) {
+      const ps = prospect.prospectSequences[0]
+      const currentStep = ps.sequence.steps[ps.currentStep]
+      if (currentStep) {
+        currentStepDetails = {
+          id: currentStep.id,
+          name: currentStep.name,
+          type: currentStep.type,
+          order: currentStep.order,
+          sequenceId: ps.sequenceId,
+          sequenceName: ps.sequence.name,
+        }
+      }
+    }
+
+    // Remove nested data and add flattened currentStepDetails
+    const { prospectSequences, ...prospectData } = prospect
+
+    return NextResponse.json({
+      prospect: {
+        ...prospectData,
+        currentStepDetails,
+      }
+    })
   } catch (error: any) {
     console.error("Error fetching prospect:", error)
     return NextResponse.json({ error: "Failed to fetch prospect" }, { status: 500 })

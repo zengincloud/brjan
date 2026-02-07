@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { ArrowLeft, Mail, Phone, Linkedin, MapPin, Building, Briefcase, Calendar, Globe, Pencil, Zap, X } from "lucide-react"
+import { ArrowLeft, Mail, Phone, Linkedin, MapPin, Building, Briefcase, Calendar, Globe, Pencil, Zap, X, ClipboardList } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { CallHistory } from "@/components/call-history"
 import { CallProspectDialog } from "@/components/call-prospect-dialog"
@@ -15,6 +15,7 @@ import { SendEmailDialog } from "@/components/send-email-dialog"
 import { CorrespondenceSummary } from "@/components/correspondence-summary"
 import { ProspectPOV } from "@/components/prospect-pov"
 import { AddToSequenceDialog } from "@/components/add-to-sequence-dialog"
+import { CreateTaskDialog } from "@/components/create-task-dialog"
 
 type POVData = {
   opportunity: string
@@ -50,6 +51,7 @@ export default function ProspectDetailPage() {
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [emailDialogOpen, setEmailDialogOpen] = useState(false)
   const [sequenceDialogOpen, setSequenceDialogOpen] = useState(false)
+  const [taskDialogOpen, setTaskDialogOpen] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
@@ -352,6 +354,10 @@ export default function ProspectDetailPage() {
           <Phone className="mr-2 h-4 w-4" />
           Call
         </Button>
+        <Button variant="outline" onClick={() => setTaskDialogOpen(true)}>
+          <ClipboardList className="mr-2 h-4 w-4" />
+          Create Task
+        </Button>
         {prospect.linkedin && (
           <Button variant="outline" asChild>
             <a href={prospect.linkedin} target="_blank" rel="noopener noreferrer">
@@ -394,6 +400,21 @@ export default function ProspectDetailPage() {
         prospectName={prospect.name}
         currentSequence={prospect.sequence}
         onSequenceAdded={refreshData}
+      />
+
+      <CreateTaskDialog
+        open={taskDialogOpen}
+        onOpenChange={setTaskDialogOpen}
+        prospect={{
+          id: prospect.id,
+          name: prospect.name,
+          title: prospect.title,
+          company: prospect.company,
+          email: prospect.email,
+          phone: prospect.phone,
+          linkedin: prospect.linkedin,
+        }}
+        onTaskCreated={refreshData}
       />
     </div>
   )

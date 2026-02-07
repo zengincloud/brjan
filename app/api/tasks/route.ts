@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { withAuth } from "@/lib/auth/api-middleware"
+import { TaskType, TaskStatus, TaskPriority } from "@prisma/client"
 
 export const dynamic = 'force-dynamic'
 
@@ -19,6 +20,42 @@ const serializeTask = (task: {
   ...task,
   dueDate: task.dueDate ? task.dueDate.toISOString() : null,
   createdAt: task.createdAt.toISOString(),
+})
+
+export const POST = withAuth(async (request: NextRequest, userId: string) => {
+  try {
+    const body = await request.json()
+    const { title, description, type, priority, dueDate, contact, company } = body
+
+    if (!title || !description || !type || !priority) {
+      return NextResponse.json(
+        { error: "Missing required fields" },
+        { status: 400 }
+      )
+    }
+
+    const task = await prisma.task.create({
+      data: {
+        title,
+        description,
+        type: type as TaskType,
+        status: TaskStatus.to_do,
+        priority: priority as TaskPriority,
+        dueDate: dueDate ? new Date(dueDate) : null,
+        contact: contact || null,
+        company: company || null,
+        userId,
+      },
+    })
+
+    return NextResponse.json({ task: serializeTask(task) })
+  } catch (error) {
+    console.error("Error creating task:", error)
+    return NextResponse.json(
+      { error: "Failed to create task" },
+      { status: 500 }
+    )
+  }
 })
 
 export const GET = withAuth(async (request: NextRequest, userId: string) => {

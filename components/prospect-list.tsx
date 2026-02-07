@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
-import { Mail, MoreHorizontal, Phone, Filter, ChevronDown, Upload, Plus } from "lucide-react"
+import { Mail, Pencil, Phone, Filter, ChevronDown, Upload, Plus, Check, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -16,6 +16,8 @@ import { UploadProspectsDialog } from "./upload-prospects-dialog"
 import { AddProspectDialog } from "./add-prospect-dialog"
 import { EditProspectDialog } from "./edit-prospect-dialog"
 import { CallProspectDialog } from "./call-prospect-dialog"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Label } from "@/components/ui/label"
 
 type Prospect = {
   id: string
@@ -53,6 +55,9 @@ export function ProspectList() {
   const [editingProspect, setEditingProspect] = useState<Prospect | null>(null)
   const [callDialogOpen, setCallDialogOpen] = useState(false)
   const [callingProspect, setCallingProspect] = useState<Prospect | null>(null)
+  const [quickEditId, setQuickEditId] = useState<string | null>(null)
+  const [quickEditData, setQuickEditData] = useState({ email: "", phone: "" })
+  const [quickEditSaving, setQuickEditSaving] = useState(false)
 
   useEffect(() => {
     loadProspects()
@@ -110,6 +115,74 @@ export function ProspectList() {
   const handleCallProspect = (prospect: Prospect) => {
     setCallingProspect(prospect)
     setCallDialogOpen(true)
+  }
+
+  const startQuickEdit = (prospect: Prospect) => {
+    setQuickEditId(prospect.id)
+    setQuickEditData({
+      email: prospect.email,
+      phone: prospect.phone || "",
+    })
+  }
+
+  const cancelQuickEdit = () => {
+    setQuickEditId(null)
+    setQuickEditData({ email: "", phone: "" })
+  }
+
+  const saveQuickEdit = async (prospectId: string) => {
+    if (!quickEditData.email.trim()) {
+      toast({
+        title: "Error",
+        description: "Email is required",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      setQuickEditSaving(true)
+
+      // Optimistic update
+      const originalProspects = [...prospects]
+      setProspects(prospects.map(p =>
+        p.id === prospectId
+          ? { ...p, email: quickEditData.email, phone: quickEditData.phone || null }
+          : p
+      ))
+      setQuickEditId(null)
+
+      const response = await fetch(`/api/prospects/${prospectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: quickEditData.email,
+          phone: quickEditData.phone || null,
+        }),
+      })
+
+      if (!response.ok) {
+        // Rollback on error
+        setProspects(originalProspects)
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to update prospect")
+      }
+
+      toast({
+        title: "Updated",
+        description: "Contact info saved",
+      })
+    } catch (error: any) {
+      console.error("Error updating prospect:", error)
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update prospect",
+        variant: "destructive",
+      })
+    } finally {
+      setQuickEditSaving(false)
+      setQuickEditData({ email: "", phone: "" })
+    }
   }
 
   const formatLastActivity = (dateString: string) => {
@@ -177,6 +250,7 @@ export function ProspectList() {
               <Checkbox checked={selectedRows.length === prospects.length} onCheckedChange={toggleAll} />
             </TableHead>
             <TableHead>Name</TableHead>
+            <TableHead>Contact</TableHead>
             <TableHead>Title</TableHead>
             <TableHead>Company</TableHead>
             <TableHead>Status</TableHead>
@@ -207,11 +281,74 @@ export function ProspectList() {
                         .join("")}
                     </AvatarFallback>
                   </Avatar>
-                  <div className="flex flex-col">
-                    <span className="font-medium">{prospect.name}</span>
-                    <span className="text-sm text-muted-foreground">{prospect.email}</span>
-                  </div>
+                  <span className="font-medium">{prospect.name}</span>
                 </div>
+              </TableCell>
+              <TableCell onClick={(e) => e.stopPropagation()}>
+                <Popover open={quickEditId === prospect.id} onOpenChange={(open) => !open && cancelQuickEdit()}>
+                  <PopoverTrigger asChild>
+                    <button
+                      className="flex flex-col text-left hover:bg-muted/50 rounded px-2 py-1 -mx-2 -my-1 transition-colors group"
+                      onClick={() => startQuickEdit(prospect)}
+                    >
+                      <div className="flex items-center gap-1">
+                        <span className="text-sm">{prospect.email}</span>
+                        <Pencil className="h-3 w-3 opacity-0 group-hover:opacity-50 transition-opacity" />
+                      </div>
+                      {prospect.phone && (
+                        <span className="text-xs text-muted-foreground">{prospect.phone}</span>
+                      )}
+                      {!prospect.phone && (
+                        <span className="text-xs text-muted-foreground/50 italic">+ Add phone</span>
+                      )}
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-72" align="start">
+                    <div className="space-y-3">
+                      <div className="space-y-1.5">
+                        <Label htmlFor={`email-${prospect.id}`} className="text-xs">Email</Label>
+                        <Input
+                          id={`email-${prospect.id}`}
+                          type="email"
+                          value={quickEditData.email}
+                          onChange={(e) => setQuickEditData(prev => ({ ...prev, email: e.target.value }))}
+                          placeholder="email@company.com"
+                          className="h-8"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor={`phone-${prospect.id}`} className="text-xs">Phone</Label>
+                        <Input
+                          id={`phone-${prospect.id}`}
+                          type="tel"
+                          value={quickEditData.phone}
+                          onChange={(e) => setQuickEditData(prev => ({ ...prev, phone: e.target.value }))}
+                          placeholder="+1 (555) 123-4567"
+                          className="h-8"
+                        />
+                      </div>
+                      <div className="flex justify-end gap-2 pt-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={cancelQuickEdit}
+                          disabled={quickEditSaving}
+                        >
+                          <X className="h-4 w-4 mr-1" />
+                          Cancel
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => saveQuickEdit(prospect.id)}
+                          disabled={quickEditSaving}
+                        >
+                          <Check className="h-4 w-4 mr-1" />
+                          {quickEditSaving ? "Saving..." : "Save"}
+                        </Button>
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </TableCell>
               <TableCell>{prospect.title || "—"}</TableCell>
               <TableCell>{prospect.company || "—"}</TableCell>
@@ -251,8 +388,8 @@ export function ProspectList() {
                   <Button variant="ghost" size="icon" onClick={() => handleAction("Composing Email", prospect.name)}>
                     <Mail className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => handleEditProspect(prospect)} title="Edit prospect">
-                    <MoreHorizontal className="h-4 w-4" />
+                  <Button variant="ghost" size="icon" onClick={() => handleEditProspect(prospect)} title="Edit all details">
+                    <Pencil className="h-4 w-4" />
                   </Button>
                 </div>
               </TableCell>

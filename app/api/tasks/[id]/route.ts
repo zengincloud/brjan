@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { withAuth } from "@/lib/auth/api-middleware"
+import { advanceSequenceStep } from "@/lib/sequences"
 
 export const dynamic = 'force-dynamic'
 
@@ -37,7 +38,13 @@ const serializeTask = (task: {
   createdAt: task.createdAt.toISOString(),
 })
 
-export async function PATCH(request: Request, context: { params: { id: string } }) {
+// PATCH handler with auth to support sequence advancement
+export const PATCH = withAuth<{ params: { id: string } }>(async (
+  request: NextRequest,
+  userId: string,
+  context
+) => {
+  const { params } = context!
   const body = await request.json()
   const parsed = bodySchema.safeParse(body)
 
@@ -45,7 +52,7 @@ export async function PATCH(request: Request, context: { params: { id: string } 
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
   }
 
-  const { id } = context.params
+  const { id } = params
   const { status, priority, dueDate, title, description } = parsed.data
 
   const data: {
@@ -65,16 +72,55 @@ export async function PATCH(request: Request, context: { params: { id: string } 
   if (description) data.description = description
 
   try {
+    // Get the task first to check for sequence info
+    const existingTask = await prisma.task.findFirst({
+      where: { id, userId },
+    })
+
+    if (!existingTask) {
+      return NextResponse.json({ error: "Task not found" }, { status: 404 })
+    }
+
+    // Update the task
     const task = await prisma.task.update({
       where: { id },
       data,
     })
 
-    return NextResponse.json({ task: serializeTask(task) })
+    // If task is being marked as done and it's part of a sequence, advance the sequence
+    let sequenceAdvanced = null
+    if (status === "done" && existingTask.status !== "done") {
+      const contact = existingTask.contact as any
+      if (contact?.sequenceId && contact?.prospectId) {
+        console.log(`Task completed for sequence ${contact.sequenceName}, advancing prospect ${contact.prospectId}`)
+
+        const advanceResult = await advanceSequenceStep(
+          contact.prospectId,
+          contact.sequenceId,
+          userId
+        )
+
+        if (advanceResult.success) {
+          sequenceAdvanced = {
+            completed: advanceResult.completed,
+            nextStep: advanceResult.nextStep,
+          }
+          console.log(`Sequence advanced:`, advanceResult)
+        } else {
+          console.error(`Failed to advance sequence:`, advanceResult.error)
+        }
+      }
+    }
+
+    return NextResponse.json({
+      task: serializeTask(task),
+      sequenceAdvanced,
+    })
   } catch (error) {
+    console.error("Error updating task:", error)
     return NextResponse.json({ error: "Task not found" }, { status: 404 })
   }
-}
+})
 
 export const DELETE = withAuth(async (request: NextRequest, userId: string, context?: { params: { id: string } }) => {
   const id = context?.params?.id

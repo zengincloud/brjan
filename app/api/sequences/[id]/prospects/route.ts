@@ -53,6 +53,12 @@ async function createTaskForStep(
             phone: prospect.phone,
             company: prospect.company,
             title: prospect.title,
+            // Sequence metadata for tracking
+            sequenceId: sequence.id,
+            sequenceName: sequence.name,
+            stepId: step.id,
+            stepName: step.name,
+            stepType: step.type,
           },
         }
       })
@@ -62,7 +68,7 @@ async function createTaskForStep(
       await prisma.task.create({
         data: {
           title: `LinkedIn: ${prospect.name}`,
-          description: step.taskNotes || `Reach out to ${prospect.name} on LinkedIn`,
+          description: step.taskNotes || `Reach out to ${prospect.name} on LinkedIn from sequence "${sequence.name}"`,
           type: 'linkedin',
           status: 'to_do',
           priority: 'medium',
@@ -75,6 +81,12 @@ async function createTaskForStep(
             linkedin: prospect.linkedin,
             company: prospect.company,
             title: prospect.title,
+            // Sequence metadata for tracking
+            sequenceId: sequence.id,
+            sequenceName: sequence.name,
+            stepId: step.id,
+            stepName: step.name,
+            stepType: step.type,
           },
         }
       })
@@ -84,7 +96,7 @@ async function createTaskForStep(
       await prisma.task.create({
         data: {
           title: step.name || `Task for ${prospect.name}`,
-          description: step.taskNotes || `Complete task for ${prospect.name}`,
+          description: step.taskNotes || `Complete task for ${prospect.name} from sequence "${sequence.name}"`,
           type: 'follow_up',
           status: 'to_do',
           priority: 'medium',
@@ -96,6 +108,12 @@ async function createTaskForStep(
             email: prospect.email,
             company: prospect.company,
             title: prospect.title,
+            // Sequence metadata for tracking
+            sequenceId: sequence.id,
+            sequenceName: sequence.name,
+            stepId: step.id,
+            stepName: step.name,
+            stepType: step.type,
           },
         }
       })

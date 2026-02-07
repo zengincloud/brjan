@@ -32,10 +32,15 @@ type DraftEmail = {
   bodyText: string
   bodyHtml: string | null
   createdAt: string
+  emailType: string
   metadata: {
     prospectName?: string
     queuedAt?: string
     source?: string
+    sequenceId?: string
+    sequenceName?: string
+    stepId?: string
+    stepName?: string
   } | null
 }
 
@@ -204,16 +209,26 @@ export function DraftEmailList({
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold text-sm truncate">
                         {draft.metadata?.prospectName || draft.to}
                       </span>
+                      {draft.metadata?.sequenceName && (
+                        <Badge variant="outline" className="text-xs flex-shrink-0 bg-primary/10 border-primary/30 text-primary">
+                          {draft.metadata.sequenceName}
+                        </Badge>
+                      )}
                       <Badge variant="secondary" className="text-xs flex-shrink-0">
                         <Clock className="h-3 w-3 mr-1" />
                         Draft
                       </Badge>
                     </div>
                     <p className="text-xs text-muted-foreground truncate">{draft.to}</p>
+                    {draft.metadata?.stepName && (
+                      <p className="text-xs text-muted-foreground">
+                        Step: {draft.metadata.stepName}
+                      </p>
+                    )}
                     <p className="text-sm font-medium mt-1 truncate">{draft.subject}</p>
                     <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
                       {draft.bodyText.substring(0, 100)}...
@@ -256,6 +271,20 @@ export function DraftEmailList({
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Sequence info banner */}
+              {selectedDraft.metadata?.sequenceName && (
+                <div className="flex items-center gap-2 p-2 bg-primary/10 border border-primary/20 rounded-lg text-sm">
+                  <Badge variant="outline" className="bg-primary/10 border-primary/30 text-primary font-medium">
+                    {selectedDraft.metadata.sequenceName}
+                  </Badge>
+                  {selectedDraft.metadata.stepName && (
+                    <span className="text-muted-foreground">
+                      {selectedDraft.metadata.stepName}
+                    </span>
+                  )}
+                </div>
+              )}
+
               {/* Recipient */}
               <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
                 <Avatar className="h-10 w-10">

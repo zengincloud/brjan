@@ -173,6 +173,129 @@ export default function DialerPage() {
   const activeCallRef = useRef<TwilioCall | null>(null)
   const callStartTimeRef = useRef<number | null>(null)
 
+  // Audio refs for session sounds
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const ringIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const ringOscillatorRef = useRef<OscillatorNode | null>(null)
+  const ringGainRef = useRef<GainNode | null>(null)
+
+  // Play ringing sound (phone ring pattern)
+  const playRingingSound = useCallback(() => {
+    try {
+      // Stop any existing ringing first
+      stopRingingSound()
+
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext
+      if (!AudioContextClass) return
+
+      audioContextRef.current = new AudioContextClass()
+      const ctx = audioContextRef.current
+
+      // Create oscillator and gain for ringing
+      const oscillator = ctx.createOscillator()
+      const gainNode = ctx.createGain()
+
+      oscillator.connect(gainNode)
+      gainNode.connect(ctx.destination)
+      oscillator.frequency.value = 440 // A4 note
+      oscillator.type = 'sine'
+      gainNode.gain.value = 0
+
+      oscillator.start()
+      ringOscillatorRef.current = oscillator
+      ringGainRef.current = gainNode
+
+      // Create ringing pattern: ring for 0.4s, pause for 0.2s, ring for 0.4s, pause for 2s
+      let ringPhase = 0
+      const ringPattern = () => {
+        if (!audioContextRef.current || !ringGainRef.current) return
+
+        const now = audioContextRef.current.currentTime
+        if (ringPhase === 0) {
+          ringGainRef.current.gain.setValueAtTime(0.15, now)
+          setTimeout(() => {
+            if (ringGainRef.current && audioContextRef.current) {
+              ringGainRef.current.gain.setValueAtTime(0, audioContextRef.current.currentTime)
+            }
+          }, 400)
+          ringPhase = 1
+        } else if (ringPhase === 1) {
+          ringGainRef.current.gain.setValueAtTime(0.15, now)
+          setTimeout(() => {
+            if (ringGainRef.current && audioContextRef.current) {
+              ringGainRef.current.gain.setValueAtTime(0, audioContextRef.current.currentTime)
+            }
+          }, 400)
+          ringPhase = 0
+        }
+      }
+
+      // Start ring pattern
+      ringPattern()
+      ringIntervalRef.current = setInterval(ringPattern, 600)
+    } catch (e) {
+      console.log("Could not play ringing sound:", e)
+    }
+  }, [])
+
+  // Stop ringing sound
+  const stopRingingSound = useCallback(() => {
+    try {
+      if (ringIntervalRef.current) {
+        clearInterval(ringIntervalRef.current)
+        ringIntervalRef.current = null
+      }
+      if (ringOscillatorRef.current) {
+        ringOscillatorRef.current.stop()
+        ringOscillatorRef.current = null
+      }
+      if (ringGainRef.current) {
+        ringGainRef.current = null
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close()
+        audioContextRef.current = null
+      }
+    } catch (e) {
+      console.log("Could not stop ringing sound:", e)
+    }
+  }, [])
+
+  // Play hangup sound (busy tone)
+  const playHangupSound = useCallback(() => {
+    try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext
+      if (!AudioContextClass) return
+
+      const ctx = new AudioContextClass()
+      const oscillator = ctx.createOscillator()
+      const gainNode = ctx.createGain()
+
+      oscillator.connect(gainNode)
+      gainNode.connect(ctx.destination)
+      oscillator.frequency.value = 480 // Busy tone frequency
+      oscillator.type = 'sine'
+      gainNode.gain.value = 0.15
+
+      oscillator.start()
+
+      // Play for 0.5 seconds then stop
+      setTimeout(() => {
+        oscillator.stop()
+        ctx.close()
+      }, 500)
+    } catch (e) {
+      console.log("Could not play hangup sound:", e)
+    }
+  }, [])
+
+  // Cleanup audio on unmount
+  useEffect(() => {
+    return () => {
+      stopRingingSound()
+    }
+  }, [stopRingingSound])
+
   // Available sequences
   const sequences = [
     { id: "all", name: "All Sequences" },
@@ -539,6 +662,10 @@ export default function DialerPage() {
         setIsMuted(false)
         setShowOutcomeButtons(true)
 
+        // Stop ringing sound if still playing and play hangup
+        stopRingingSound()
+        playHangupSound()
+
         // Update slot to completed
         setCallSlots(prev => prev.map((slot, idx) =>
           idx === slotIndex
@@ -550,6 +677,11 @@ export default function DialerPage() {
       call.on("cancel", () => {
         console.log("Call cancelled")
         activeCallRef.current = null
+
+        // Stop ringing and play hangup
+        stopRingingSound()
+        playHangupSound()
+
         // Mark as no answer and auto-advance
         handleCallOutcomeAndAdvance(slotIndex, "no_answer")
       })
@@ -557,12 +689,22 @@ export default function DialerPage() {
       call.on("reject", () => {
         console.log("Call rejected")
         activeCallRef.current = null
+
+        // Stop ringing and play hangup
+        stopRingingSound()
+        playHangupSound()
+
         handleCallOutcomeAndAdvance(slotIndex, "busy")
       })
 
       call.on("error", (error) => {
         console.error("Call error:", error)
         activeCallRef.current = null
+
+        // Stop ringing and play hangup
+        stopRingingSound()
+        playHangupSound()
+
         toast({
           title: "Call Error",
           description: error.message || "An error occurred during the call",
@@ -571,11 +713,14 @@ export default function DialerPage() {
         handleCallOutcomeAndAdvance(slotIndex, "failed")
       })
 
-      // When prospect answers, update status to connected
+      // When prospect answers, update status to connected and stop ringing
       call.on("sample", () => {
         setCallSlots(prev => {
           const current = prev[slotIndex]
           if (current?.status === "ringing") {
+            // Stop ringing sound when someone picks up
+            stopRingingSound()
+
             return prev.map((slot, idx) =>
               idx === slotIndex
                 ? { ...slot, status: "connected" as CallStatus }
@@ -703,6 +848,9 @@ export default function DialerPage() {
     setCurrentProspectIndex(0)
     setShowOutcomeButtons(false)
 
+    // Play ringing sound when session starts
+    playRingingSound()
+
     // Start with the first prospect
     const firstProspect = mockProspects[0]
     if (firstProspect) {
@@ -716,6 +864,10 @@ export default function DialerPage() {
   }
 
   const stopSession = () => {
+    // Stop ringing and play hangup sound
+    stopRingingSound()
+    playHangupSound()
+
     // End any active call
     if (activeCallRef.current) {
       activeCallRef.current.disconnect()

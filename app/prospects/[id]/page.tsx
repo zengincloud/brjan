@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { ArrowLeft, Mail, Phone, Linkedin, MapPin, Building, Briefcase, Calendar, Globe, Pencil, Zap, X, ClipboardList, Clock, ExternalLink } from "lucide-react"
+import { ArrowLeft, Mail, Phone, Linkedin, MapPin, Building, Briefcase, Calendar, Globe, Pencil, Zap, X, ClipboardList, Clock, ExternalLink, UserMinus, Loader2 } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { CallHistory } from "@/components/call-history"
 import { CallProspectDialog } from "@/components/call-prospect-dialog"
@@ -16,6 +16,17 @@ import { CorrespondenceSummary } from "@/components/correspondence-summary"
 import { ProspectPOV } from "@/components/prospect-pov"
 import { AddToSequenceDialog } from "@/components/add-to-sequence-dialog"
 import { CreateTaskDialog } from "@/components/create-task-dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { toast } from "sonner"
 
 type POVData = {
   opportunity: string
@@ -62,6 +73,8 @@ export default function ProspectDetailPage() {
   const [emailDialogOpen, setEmailDialogOpen] = useState(false)
   const [sequenceDialogOpen, setSequenceDialogOpen] = useState(false)
   const [taskDialogOpen, setTaskDialogOpen] = useState(false)
+  const [removeSequenceDialogOpen, setRemoveSequenceDialogOpen] = useState(false)
+  const [removingFromSequence, setRemovingFromSequence] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
@@ -91,6 +104,29 @@ export default function ProspectDetailPage() {
     if (params.id) {
       loadProspect(params.id as string)
       setRefreshKey((prev) => prev + 1)
+    }
+  }
+
+  const removeFromSequence = async () => {
+    if (!prospect?.currentStepDetails) return
+
+    try {
+      setRemovingFromSequence(true)
+      const response = await fetch(
+        `/api/sequences/${prospect.currentStepDetails.sequenceId}/prospects/${prospect.id}`,
+        { method: "DELETE" }
+      )
+
+      if (!response.ok) throw new Error("Failed to remove from sequence")
+
+      toast.success("Removed from sequence")
+      setRemoveSequenceDialogOpen(false)
+      refreshData()
+    } catch (error) {
+      console.error(error)
+      toast.error("Failed to remove from sequence")
+    } finally {
+      setRemovingFromSequence(false)
     }
   }
 
@@ -411,7 +447,16 @@ export default function ProspectDetailPage() {
                     onClick={() => setSequenceDialogOpen(true)}
                   >
                     <Zap className="h-3 w-3 mr-1" />
-                    Change Sequence
+                    Change
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 text-destructive hover:text-destructive"
+                    onClick={() => setRemoveSequenceDialogOpen(true)}
+                  >
+                    <UserMinus className="h-3 w-3 mr-1" />
+                    Remove
                   </Button>
                 </div>
               </>
@@ -514,6 +559,36 @@ export default function ProspectDetailPage() {
         }}
         onTaskCreated={refreshData}
       />
+
+      {/* Remove from Sequence Confirmation */}
+      <AlertDialog open={removeSequenceDialogOpen} onOpenChange={setRemoveSequenceDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove from Sequence</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove {prospect.name} from the "{prospect.sequence}" sequence?
+              They will no longer receive any steps from this sequence.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={removingFromSequence}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={removeFromSequence}
+              disabled={removingFromSequence}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {removingFromSequence ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Removing...
+                </>
+              ) : (
+                "Remove"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

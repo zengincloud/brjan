@@ -17,6 +17,9 @@ import {
   Edit,
   Users,
   ArrowRight,
+  Trash2,
+  MoreHorizontal,
+  ClipboardList,
 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { formatDistanceToNow } from "date-fns"
@@ -30,6 +33,22 @@ import {
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 type Sequence = {
   id: string
@@ -86,6 +105,9 @@ export default function SequenceDetailPage() {
   const [selectedProspects, setSelectedProspects] = useState<string[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [adding, setAdding] = useState(false)
+  const [removeDialogOpen, setRemoveDialogOpen] = useState(false)
+  const [prospectToRemove, setProspectToRemove] = useState<{ id: string; name: string } | null>(null)
+  const [removing, setRemoving] = useState(false)
 
   useEffect(() => {
     if (params.id) {
@@ -203,6 +225,38 @@ export default function SequenceDetailPage() {
     }
   }
 
+  const removeProspectFromSequence = async () => {
+    if (!prospectToRemove || !sequence) return
+
+    try {
+      setRemoving(true)
+      const response = await fetch(
+        `/api/sequences/${sequence.id}/prospects/${prospectToRemove.id}`,
+        { method: "DELETE" }
+      )
+
+      if (!response.ok) throw new Error("Failed to remove prospect")
+
+      toast({
+        title: "Success",
+        description: `${prospectToRemove.name} removed from sequence`,
+      })
+
+      setRemoveDialogOpen(false)
+      setProspectToRemove(null)
+      loadSequence(params.id as string)
+    } catch (error) {
+      console.error(error)
+      toast({
+        title: "Error",
+        description: "Failed to remove prospect from sequence",
+        variant: "destructive",
+      })
+    } finally {
+      setRemoving(false)
+    }
+  }
+
   const getStepIcon = (type: string) => {
     switch (type) {
       case "email":
@@ -210,8 +264,9 @@ export default function SequenceDetailPage() {
       case "call":
         return <Phone className="h-4 w-4" />
       case "linkedin":
-      case "task":
         return <Linkedin className="h-4 w-4" />
+      case "task":
+        return <ClipboardList className="h-4 w-4" />
       case "wait":
         return <Clock className="h-4 w-4" />
       default:
@@ -366,10 +421,12 @@ export default function SequenceDetailPage() {
               {sequence.prospectSequences.map((ps) => (
                 <div
                   key={ps.id}
-                  className="flex items-center gap-4 p-3 rounded-lg border hover:bg-muted/50 cursor-pointer"
-                  onClick={() => router.push(`/prospects/${ps.prospect.id}`)}
+                  className="flex items-center gap-4 p-3 rounded-lg border hover:bg-muted/50"
                 >
-                  <div className="flex-1">
+                  <div
+                    className="flex-1 cursor-pointer"
+                    onClick={() => router.push(`/prospects/${ps.prospect.id}`)}
+                  >
                     <div className="font-medium">{ps.prospect.name}</div>
                     <div className="text-sm text-muted-foreground">
                       {ps.prospect.title && <span>{ps.prospect.title}</span>}
@@ -396,6 +453,33 @@ export default function SequenceDetailPage() {
                       Step {ps.currentStep + 1} of {sequence.steps.length}
                     </div>
                   </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        onClick={() => router.push(`/prospects/${ps.prospect.id}`)}
+                      >
+                        View Prospect
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setProspectToRemove({
+                            id: ps.prospect.id,
+                            name: ps.prospect.name,
+                          })
+                          setRemoveDialogOpen(true)
+                        }}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Remove from Sequence
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               ))}
             </div>
@@ -473,6 +557,29 @@ export default function SequenceDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Remove Prospect Confirmation Dialog */}
+      <AlertDialog open={removeDialogOpen} onOpenChange={setRemoveDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove from Sequence</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove {prospectToRemove?.name} from this sequence?
+              They will no longer receive any steps from this sequence.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={removing}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={removeProspectFromSequence}
+              disabled={removing}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {removing ? "Removing..." : "Remove"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

@@ -124,8 +124,8 @@ export const GET = withAuth(async (
       })
     }
 
-    // Also get prospects with active call steps that don't have tasks yet
-    const prospectsWithDueCalls = await prisma.prospectSequence.findMany({
+    // Also get prospects with active call steps (include all active, not just due)
+    const prospectsWithCallSteps = await prisma.prospectSequence.findMany({
       where: {
         status: 'active',
         sequence: {
@@ -133,9 +133,8 @@ export const GET = withAuth(async (
           status: 'active',
           ...(sequenceId && sequenceId !== 'all' ? { id: sequenceId } : {}),
         },
-        nextActionAt: {
-          lte: new Date()
-        }
+        // Include all active sequences - don't filter by nextActionAt
+        // so we don't miss prospects whose call step just became active
       },
       include: {
         prospect: true,
@@ -150,7 +149,7 @@ export const GET = withAuth(async (
     })
 
     // Add prospects whose current step is a call
-    for (const ps of prospectsWithDueCalls) {
+    for (const ps of prospectsWithCallSteps) {
       const currentStep = ps.sequence.steps[ps.currentStep]
       if (currentStep?.type !== 'call') continue
 

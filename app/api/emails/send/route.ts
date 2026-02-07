@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { withAuth } from "@/lib/auth/api-middleware"
 import sgMail from "@sendgrid/mail"
 import { sendEmailViaGmail } from "@/lib/gmail/send"
+import { advanceSequenceStep } from "@/lib/sequences"
 
 // Initialize SendGrid with API key
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY
@@ -134,11 +135,29 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
         })
       }
 
+      // Advance sequence if this email was part of a sequence
+      let sequenceAdvanced = null
+      const sequenceId = metadata?.sequenceId
+      if (sequenceId && prospectId) {
+        console.log(`Email sent for sequence ${metadata?.sequenceName}, advancing prospect ${prospectId}`)
+        const advanceResult = await advanceSequenceStep(prospectId, sequenceId, userId)
+        if (advanceResult.success) {
+          sequenceAdvanced = {
+            completed: advanceResult.completed,
+            nextStep: advanceResult.nextStep,
+          }
+          console.log(`Sequence advanced:`, advanceResult)
+        } else {
+          console.error(`Failed to advance sequence:`, advanceResult.error)
+        }
+      }
+
       return NextResponse.json({
         success: true,
         emailId: emailRecord.id,
         externalId,
         sentVia: useGmail ? "gmail" : "sendgrid",
+        sequenceAdvanced,
       })
     } catch (sendError: any) {
       console.error("Email send error:", sendError)
@@ -187,12 +206,26 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
             })
           }
 
+          // Advance sequence on fallback success too
+          let sequenceAdvanced = null
+          const sequenceId = metadata?.sequenceId
+          if (sequenceId && prospectId) {
+            const advanceResult = await advanceSequenceStep(prospectId, sequenceId, userId)
+            if (advanceResult.success) {
+              sequenceAdvanced = {
+                completed: advanceResult.completed,
+                nextStep: advanceResult.nextStep,
+              }
+            }
+          }
+
           return NextResponse.json({
             success: true,
             emailId: emailRecord.id,
             externalId: response.headers["x-message-id"],
             sentVia: "sendgrid",
             fallback: true,
+            sequenceAdvanced,
           })
         } catch (fallbackError: any) {
           console.error("SendGrid fallback also failed:", fallbackError)

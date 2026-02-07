@@ -33,6 +33,7 @@ type DraftEmail = {
   bodyHtml: string | null
   createdAt: string
   emailType: string
+  prospectId: string | null
   metadata: {
     prospectName?: string
     queuedAt?: string
@@ -104,8 +105,11 @@ export function DraftEmailList({
           subject: editedSubject,
           bodyText: editedBodyText,
           bodyHtml: editedBodyHtml,
-          emailType: "one_off",
-          draftId: selectedDraft.id, // Include draft ID to mark as sent
+          emailType: selectedDraft.emailType || "one_off",
+          draftId: selectedDraft.id,
+          // Pass sequence metadata for sequence advancement
+          metadata: selectedDraft.metadata,
+          prospectId: selectedDraft.prospectId,
         }),
       })
 

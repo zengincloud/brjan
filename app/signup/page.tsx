@@ -84,6 +84,13 @@ export default function SignupPage() {
       if (error) {
         console.error('Signup error details:', error)
 
+        // Handle case where Supabase returns identities as empty (user exists but unconfirmed)
+        if (data?.user && data.user.identities?.length === 0) {
+          setConfirmedEmail(email)
+          setShowConfirmation(true)
+          return
+        }
+
         // Provide specific error messages
         if (error.message.includes('User already registered')) {
           toast.error('This email is already registered. Try logging in instead.')
@@ -101,15 +108,14 @@ export default function SignupPage() {
 
       // Success!
       if (data.user) {
-        if (!data.user.confirmed_at) {
+        if (!data.user.confirmed_at || data.session === null) {
           // Email confirmation required - show confirmation screen
           setConfirmedEmail(email)
           setShowConfirmation(true)
+          toast.success('Confirmation email sent!')
         } else {
           // No confirmation required - user is logged in
-          toast.success('Account created successfully! Redirecting...', {
-            duration: 3000,
-          })
+          toast.success('Account created successfully! Redirecting...')
           setTimeout(() => {
             router.push('/')
             router.refresh()

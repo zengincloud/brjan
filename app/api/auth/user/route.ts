@@ -17,6 +17,8 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
         firstName: true,
         lastName: true,
         avatarUrl: true,
+        role: true,
+        organizationId: true,
         createdAt: true,
       },
     })

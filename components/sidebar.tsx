@@ -21,16 +21,25 @@ import {
   Building2,
   Send,
   Zap,
+  Shield,
 } from "lucide-react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
 
 export function Sidebar({ className }: { className?: string }) {
   const [isActivityOpen, setIsActivityOpen] = useState(false)
+  const [userRole, setUserRole] = useState<string | null>(null)
   const pathname = usePathname()
+
+  useEffect(() => {
+    fetch("/api/auth/user")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data?.user?.role) setUserRole(data.user.role) })
+      .catch(() => {})
+  }, [])
 
   return (
     <div className={cn("bg-sidebar-background p-4 flex flex-col gap-4", className)}>
@@ -299,6 +308,21 @@ export function Sidebar({ className }: { className?: string }) {
             </div>
           </div>
         </div>
+        {userRole === "super_admin" && (
+          <Button
+            variant="ghost"
+            className={cn(
+              "w-full justify-start transition-colors",
+              pathname.startsWith("/admin") && "bg-accent/10 text-accent hover:bg-accent/15"
+            )}
+            asChild
+          >
+            <Link href="/admin">
+              <Shield className="h-4 w-4 mr-3" />
+              Admin
+            </Link>
+          </Button>
+        )}
         <Button
           variant="ghost"
           className={cn(

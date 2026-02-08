@@ -28,12 +28,14 @@ model User {
   sequences        Sequence[]
   emailTemplates   EmailTemplate[]
   gmailIntegration GmailIntegration?
+  invitationsSent  Invitation[]
 
   @@index([organizationId])
   @@map("users")
 }
 
 enum UserRole {
+  super_admin
   owner
   manager
   member
@@ -51,7 +53,8 @@ model Organization {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  users User[]
+  users       User[]
+  invitations Invitation[]
 
   @@map("organizations")
 }
@@ -432,4 +435,28 @@ model EmailTemplate {
 
   @@index([userId])
   @@map("email_templates")
+}
+
+model Invitation {
+  id             String           @id @default(cuid())
+  email          String
+  token          String           @unique @default(cuid())
+  role           UserRole         @default(member)
+  status         InvitationStatus @default(pending)
+  organizationId String
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invitedById    String
+  invitedBy      User             @relation(fields: [invitedById], references: [id], onDelete: Cascade)
+  expiresAt      DateTime
+  createdAt      DateTime         @default(now())
+
+  @@index([organizationId])
+  @@index([token])
+  @@map("invitations")
+}
+
+enum InvitationStatus {
+  pending
+  accepted
+  expired
 }

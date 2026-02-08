@@ -32,12 +32,20 @@ import { Badge } from "@/components/ui/badge"
 export function Sidebar({ className }: { className?: string }) {
   const [isActivityOpen, setIsActivityOpen] = useState(false)
   const [userRole, setUserRole] = useState<string | null>(null)
+  const [creditStatus, setCreditStatus] = useState<{
+    tier: string; label: string; creditsUsed: number; creditsTotal: number; creditsRemaining: number
+  } | null>(null)
   const pathname = usePathname()
 
   useEffect(() => {
     fetch("/api/auth/user")
       .then((r) => r.ok ? r.json() : null)
       .then((data) => { if (data?.user?.role) setUserRole(data.user.role) })
+      .catch(() => {})
+
+    fetch("/api/credits")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data) setCreditStatus(data) })
       .catch(() => {})
   }, [])
 
@@ -291,23 +299,47 @@ export function Sidebar({ className }: { className?: string }) {
 
       {/* Bottom Section */}
       <div className="mt-auto space-y-2">
-        <div className="px-2 py-3 rounded-lg bg-secondary/50 border border-border">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-6 h-6 rounded-full bg-accent/20 flex items-center justify-center">
-              <Zap className="w-3 h-3 text-accent" />
+        {creditStatus && (
+          <div className="px-2 py-3 rounded-lg bg-secondary/50 border border-border">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-6 h-6 rounded-full bg-accent/20 flex items-center justify-center">
+                <Zap className="w-3 h-3 text-accent" />
+              </div>
+              <span className="text-xs font-medium text-foreground">{creditStatus.label} Plan</span>
             </div>
-            <span className="text-xs font-medium text-foreground">Weekly Progress</span>
+            {creditStatus.creditsTotal === -1 ? (
+              <div className="text-xs text-muted-foreground">Unlimited credits</div>
+            ) : (
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Credits</span>
+                  <span className={
+                    creditStatus.creditsRemaining / creditStatus.creditsTotal <= 0.1
+                      ? "text-red-500"
+                      : creditStatus.creditsRemaining / creditStatus.creditsTotal <= 0.3
+                        ? "text-yellow-500"
+                        : "text-accent"
+                  }>
+                    {creditStatus.creditsUsed}/{creditStatus.creditsTotal}
+                  </span>
+                </div>
+                <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+                  <div
+                    className={cn(
+                      "h-full rounded-full transition-all",
+                      creditStatus.creditsUsed / creditStatus.creditsTotal >= 0.9
+                        ? "bg-red-500"
+                        : creditStatus.creditsUsed / creditStatus.creditsTotal >= 0.7
+                          ? "bg-yellow-500"
+                          : "bg-accent"
+                    )}
+                    style={{ width: `${Math.min((creditStatus.creditsUsed / creditStatus.creditsTotal) * 100, 100)}%` }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
-          <div className="space-y-1">
-            <div className="flex justify-between text-xs">
-              <span className="text-muted-foreground">Calls</span>
-              <span className="text-accent">400/500</span>
-            </div>
-            <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
-              <div className="h-full bg-accent rounded-full" style={{ width: "80%" }} />
-            </div>
-          </div>
-        </div>
+        )}
         {userRole === "super_admin" && (
           <Button
             variant="ghost"

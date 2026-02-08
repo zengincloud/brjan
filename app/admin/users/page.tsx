@@ -21,9 +21,18 @@ type AdminUser = {
   firstName: string | null
   lastName: string | null
   role: string
+  tier: string
+  creditsUsed: number
   createdAt: string
   organization: { id: string; name: string } | null
   _count: { calls: number; emails: number; prospects: number }
+}
+
+const TIER_CREDITS: Record<string, number> = {
+  trial: 25,
+  starter: 100,
+  pro: 500,
+  pro_max: 1000,
 }
 
 export default function AdminUsersPage() {
@@ -84,6 +93,25 @@ export default function AdminUsersPage() {
       window.location.href = "/"
     } catch {
       toast.error("Failed to impersonate")
+    }
+  }
+
+  const handleTierChange = async (userId: string, newTier: string) => {
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, tier: newTier }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        toast.error(data.error || "Failed to update tier")
+        return
+      }
+      toast.success("Tier updated — credits reset")
+      loadUsers()
+    } catch {
+      toast.error("Failed to update tier")
     }
   }
 
@@ -156,6 +184,8 @@ export default function AdminUsersPage() {
                 <TableHead>User</TableHead>
                 <TableHead>Organization</TableHead>
                 <TableHead>Role</TableHead>
+                <TableHead>Tier</TableHead>
+                <TableHead>Credits</TableHead>
                 <TableHead>Activity</TableHead>
                 <TableHead>Joined</TableHead>
                 <TableHead></TableHead>
@@ -164,7 +194,7 @@ export default function AdminUsersPage() {
             <TableBody>
               {filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                     No users match your search
                   </TableCell>
                 </TableRow>
@@ -207,6 +237,35 @@ export default function AdminUsersPage() {
                           <SelectItem value="member">Member</SelectItem>
                         </SelectContent>
                       </Select>
+                    </TableCell>
+                    <TableCell>
+                      {u.role === "super_admin" ? (
+                        <Badge variant="outline" className="text-xs">Unlimited</Badge>
+                      ) : (
+                        <Select
+                          value={u.tier}
+                          onValueChange={(val) => handleTierChange(u.id, val)}
+                        >
+                          <SelectTrigger className="w-[110px] h-7 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="trial">Trial</SelectItem>
+                            <SelectItem value="starter">Starter</SelectItem>
+                            <SelectItem value="pro">Pro</SelectItem>
+                            <SelectItem value="pro_max">Pro Max</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {u.role === "super_admin" ? (
+                        <span className="text-xs text-muted-foreground">&infin;</span>
+                      ) : (
+                        <Badge variant="outline" className="text-xs font-mono">
+                          {u.creditsUsed}/{TIER_CREDITS[u.tier] || 0}
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-3 text-xs text-muted-foreground">

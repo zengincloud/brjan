@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { withAuth } from "@/lib/auth/api-middleware"
+import { checkCredits, deductCredits } from "@/lib/credits"
 
 export const dynamic = 'force-dynamic'
 
@@ -111,6 +112,12 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       return NextResponse.json({ error: "Name and email are required" }, { status: 400 })
     }
 
+    // Check credits before creating
+    const creditCheck = await checkCredits(userId)
+    if (!creditCheck.allowed) {
+      return NextResponse.json({ error: creditCheck.error }, { status: 403 })
+    }
+
     // Generate POV data from available information
     const povData = generatePOVData({
       name,
@@ -139,6 +146,9 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
         userId, // Associate with current user
       },
     })
+
+    // Deduct credit after successful creation
+    await deductCredits(userId)
 
     return NextResponse.json({ prospect }, { status: 201 })
   } catch (error: any) {

@@ -500,7 +500,12 @@ export function LeadsProspecting() {
           })
           return
         }
-        throw new Error(errorData.error || "Failed to add prospect")
+        toast({
+          title: "Error",
+          description: errorData.error || "Failed to add prospect",
+          variant: "destructive",
+        })
+        return
       }
 
       toast({

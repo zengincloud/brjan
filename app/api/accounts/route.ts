@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { withAuth } from "@/lib/auth/api-middleware"
 import { prisma } from "@/lib/prisma"
+import { checkCredits, deductCredits } from "@/lib/credits"
 
 export const dynamic = 'force-dynamic'
 
@@ -55,6 +56,12 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       return NextResponse.json({ error: "Name is required" }, { status: 400 })
     }
 
+    // Check credits before creating
+    const creditCheck = await checkCredits(userId)
+    if (!creditCheck.allowed) {
+      return NextResponse.json({ error: creditCheck.error }, { status: 403 })
+    }
+
     const account = await prisma.account.create({
       data: {
         name,
@@ -69,6 +76,9 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
         userId,
       },
     })
+
+    // Deduct credit after successful creation
+    await deductCredits(userId)
 
     return NextResponse.json({ account }, { status: 201 })
   } catch (error: any) {

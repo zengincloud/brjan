@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { withSuperAdmin } from "@/lib/auth/api-middleware"
+import { TIER_CONFIG, type TierKey } from "@/lib/tier-config"
 
 export const dynamic = "force-dynamic"
 
@@ -15,6 +16,8 @@ export const GET = withSuperAdmin(async (request: NextRequest, user) => {
         firstName: true,
         lastName: true,
         role: true,
+        tier: true,
+        creditsUsed: true,
         createdAt: true,
         organization: { select: { id: true, name: true } },
         _count: { select: { calls: true, emails: true, prospects: true } },
@@ -32,7 +35,7 @@ export const GET = withSuperAdmin(async (request: NextRequest, user) => {
 export const PATCH = withSuperAdmin(async (request: NextRequest, admin) => {
   try {
     const body = await request.json()
-    const { userId, role, organizationId } = body
+    const { userId, role, organizationId, tier } = body
 
     if (!userId) {
       return NextResponse.json({ error: "userId is required" }, { status: 400 })
@@ -41,6 +44,19 @@ export const PATCH = withSuperAdmin(async (request: NextRequest, admin) => {
     const updateData: any = {}
     if (role) updateData.role = role
     if (organizationId !== undefined) updateData.organizationId = organizationId || null
+
+    // Handle tier change: reset credits and set next reset date
+    if (tier && tier in TIER_CONFIG) {
+      updateData.tier = tier
+      updateData.creditsUsed = 0
+      if (tier === "trial") {
+        updateData.creditsResetAt = null
+      } else {
+        const nextReset = new Date()
+        nextReset.setDate(nextReset.getDate() + 30)
+        updateData.creditsResetAt = nextReset
+      }
+    }
 
     const user = await prisma.user.update({
       where: { id: userId },
@@ -51,6 +67,8 @@ export const PATCH = withSuperAdmin(async (request: NextRequest, admin) => {
         firstName: true,
         lastName: true,
         role: true,
+        tier: true,
+        creditsUsed: true,
         organization: { select: { id: true, name: true } },
       },
     })

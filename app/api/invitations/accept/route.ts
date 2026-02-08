@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { withAuthUser } from "@/lib/auth/api-middleware"
+import { checkTeammateLimit } from "@/lib/teammate-limits"
 
 export const dynamic = "force-dynamic"
 
@@ -41,6 +42,14 @@ export const POST = withAuthUser(async (request: NextRequest, user) => {
         { error: `This invitation was sent to ${invitation.email}. Please log in with that email.` },
         { status: 403 }
       )
+    }
+
+    // Re-check teammate limit at acceptance time (org may have filled since invite was sent)
+    if (user.role !== "super_admin") {
+      const limitCheck = await checkTeammateLimit(invitation.organizationId)
+      if (!limitCheck.allowed) {
+        return NextResponse.json({ error: "This organization is now full. The owner needs to upgrade their plan." }, { status: 403 })
+      }
     }
 
     // Assign user to the organization with the invited role

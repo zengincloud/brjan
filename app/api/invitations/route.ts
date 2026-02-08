@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { withAuthUser } from "@/lib/auth/api-middleware"
+import { checkTeammateLimit } from "@/lib/teammate-limits"
 import { randomBytes } from "crypto"
 
 export const dynamic = "force-dynamic"
@@ -66,6 +67,14 @@ export const POST = withAuthUser(async (request: NextRequest, user) => {
     })
     if (existingUser) {
       return NextResponse.json({ error: "User is already a member of this organization" }, { status: 400 })
+    }
+
+    // Check teammate limit (skip for super_admin)
+    if (user.role !== "super_admin") {
+      const limitCheck = await checkTeammateLimit(targetOrgId)
+      if (!limitCheck.allowed) {
+        return NextResponse.json({ error: limitCheck.error }, { status: 403 })
+      }
     }
 
     // Check for existing pending invitation

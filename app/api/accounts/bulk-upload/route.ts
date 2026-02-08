@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { withAuth } from "@/lib/auth/api-middleware"
 import { prisma } from "@/lib/prisma"
+import { checkCredits, deductCredits } from "@/lib/credits"
 import Papa from "papaparse"
 
 export const dynamic = 'force-dynamic'
@@ -61,15 +62,30 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       )
     }
 
-    // Insert accounts in batch
+    // Check initial credits
+    const creditCheck = await checkCredits(userId)
+    if (!creditCheck.allowed) {
+      return NextResponse.json({ error: creditCheck.error }, { status: 403 })
+    }
+
+    // Insert accounts in batch, checking credits before each
     let created = 0
     const duplicates: string[] = []
+    let creditsExhausted = false
 
     for (const account of accounts) {
+      // Check if user still has credits
+      const check = await checkCredits(userId)
+      if (!check.allowed) {
+        creditsExhausted = true
+        break
+      }
+
       try {
         await prisma.account.create({
           data: account,
         })
+        await deductCredits(userId)
         created++
       } catch (error: any) {
         if (error.code === "P2002") {
@@ -85,7 +101,10 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       total: accounts.length,
       duplicates: duplicates.length,
       errors: errors.length,
-      message: `Successfully created ${created} accounts. ${duplicates.length} duplicates skipped. ${errors.length} rows had errors.`,
+      creditsExhausted,
+      message: creditsExhausted
+        ? `Created ${created} of ${accounts.length} accounts before running out of credits. Upgrade your plan for more.`
+        : `Successfully created ${created} accounts. ${duplicates.length} duplicates skipped. ${errors.length} rows had errors.`,
     })
   } catch (error) {
     console.error("Error processing bulk upload:", error)

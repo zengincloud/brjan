@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -39,7 +39,17 @@ export default function SettingsPage() {
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false)
+  const [creditStatus, setCreditStatus] = useState<{
+    tier: string; label: string; creditsUsed: number; creditsTotal: number; creditsRemaining: number; resetsAt: string | null
+  } | null>(null)
   const supabase = createClient()
+
+  useEffect(() => {
+    fetch("/api/credits")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data) setCreditStatus(data) })
+      .catch(() => {})
+  }, [])
 
   const handlePasswordUpdate = async () => {
     if (!newPassword || !confirmPassword) {
@@ -682,78 +692,59 @@ export default function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Current Plan</CardTitle>
-              <CardDescription>Manage your subscription</CardDescription>
+              <CardDescription>Your plan and credit usage</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="p-4 border border-primary/30 bg-primary/5 rounded-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-semibold text-lg">Professional Plan</h3>
-                  <span className="text-2xl font-bold text-primary">$99/mo</span>
-                </div>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Unlimited sequences, advanced analytics, and priority support
-                </p>
-                <div className="flex gap-2">
-                  <Button variant="outline">Change Plan</Button>
-                  <Button variant="ghost" className="text-destructive">Cancel Subscription</Button>
-                </div>
-              </div>
-              <div className="text-sm text-muted-foreground">
-                <p>Next billing date: February 21, 2026</p>
-                <p>Seats used: 1 of 5</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Payment Method</CardTitle>
-              <CardDescription>Manage your payment details</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between p-4 border border-border rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded bg-secondary flex items-center justify-center">
-                    <CreditCard className="h-5 w-5" />
+              {creditStatus ? (
+                <>
+                  <div className="p-4 border border-primary/30 bg-primary/5 rounded-lg">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="font-semibold text-lg">{creditStatus.label} Plan</h3>
+                      {creditStatus.creditsTotal === -1 ? (
+                        <span className="text-sm font-medium text-primary">Unlimited</span>
+                      ) : (
+                        <span className="text-2xl font-bold text-primary">
+                          {creditStatus.creditsRemaining}
+                          <span className="text-sm font-normal text-muted-foreground"> credits left</span>
+                        </span>
+                      )}
+                    </div>
+                    {creditStatus.creditsTotal !== -1 && (
+                      <>
+                        <div className="flex justify-between text-sm mb-2">
+                          <span className="text-muted-foreground">
+                            {creditStatus.creditsUsed} of {creditStatus.creditsTotal} credits used
+                          </span>
+                        </div>
+                        <div className="h-2 bg-secondary rounded-full overflow-hidden mb-3">
+                          <div
+                            className={`h-full rounded-full transition-all ${
+                              creditStatus.creditsUsed / creditStatus.creditsTotal >= 0.9
+                                ? "bg-red-500"
+                                : creditStatus.creditsUsed / creditStatus.creditsTotal >= 0.7
+                                  ? "bg-yellow-500"
+                                  : "bg-primary"
+                            }`}
+                            style={{ width: `${Math.min((creditStatus.creditsUsed / creditStatus.creditsTotal) * 100, 100)}%` }}
+                          />
+                        </div>
+                        {creditStatus.resetsAt && (
+                          <p className="text-xs text-muted-foreground">
+                            Credits reset on {new Date(creditStatus.resetsAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+                          </p>
+                        )}
+                        {creditStatus.tier === "trial" && (
+                          <p className="text-xs text-muted-foreground">
+                            Trial credits do not reset. Contact us to upgrade your plan.
+                          </p>
+                        )}
+                      </>
+                    )}
                   </div>
-                  <div>
-                    <p className="font-medium">•••• •••• •••• 4242</p>
-                    <p className="text-xs text-muted-foreground">Expires 12/2026</p>
-                  </div>
-                </div>
-                <Button variant="outline">Update</Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Billing History</CardTitle>
-              <CardDescription>View and download past invoices</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between p-3 border border-border rounded-lg">
-                  <div>
-                    <p className="font-medium text-sm">January 2026</p>
-                    <p className="text-xs text-muted-foreground">Paid on Jan 21, 2026</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="font-medium">$99.00</span>
-                    <Button variant="ghost" size="sm">Download</Button>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between p-3 border border-border rounded-lg">
-                  <div>
-                    <p className="font-medium text-sm">December 2025</p>
-                    <p className="text-xs text-muted-foreground">Paid on Dec 21, 2025</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="font-medium">$99.00</span>
-                    <Button variant="ghost" size="sm">Download</Button>
-                  </div>
-                </div>
-              </div>
+                </>
+              ) : (
+                <div className="text-sm text-muted-foreground">Loading plan info...</div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

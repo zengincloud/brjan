@@ -20,6 +20,7 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
         lastName: true,
         avatarUrl: true,
         role: true,
+        tier: true,
         organizationId: true,
         createdAt: true,
       },

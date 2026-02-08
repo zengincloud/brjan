@@ -194,7 +194,12 @@ export function AccountsProspecting() {
           })
           return
         }
-        throw new Error(errorData.error || "Failed to add account")
+        toast({
+          title: "Error",
+          description: errorData.error || "Failed to add account",
+          variant: "destructive",
+        })
+        return
       }
 
       toast({

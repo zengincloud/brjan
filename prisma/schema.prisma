@@ -15,6 +15,9 @@ model User {
   lastName       String?
   avatarUrl      String?
   role           UserRole      @default(member)
+  tier           UserTier      @default(trial)
+  creditsUsed    Int           @default(0)
+  creditsResetAt DateTime?
   organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id])
   createdAt      DateTime      @default(now())
@@ -39,6 +42,13 @@ enum UserRole {
   owner
   manager
   member
+}
+
+enum UserTier {
+  trial
+  starter
+  pro
+  pro_max
 }
 
 model Organization {

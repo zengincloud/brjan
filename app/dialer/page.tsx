@@ -888,7 +888,7 @@ export default function DialerPage() {
     demo_booked: "Demo Booked",
   }
 
-  const handleCallOutcome = async (slotId: string, outcome: "connected" | "voicemail" | "no_answer") => {
+  const handleCallOutcome = async (slotId: string, outcome: string) => {
     const slotIndex = callSlots.findIndex(s => s.id === slotId)
     if (slotIndex === -1) return
 
@@ -1595,93 +1595,98 @@ export default function DialerPage() {
 
                     </div>
 
-                    {/* Outcome Buttons */}
+                    {/* Outcome and Pipeline Dropdowns */}
                     <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-border/50">
-                      <span className="text-xs text-muted-foreground font-medium mr-1">Outcome:</span>
-                      <Button
-                        size="sm"
-                        onClick={() => handleCallOutcome(slot.id, "connected")}
-                        className="bg-primary hover:bg-primary/90 text-primary-foreground h-7"
-                      >
-                        <UserCheck className="h-3 w-3 mr-1" />
-                        Connected
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleCallOutcome(slot.id, "voicemail")}
-                        className="h-7"
-                      >
-                        <Voicemail className="h-3 w-3 mr-1" />
-                        VM
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleCallOutcome(slot.id, "no_answer")}
-                        className="h-7"
-                      >
-                        <UserX className="h-3 w-3 mr-1" />
-                        No Answer
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleCallOutcome(slot.id, "no_answer")}
-                        className="h-7"
-                      >
-                        <SkipForward className="h-3 w-3 mr-1" />
-                        Skip
-                      </Button>
-                      <div className="border-l border-border h-5 mx-1" />
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            size="sm"
-                            className="bg-green-600 hover:bg-green-700 text-white h-7"
-                          >
-                            <Rocket className="h-3 w-3 mr-1" />
-                            Pipeline
-                            <ChevronDown className="h-3 w-3 ml-1" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start">
-                          <DropdownMenuItem onClick={() => handlePipelineOutcome(slot.id, "interested")}>
-                            <Star className="h-4 w-4 mr-2 text-yellow-500" />
-                            Interested
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handlePipelineOutcome(slot.id, "intro_booked")}>
-                            <CalendarCheck className="h-4 w-4 mr-2 text-blue-500" />
-                            Intro Booked
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handlePipelineOutcome(slot.id, "opportunity")}>
-                            <Target className="h-4 w-4 mr-2 text-purple-500" />
-                            Opportunity
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handlePipelineOutcome(slot.id, "demo_booked")}>
-                            <Handshake className="h-4 w-4 mr-2 text-green-500" />
-                            Demo Booked
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                      <div className="border-l border-border h-5 mx-1" />
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => slot.contact && openEmailDialog(slot.contact)}
-                        className="h-7"
-                      >
-                        <Mail className="h-3 w-3 mr-1" />
-                        Email
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => slot.contact && openCalendarInvite(slot.contact)}
-                        className="h-7"
-                      >
-                        <Calendar className="h-3 w-3 mr-1" />
-                        Calendar
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              size="sm"
+                              className="bg-primary hover:bg-primary/90 text-primary-foreground h-7"
+                            >
+                              <UserCheck className="h-3 w-3 mr-1" />
+                              Outcome
+                              <ChevronDown className="h-3 w-3 ml-1" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start">
+                            <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "connected_intro_booked")}>
+                              <CalendarCheck className="h-4 w-4 mr-2 text-green-500" />
+                              Intro Booked
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "connected_referral")}>
+                              <UserCheck className="h-4 w-4 mr-2 text-blue-500" />
+                              Referral
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "connected_not_interested")}>
+                              <UserX className="h-4 w-4 mr-2 text-orange-500" />
+                              Not Interested
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "connected_info_gathered")}>
+                              <FileText className="h-4 w-4 mr-2 text-purple-500" />
+                              Informational
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "voicemail")}>
+                              <Voicemail className="h-4 w-4 mr-2" />
+                              Voicemail
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "no_answer")}>
+                              <UserX className="h-4 w-4 mr-2" />
+                              No Answer
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "no_answer")}>
+                              <SkipForward className="h-4 w-4 mr-2" />
+                              Skip
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              size="sm"
+                              className="bg-green-600 hover:bg-green-700 text-white h-7"
+                            >
+                              <Rocket className="h-3 w-3 mr-1" />
+                              Pipeline
+                              <ChevronDown className="h-3 w-3 ml-1" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start">
+                            <DropdownMenuItem onClick={() => handlePipelineOutcome(slot.id, "interested")}>
+                              <Star className="h-4 w-4 mr-2 text-yellow-500" />
+                              Interested
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handlePipelineOutcome(slot.id, "intro_booked")}>
+                              <CalendarCheck className="h-4 w-4 mr-2 text-blue-500" />
+                              Intro Booked
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handlePipelineOutcome(slot.id, "opportunity")}>
+                              <Target className="h-4 w-4 mr-2 text-purple-500" />
+                              Opportunity
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handlePipelineOutcome(slot.id, "demo_booked")}>
+                              <Handshake className="h-4 w-4 mr-2 text-green-500" />
+                              Demo Booked
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        <div className="border-l border-border h-5 mx-1" />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => slot.contact && openEmailDialog(slot.contact)}
+                          className="h-7"
+                        >
+                          <Mail className="h-3 w-3 mr-1" />
+                          Email
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => slot.contact && openCalendarInvite(slot.contact)}
+                          className="h-7"
+                        >
+                          <Calendar className="h-3 w-3 mr-1" />
+                          Calendar
                       </Button>
                     </div>
 
@@ -2037,40 +2042,48 @@ export default function DialerPage() {
                         onChange={(e) => updateNotes(slot.id, e.target.value)}
                         className="min-h-[60px] text-sm"
                       />
-                      <div className="grid grid-cols-2 gap-2">
-                        <Button
-                          size="sm"
-                          onClick={() => handleCallOutcome(slot.id, "connected")}
-                          className="bg-primary hover:bg-primary/90 text-primary-foreground"
-                        >
-                          <UserCheck className="h-3 w-3 mr-1" />
-                          Connected
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleCallOutcome(slot.id, "voicemail")}
-                        >
-                          <Voicemail className="h-3 w-3 mr-1" />
-                          Voicemail
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleCallOutcome(slot.id, "no_answer")}
-                        >
-                          <UserX className="h-3 w-3 mr-1" />
-                          No Answer
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleCallOutcome(slot.id, "no_answer")}
-                        >
-                          <SkipForward className="h-3 w-3 mr-1" />
-                          Skip
-                        </Button>
-                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            size="sm"
+                            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+                          >
+                            <UserCheck className="h-3 w-3 mr-1" />
+                            Outcome
+                            <ChevronDown className="h-3 w-3 ml-1" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="center" className="w-48">
+                          <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "connected_intro_booked")}>
+                            <CalendarCheck className="h-4 w-4 mr-2 text-green-500" />
+                            Intro Booked
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "connected_referral")}>
+                            <UserCheck className="h-4 w-4 mr-2 text-blue-500" />
+                            Referral
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "connected_not_interested")}>
+                            <UserX className="h-4 w-4 mr-2 text-orange-500" />
+                            Not Interested
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "connected_info_gathered")}>
+                            <FileText className="h-4 w-4 mr-2 text-purple-500" />
+                            Informational
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "voicemail")}>
+                            <Voicemail className="h-4 w-4 mr-2" />
+                            Voicemail
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "no_answer")}>
+                            <UserX className="h-4 w-4 mr-2" />
+                            No Answer
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "no_answer")}>
+                            <SkipForward className="h-4 w-4 mr-2" />
+                            Skip
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button

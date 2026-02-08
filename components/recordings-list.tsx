@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Phone, Search, User, Building2, CalendarIcon, Clock, Download, Play, FileText, X } from "lucide-react"
+import { Phone, Search, User, Building2, CalendarIcon, Clock, Download, Play, FileText, X, Mic, PhoneOutgoing } from "lucide-react"
 import { format, isWithinInterval, startOfDay, endOfDay } from "date-fns"
 import { Skeleton } from "@/components/ui/skeleton"
 import { CallTranscript } from "@/components/call-transcript"
@@ -45,6 +45,7 @@ export function RecordingsList() {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedRecording, setSelectedRecording] = useState<CallRecording | null>(null)
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined)
+  const [filter, setFilter] = useState<"all" | "recordings">("all")
 
   useEffect(() => {
     loadRecordings()
@@ -53,22 +54,24 @@ export function RecordingsList() {
   const loadRecordings = async () => {
     try {
       setLoading(true)
-      const response = await fetch("/api/calls?hasRecording=true")
-      if (!response.ok) throw new Error("Failed to load recordings")
+      const response = await fetch("/api/calls")
+      if (!response.ok) throw new Error("Failed to load calls")
       const data = await response.json()
       setRecordings(data.calls || [])
-      // Auto-select first recording if available
       if (data.calls?.length > 0 && !selectedRecording) {
         setSelectedRecording(data.calls[0])
       }
     } catch (error) {
-      console.error("Error loading recordings:", error)
+      console.error("Error loading calls:", error)
     } finally {
       setLoading(false)
     }
   }
 
   const filteredRecordings = recordings.filter((recording) => {
+    // Recording filter
+    if (filter === "recordings" && !recording.recordingUrl) return false
+
     // Text search filter
     const searchLower = searchTerm.toLowerCase()
     const matchesSearch =
@@ -139,8 +142,29 @@ export function RecordingsList() {
 
   return (
     <div className="space-y-4">
-      {/* Search and Date Range Filter */}
+      {/* Filter Tabs, Search, and Date Range */}
       <div className="flex items-center gap-3">
+        <div className="flex items-center border rounded-lg p-0.5">
+          <Button
+            variant={filter === "all" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setFilter("all")}
+            className="h-7 text-xs"
+          >
+            <PhoneOutgoing className="h-3 w-3 mr-1" />
+            All Calls
+          </Button>
+          <Button
+            variant={filter === "recordings" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setFilter("recordings")}
+            className="h-7 text-xs"
+          >
+            <Mic className="h-3 w-3 mr-1" />
+            Recordings
+          </Button>
+        </div>
+
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -202,18 +226,18 @@ export function RecordingsList() {
         <CardHeader className="pb-3">
           <CardTitle className="text-sm flex items-center gap-2">
             <Phone className="h-4 w-4" />
-            Call Recordings ({filteredRecordings.length})
+            {filter === "all" ? "Call History" : "Call Recordings"} ({filteredRecordings.length})
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {filteredRecordings.length === 0 ? (
             <div className="py-12 text-center">
               <Phone className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <p className="text-lg font-medium mb-1">No recordings found</p>
+              <p className="text-lg font-medium mb-1">No calls found</p>
               <p className="text-sm text-muted-foreground">
                 {searchTerm || dateRange
                   ? "Try adjusting your search or date range"
-                  : "Call recordings will appear here automatically"}
+                  : "Your call history will appear here"}
               </p>
             </div>
           ) : (
@@ -261,11 +285,16 @@ export function RecordingsList() {
                             {recording.outcome && getOutcomeBadge(recording.outcome)}
                             <div className="flex items-center gap-1 text-xs text-muted-foreground">
                               <Clock className="h-3 w-3" />
-                              <span>{formatDuration(recording.recordingDuration)}</span>
+                              <span>{formatDuration(recording.recordingDuration || recording.duration)}</span>
                             </div>
-                            {recording.transcriptionStatus === "completed" && (
-                              <FileText className="h-3 w-3 text-green-500" />
-                            )}
+                            <div className="flex items-center gap-1">
+                              {recording.recordingUrl && (
+                                <Mic className="h-3 w-3 text-primary" />
+                              )}
+                              {recording.transcriptionStatus === "completed" && (
+                                <FileText className="h-3 w-3 text-green-500" />
+                              )}
+                            </div>
                           </div>
                         </div>
                       </button>
@@ -330,9 +359,15 @@ export function RecordingsList() {
                           </div>
                           <div className="flex items-center gap-2">
                             <Clock className="h-4 w-4 text-muted-foreground" />
-                            <span>{formatDuration(selectedRecording.recordingDuration)}</span>
+                            <span>{formatDuration(selectedRecording.recordingDuration || selectedRecording.duration)}</span>
                           </div>
                           {selectedRecording.outcome && getOutcomeBadge(selectedRecording.outcome)}
+                          {selectedRecording.recordingUrl && (
+                            <Badge variant="outline" className="text-xs">
+                              <Mic className="h-3 w-3 mr-1" />
+                              Recorded
+                            </Badge>
+                          )}
                         </div>
 
                         <p className="text-xs text-muted-foreground">
@@ -380,7 +415,7 @@ export function RecordingsList() {
                   </ScrollArea>
                 ) : (
                   <div className="h-full flex items-center justify-center text-muted-foreground">
-                    <p className="text-sm">Select a recording to view details</p>
+                    <p className="text-sm">Select a call to view details</p>
                   </div>
                 )}
               </div>

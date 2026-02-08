@@ -3,11 +3,12 @@ import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import type { User, UserRole } from '@prisma/client'
 import { isSuperAdminEmail } from './helpers'
+import { cookies } from 'next/headers'
 
 /**
- * Internal helper to resolve the authenticated user from Supabase + Prisma.
+ * Internal helper to resolve the real authenticated user from Supabase + Prisma.
  */
-async function resolveUser(): Promise<User | null> {
+async function resolveRealUser(): Promise<User | null> {
   const supabase = await createClient()
   const {
     data: { user: supabaseUser },
@@ -40,6 +41,34 @@ async function resolveUser(): Promise<User | null> {
   }
 
   return user
+}
+
+/**
+ * Resolve user with impersonation support.
+ * If the real user is a super_admin and the impersonation cookie is set,
+ * returns the impersonated user's ID. Otherwise returns the real user's ID.
+ */
+async function resolveUser(request?: NextRequest): Promise<User | null> {
+  const realUser = await resolveRealUser()
+  if (!realUser) return null
+
+  // Check for impersonation cookie (only if real user is super_admin)
+  if (realUser.role === 'super_admin') {
+    try {
+      const cookieStore = await cookies()
+      const impersonatingId = cookieStore.get('impersonating_user_id')?.value
+      if (impersonatingId) {
+        const impersonatedUser = await prisma.user.findUnique({
+          where: { id: impersonatingId },
+        })
+        if (impersonatedUser) return impersonatedUser
+      }
+    } catch {
+      // cookies() may fail in some contexts, fall through to real user
+    }
+  }
+
+  return realUser
 }
 
 /**
@@ -99,7 +128,8 @@ export function withSuperAdmin<T = any>(
 ) {
   return async (request: NextRequest, context?: T) => {
     try {
-      const user = await resolveUser()
+      // Always use the REAL user for super admin checks (not impersonated)
+      const user = await resolveRealUser()
       if (!user) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }

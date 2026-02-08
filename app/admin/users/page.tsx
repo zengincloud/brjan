@@ -9,10 +9,11 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Search, Building2, Phone, Mail, ArrowLeft, Users } from "lucide-react"
+import { Search, Building2, Phone, Mail, ArrowLeft, Users, Eye } from "lucide-react"
 import { toast } from "sonner"
 import { format } from "date-fns"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 
 type AdminUser = {
   id: string
@@ -30,6 +31,7 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [roleFilter, setRoleFilter] = useState<string>("all")
+  const router = useRouter()
 
   useEffect(() => { loadUsers() }, [])
 
@@ -63,6 +65,25 @@ export default function AdminUsersPage() {
       loadUsers()
     } catch {
       toast.error("Failed to update role")
+    }
+  }
+
+  const handleImpersonate = async (userId: string) => {
+    try {
+      const res = await fetch("/api/admin/impersonate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        toast.error(data.error || "Failed to impersonate")
+        return
+      }
+      toast.success("Now viewing as this user")
+      window.location.href = "/"
+    } catch {
+      toast.error("Failed to impersonate")
     }
   }
 
@@ -137,12 +158,13 @@ export default function AdminUsersPage() {
                 <TableHead>Role</TableHead>
                 <TableHead>Activity</TableHead>
                 <TableHead>Joined</TableHead>
+                <TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                     No users match your search
                   </TableCell>
                 </TableRow>
@@ -201,6 +223,19 @@ export default function AdminUsersPage() {
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       {format(new Date(u.createdAt), "MMM d, yyyy")}
+                    </TableCell>
+                    <TableCell>
+                      {u.role !== "super_admin" && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                          onClick={() => handleImpersonate(u.id)}
+                        >
+                          <Eye className="h-3 w-3 mr-1" />
+                          Impersonate
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))

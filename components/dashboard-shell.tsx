@@ -6,6 +6,7 @@ import { useState, useEffect } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Sidebar } from "@/components/sidebar"
+import { ImpersonationBanner } from "@/components/impersonation-banner"
 import { Menu, Mail, Phone, Search, Bell, Zap } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -141,6 +142,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
+        <ImpersonationBanner />
         {/* Top Header */}
         <header className="h-14 border-b border-border px-4 flex items-center justify-between gap-4 bg-card/50 backdrop-blur-sm">
           <div className="flex items-center flex-1 gap-4">

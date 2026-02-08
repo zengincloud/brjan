@@ -13,12 +13,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/use-toast"
 import {
@@ -27,7 +21,6 @@ import {
   PhoneCall,
   Play,
   Pause,
-  SkipForward,
   Voicemail,
   UserCheck,
   UserX,
@@ -46,13 +39,9 @@ import {
   FileText,
   MessageSquare,
   Lightbulb,
-  Target,
   Save,
   Users,
   Rocket,
-  CalendarCheck,
-  Handshake,
-  Star,
   Mic,
   MicOff,
   Loader2,
@@ -878,94 +867,19 @@ export default function DialerPage() {
     })))
   }
 
-  // Pipeline stages for call outcomes
-  type PipelineStage = "interested" | "intro_booked" | "opportunity" | "demo_booked"
+  // Call outcome types (same as call-prospect-dialog)
+  type CallOutcome = "connected_intro_booked" | "connected_referral" | "connected_not_interested" | "connected_info_gathered" | "voicemail" | "no_answer" | "busy" | "gatekeeper" | "failed"
 
-  const pipelineStageLabels: Record<PipelineStage, string> = {
-    interested: "Interested",
-    intro_booked: "Intro Booked",
-    opportunity: "Opportunity",
-    demo_booked: "Demo Booked",
-  }
-
-  const handleCallOutcome = async (slotId: string, outcome: "connected" | "voicemail" | "no-answer" | "skip") => {
+  const handleCallOutcome = async (slotId: string, outcome: CallOutcome) => {
     const slotIndex = callSlots.findIndex(s => s.id === slotId)
     if (slotIndex === -1) return
 
-    // Map old outcome names to new enum values
-    const outcomeMap: Record<string, string> = {
-      "connected": "connected",
-      "voicemail": "voicemail",
-      "no-answer": "no_answer",
-      "skip": "no_answer",
+    // Track pipeline for booked outcomes
+    if (outcome === "connected_intro_booked") {
+      setStats(prev => ({ ...prev, pipeline: prev.pipeline + 1 }))
     }
 
-    await handleCallOutcomeAndAdvance(slotIndex, outcomeMap[outcome] || outcome)
-  }
-
-  const handlePipelineOutcome = async (slotId: string, pipelineStage: PipelineStage) => {
-    const slotIndex = callSlots.findIndex(s => s.id === slotId)
-    if (slotIndex === -1) return
-
-    const slot = callSlots[slotIndex]
-    const contact = slot.contact
-
-    // Save call outcome to database if we have a callId
-    if (slot.callId) {
-      try {
-        await fetch(`/api/calls/${slot.callId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            outcome: "connected",
-            pipelineStage,
-            notes: slot.notes,
-          }),
-        })
-      } catch (error) {
-        console.error("Error saving pipeline outcome:", error)
-      }
-    }
-
-    // Show toast notification for pipeline progress
-    toast({
-      title: `Pipeline: ${pipelineStageLabels[pipelineStage]}`,
-      description: contact ? `${contact.name} moved to ${pipelineStageLabels[pipelineStage]}` : "Pipeline updated",
-    })
-
-    // Update stats (counts as connected + pipeline)
-    setStats(prev => ({
-      ...prev,
-      totalCalls: prev.totalCalls + 1,
-      connected: prev.connected + 1,
-      pipeline: prev.pipeline + 1,
-      callsPerHour: Math.round((prev.totalCalls + 1) / ((Date.now() - (callSlots[0].startTime || Date.now())) / 3600000) || 0),
-    }))
-
-    // Complete current call and start next
-    const updatedSlots = [...callSlots]
-    updatedSlots[slotIndex] = {
-      id: slotId,
-      status: "idle",
-      contact: null,
-      startTime: null,
-      notes: "",
-    }
-
-    setCallSlots(updatedSlots)
-
-    // Auto-dial next prospect if session is active and not paused
-    const shouldAutoDial = sessionActive && !sessionPaused && queueSize > 0
-    const canAutoDialThisSlot = dialMode === "parallel" || slotIndex === 0
-
-    if (shouldAutoDial && canAutoDialThisSlot) {
-      const nextProspectIndex = Math.floor(Math.random() * mockProspects.length)
-      const nextProspect = mockProspects[nextProspectIndex]
-      if (nextProspect) {
-        await connectCall(nextProspect, slotIndex)
-        setQueueSize(prev => Math.max(0, prev - 1))
-      }
-    }
+    await handleCallOutcomeAndAdvance(slotIndex, outcome)
   }
 
   const updateNotes = (slotId: string, notes: string) => {
@@ -1603,94 +1517,124 @@ export default function DialerPage() {
 
                     </div>
 
-                    {/* Outcome Buttons - Separate row for visibility */}
-                    <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-border/50">
-                      <span className="text-xs text-muted-foreground font-medium mr-1">Outcome:</span>
-                      <Button
-                        size="sm"
-                        onClick={() => handleCallOutcome(slot.id, "connected")}
-                        className="bg-primary hover:bg-primary/90 text-primary-foreground h-7"
-                      >
-                        <UserCheck className="h-3 w-3 mr-1" />
-                        Connected
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleCallOutcome(slot.id, "voicemail")}
-                        className="h-7"
-                      >
-                        <Voicemail className="h-3 w-3 mr-1" />
-                        VM
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleCallOutcome(slot.id, "no-answer")}
-                        className="h-7"
-                      >
-                        <UserX className="h-3 w-3 mr-1" />
-                        No Answer
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleCallOutcome(slot.id, "skip")}
-                        className="h-7"
-                      >
-                        <SkipForward className="h-3 w-3 mr-1" />
-                        Skip
-                      </Button>
-                      <div className="border-l border-border h-5 mx-1" />
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
+                    {/* Outcome Buttons - Same as call-prospect-dialog */}
+                    <div className="space-y-3 pt-2 border-t border-border/50">
+                      {/* Connected Outcomes */}
+                      <div className="space-y-2">
+                        <div className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Connected</div>
+                        <div className="grid grid-cols-4 gap-2">
                           <Button
                             size="sm"
-                            className="bg-green-600 hover:bg-green-700 text-white h-7"
+                            variant="outline"
+                            onClick={() => handleCallOutcome(slot.id, "connected_intro_booked")}
+                            className="justify-start h-8"
                           >
-                            <Rocket className="h-3 w-3 mr-1" />
-                            Pipeline
-                            <ChevronDown className="h-3 w-3 ml-1" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start">
-                          <DropdownMenuItem onClick={() => handlePipelineOutcome(slot.id, "interested")}>
-                            <Star className="h-4 w-4 mr-2 text-yellow-500" />
-                            Interested
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handlePipelineOutcome(slot.id, "intro_booked")}>
-                            <CalendarCheck className="h-4 w-4 mr-2 text-blue-500" />
+                            <UserCheck className="h-3 w-3 mr-1.5 text-green-500" />
                             Intro Booked
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handlePipelineOutcome(slot.id, "opportunity")}>
-                            <Target className="h-4 w-4 mr-2 text-purple-500" />
-                            Opportunity
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handlePipelineOutcome(slot.id, "demo_booked")}>
-                            <Handshake className="h-4 w-4 mr-2 text-green-500" />
-                            Demo Booked
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                      <div className="border-l border-border h-5 mx-1" />
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => slot.contact && openEmailDialog(slot.contact)}
-                        className="h-7"
-                      >
-                        <Mail className="h-3 w-3 mr-1" />
-                        Email
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => slot.contact && openCalendarInvite(slot.contact)}
-                        className="h-7"
-                      >
-                        <Calendar className="h-3 w-3 mr-1" />
-                        Calendar
-                      </Button>
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleCallOutcome(slot.id, "connected_referral")}
+                            className="justify-start h-8"
+                          >
+                            <UserCheck className="h-3 w-3 mr-1.5 text-blue-500" />
+                            Referral
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleCallOutcome(slot.id, "connected_not_interested")}
+                            className="justify-start h-8"
+                          >
+                            <UserX className="h-3 w-3 mr-1.5 text-orange-500" />
+                            Not Interested
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleCallOutcome(slot.id, "connected_info_gathered")}
+                            className="justify-start h-8"
+                          >
+                            <UserCheck className="h-3 w-3 mr-1.5 text-purple-500" />
+                            Info Gathered
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Other Outcomes */}
+                      <div className="space-y-2">
+                        <div className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Other</div>
+                        <div className="grid grid-cols-5 gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleCallOutcome(slot.id, "voicemail")}
+                            className="justify-start h-8"
+                          >
+                            <Voicemail className="h-3 w-3 mr-1.5" />
+                            Voicemail
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleCallOutcome(slot.id, "no_answer")}
+                            className="justify-start h-8"
+                          >
+                            <UserX className="h-3 w-3 mr-1.5" />
+                            No Answer
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleCallOutcome(slot.id, "busy")}
+                            className="justify-start h-8"
+                          >
+                            <Clock className="h-3 w-3 mr-1.5" />
+                            Busy
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleCallOutcome(slot.id, "gatekeeper")}
+                            className="justify-start h-8"
+                          >
+                            <UserX className="h-3 w-3 mr-1.5" />
+                            Gatekeeper
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleCallOutcome(slot.id, "failed")}
+                            className="justify-start h-8"
+                          >
+                            <PhoneOff className="h-3 w-3 mr-1.5" />
+                            Failed
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Quick Actions */}
+                      <div className="flex items-center gap-2 pt-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => slot.contact && openEmailDialog(slot.contact)}
+                          className="h-7"
+                        >
+                          <Mail className="h-3 w-3 mr-1" />
+                          Email
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => slot.contact && openCalendarInvite(slot.contact)}
+                          className="h-7"
+                        >
+                          <Calendar className="h-3 w-3 mr-1" />
+                          Calendar
+                        </Button>
+                      </div>
                     </div>
 
                     {/* Expandable details section */}
@@ -2045,70 +1989,101 @@ export default function DialerPage() {
                         onChange={(e) => updateNotes(slot.id, e.target.value)}
                         className="min-h-[60px] text-sm"
                       />
-                      <div className="grid grid-cols-2 gap-2">
-                        <Button
-                          size="sm"
-                          onClick={() => handleCallOutcome(slot.id, "connected")}
-                          className="bg-primary hover:bg-primary/90 text-primary-foreground"
-                        >
-                          <UserCheck className="h-3 w-3 mr-1" />
-                          Connected
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleCallOutcome(slot.id, "voicemail")}
-                        >
-                          <Voicemail className="h-3 w-3 mr-1" />
-                          Voicemail
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleCallOutcome(slot.id, "no-answer")}
-                        >
-                          <UserX className="h-3 w-3 mr-1" />
-                          No Answer
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleCallOutcome(slot.id, "skip")}
-                        >
-                          <SkipForward className="h-3 w-3 mr-1" />
-                          Skip
-                        </Button>
-                      </div>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
+
+                      {/* Connected Outcomes */}
+                      <div className="space-y-2">
+                        <div className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Connected</div>
+                        <div className="grid grid-cols-2 gap-2">
                           <Button
                             size="sm"
-                            className="w-full bg-green-600 hover:bg-green-700 text-white"
+                            variant="outline"
+                            onClick={() => handleCallOutcome(slot.id, "connected_intro_booked")}
+                            className="justify-start"
                           >
-                            <Rocket className="h-3 w-3 mr-1" />
-                            Pipeline
-                            <ChevronDown className="h-3 w-3 ml-1" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="center" className="w-48">
-                          <DropdownMenuItem onClick={() => handlePipelineOutcome(slot.id, "interested")}>
-                            <Star className="h-4 w-4 mr-2 text-yellow-500" />
-                            Interested
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handlePipelineOutcome(slot.id, "intro_booked")}>
-                            <CalendarCheck className="h-4 w-4 mr-2 text-blue-500" />
+                            <UserCheck className="h-3 w-3 mr-1.5 text-green-500" />
                             Intro Booked
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handlePipelineOutcome(slot.id, "opportunity")}>
-                            <Target className="h-4 w-4 mr-2 text-purple-500" />
-                            Opportunity
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handlePipelineOutcome(slot.id, "demo_booked")}>
-                            <Handshake className="h-4 w-4 mr-2 text-green-500" />
-                            Demo Booked
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleCallOutcome(slot.id, "connected_referral")}
+                            className="justify-start"
+                          >
+                            <UserCheck className="h-3 w-3 mr-1.5 text-blue-500" />
+                            Referral
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleCallOutcome(slot.id, "connected_not_interested")}
+                            className="justify-start"
+                          >
+                            <UserX className="h-3 w-3 mr-1.5 text-orange-500" />
+                            Not Interested
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleCallOutcome(slot.id, "connected_info_gathered")}
+                            className="justify-start"
+                          >
+                            <UserCheck className="h-3 w-3 mr-1.5 text-purple-500" />
+                            Info Gathered
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Other Outcomes */}
+                      <div className="space-y-2">
+                        <div className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Other</div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleCallOutcome(slot.id, "voicemail")}
+                            className="justify-start"
+                          >
+                            <Voicemail className="h-3 w-3 mr-1.5" />
+                            Voicemail
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleCallOutcome(slot.id, "no_answer")}
+                            className="justify-start"
+                          >
+                            <UserX className="h-3 w-3 mr-1.5" />
+                            No Answer
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleCallOutcome(slot.id, "busy")}
+                            className="justify-start"
+                          >
+                            <Clock className="h-3 w-3 mr-1.5" />
+                            Busy
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleCallOutcome(slot.id, "gatekeeper")}
+                            className="justify-start"
+                          >
+                            <UserX className="h-3 w-3 mr-1.5" />
+                            Gatekeeper
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleCallOutcome(slot.id, "failed")}
+                            className="col-span-2 justify-start"
+                          >
+                            <PhoneOff className="h-3 w-3 mr-1.5" />
+                            Failed
+                          </Button>
+                        </div>
+                      </div>
                     </>
                   )}
                 </CardContent>

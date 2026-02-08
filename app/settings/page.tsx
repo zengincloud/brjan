@@ -42,14 +42,55 @@ export default function SettingsPage() {
   const [creditStatus, setCreditStatus] = useState<{
     tier: string; label: string; creditsUsed: number; creditsTotal: number; creditsRemaining: number; resetsAt: string | null
   } | null>(null)
+  const [profile, setProfile] = useState<{
+    firstName: string; lastName: string; email: string
+  }>({ firstName: "", lastName: "", email: "" })
+  const [isSavingProfile, setIsSavingProfile] = useState(false)
   const supabase = createClient()
 
   useEffect(() => {
+    fetch("/api/auth/user")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data?.user) {
+          setProfile({
+            firstName: data.user.firstName || "",
+            lastName: data.user.lastName || "",
+            email: data.user.email || "",
+          })
+        }
+      })
+      .catch(() => {})
+
     fetch("/api/credits")
       .then((r) => r.ok ? r.json() : null)
       .then((data) => { if (data) setCreditStatus(data) })
       .catch(() => {})
   }, [])
+
+  const handleProfileSave = async () => {
+    setIsSavingProfile(true)
+    try {
+      const res = await fetch("/api/auth/user", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          firstName: profile.firstName,
+          lastName: profile.lastName,
+        }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        toast.error(data.error || "Failed to save profile")
+        return
+      }
+      toast.success("Profile updated")
+    } catch {
+      toast.error("Failed to save profile")
+    } finally {
+      setIsSavingProfile(false)
+    }
+  }
 
   const handlePasswordUpdate = async () => {
     if (!newPassword || !confirmPassword) {
@@ -151,28 +192,35 @@ export default function SettingsPage() {
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="firstName">First Name</Label>
-                  <Input id="firstName" defaultValue="John" />
+                  <Input
+                    id="firstName"
+                    value={profile.firstName}
+                    onChange={(e) => setProfile((p) => ({ ...p, firstName: e.target.value }))}
+                    disabled={isSavingProfile}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="lastName">Last Name</Label>
-                  <Input id="lastName" defaultValue="Doe" />
+                  <Input
+                    id="lastName"
+                    value={profile.lastName}
+                    onChange={(e) => setProfile((p) => ({ ...p, lastName: e.target.value }))}
+                    disabled={isSavingProfile}
+                  />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" defaultValue="john@company.com" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone Number</Label>
-                <Input id="phone" type="tel" defaultValue="+1 (555) 123-4567" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="title">Job Title</Label>
-                <Input id="title" defaultValue="Sales Development Rep" />
+                <Input id="email" type="email" value={profile.email} disabled className="bg-muted" />
+                <p className="text-xs text-muted-foreground">Email is managed through your login provider</p>
               </div>
               <div className="flex justify-end">
-                <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
-                  Save Changes
+                <Button
+                  onClick={handleProfileSave}
+                  disabled={isSavingProfile}
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                >
+                  {isSavingProfile ? "Saving..." : "Save Changes"}
                 </Button>
               </div>
             </CardContent>
@@ -431,7 +479,7 @@ export default function SettingsPage() {
                 <Textarea
                   id="signature"
                   rows={6}
-                  defaultValue={`Best regards,\nJohn Doe\nSales Development Rep\ncompany.com\n(555) 123-4567`}
+                  defaultValue={profile.firstName ? `Best regards,\n${profile.firstName} ${profile.lastName}` : ""}
                 />
               </div>
               <div className="flex items-center justify-between">

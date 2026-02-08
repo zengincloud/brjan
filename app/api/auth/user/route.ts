@@ -44,3 +44,40 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
     )
   }
 })
+
+/**
+ * PATCH /api/auth/user - Update current user's profile
+ */
+export const PATCH = withAuth(async (request: NextRequest, userId: string) => {
+  try {
+    const body = await request.json()
+    const { firstName, lastName } = body
+
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...(firstName !== undefined && { firstName }),
+        ...(lastName !== undefined && { lastName }),
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        avatarUrl: true,
+        role: true,
+        tier: true,
+        organizationId: true,
+        createdAt: true,
+      },
+    })
+
+    return NextResponse.json({ user })
+  } catch (error) {
+    console.error('Error updating user:', error)
+    return NextResponse.json(
+      { error: 'Failed to update profile' },
+      { status: 500 }
+    )
+  }
+})

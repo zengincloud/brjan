@@ -32,6 +32,9 @@ import { Badge } from "@/components/ui/badge"
 export function Sidebar({ className }: { className?: string }) {
   const [isActivityOpen, setIsActivityOpen] = useState(false)
   const [userRole, setUserRole] = useState<string | null>(null)
+  const [userData, setUserData] = useState<{
+    firstName: string | null; lastName: string | null; email: string
+  } | null>(null)
   const [creditStatus, setCreditStatus] = useState<{
     tier: string; label: string; creditsUsed: number; creditsTotal: number; creditsRemaining: number
   } | null>(null)
@@ -40,7 +43,16 @@ export function Sidebar({ className }: { className?: string }) {
   useEffect(() => {
     fetch("/api/auth/user")
       .then((r) => r.ok ? r.json() : null)
-      .then((data) => { if (data?.user?.role) setUserRole(data.user.role) })
+      .then((data) => {
+        if (data?.user) {
+          setUserRole(data.user.role)
+          setUserData({
+            firstName: data.user.firstName,
+            lastName: data.user.lastName,
+            email: data.user.email,
+          })
+        }
+      })
       .catch(() => {})
 
     fetch("/api/credits")
@@ -48,6 +60,19 @@ export function Sidebar({ className }: { className?: string }) {
       .then((data) => { if (data) setCreditStatus(data) })
       .catch(() => {})
   }, [])
+
+  const getInitials = () => {
+    if (userData?.firstName && userData?.lastName) return `${userData.firstName[0]}${userData.lastName[0]}`
+    if (userData?.firstName) return userData.firstName[0]
+    if (userData?.email) return userData.email[0].toUpperCase()
+    return "?"
+  }
+
+  const getDisplayName = () => {
+    if (userData?.firstName && userData?.lastName) return `${userData.firstName} ${userData.lastName}`
+    if (userData?.firstName) return userData.firstName
+    return userData?.email || ""
+  }
 
   return (
     <div className={cn("bg-sidebar-background p-4 flex flex-col gap-4", className)}>
@@ -298,48 +323,7 @@ export function Sidebar({ className }: { className?: string }) {
       </div>
 
       {/* Bottom Section */}
-      <div className="mt-auto space-y-2">
-        {creditStatus && (
-          <div className="px-2 py-3 rounded-lg bg-secondary/50 border border-border">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-6 h-6 rounded-full bg-accent/20 flex items-center justify-center">
-                <Zap className="w-3 h-3 text-accent" />
-              </div>
-              <span className="text-xs font-medium text-foreground">{creditStatus.label} Plan</span>
-            </div>
-            {creditStatus.creditsTotal === -1 ? (
-              <div className="text-xs text-muted-foreground">Unlimited credits</div>
-            ) : (
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Credits</span>
-                  <span className={
-                    creditStatus.creditsRemaining / creditStatus.creditsTotal <= 0.1
-                      ? "text-red-500"
-                      : creditStatus.creditsRemaining / creditStatus.creditsTotal <= 0.3
-                        ? "text-yellow-500"
-                        : "text-accent"
-                  }>
-                    {creditStatus.creditsUsed}/{creditStatus.creditsTotal}
-                  </span>
-                </div>
-                <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
-                  <div
-                    className={cn(
-                      "h-full rounded-full transition-all",
-                      creditStatus.creditsUsed / creditStatus.creditsTotal >= 0.9
-                        ? "bg-red-500"
-                        : creditStatus.creditsUsed / creditStatus.creditsTotal >= 0.7
-                          ? "bg-yellow-500"
-                          : "bg-accent"
-                    )}
-                    style={{ width: `${Math.min((creditStatus.creditsUsed / creditStatus.creditsTotal) * 100, 100)}%` }}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+      <div className="mt-auto space-y-1">
         {userRole === "super_admin" && (
           <Button
             variant="ghost"
@@ -355,19 +339,50 @@ export function Sidebar({ className }: { className?: string }) {
             </Link>
           </Button>
         )}
-        <Button
-          variant="ghost"
+
+        {/* User Profile Card */}
+        <Link
+          href="/settings"
           className={cn(
-            "w-full justify-start transition-colors",
-            pathname === "/settings" && "bg-accent/10 text-accent hover:bg-accent/15"
+            "block px-2 py-2.5 rounded-lg transition-colors hover:bg-secondary/80 cursor-pointer",
+            pathname === "/settings" && "bg-secondary/80"
           )}
-          asChild
         >
-          <Link href="/settings">
-            <Settings className="h-4 w-4 mr-3" />
-            Settings
-          </Link>
-        </Button>
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full bg-accent/20 flex items-center justify-center shrink-0">
+              <span className="text-sm font-semibold text-accent">{getInitials()}</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-foreground truncate">{getDisplayName()}</p>
+              {creditStatus && (
+                <p className="text-[11px] text-muted-foreground">
+                  {creditStatus.creditsTotal === -1
+                    ? "Unlimited"
+                    : `${creditStatus.label} \u00B7 ${creditStatus.creditsRemaining} credits left`
+                  }
+                </p>
+              )}
+            </div>
+            <Settings className="h-4 w-4 text-muted-foreground shrink-0" />
+          </div>
+          {creditStatus && creditStatus.creditsTotal !== -1 && (
+            <div className="mt-2 px-1">
+              <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+                <div
+                  className={cn(
+                    "h-full rounded-full transition-all",
+                    creditStatus.creditsUsed / creditStatus.creditsTotal >= 0.9
+                      ? "bg-red-500"
+                      : creditStatus.creditsUsed / creditStatus.creditsTotal >= 0.7
+                        ? "bg-yellow-500"
+                        : "bg-accent"
+                  )}
+                  style={{ width: `${Math.min((creditStatus.creditsUsed / creditStatus.creditsTotal) * 100, 100)}%` }}
+                />
+              </div>
+            </div>
+          )}
+        </Link>
       </div>
     </div>
   )

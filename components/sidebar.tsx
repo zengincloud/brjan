@@ -75,7 +75,7 @@ export function Sidebar({ className }: { className?: string }) {
   }
 
   return (
-    <div className={cn("bg-sidebar-background p-4 flex flex-col gap-4", className)}>
+    <div className={cn("bg-sidebar-background pt-4 px-4 flex flex-col gap-4", className)}>
       {/* Logo */}
       <div className="flex items-center gap-2 px-2 py-1">
         <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
@@ -322,9 +322,9 @@ export function Sidebar({ className }: { className?: string }) {
         </Button>
       </div>
 
-      {/* Bottom Section */}
-      <div className="mt-auto space-y-1">
-        {userRole === "super_admin" && (
+      {/* Admin link */}
+      {userRole === "super_admin" && (
+        <div className="mt-auto">
           <Button
             variant="ghost"
             className={cn(
@@ -338,52 +338,53 @@ export function Sidebar({ className }: { className?: string }) {
               Admin
             </Link>
           </Button>
-        )}
+        </div>
+      )}
 
-        {/* User Profile Card */}
-        <Link
-          href="/settings"
-          className={cn(
-            "block px-2 py-2.5 rounded-lg transition-colors hover:bg-secondary/80 cursor-pointer",
-            pathname === "/settings" && "bg-secondary/80"
-          )}
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-accent/20 flex items-center justify-center shrink-0">
-              <span className="text-sm font-semibold text-accent">{getInitials()}</span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-foreground truncate">{getDisplayName()}</p>
-              {creditStatus && (
-                <p className="text-[11px] text-muted-foreground">
-                  {creditStatus.creditsTotal === -1
-                    ? "Unlimited"
-                    : `${creditStatus.label} \u00B7 ${creditStatus.creditsRemaining} credits left`
-                  }
-                </p>
-              )}
-            </div>
-            <Settings className="h-4 w-4 text-muted-foreground shrink-0" />
+      {/* User Profile Card — pinned to bottom */}
+      <Link
+        href="/settings"
+        className={cn(
+          "block px-4 py-3 border-t border-border transition-colors hover:bg-secondary/50 cursor-pointer",
+          !userRole?.includes("super_admin") && "mt-auto",
+          pathname === "/settings" && "bg-secondary/50"
+        )}
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-full bg-accent/20 flex items-center justify-center shrink-0">
+            <span className="text-sm font-semibold text-accent">{getInitials()}</span>
           </div>
-          {creditStatus && creditStatus.creditsTotal !== -1 && (
-            <div className="mt-2 px-1">
-              <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
-                <div
-                  className={cn(
-                    "h-full rounded-full transition-all",
-                    creditStatus.creditsUsed / creditStatus.creditsTotal >= 0.9
-                      ? "bg-red-500"
-                      : creditStatus.creditsUsed / creditStatus.creditsTotal >= 0.7
-                        ? "bg-yellow-500"
-                        : "bg-accent"
-                  )}
-                  style={{ width: `${Math.min((creditStatus.creditsUsed / creditStatus.creditsTotal) * 100, 100)}%` }}
-                />
-              </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-foreground truncate">{getDisplayName()}</p>
+            {creditStatus && (
+              <p className="text-[11px] text-muted-foreground">
+                {creditStatus.creditsTotal === -1
+                  ? "Unlimited"
+                  : `${creditStatus.label} \u00B7 ${creditStatus.creditsRemaining} credits left`
+                }
+              </p>
+            )}
+          </div>
+          <Settings className="h-4 w-4 text-muted-foreground shrink-0" />
+        </div>
+        {creditStatus && creditStatus.creditsTotal !== -1 && (
+          <div className="mt-2 ml-12">
+            <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+              <div
+                className={cn(
+                  "h-full rounded-full transition-all",
+                  creditStatus.creditsUsed / creditStatus.creditsTotal >= 0.9
+                    ? "bg-red-500"
+                    : creditStatus.creditsUsed / creditStatus.creditsTotal >= 0.7
+                      ? "bg-yellow-500"
+                      : "bg-accent"
+                )}
+                style={{ width: `${Math.min((creditStatus.creditsUsed / creditStatus.creditsTotal) * 100, 100)}%` }}
+              />
             </div>
-          )}
-        </Link>
-      </div>
+          </div>
+        )}
+      </Link>
     </div>
   )
 }

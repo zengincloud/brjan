@@ -18,6 +18,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useEffect, useState } from "react"
+import { useUserRole } from "@/hooks/use-user-role"
 
 // Quick stats for the dashboard
 const quickStats = [
@@ -90,6 +91,7 @@ const formatDueTime = (dueDate: string | null) => {
 }
 
 export function DashboardOverview() {
+  const { isSuperAdmin } = useUserRole()
   const [upcomingTasks, setUpcomingTasks] = useState<UpcomingTask[]>([])
   const [upcomingLoading, setUpcomingLoading] = useState(true)
   const [upcomingError, setUpcomingError] = useState<string | null>(null)
@@ -137,7 +139,7 @@ export function DashboardOverview() {
     <div className="space-y-6">
       {/* Quick Stats Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {quickStats.map((stat) => (
+        {(isSuperAdmin ? quickStats : quickStats.map(s => ({ ...s, value: "0", change: "--" }))).map((stat) => (
           <Card key={stat.label} className="border-border bg-card">
             <CardContent className="p-4">
               <div className="flex items-start justify-between">

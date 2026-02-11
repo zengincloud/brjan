@@ -21,6 +21,7 @@ import {
   Mail,
 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
+import { useUserRole } from "@/hooks/use-user-role"
 
 // Combined data from all sources for the editor
 const allEmailsData = [
@@ -128,6 +129,7 @@ interface EmailEditorProps {
 
 export function EmailEditor({ emailId }: EmailEditorProps) {
   const { toast } = useToast()
+  const { isSuperAdmin } = useUserRole()
   const [subject, setSubject] = useState("")
   const [bodyHtml, setBodyHtml] = useState("")
   const [bodyText, setBodyText] = useState("")
@@ -149,7 +151,7 @@ export function EmailEditor({ emailId }: EmailEditorProps) {
       setContext(null)
       setIsTemplate(false)
     } else if (emailId) {
-      const emailData = allEmailsData.find((email) => email.id === emailId)
+      const emailData = isSuperAdmin ? allEmailsData.find((email) => email.id === emailId) : undefined
       if (emailData) {
         setSubject(emailData.subject)
         // Convert plain text to HTML for the editor

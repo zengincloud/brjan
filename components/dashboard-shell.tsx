@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Sidebar } from "@/components/sidebar"
 import { ImpersonationBanner } from "@/components/impersonation-banner"
 import { Menu, Mail, Phone, Search, Bell, Zap } from "lucide-react"
+import { UserRoleProvider } from "@/hooks/use-user-role"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -136,6 +137,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
+    <UserRoleProvider>
     <div className="flex h-screen bg-background">
       {/* Sidebar */}
       <Sidebar className={`w-64 border-r border-border lg:block ${isSidebarOpen ? "block" : "hidden"}`} />
@@ -288,5 +290,6 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         <main className="flex-1 overflow-auto p-6">{children}</main>
       </div>
     </div>
+    </UserRoleProvider>
   )
 }

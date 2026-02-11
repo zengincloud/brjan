@@ -1427,11 +1427,7 @@ export function LeadsProspecting() {
                                     Previous Experience
                                   </h4>
                                   <div className="space-y-2 text-sm text-muted-foreground pl-6">
-                                    <div>
-                                      <p className="font-medium text-foreground">Senior {lead.title}</p>
-                                      <p>TechCorp Inc. • 2019-2023</p>
-                                      <p className="text-xs mt-1">Led team of 8, increased revenue by 45%</p>
-                                    </div>
+                                    <p>No previous experience data available</p>
                                   </div>
                                 </div>
 

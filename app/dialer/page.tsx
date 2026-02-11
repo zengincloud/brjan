@@ -60,6 +60,7 @@ import {
 import { SendEmailDialog } from "@/components/send-email-dialog"
 import { Calendar } from "lucide-react"
 import { Device, Call as TwilioCall } from "@twilio/voice-sdk"
+import { useUserRole } from "@/hooks/use-user-role"
 
 type CallStatus = "idle" | "ringing" | "connected" | "completed"
 
@@ -128,16 +129,13 @@ type DialerProspect = {
 
 export default function DialerPage() {
   const { toast } = useToast()
+  const { isSuperAdmin } = useUserRole()
   const [sessionActive, setSessionActive] = useState(false)
   const [sessionPaused, setSessionPaused] = useState(false)
-  const [dialMode, setDialMode] = useState<"parallel" | "single">("parallel")
   const [selectedSequence, setSelectedSequence] = useState<string>("all")
   const [selectedPhone, setSelectedPhone] = useState<string>("+16282253832")
   const [callSlots, setCallSlots] = useState<CallSlot[]>([
     { id: "1", status: "idle", contact: null, startTime: null, notes: "" },
-    { id: "2", status: "idle", contact: null, startTime: null, notes: "" },
-    { id: "3", status: "idle", contact: null, startTime: null, notes: "" },
-    { id: "4", status: "idle", contact: null, startTime: null, notes: "" },
   ])
   const [stats, setStats] = useState<SessionStats>({
     totalCalls: 0,
@@ -557,10 +555,10 @@ export default function DialerPage() {
     ? allProspects
     : allProspects.filter(p => p.sequence === selectedSequence)
 
-  // Use API prospects if available, otherwise use demo data
+  // Use API prospects if available, otherwise use demo data (super_admin only)
   const mockProspects: DialerProspect[] = apiProspects.length > 0
     ? apiProspects.filter(p => p.phone) // Only include prospects with phone numbers
-    : demoProspects.map(p => ({ ...p, id: `demo-${p.email}` }))
+    : isSuperAdmin ? demoProspects.map(p => ({ ...p, id: `demo-${p.email}` })) : []
 
   // Update queue size when prospects change
   useEffect(() => {
@@ -869,13 +867,13 @@ export default function DialerPage() {
     setCallDuration(0)
     callStartTimeRef.current = null
     setCurrentProspectIndex(0)
-    setCallSlots(callSlots.map(slot => ({
-      ...slot,
+    setCallSlots([{
+      id: "1",
       status: "idle",
       contact: null,
       startTime: null,
       notes: "",
-    })))
+    }])
   }
 
   // Pipeline stages for call outcomes
@@ -948,7 +946,7 @@ export default function DialerPage() {
 
     // Auto-dial next prospect if session is active and not paused
     const shouldAutoDial = sessionActive && !sessionPaused && queueSize > 0
-    const canAutoDialThisSlot = dialMode === "parallel" || slotIndex === 0
+    const canAutoDialThisSlot = slotIndex === 0
 
     if (shouldAutoDial && canAutoDialThisSlot) {
       const nextProspectIndex = Math.floor(Math.random() * mockProspects.length)
@@ -1116,10 +1114,10 @@ export default function DialerPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">
-            {dialMode === "parallel" ? "Parallel" : "Single"} Dialer
+            Power Dialer
           </h1>
           <p className="text-sm text-muted-foreground">
-            {dialMode === "parallel" ? "Dial multiple prospects simultaneously" : "Dial one prospect at a time"}
+            Dial prospects one at a time
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -1209,7 +1207,7 @@ export default function DialerPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="sequence-select" className="text-sm">Sequence</Label>
                 <Select value={selectedSequence} onValueChange={setSelectedSequence}>
@@ -1245,22 +1243,6 @@ export default function DialerPage() {
                 </Select>
                 <p className="text-xs text-muted-foreground">
                   Outbound caller ID
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="mode-select" className="text-sm">Dial Mode</Label>
-                <Select value={dialMode} onValueChange={(value: "parallel" | "single") => setDialMode(value)}>
-                  <SelectTrigger id="mode-select">
-                    <SelectValue placeholder="Select mode" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="parallel">Parallel (2-4 calls)</SelectItem>
-                    <SelectItem value="single">Single (1 call)</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  {dialMode === "parallel" ? "Higher velocity" : "More focused"}
                 </p>
               </div>
             </div>
@@ -1472,7 +1454,7 @@ export default function DialerPage() {
         {/* Row-based layout when session is active, card-based when not */}
         {sessionActive ? (
           <div className="space-y-3">
-            {callSlots.slice(0, dialMode === "parallel" ? 4 : 1).map((slot) => (
+            {callSlots.slice(0, 1).map((slot) => (
               <div
                 key={slot.id}
                 className={`rounded-lg border p-4 ${
@@ -1941,8 +1923,8 @@ export default function DialerPage() {
           </div>
         ) : (
           /* Card-based layout when session is not active */
-          <div className={`grid gap-4 ${dialMode === "parallel" ? "md:grid-cols-2" : "md:grid-cols-1 max-w-2xl"}`}>
-            {callSlots.slice(0, dialMode === "parallel" ? 4 : 1).map((slot) => (
+          <div className="grid gap-4 md:grid-cols-1 max-w-2xl">
+            {callSlots.slice(0, 1).map((slot) => (
               <Card
                 key={slot.id}
                 className={`border-border ${

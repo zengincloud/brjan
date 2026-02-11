@@ -175,9 +175,18 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       }
     }
 
-    // Current company
+    // Current company - also search by website/domain if input looks like a domain
     if (currentCompany) {
-      conditions.push(`job_company_name LIKE '%${sanitizeSqlInput(currentCompany)}%'`)
+      const sanitizedCompany = sanitizeSqlInput(currentCompany)
+      const looksLikeDomain = /\.[a-z]{2,}$/i.test(currentCompany.trim())
+      if (looksLikeDomain) {
+        // Search both company name and website domain
+        const domain = currentCompany.trim().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/$/, '')
+        const nameFromDomain = domain.split('.')[0].replace(/-/g, ' ')
+        conditions.push(`(job_company_website LIKE '%${sanitizeSqlInput(domain)}%' OR job_company_name LIKE '%${sanitizeSqlInput(nameFromDomain)}%')`)
+      } else {
+        conditions.push(`job_company_name LIKE '%${sanitizedCompany}%'`)
+      }
     }
 
     // Company headcount range - PDL uses string ranges like "1-10", "51-200", etc.

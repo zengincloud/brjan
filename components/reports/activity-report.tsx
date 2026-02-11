@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { DateRange } from "react-day-picker"
 import { Badge } from "@/components/ui/badge"
 import { Mail, Phone, Calendar, MessageSquare } from "lucide-react"
+import { useUserRole } from "@/hooks/use-user-role"
 
 interface ActivityReportProps {
   date?: DateRange | undefined
@@ -77,6 +78,23 @@ const recentActivities = [
 ]
 
 export function ActivityReport({ date, fullWidth = false }: ActivityReportProps) {
+  const { isSuperAdmin } = useUserRole()
+
+  if (!isSuperAdmin) {
+    return (
+      <Card className={fullWidth ? "w-full" : ""}>
+        <CardHeader>
+          <CardTitle>Activity Metrics</CardTitle>
+          <CardDescription>Emails, calls, meetings, and notes</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+            <p>No activity data yet. Start making calls and sending emails to see metrics here.</p>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
   return (
     <Card className={fullWidth ? "w-full" : ""}>
       <CardHeader>

@@ -1,36 +1,45 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent } from "@/components/ui/card"
 import { Building2, Filter, LinkedinIcon, Search, Users, Globe, BadgeCheck } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { useUserRole } from "@/hooks/use-user-role"
+
+const demoCompanies = [
+  {
+    id: 1,
+    name: "TechCorp Solutions",
+    industry: "Software",
+    size: "1000-5000",
+    location: "San Francisco, CA",
+    employees: 2500,
+    verified: true,
+  },
+  {
+    id: 2,
+    name: "Global Innovations Inc",
+    industry: "Technology",
+    size: "5000+",
+    location: "New York, NY",
+    employees: 7500,
+    verified: true,
+  },
+]
 
 export function OutboundProspecting() {
   const router = useRouter()
-  const [searchResults, setSearchResults] = useState([
-    {
-      id: 1,
-      name: "TechCorp Solutions",
-      industry: "Software",
-      size: "1000-5000",
-      location: "San Francisco, CA",
-      employees: 2500,
-      verified: true,
-    },
-    {
-      id: 2,
-      name: "Global Innovations Inc",
-      industry: "Technology",
-      size: "5000+",
-      location: "New York, NY",
-      employees: 7500,
-      verified: true,
-    },
-    // Add more dummy data as needed
-  ])
+  const { isSuperAdmin } = useUserRole()
+  const [searchResults, setSearchResults] = useState<typeof demoCompanies>([])
+
+  useEffect(() => {
+    if (isSuperAdmin) {
+      setSearchResults(demoCompanies)
+    }
+  }, [isSuperAdmin])
 
   const handleSelectParameters = () => {
     router.push("/prospecting/outbound/parameters")

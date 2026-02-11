@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { CalendarClock, Clock, Plus, X, Globe, Users, Check, Info } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -29,10 +29,12 @@ const timeZones = [
   { value: "utc+12", label: "New Zealand Time (UTC+12)", offset: 12 },
 ]
 
-// Sample working hours (9 AM to 5 PM)
-const defaultWorkingHours = {
-  start: 9,
-  end: 17,
+// Map settings timezone keys to scheduler timezone values
+const timezoneMap: Record<string, string> = {
+  pst: "utc-8",
+  mst: "utc-7",
+  cst: "utc-6",
+  est: "utc-5",
 }
 
 // Generate hours for the time grid
@@ -44,12 +46,32 @@ export default function SchedulerPage() {
     {
       id: 1,
       name: "You",
-      email: "you@company.com",
+      email: "",
       timezone: "utc-5",
-      workingHours: { ...defaultWorkingHours },
+      workingHours: { start: 9, end: 17 },
       isAvailable: true,
     },
   ])
+
+  // Fetch user's saved working hours from settings
+  useEffect(() => {
+    fetch("/api/auth/user")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data?.user) {
+          const tz = timezoneMap[data.user.timezone] || "utc-5"
+          const start = data.user.workStartTime ? parseInt(data.user.workStartTime.split(":")[0], 10) : 9
+          const end = data.user.workEndTime ? parseInt(data.user.workEndTime.split(":")[0], 10) : 17
+          const name = [data.user.firstName, data.user.lastName].filter(Boolean).join(" ") || "You"
+          setParticipants(prev => prev.map(p =>
+            p.id === 1
+              ? { ...p, name, email: data.user.email || "", timezone: tz, workingHours: { start, end } }
+              : p
+          ))
+        }
+      })
+      .catch(() => {})
+  }, [])
   const [newParticipantName, setNewParticipantName] = useState("")
   const [newParticipantEmail, setNewParticipantEmail] = useState("")
   const [newParticipantTimezone, setNewParticipantTimezone] = useState("utc")
@@ -65,7 +87,7 @@ export default function SchedulerPage() {
         name: newParticipantName,
         email: newParticipantEmail || `${newParticipantName.toLowerCase().replace(/\s+/g, ".")}@example.com`,
         timezone: newParticipantTimezone,
-        workingHours: { ...defaultWorkingHours },
+        workingHours: { start: 9, end: 17 },
         isAvailable: true,
       },
     ])

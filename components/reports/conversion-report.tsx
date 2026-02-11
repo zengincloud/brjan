@@ -18,6 +18,7 @@ import {
 import { ChartContainer } from "@/components/ui/chart"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { DateRange } from "react-day-picker"
+import { useUserRole } from "@/hooks/use-user-role"
 
 interface ConversionReportProps {
   date?: DateRange | undefined
@@ -44,6 +45,23 @@ const funnelData = [
 ]
 
 export function ConversionReport({ date, fullWidth = false }: ConversionReportProps) {
+  const { isSuperAdmin } = useUserRole()
+
+  if (!isSuperAdmin) {
+    return (
+      <Card className={fullWidth ? "w-full" : ""}>
+        <CardHeader>
+          <CardTitle>Conversion Analysis</CardTitle>
+          <CardDescription>Conversion rates and sales funnel</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+            <p>No conversion data yet. Move prospects through your pipeline to see analysis here.</p>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
   return (
     <Card className={fullWidth ? "w-full" : ""}>
       <CardHeader>

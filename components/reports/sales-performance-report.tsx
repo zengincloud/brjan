@@ -17,6 +17,7 @@ import {
 import { ChartContainer } from "@/components/ui/chart"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { DateRange } from "react-day-picker"
+import { useUserRole } from "@/hooks/use-user-role"
 
 interface SalesPerformanceReportProps {
   date?: DateRange | undefined
@@ -49,6 +50,23 @@ const salesByRep = [
 ]
 
 export function SalesPerformanceReport({ date, fullWidth = false }: SalesPerformanceReportProps) {
+  const { isSuperAdmin } = useUserRole()
+
+  if (!isSuperAdmin) {
+    return (
+      <Card className={fullWidth ? "w-full" : ""}>
+        <CardHeader>
+          <CardTitle>Sales Performance</CardTitle>
+          <CardDescription>Revenue, deals closed, and targets</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+            <p>No sales data yet. Close deals to see performance metrics here.</p>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
   return (
     <Card className={fullWidth ? "w-full" : ""}>
       <CardHeader>

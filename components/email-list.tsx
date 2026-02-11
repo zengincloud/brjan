@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Search, Clock, AlertTriangle, MousePointerClick, Building2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useUserRole } from "@/hooks/use-user-role"
 
 // Sample data for sequence emails
 const sequenceEmails = [
@@ -171,6 +172,7 @@ interface EmailListProps {
 }
 
 export function EmailList({ type, onSelectEmail, selectedEmail }: EmailListProps) {
+  const { isSuperAdmin } = useUserRole()
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedEmails, setSelectedEmails] = useState<string[]>([])
   const [realEmails, setRealEmails] = useState<any[]>([])
@@ -206,8 +208,8 @@ export function EmailList({ type, onSelectEmail, selectedEmail }: EmailListProps
   const getEmails = () => {
     switch (type) {
       case "sequence":
-        // Combine real emails with dummy data
-        const allSequenceEmails = [...realEmails, ...sequenceEmails]
+        // Combine real emails with dummy data (demo only for super_admin)
+        const allSequenceEmails = isSuperAdmin ? [...realEmails, ...sequenceEmails] : [...realEmails]
         return allSequenceEmails.filter(
           (email) =>
             email.recipient.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -215,8 +217,8 @@ export function EmailList({ type, onSelectEmail, selectedEmail }: EmailListProps
             email.subject.toLowerCase().includes(searchTerm.toLowerCase()),
         )
       case "priority":
-        // Combine real emails with dummy data
-        const allPriorityEmails = [...realEmails, ...priorityEmails]
+        // Combine real emails with dummy data (demo only for super_admin)
+        const allPriorityEmails = isSuperAdmin ? [...realEmails, ...priorityEmails] : [...realEmails]
         return allPriorityEmails.filter(
           (email) =>
             email.recipient.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -224,7 +226,7 @@ export function EmailList({ type, onSelectEmail, selectedEmail }: EmailListProps
             email.subject.toLowerCase().includes(searchTerm.toLowerCase()),
         )
       case "templates":
-        return emailTemplates.filter(
+        return (isSuperAdmin ? emailTemplates : []).filter(
           (template) =>
             template.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             template.subject.toLowerCase().includes(searchTerm.toLowerCase()),

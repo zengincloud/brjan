@@ -8,6 +8,7 @@ import { CardHeader } from "@/components/ui/card"
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import { useUserRole } from "@/hooks/use-user-role"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -266,6 +267,7 @@ const getPriorityColor = (priority: Priority) => {
 }
 
 export function TaskBoard() {
+  const { isSuperAdmin } = useUserRole()
   const [realTasks, setRealTasks] = useState<Task[]>([])
   const [dummyTasksState, setDummyTasksState] = useState<Task[]>(dummyTasks)
   const [activeTab, setActiveTab] = useState<"board" | "list">("board")
@@ -280,7 +282,7 @@ export function TaskBoard() {
   const router = useRouter()
 
   // Combine real and dummy tasks, but separate LinkedIn tasks for aggregation
-  const allTasks = [...realTasks, ...dummyTasksState]
+  const allTasks = isSuperAdmin ? [...realTasks, ...dummyTasksState] : [...realTasks]
   const nonLinkedInTasks = allTasks.filter(t => t.type !== "linkedin")
   const linkedInTasks = allTasks.filter(t => t.type === "linkedin")
 

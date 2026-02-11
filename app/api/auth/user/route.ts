@@ -22,6 +22,10 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
         role: true,
         tier: true,
         organizationId: true,
+        timezone: true,
+        workStartTime: true,
+        workEndTime: true,
+        workDays: true,
         createdAt: true,
       },
     })
@@ -51,13 +55,17 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
 export const PATCH = withAuth(async (request: NextRequest, userId: string) => {
   try {
     const body = await request.json()
-    const { firstName, lastName } = body
+    const { firstName, lastName, timezone, workStartTime, workEndTime, workDays } = body
 
     const user = await prisma.user.update({
       where: { id: userId },
       data: {
         ...(firstName !== undefined && { firstName }),
         ...(lastName !== undefined && { lastName }),
+        ...(timezone !== undefined && { timezone }),
+        ...(workStartTime !== undefined && { workStartTime }),
+        ...(workEndTime !== undefined && { workEndTime }),
+        ...(workDays !== undefined && { workDays }),
       },
       select: {
         id: true,
@@ -68,6 +76,10 @@ export const PATCH = withAuth(async (request: NextRequest, userId: string) => {
         role: true,
         tier: true,
         organizationId: true,
+        timezone: true,
+        workStartTime: true,
+        workEndTime: true,
+        workDays: true,
         createdAt: true,
       },
     })

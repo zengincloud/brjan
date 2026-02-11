@@ -18,6 +18,10 @@ model User {
   tier           UserTier      @default(trial)
   creditsUsed    Int           @default(0)
   creditsResetAt DateTime?
+  timezone       String        @default("est")
+  workStartTime  String        @default("09:00")
+  workEndTime    String        @default("17:00")
+  workDays       String        @default("weekdays")
   organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id])
   createdAt      DateTime      @default(now())

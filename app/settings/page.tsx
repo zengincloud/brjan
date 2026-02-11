@@ -45,7 +45,14 @@ export default function SettingsPage() {
   const [profile, setProfile] = useState<{
     firstName: string; lastName: string; email: string
   }>({ firstName: "", lastName: "", email: "" })
+  const [workingHours, setWorkingHours] = useState({
+    timezone: "est",
+    workDays: "weekdays",
+    workStartTime: "09:00",
+    workEndTime: "17:00",
+  })
   const [isSavingProfile, setIsSavingProfile] = useState(false)
+  const [isSavingWorkingHours, setIsSavingWorkingHours] = useState(false)
   const supabase = createClient()
 
   useEffect(() => {
@@ -57,6 +64,12 @@ export default function SettingsPage() {
             firstName: data.user.firstName || "",
             lastName: data.user.lastName || "",
             email: data.user.email || "",
+          })
+          setWorkingHours({
+            timezone: data.user.timezone || "est",
+            workDays: data.user.workDays || "weekdays",
+            workStartTime: data.user.workStartTime || "09:00",
+            workEndTime: data.user.workEndTime || "17:00",
           })
         }
       })
@@ -89,6 +102,27 @@ export default function SettingsPage() {
       toast.error("Failed to save profile")
     } finally {
       setIsSavingProfile(false)
+    }
+  }
+
+  const handleWorkingHoursSave = async () => {
+    setIsSavingWorkingHours(true)
+    try {
+      const res = await fetch("/api/auth/user", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(workingHours),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        toast.error(data.error || "Failed to save working hours")
+        return
+      }
+      toast.success("Working hours updated")
+    } catch {
+      toast.error("Failed to save working hours")
+    } finally {
+      setIsSavingWorkingHours(false)
     }
   }
 
@@ -235,7 +269,10 @@ export default function SettingsPage() {
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="timezone">Timezone</Label>
-                  <Select defaultValue="est">
+                  <Select
+                    value={workingHours.timezone}
+                    onValueChange={(v) => setWorkingHours((wh) => ({ ...wh, timezone: v }))}
+                  >
                     <SelectTrigger id="timezone">
                       <SelectValue />
                     </SelectTrigger>
@@ -249,7 +286,10 @@ export default function SettingsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="workdays">Working Days</Label>
-                  <Select defaultValue="weekdays">
+                  <Select
+                    value={workingHours.workDays}
+                    onValueChange={(v) => setWorkingHours((wh) => ({ ...wh, workDays: v }))}
+                  >
                     <SelectTrigger id="workdays">
                       <SelectValue />
                     </SelectTrigger>
@@ -264,12 +304,31 @@ export default function SettingsPage() {
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="startTime">Start Time</Label>
-                  <Input id="startTime" type="time" defaultValue="09:00" />
+                  <Input
+                    id="startTime"
+                    type="time"
+                    value={workingHours.workStartTime}
+                    onChange={(e) => setWorkingHours((wh) => ({ ...wh, workStartTime: e.target.value }))}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="endTime">End Time</Label>
-                  <Input id="endTime" type="time" defaultValue="17:00" />
+                  <Input
+                    id="endTime"
+                    type="time"
+                    value={workingHours.workEndTime}
+                    onChange={(e) => setWorkingHours((wh) => ({ ...wh, workEndTime: e.target.value }))}
+                  />
                 </div>
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  onClick={handleWorkingHoursSave}
+                  disabled={isSavingWorkingHours}
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                >
+                  {isSavingWorkingHours ? "Saving..." : "Save Working Hours"}
+                </Button>
               </div>
             </CardContent>
           </Card>

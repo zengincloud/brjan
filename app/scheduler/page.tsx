@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { CalendarClock, Clock, Plus, X, Globe, Users, Check, Info } from "lucide-react"
+import { CalendarClock, Clock, Plus, X, Globe, Users, Check, Info, ExternalLink } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
@@ -113,19 +113,6 @@ export default function SchedulerPage() {
     setParticipants(participants.map((p) => (p.id === id ? { ...p, timezone } : p)))
   }
 
-  // Find optimal meeting times
-  const findOptimalTimes = () => {
-    // This would be a more complex algorithm in a real app
-    // For now, we'll just return a sample time
-    return [
-      { time: "10:00 AM - 11:00 AM EST", score: 100 },
-      { time: "2:00 PM - 3:00 PM EST", score: 80 },
-      { time: "4:00 PM - 5:00 PM EST", score: 60 },
-    ]
-  }
-
-  const optimalTimes = findOptimalTimes()
-
   // Get timezone info for a participant
   const getTimezoneInfo = (timezoneValue: string) => {
     return timeZones.find((tz) => tz.value === timezoneValue) || timeZones[0]
@@ -162,6 +149,63 @@ export default function SchedulerPage() {
     const displayHour = hour % 12 === 0 ? 12 : hour % 12
     return `${displayHour} ${period}`
   }
+
+  // Find optimal meeting times based on actual participant overlap
+  const findOptimalTimes = () => {
+    const userTz = getTimezoneInfo(participants[0]?.timezone || "utc-5")
+    const tzLabel = userTz.label.split(" (")[0] // e.g. "Eastern Time"
+    const results: { startHour: number; endHour: number; time: string; score: number }[] = []
+
+    for (let hour = 0; hour < 24; hour++) {
+      const available = participants.filter((p) => isWorkingHour(p, hour)).length
+      if (available > 0) {
+        const score = Math.round((available / participants.length) * 100)
+        const startLabel = formatHour(hour)
+        const endLabel = formatHour((hour + 1) % 24)
+        results.push({
+          startHour: hour,
+          endHour: (hour + 1) % 24,
+          time: `${startLabel} - ${endLabel} ${tzLabel}`,
+          score,
+        })
+      }
+    }
+
+    // Sort by score descending, then by earlier hour
+    results.sort((a, b) => b.score - a.score || a.startHour - b.startHour)
+    return results.slice(0, 3)
+  }
+
+  // Build a Google Calendar URL for a given time slot
+  const buildGoogleCalendarUrl = (startHour: number) => {
+    const userTz = getTimezoneInfo(participants[0]?.timezone || "utc-5")
+    // Use tomorrow's date as default
+    const tomorrow = new Date()
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    const yyyy = tomorrow.getFullYear()
+    const mm = String(tomorrow.getMonth() + 1).padStart(2, "0")
+    const dd = String(tomorrow.getDate()).padStart(2, "0")
+
+    // Convert local display hour to UTC for the calendar link
+    const utcStart = ((startHour - userTz.offset + 24) % 24)
+    const utcEnd = ((startHour + 1 - userTz.offset + 24) % 24)
+
+    const startStr = `${yyyy}${mm}${dd}T${String(Math.floor(utcStart)).padStart(2, "0")}${String(Math.round((utcStart % 1) * 60)).padStart(2, "0")}00Z`
+    const endStr = `${yyyy}${mm}${dd}T${String(Math.floor(utcEnd)).padStart(2, "0")}${String(Math.round((utcEnd % 1) * 60)).padStart(2, "0")}00Z`
+
+    const participantEmails = participants.filter(p => p.email).map(p => p.email).join(",")
+    const params = new URLSearchParams({
+      action: "TEMPLATE",
+      text: "Meeting",
+      dates: `${startStr}/${endStr}`,
+      details: "Scheduled via Brjan",
+    })
+    if (participantEmails) params.set("add", participantEmails)
+
+    return `https://calendar.google.com/calendar/render?${params.toString()}`
+  }
+
+  const optimalTimes = findOptimalTimes()
 
   return (
     <div className="space-y-6">
@@ -328,7 +372,7 @@ export default function SchedulerPage() {
                 </div>
 
                 {/* Optimal meeting times */}
-                {participants.length > 1 && (
+                {participants.length > 1 && optimalTimes.length > 0 && (
                   <div className="space-y-3 pt-4 border-t">
                     <h3 className="text-sm font-medium">Optimal Meeting Times</h3>
                     {optimalTimes.map((time, index) => (
@@ -342,11 +386,16 @@ export default function SchedulerPage() {
                             {time.score}% match
                           </Badge>
                         </div>
-                        {index === 0 && (
-                          <div className="mt-2 flex justify-end">
-                            <Button size="sm">Schedule This Time</Button>
-                          </div>
-                        )}
+                        <div className="mt-2 flex justify-end gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => window.open(buildGoogleCalendarUrl(time.startHour), "_blank")}
+                          >
+                            <ExternalLink className="h-3 w-3 mr-1" />
+                            Open in Google Calendar
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>

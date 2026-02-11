@@ -131,16 +131,21 @@ export default function SchedulerPage() {
     return timeZones.find((tz) => tz.value === timezoneValue) || timeZones[0]
   }
 
-  // Convert a time from UTC to a specific timezone
-  const convertTime = (hour: number, timezoneOffset: number) => {
-    const convertedHour = (hour + timezoneOffset + 24) % 24
-    return convertedHour
+  // Convert local display hour to a participant's local hour
+  // The grid displays hours in the first participant's local time
+  // To check another participant's working hours, convert from display timezone to their timezone
+  const convertTime = (hour: number, fromOffset: number, toOffset: number) => {
+    // Convert display hour to UTC, then to target timezone
+    const utcHour = (hour - fromOffset + 24) % 24
+    const targetHour = (utcHour + toOffset + 24) % 24
+    return targetHour
   }
 
-  // Check if an hour is within working hours for a participant
-  const isWorkingHour = (participant: any, hour: number) => {
-    const tz = getTimezoneInfo(participant.timezone)
-    const localHour = convertTime(hour, tz.offset)
+  // Check if an hour (in display/local time) is within working hours for a participant
+  const isWorkingHour = (participant: any, displayHour: number) => {
+    const displayTz = getTimezoneInfo(participants[0]?.timezone || "utc")
+    const participantTz = getTimezoneInfo(participant.timezone)
+    const localHour = convertTime(displayHour, displayTz.offset, participantTz.offset)
     return (
       localHour >= participant.workingHours.start && localHour < participant.workingHours.end && participant.isAvailable
     )
@@ -378,7 +383,7 @@ export default function SchedulerPage() {
               <CardContent>
                 <div className="overflow-x-auto">
                   <div className="min-w-[800px]">
-                    {/* Time grid header - UTC hours */}
+                    {/* Time grid header - local hours */}
                     <div className="flex border-b mb-2">
                       <div className="w-24 flex-shrink-0"></div>
                       {hours.map((hour) => (

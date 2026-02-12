@@ -238,6 +238,104 @@ export function LeadsProspecting() {
     setError(null)
 
     try {
+      const trimmedQuery = query.trim()
+
+      // Detect LinkedIn person profile URL (linkedin.com/in/username)
+      const personLinkedInMatch = trimmedQuery.match(/(?:https?:\/\/)?(?:www\.)?linkedin\.com\/in\/([a-zA-Z0-9_-]+)/i)
+      if (personLinkedInMatch) {
+        const linkedinUrl = trimmedQuery.startsWith('http') ? trimmedQuery : `https://${trimmedQuery}`
+        toast({ title: "LinkedIn profile detected", description: "Revealing contact details..." })
+
+        const revealResponse = await fetch("/api/search/reveal", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ linkedinUrl }),
+        })
+
+        if (!revealResponse.ok) {
+          const errorData = await revealResponse.json()
+          throw new Error(errorData.error || "Failed to reveal contact")
+        }
+
+        const revealData = await revealResponse.json()
+        if (revealData.success) {
+          const d = revealData.data
+          const result: SearchResult = {
+            id: linkedinUrl,
+            name: d.name || personLinkedInMatch[1].replace(/-/g, " "),
+            title: d.title || "",
+            company: d.company || "",
+            location: d.location || "",
+            email: d.email || null,
+            emails: d.emails?.map((e: any) => typeof e === 'string' ? e : e?.email).filter(Boolean) || [],
+            phone: d.phone || null,
+            linkedin: linkedinUrl,
+            seniorityLevel: "",
+            companySize: d.companySizeRange || "",
+            industry: d.companyIndustry || "",
+            buyerIntent: "medium",
+            companyWebsite: d.companyDomain || null,
+          }
+          setSearchResults([result])
+          setTotalResults(1)
+          // Auto-store reveal data so it shows immediately
+          setRevealedContacts(prev => ({ ...prev, [linkedinUrl]: d }))
+
+          toast({
+            title: "Contact found!",
+            description: `${result.name}${result.company ? ` at ${result.company}` : ""}`,
+          })
+        } else {
+          throw new Error("Could not find contact details for this LinkedIn profile")
+        }
+
+        setIsLoading(false)
+        return
+      }
+
+      // Detect LinkedIn company page URL (linkedin.com/company/company-name)
+      const companyLinkedInMatch = trimmedQuery.match(/(?:https?:\/\/)?(?:www\.)?linkedin\.com\/company\/([a-zA-Z0-9_-]+)/i)
+      if (companyLinkedInMatch) {
+        const companySlug = companyLinkedInMatch[1].replace(/-/g, " ")
+        toast({ title: "Company LinkedIn detected", description: `Searching for leads at "${toTitleCase(companySlug)}"...` })
+
+        // Use the company name extracted from the URL slug as the company filter
+        const response = await fetch("/api/search/people", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            currentCompany: companySlug,
+            seniorityLevel: seniorityLevels.length > 0 ? seniorityLevels : undefined,
+            companyHeadcount: headcountRange,
+            geography,
+            city: cities,
+            industry: industries,
+            jobTitle: jobTitles,
+            jobFunction,
+            excludedNames,
+            excludedCompanies,
+            excludedTitles,
+            excludedIndustries,
+            limit: 5,
+          }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || "Failed to search people")
+        }
+
+        const data = await response.json()
+        setSearchResults(data.results)
+        setTotalResults(data.total)
+        // Also set the company filter so the user can see what was searched
+        setCurrentCompany(companySlug)
+
+        setIsLoading(false)
+        return
+      }
+
+      // Normal search flow
       const response = await fetch("/api/search/people", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -911,7 +1009,7 @@ export function LeadsProspecting() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search for leads by name, title, company, or keywords..."
+            placeholder="Search by name, title, company, or paste a LinkedIn URL..."
             className="pl-10"
             value={query}
             onChange={(e) => setQuery(e.target.value)}

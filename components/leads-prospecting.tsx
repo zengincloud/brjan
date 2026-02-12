@@ -360,6 +360,7 @@ export function LeadsProspecting() {
       }
 
       const data = await response.json()
+      console.log("Reveal response for", lead.name, ":", JSON.stringify(data, null, 2))
 
       if (data.success) {
         setRevealedContacts(prev => ({
@@ -382,9 +383,14 @@ export function LeadsProspecting() {
           })
         )
 
+        const foundEmail = data.data.email || (data.data.emails?.length > 0 ? data.data.emails[0].email : null)
+        const foundPhone = data.data.phone || (data.data.phones?.length > 0 ? data.data.phones[0].number : null)
+
         toast({
           title: "Contact revealed!",
-          description: `${lead.name}'s contact details are now visible.`,
+          description: foundEmail || foundPhone
+            ? `Found: ${foundEmail || "no email"}${foundPhone ? `, ${foundPhone}` : ""}`
+            : `${lead.name}'s reveal completed but no contact details were found.`,
         })
       } else if (data.pending) {
         toast({

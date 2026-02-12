@@ -44,6 +44,25 @@ interface SearchResult {
   companySize: string
   industry: string
   buyerIntent: "high" | "medium" | "low"
+  companyWebsite: string | null
+}
+
+interface RevealedData {
+  email: string | null
+  emailType: string | null
+  emailStatus: string | null
+  emails: { email: string; type: string; status: string }[]
+  phone: string | null
+  phoneStatus: string | null
+  phones: { number: string; prettyNumber: string; type: string }[]
+  name: string | null
+  title: string | null
+  company: string | null
+  location: string | null
+  companySize: number | null
+  companySizeRange: string | null
+  companyIndustry: string | null
+  companyDomain: string | null
 }
 
 interface SavedSearch {
@@ -137,6 +156,10 @@ export function LeadsProspecting() {
   const [error, setError] = useState<string | null>(null)
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set())
   const [selectedProspects, setSelectedProspects] = useState<string[]>([])
+
+  // Reveal state
+  const [revealedContacts, setRevealedContacts] = useState<Record<string, RevealedData>>({})
+  const [revealingContacts, setRevealingContacts] = useState<Set<string>>(new Set())
 
   // Load saved searches from localStorage on mount
   useEffect(() => {
@@ -307,6 +330,84 @@ export function LeadsProspecting() {
     sessionStorage.removeItem('leadsProspectingState')
   }
 
+  // Handle revealing a contact's details
+  const handleReveal = async (lead: SearchResult) => {
+    const leadId = lead.id
+    if (revealingContacts.has(leadId) || revealedContacts[leadId]) return
+
+    setRevealingContacts(prev => new Set(prev).add(leadId))
+
+    try {
+      const response = await fetch("/api/search/reveal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          linkedinUrl: lead.linkedin || undefined,
+          fullName: !lead.linkedin ? lead.name : undefined,
+          company: !lead.linkedin ? lead.company : undefined,
+          domain: !lead.linkedin && lead.companyWebsite ? lead.companyWebsite : undefined,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        toast({
+          title: "Reveal failed",
+          description: errorData.error || "Could not reveal contact details",
+          variant: "destructive",
+        })
+        return
+      }
+
+      const data = await response.json()
+
+      if (data.success) {
+        setRevealedContacts(prev => ({
+          ...prev,
+          [leadId]: data.data,
+        }))
+
+        // Update the search result with revealed data
+        setSearchResults(prev =>
+          prev.map(r => {
+            if (r.id === leadId) {
+              return {
+                ...r,
+                email: data.data.email || r.email,
+                phone: data.data.phone || r.phone,
+                emails: data.data.emails?.map((e: any) => e.email) || r.emails,
+              }
+            }
+            return r
+          })
+        )
+
+        toast({
+          title: "Contact revealed!",
+          description: `${lead.name}'s contact details are now visible.`,
+        })
+      } else if (data.pending) {
+        toast({
+          title: "Still processing",
+          description: "The reveal is taking longer than expected. Try again in a moment.",
+        })
+      }
+    } catch (err: any) {
+      console.error("Reveal error:", err)
+      toast({
+        title: "Error",
+        description: "Failed to reveal contact. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setRevealingContacts(prev => {
+        const next = new Set(prev)
+        next.delete(leadId)
+        return next
+      })
+    }
+  }
+
   // Handle job title chip input
   const handleJobTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && jobTitleInput.trim()) {
@@ -474,20 +575,78 @@ export function LeadsProspecting() {
 
   const handleAddToProspects = async (lead: SearchResult) => {
     try {
+      // Auto-reveal if not already revealed
+      const revealed = revealedContacts[lead.id]
+      let email = lead.email
+      let phone = lead.phone
+
+      if (!revealed && !email) {
+        // Reveal contact first
+        toast({
+          title: "Revealing contact...",
+          description: `Getting ${lead.name}'s contact details before adding.`,
+        })
+
+        try {
+          const revealResponse = await fetch("/api/search/reveal", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              linkedinUrl: lead.linkedin || undefined,
+              fullName: !lead.linkedin ? lead.name : undefined,
+              company: !lead.linkedin ? lead.company : undefined,
+              domain: !lead.linkedin && lead.companyWebsite ? lead.companyWebsite : undefined,
+            }),
+          })
+
+          if (revealResponse.ok) {
+            const revealData = await revealResponse.json()
+            if (revealData.success) {
+              email = revealData.data.email || email
+              phone = revealData.data.phone || phone
+
+              setRevealedContacts(prev => ({
+                ...prev,
+                [lead.id]: revealData.data,
+              }))
+
+              setSearchResults(prev =>
+                prev.map(r => {
+                  if (r.id === lead.id) {
+                    return {
+                      ...r,
+                      email: revealData.data.email || r.email,
+                      phone: revealData.data.phone || r.phone,
+                      emails: revealData.data.emails?.map((e: any) => e.email) || r.emails,
+                    }
+                  }
+                  return r
+                })
+              )
+            }
+          }
+        } catch (revealErr) {
+          console.error("Auto-reveal failed:", revealErr)
+        }
+      } else if (revealed) {
+        email = revealed.email || email
+        phone = revealed.phone || phone
+      }
+
       const response = await fetch("/api/prospects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: lead.name,
-          email: lead.email,
-          phone: lead.phone,
+          email,
+          phone,
           company: lead.company,
           title: lead.title,
           location: lead.location,
           linkedin: lead.linkedin,
           status: "new_lead",
           source: "Wiza Search",
-          wizaData: lead, // Store full Wiza data
+          wizaData: { ...lead, ...(revealed || {}) },
         }),
       })
 
@@ -1345,24 +1504,81 @@ export function LeadsProspecting() {
                                 )}
                               </div>
 
-                              {/* Preview Contact Info */}
-                              <div className="flex flex-col gap-2 text-sm">
-                                {primaryEmail && (
-                                  <div className="flex items-center gap-2">
-                                    <Mail className="h-3 w-3 text-muted-foreground" />
-                                    <span className="text-muted-foreground">{primaryEmail}</span>
-                                    <Badge variant="secondary" className="text-xs h-5">
-                                      Company Email
-                                    </Badge>
-                                  </div>
-                                )}
-                                {lead.phone && (
-                                  <div className="flex items-center gap-2 text-muted-foreground">
+                              {/* Contact Info - Revealed or Reveal Button */}
+                              {revealedContacts[lead.id] || primaryEmail || lead.phone ? (
+                                <div className="flex flex-col gap-2 text-sm">
+                                  {(revealedContacts[lead.id]?.emails?.length || primaryEmail) && (
+                                    <>
+                                      {revealedContacts[lead.id]?.emails?.map((e, idx) => (
+                                        <div key={idx} className="flex items-center gap-2">
+                                          <Mail className="h-3 w-3 text-green-500" />
+                                          <span className="text-muted-foreground">{e.email}</span>
+                                          <Badge variant="secondary" className="text-xs h-5">
+                                            {e.type === "work" ? "Work" : e.type === "personal" ? "Personal" : e.type}
+                                          </Badge>
+                                          {e.status === "valid" && (
+                                            <Badge className="bg-green-500/20 text-green-500 text-xs h-5">Verified</Badge>
+                                          )}
+                                          {e.status === "risky" && (
+                                            <Badge className="bg-yellow-500/20 text-yellow-500 text-xs h-5">Risky</Badge>
+                                          )}
+                                        </div>
+                                      )) || (primaryEmail && (
+                                        <div className="flex items-center gap-2">
+                                          <Mail className="h-3 w-3 text-muted-foreground" />
+                                          <span className="text-muted-foreground">{primaryEmail}</span>
+                                          <Badge variant="secondary" className="text-xs h-5">Email</Badge>
+                                        </div>
+                                      ))}
+                                    </>
+                                  )}
+                                  {(revealedContacts[lead.id]?.phones?.length || lead.phone) && (
+                                    <>
+                                      {revealedContacts[lead.id]?.phones?.map((p, idx) => (
+                                        <div key={idx} className="flex items-center gap-2 text-muted-foreground">
+                                          <Phone className="h-3 w-3 text-green-500" />
+                                          <span>{p.prettyNumber || p.number}</span>
+                                          <Badge variant="secondary" className="text-xs h-5">
+                                            {p.type === "mobile" ? "Mobile" : "Phone"}
+                                          </Badge>
+                                        </div>
+                                      )) || (lead.phone && (
+                                        <div className="flex items-center gap-2 text-muted-foreground">
+                                          <Phone className="h-3 w-3" />
+                                          <span>{lead.phone}</span>
+                                        </div>
+                                      ))}
+                                    </>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-3 text-sm mt-1">
+                                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                                    <Mail className="h-3 w-3" />
                                     <Phone className="h-3 w-3" />
-                                    <span>{lead.phone}</span>
+                                    <span className="text-xs">Contact info hidden</span>
                                   </div>
-                                )}
-                              </div>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-xs"
+                                    disabled={revealingContacts.has(lead.id)}
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleReveal(lead)
+                                    }}
+                                  >
+                                    {revealingContacts.has(lead.id) ? (
+                                      <>
+                                        <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                                        Revealing...
+                                      </>
+                                    ) : (
+                                      "Click to Reveal"
+                                    )}
+                                  </Button>
+                                </div>
+                              )}
                               </div>
                             </div>
                             <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
@@ -1397,37 +1613,105 @@ export function LeadsProspecting() {
                             <>
                               <Separator />
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-                                {/* Additional Contact Info */}
+                                {/* Contact Info */}
                                 <div className="space-y-3">
                                   <h4 className="font-medium text-sm flex items-center gap-2">
                                     <Mail className="h-4 w-4" />
-                                    Additional Contact Information
+                                    Contact Information
                                   </h4>
                                   <div className="space-y-2 text-sm text-muted-foreground pl-6">
-                                    {otherEmails.length > 0 ? (
-                                      otherEmails.map((email, idx) => (
-                                        <div key={idx} className="flex items-center gap-2">
-                                          <Mail className="h-3 w-3" />
-                                          <span>{email}</span>
-                                          <Badge variant="secondary" className="text-xs h-5">
-                                            Personal
-                                          </Badge>
-                                        </div>
-                                      ))
+                                    {revealedContacts[lead.id] ? (
+                                      <>
+                                        {revealedContacts[lead.id].emails?.map((e, idx) => (
+                                          <div key={idx} className="flex items-center gap-2">
+                                            <Mail className="h-3 w-3 text-green-500" />
+                                            <span>{e.email}</span>
+                                            <Badge variant="secondary" className="text-xs h-5">{e.type}</Badge>
+                                            {e.status === "valid" && <Badge className="bg-green-500/20 text-green-500 text-xs h-5">Verified</Badge>}
+                                          </div>
+                                        ))}
+                                        {revealedContacts[lead.id].phones?.map((p, idx) => (
+                                          <div key={idx} className="flex items-center gap-2">
+                                            <Phone className="h-3 w-3 text-green-500" />
+                                            <span>{p.prettyNumber || p.number}</span>
+                                            <Badge variant="secondary" className="text-xs h-5">{p.type}</Badge>
+                                          </div>
+                                        ))}
+                                        {!revealedContacts[lead.id].emails?.length && !revealedContacts[lead.id].phones?.length && (
+                                          <p>No contact details found after reveal</p>
+                                        )}
+                                      </>
+                                    ) : primaryEmail || lead.phone ? (
+                                      <>
+                                        {primaryEmail && (
+                                          <div className="flex items-center gap-2">
+                                            <Mail className="h-3 w-3" />
+                                            <span>{primaryEmail}</span>
+                                          </div>
+                                        )}
+                                        {otherEmails.map((email, idx) => (
+                                          <div key={idx} className="flex items-center gap-2">
+                                            <Mail className="h-3 w-3" />
+                                            <span>{email}</span>
+                                            <Badge variant="secondary" className="text-xs h-5">Personal</Badge>
+                                          </div>
+                                        ))}
+                                        {lead.phone && (
+                                          <div className="flex items-center gap-2">
+                                            <Phone className="h-3 w-3" />
+                                            <span>{lead.phone}</span>
+                                          </div>
+                                        )}
+                                      </>
                                     ) : (
-                                      <p>No additional emails available</p>
+                                      <div className="flex items-center gap-2">
+                                        <span>Not revealed yet</span>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="h-7 text-xs"
+                                          disabled={revealingContacts.has(lead.id)}
+                                          onClick={() => handleReveal(lead)}
+                                        >
+                                          {revealingContacts.has(lead.id) ? (
+                                            <>
+                                              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                                              Revealing...
+                                            </>
+                                          ) : (
+                                            "Reveal Contact"
+                                          )}
+                                        </Button>
+                                      </div>
                                     )}
                                   </div>
                                 </div>
 
-                                {/* Previous Company */}
+                                {/* Company Details */}
                                 <div className="space-y-3">
                                   <h4 className="font-medium text-sm flex items-center gap-2">
-                                    <Calendar className="h-4 w-4" />
-                                    Previous Experience
+                                    <Building2 className="h-4 w-4" />
+                                    Company Details
                                   </h4>
                                   <div className="space-y-2 text-sm text-muted-foreground pl-6">
-                                    <p>No previous experience data available</p>
+                                    {revealedContacts[lead.id] ? (
+                                      <>
+                                        {revealedContacts[lead.id].companyIndustry && (
+                                          <p>Industry: {revealedContacts[lead.id].companyIndustry}</p>
+                                        )}
+                                        {revealedContacts[lead.id].companySizeRange && (
+                                          <p>Size: {revealedContacts[lead.id].companySizeRange} employees</p>
+                                        )}
+                                        {revealedContacts[lead.id].companyDomain && (
+                                          <p>Website: {revealedContacts[lead.id].companyDomain}</p>
+                                        )}
+                                      </>
+                                    ) : (
+                                      <>
+                                        {lead.industry && <p>Industry: {lead.industry}</p>}
+                                        {lead.companySize && <p>Size: {lead.companySize}</p>}
+                                      </>
+                                    )}
                                   </div>
                                 </div>
 

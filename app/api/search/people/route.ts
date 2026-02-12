@@ -80,9 +80,28 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       }
     }
 
-    // Free-text query - treat as job title search if no other title is specified
+    // Free-text query - detect if it looks like a person name (two words, no common title keywords)
     if (query && !jobTitle?.length) {
-      filters.job_title = [{ v: query, s: "i" }]
+      const trimmedQuery = query.trim()
+      const queryParts = trimmedQuery.split(/\s+/)
+      const titleKeywords = [
+        "ceo", "cto", "cfo", "coo", "cmo", "vp", "vice", "president", "director",
+        "manager", "head", "chief", "lead", "senior", "junior", "engineer", "developer",
+        "analyst", "consultant", "specialist", "coordinator", "associate", "intern",
+        "sales", "marketing", "product", "design", "software", "data", "account",
+        "executive", "officer", "founder", "partner", "architect",
+      ]
+      const looksLikeName = queryParts.length >= 2 &&
+        queryParts.length <= 3 &&
+        !titleKeywords.some(kw => trimmedQuery.toLowerCase().includes(kw))
+
+      if (looksLikeName) {
+        // Treat as person name: first word = first name, rest = last name
+        filters.first_name = [queryParts[0]]
+        filters.last_name = [queryParts.slice(1).join(" ")]
+      } else {
+        filters.job_title = [{ v: trimmedQuery, s: "i" }]
+      }
     }
 
     // Job titles - supports both string and array

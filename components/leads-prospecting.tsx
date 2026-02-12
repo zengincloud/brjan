@@ -583,6 +583,9 @@ export function LeadsProspecting() {
         setJobTitles([...jobTitles, newTitle])
       }
       setJobTitleInput("")
+    } else if (e.key === "Enter" && !jobTitleInput.trim()) {
+      e.preventDefault()
+      handleSearch()
     } else if (e.key === "Backspace" && !jobTitleInput && jobTitles.length > 0) {
       // Remove last chip on backspace if input is empty
       setJobTitles(jobTitles.slice(0, -1))
@@ -602,6 +605,9 @@ export function LeadsProspecting() {
         setCities([...cities, newCity])
       }
       setCityInput("")
+    } else if (e.key === "Enter" && !cityInput.trim()) {
+      e.preventDefault()
+      handleSearch()
     } else if (e.key === "Backspace" && !cityInput && cities.length > 0) {
       setCities(cities.slice(0, -1))
     }
@@ -620,6 +626,9 @@ export function LeadsProspecting() {
         setExcludedNames([...excludedNames, value])
       }
       setExcludedNameInput("")
+    } else if (e.key === "Enter" && !excludedNameInput.trim()) {
+      e.preventDefault()
+      handleSearch()
     } else if (e.key === "Backspace" && !excludedNameInput && excludedNames.length > 0) {
       setExcludedNames(excludedNames.slice(0, -1))
     }
@@ -633,6 +642,9 @@ export function LeadsProspecting() {
         setExcludedCompanies([...excludedCompanies, value])
       }
       setExcludedCompanyInput("")
+    } else if (e.key === "Enter" && !excludedCompanyInput.trim()) {
+      e.preventDefault()
+      handleSearch()
     } else if (e.key === "Backspace" && !excludedCompanyInput && excludedCompanies.length > 0) {
       setExcludedCompanies(excludedCompanies.slice(0, -1))
     }
@@ -646,6 +658,9 @@ export function LeadsProspecting() {
         setExcludedTitles([...excludedTitles, value])
       }
       setExcludedTitleInput("")
+    } else if (e.key === "Enter" && !excludedTitleInput.trim()) {
+      e.preventDefault()
+      handleSearch()
     } else if (e.key === "Backspace" && !excludedTitleInput && excludedTitles.length > 0) {
       setExcludedTitles(excludedTitles.slice(0, -1))
     }
@@ -659,6 +674,9 @@ export function LeadsProspecting() {
         setExcludedIndustries([...excludedIndustries, value])
       }
       setExcludedIndustryInput("")
+    } else if (e.key === "Enter" && !excludedIndustryInput.trim()) {
+      e.preventDefault()
+      handleSearch()
     } else if (e.key === "Backspace" && !excludedIndustryInput && excludedIndustries.length > 0) {
       setExcludedIndustries(excludedIndustries.slice(0, -1))
     }
@@ -1158,6 +1176,7 @@ export function LeadsProspecting() {
                     placeholder="Enter company name"
                     value={currentCompany}
                     onChange={(e) => setCurrentCompany(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                   />
                 </div>
 
@@ -1311,6 +1330,7 @@ export function LeadsProspecting() {
                     placeholder="Enter person's name"
                     value={nameFilter}
                     onChange={(e) => setNameFilter(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                   />
                 </div>
 

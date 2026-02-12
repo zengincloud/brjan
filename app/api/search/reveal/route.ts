@@ -123,6 +123,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       return NextResponse.json({
         success: true,
         data: extractRevealData(startData.data),
+        _rawWizaResponse: startData.data, // DEBUG
       })
     }
 
@@ -157,6 +158,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
         return NextResponse.json({
           success: true,
           data: extractRevealData(pollData.data),
+          _rawWizaResponse: pollData.data, // DEBUG: include raw response for debugging
         })
       }
 

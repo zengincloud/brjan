@@ -257,7 +257,7 @@ export function LeadsProspecting() {
           excludedCompanies,
           excludedTitles,
           excludedIndustries,
-          limit: 30,
+          limit: 5,
         }),
       })
 

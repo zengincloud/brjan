@@ -181,7 +181,7 @@ export function AccountsProspecting() {
           employeeCount: company.employees,
           revenue: company.revenue,
           status: "new_lead",
-          source: "PDL Search",
+          source: "Wiza Search",
         }),
       })
 

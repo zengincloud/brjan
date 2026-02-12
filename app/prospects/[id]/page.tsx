@@ -57,7 +57,7 @@ type Prospect = {
   sequence?: string | null
   sequenceStep?: string | null
   currentStepDetails?: CurrentStepDetails | null
-  pdlData?: any
+  wizaData?: any
   povData?: POVData | null
   lastActivity: string
   createdAt: string
@@ -151,7 +151,7 @@ export default function ProspectDetailPage() {
     return <div className="container mx-auto py-8">Prospect not found</div>
   }
 
-  const pdlData = prospect.pdlData || {}
+  const wizaData = prospect.wizaData || {}
 
   const getStepIcon = (type: string) => {
     switch (type) {
@@ -245,21 +245,21 @@ export default function ProspectDetailPage() {
             <CardTitle>Contact Information</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {(pdlData.emails && pdlData.emails.length > 0) || prospect.email ? (
+            {(wizaData.emails && wizaData.emails.length > 0) || prospect.email ? (
               <div className="flex items-start gap-3">
                 <Mail className="h-5 w-5 text-muted-foreground mt-0.5" />
                 <div className="flex-1">
                   <p className="text-sm text-muted-foreground mb-1">
-                    {pdlData.emails && pdlData.emails.length > 1 ? "Emails" : "Email"}
+                    {wizaData.emails && wizaData.emails.length > 1 ? "Emails" : "Email"}
                   </p>
                   <div className="space-y-1">
-                    {pdlData.emails && pdlData.emails.length > 0 ? (
-                      pdlData.emails.map((email: string, index: number) => (
+                    {wizaData.emails && wizaData.emails.length > 0 ? (
+                      wizaData.emails.map((email: string, index: number) => (
                         <div key={index} className="flex items-center gap-2">
                           <a href={`mailto:${email}`} className="text-sm font-medium hover:underline">
                             {email}
                           </a>
-                          {index === 0 && pdlData.emails.length > 1 && (
+                          {index === 0 && wizaData.emails.length > 1 && (
                             <Badge variant="secondary" className="text-xs">
                               Primary
                             </Badge>
@@ -323,32 +323,32 @@ export default function ProspectDetailPage() {
             <CardTitle>Quick Stats</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {pdlData.seniorityLevel && (
+            {wizaData.seniorityLevel && (
               <div>
                 <p className="text-sm text-muted-foreground">Seniority</p>
-                <p className="text-sm font-medium">{pdlData.seniorityLevel}</p>
+                <p className="text-sm font-medium">{wizaData.seniorityLevel}</p>
               </div>
             )}
 
-            {pdlData.companySize && (
+            {wizaData.companySize && (
               <div>
                 <p className="text-sm text-muted-foreground">Company Size</p>
-                <p className="text-sm font-medium">{pdlData.companySize.toLocaleString()} employees</p>
+                <p className="text-sm font-medium">{wizaData.companySize.toLocaleString()} employees</p>
               </div>
             )}
 
-            {pdlData.industry && (
+            {wizaData.industry && (
               <div>
                 <p className="text-sm text-muted-foreground">Industry</p>
-                <p className="text-sm font-medium">{pdlData.industry}</p>
+                <p className="text-sm font-medium">{wizaData.industry}</p>
               </div>
             )}
 
-            {pdlData.buyerIntent && (
+            {wizaData.buyerIntent && (
               <div>
                 <p className="text-sm text-muted-foreground">Buyer Intent</p>
-                <Badge variant={pdlData.buyerIntent === "high" ? "default" : "secondary"}>
-                  {pdlData.buyerIntent}
+                <Badge variant={wizaData.buyerIntent === "high" ? "default" : "secondary"}>
+                  {wizaData.buyerIntent}
                 </Badge>
               </div>
             )}

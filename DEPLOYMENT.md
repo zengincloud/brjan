@@ -30,7 +30,7 @@ TWILIO_AUTH_TOKEN=your_twilio_auth_token_here
 TWILIO_API_SECRET=your_twilio_api_secret_here
 TWILIO_PHONE_NUMBER=your_twilio_phone_number_here
 
-PEOPLE_DATA_LABS_API_KEY=your_pdl_api_key_here
+WIZA_API_KEY=your_wiza_api_key_here
 ```
 
 ## Step 3: Run Database Migrations on Supabase

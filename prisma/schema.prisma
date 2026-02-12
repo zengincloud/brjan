@@ -130,7 +130,7 @@ model Prospect {
   status       ProspectStatus @default(new_lead)
   sequence     String?
   sequenceStep String?
-  pdlData      Json?
+  wizaData     Json?          @map("pdlData")
   povData      Json?          // AI-generated point of view data
   lastActivity DateTime       @default(now())
   createdAt    DateTime       @default(now())

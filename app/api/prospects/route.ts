@@ -29,7 +29,7 @@ function getBuyerIntentText(intent: string): string {
   }
 }
 
-// Generate POV data from prospect/PDL data
+// Generate POV data from prospect/Wiza data
 function generatePOVData(data: {
   name: string
   title?: string | null
@@ -106,7 +106,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
   try {
     const body = await request.json()
 
-    const { name, email, title, company, phone, location, linkedin, status, sequence, sequenceStep, pdlData } = body
+    const { name, email, title, company, phone, location, linkedin, status, sequence, sequenceStep, wizaData } = body
 
     if (!name || !email) {
       return NextResponse.json({ error: "Name and email are required" }, { status: 400 })
@@ -123,10 +123,10 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       name,
       title,
       company,
-      industry: pdlData?.industry,
-      seniorityLevel: pdlData?.seniorityLevel,
-      companySize: pdlData?.companySize,
-      buyerIntent: pdlData?.buyerIntent,
+      industry: wizaData?.industry,
+      seniorityLevel: wizaData?.seniorityLevel,
+      companySize: wizaData?.companySize,
+      buyerIntent: wizaData?.buyerIntent,
     })
 
     const prospect = await prisma.prospect.create({
@@ -141,7 +141,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
         status,
         sequence,
         sequenceStep,
-        pdlData,
+        wizaData,
         ...(povData && { povData }), // Include generated POV data if not null
         userId, // Associate with current user
       },

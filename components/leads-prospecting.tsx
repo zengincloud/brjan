@@ -486,8 +486,8 @@ export function LeadsProspecting() {
           location: lead.location,
           linkedin: lead.linkedin,
           status: "new_lead",
-          source: "PDL Search",
-          pdlData: lead, // Store full PDL data
+          source: "Wiza Search",
+          wizaData: lead, // Store full Wiza data
         }),
       })
 
@@ -540,7 +540,7 @@ export function LeadsProspecting() {
             industry: lead.industry,
             website: `https://${lead.company.toLowerCase().replace(/\s+/g, '')}.com`,
             size: lead.companySize,
-            source: "PDL Search",
+            source: "Wiza Search",
           }),
         })
       } catch (err) {
@@ -601,7 +601,7 @@ export function LeadsProspecting() {
                 industry: lead.industry,
                 website: `https://${lead.company.toLowerCase().replace(/\s+/g, '')}.com`,
                 size: lead.companySize,
-                source: "PDL Search",
+                source: "Wiza Search",
               }),
             })
           } catch (err) {

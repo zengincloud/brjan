@@ -3,13 +3,8 @@ import { withAuth } from "@/lib/auth/api-middleware"
 
 export const dynamic = 'force-dynamic'
 
-// POST /api/search/people - Search for people using People Data Labs API
+// POST /api/search/people - Search for people using Wiza Prospect Search API
 export const POST = withAuth(async (request: NextRequest, userId: string) => {
-  // Helper to sanitize SQL input by escaping single quotes
-  function sanitizeSqlInput(str: string): string {
-    return str.replace(/'/g, "''")
-  }
-
   // Helper to capitalize names properly (title case)
   function toTitleCase(str: string | null | undefined): string {
     if (!str) return ""
@@ -20,66 +15,33 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       .join(" ")
   }
 
-  // Helper to sort emails - company emails first, then personal emails
-  function sortEmails(emails: any[], companyDomain: string | null): string[] {
-    if (!emails || emails.length === 0) return []
-
-    const emailAddresses = emails
-      .map(e => e.address)
-      .filter(Boolean)
-
-    if (!companyDomain) return emailAddresses
-
-    // Extract domain from company name (e.g., "Salesforce" -> "salesforce.com")
-    const companyDomainLower = companyDomain.toLowerCase().replace(/\s+/g, '')
-
-    // Sort: company emails first, then others
-    return emailAddresses.sort((a, b) => {
-      const aDomain = a.split('@')[1]?.toLowerCase() || ''
-      const bDomain = b.split('@')[1]?.toLowerCase() || ''
-
-      const aIsCompany = aDomain.includes(companyDomainLower) || aDomain.replace('.com', '').includes(companyDomainLower)
-      const bIsCompany = bDomain.includes(companyDomainLower) || bDomain.replace('.com', '').includes(companyDomainLower)
-
-      if (aIsCompany && !bIsCompany) return -1
-      if (!aIsCompany && bIsCompany) return 1
-      return 0
-    })
-  }
-
   // Helper to calculate buyer intent based on person data
   function calculateBuyerIntent(person: any): "high" | "medium" | "low" {
     let score = 0
 
-    // Recent job change
-    if (person.job_start_date) {
-      const startDate = new Date(person.job_start_date)
-      const monthsSinceStart = (Date.now() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 30)
-      if (monthsSinceStart < 6) score += 2
-    }
-
     // Senior level
-    if (person.job_title_levels?.includes("VP") || person.job_title_levels?.includes("CXO")) {
-      score += 2
-    }
+    const title = (person.job_title || "").toLowerCase()
+    const seniorTitles = ["ceo", "cto", "cfo", "coo", "cmo", "vp", "vice president", "president", "founder", "owner", "partner"]
+    if (seniorTitles.some(t => title.includes(t))) score += 2
 
     // Decision maker title keywords
-    const decisionKeywords = ["director", "vp", "head", "chief", "president"]
-    if (person.job_title && decisionKeywords.some(keyword => person.job_title.toLowerCase().includes(keyword))) {
-      score += 1
-    }
+    const decisionKeywords = ["director", "head", "chief", "managing"]
+    if (decisionKeywords.some(keyword => title.includes(keyword))) score += 1
 
-    if (score >= 4) return "high"
-    if (score >= 2) return "medium"
+    // Manager level
+    if (title.includes("manager") || title.includes("lead")) score += 1
+
+    if (score >= 3) return "high"
+    if (score >= 1) return "medium"
     return "low"
   }
 
   try {
-    const apiKey = process.env.PEOPLE_DATA_LABS_API_KEY
+    const apiKey = process.env.WIZA_API_KEY
 
     if (!apiKey) {
       return NextResponse.json(
-        { error: "People Data Labs API key not configured" },
+        { error: "Wiza API key not configured" },
         { status: 500 }
       )
     }
@@ -101,99 +63,107 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       excludedCompanies,
       excludedTitles,
       excludedIndustries,
-      limit = 5,
-      offset = 0,
+      limit = 10,
     } = body
 
-    // Build SQL WHERE conditions
-    const conditions: string[] = []
+    // Build Wiza filters object
+    const filters: any = {}
 
-    // Name filter (dedicated name search)
+    // Name filter
     if (nameFilter) {
-      conditions.push(`full_name LIKE '%${sanitizeSqlInput(nameFilter)}%'`)
+      const parts = nameFilter.trim().split(/\s+/)
+      if (parts.length >= 2) {
+        filters.first_name = [parts[0]]
+        filters.last_name = [parts.slice(1).join(" ")]
+      } else {
+        filters.first_name = [parts[0]]
+      }
     }
 
-    // Free-text search
-    if (query) {
-      conditions.push(`(full_name LIKE '%${sanitizeSqlInput(query)}%' OR job_title LIKE '%${sanitizeSqlInput(query)}%')`)
+    // Free-text query - treat as job title search if no other title is specified
+    if (query && !jobTitle?.length) {
+      filters.job_title = [{ v: query, s: "i" }]
     }
 
-    // Job title - supports both string and array
+    // Job titles - supports both string and array
     if (jobTitle) {
       const titles = Array.isArray(jobTitle) ? jobTitle : [jobTitle]
-      if (titles.length > 0) {
-        const titleConditions = titles
-          .filter((t: string) => t && t.trim())
-          .map((t: string) => `job_title LIKE '%${sanitizeSqlInput(t.trim())}%'`)
-          .join(' OR ')
-        if (titleConditions) {
-          conditions.push(`(${titleConditions})`)
-        }
+      const titleFilters = titles
+        .filter((t: string) => t && t.trim())
+        .map((t: string) => ({ v: t.trim(), s: "i" }))
+      if (titleFilters.length > 0) {
+        filters.job_title = [...(filters.job_title || []), ...titleFilters]
       }
     }
 
-    // Job function - search in job_title_role field
+    // Excluded titles
+    if (excludedTitles?.length) {
+      const excludeFilters = excludedTitles
+        .filter((t: string) => t && t.trim())
+        .map((t: string) => ({ v: t.trim(), s: "e" }))
+      filters.job_title = [...(filters.job_title || []), ...excludeFilters]
+    }
+
+    // Job function → Wiza job_role
     if (jobFunction) {
-      // Map UI values to PDL job_title_role values
-      const functionMap: { [key: string]: string[] } = {
-        'sales': ['sales'],
-        'marketing': ['marketing'],
-        'it': ['information technology', 'it'],
-        'finance': ['finance', 'accounting'],
-        'hr': ['human resources', 'hr'],
-        'operations': ['operations'],
-        'product': ['product'],
-        'engineering': ['engineering']
+      const roleMap: Record<string, string> = {
+        'sales': 'sales',
+        'marketing': 'marketing',
+        'it': 'engineering',
+        'finance': 'finance',
+        'hr': 'human_resources',
+        'operations': 'operations',
+        'product': 'engineering',
+        'engineering': 'engineering',
+        'design': 'design',
+        'legal': 'legal',
+        'education': 'education',
+        'health': 'health',
+        'customer_service': 'customer_service',
+        'public_relations': 'public_relations',
+        'media': 'media',
+        'real_estate': 'real_estate',
+        'trades': 'trades',
       }
-
-      const roles = functionMap[jobFunction.toLowerCase()] || [jobFunction]
-      const roleConditions = roles.map(role => `job_title_role LIKE '%${role}%'`).join(' OR ')
-      conditions.push(`(${roleConditions})`)
+      const role = roleMap[jobFunction.toLowerCase()] || jobFunction.toLowerCase()
+      filters.job_role = [role]
     }
 
-    // Seniority level - map UI values to PDL values
-    if (seniorityLevel && seniorityLevel.length > 0) {
-      const levelMap: { [key: string]: string[] } = {
-        'C-Suite': ['cxo', 'owner'],
-        'VP': ['vp'],
-        'Director': ['director'],
-        'Manager': ['manager'],
-        'Individual Contributor': ['senior', 'entry', 'training']
+    // Seniority level → Wiza job_title_level
+    if (seniorityLevel?.length) {
+      const levelMap: Record<string, string[]> = {
+        'C-Suite': ['CXO', 'Owner'],
+        'VP': ['VP'],
+        'Director': ['Director'],
+        'Manager': ['Manager'],
+        'Individual Contributor': ['Senior', 'Entry'],
       }
-
-      const pdlLevels: string[] = []
+      const wizaLevels: string[] = []
       seniorityLevel.forEach((level: string) => {
         const mapped = levelMap[level]
-        if (mapped) {
-          pdlLevels.push(...mapped)
-        }
+        if (mapped) wizaLevels.push(...mapped)
       })
-
-      if (pdlLevels.length > 0) {
-        const levelConditions = pdlLevels.map(level => `job_title_levels LIKE '%${level}%'`).join(' OR ')
-        conditions.push(`(${levelConditions})`)
+      if (wizaLevels.length > 0) {
+        filters.job_title_level = wizaLevels
       }
     }
 
-    // Current company - also search by website/domain if input looks like a domain
+    // Current company
     if (currentCompany) {
-      const sanitizedCompany = sanitizeSqlInput(currentCompany)
-      const looksLikeDomain = /\.[a-z]{2,}$/i.test(currentCompany.trim())
-      if (looksLikeDomain) {
-        // Search both company name and website domain
-        const domain = currentCompany.trim().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/$/, '')
-        const nameFromDomain = domain.split('.')[0].replace(/-/g, ' ')
-        conditions.push(`(job_company_website LIKE '%${sanitizeSqlInput(domain)}%' OR job_company_name LIKE '%${sanitizeSqlInput(nameFromDomain)}%')`)
-      } else {
-        conditions.push(`job_company_name LIKE '%${sanitizedCompany}%'`)
-      }
+      filters.job_company = [{ v: currentCompany.trim(), s: "i" }]
     }
 
-    // Company headcount range - PDL uses string ranges like "1-10", "51-200", etc.
+    // Excluded companies
+    if (excludedCompanies?.length) {
+      const excludeCompanyFilters = excludedCompanies
+        .filter((c: string) => c && c.trim())
+        .map((c: string) => ({ v: c.trim(), s: "e" }))
+      filters.job_company = [...(filters.job_company || []), ...excludeCompanyFilters]
+    }
+
+    // Company headcount range → Wiza company_size
     if (companyHeadcount && companyHeadcount.length === 2) {
       const [min, max] = companyHeadcount
-
-      // PDL employee count ranges
       const sizeRanges = [
         { range: "1-10", minVal: 1, maxVal: 10 },
         { range: "11-50", minVal: 11, maxVal: 50 },
@@ -204,156 +174,143 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
         { range: "5001-10000", minVal: 5001, maxVal: 10000 },
         { range: "10001+", minVal: 10001, maxVal: Infinity },
       ]
-
-      // Find ranges that overlap with our filter
-      const matchingRanges = sizeRanges.filter(r => {
-        // Range overlaps if: range.max >= filter.min AND range.min <= filter.max
-        return r.maxVal >= min && r.minVal <= max
-      })
-
+      const matchingRanges = sizeRanges
+        .filter(r => r.maxVal >= min && r.minVal <= max)
+        .map(r => r.range)
       if (matchingRanges.length > 0) {
-        const sizeConditions = matchingRanges.map(r => `job_company_size='${r.range}'`).join(' OR ')
-        conditions.push(`(${sizeConditions})`)
+        filters.company_size = matchingRanges
       }
     }
 
-    // Geography - map regions to countries
+    // Geography → Wiza location
     if (geography) {
-      const regionMap: { [key: string]: string[] } = {
-        'north-america': ['united states', 'canada', 'mexico'],
-        'europe': ['united kingdom', 'germany', 'france', 'spain', 'italy', 'netherlands', 'switzerland', 'sweden', 'norway', 'denmark', 'poland', 'belgium', 'austria', 'ireland', 'portugal'],
-        'asia-pacific': ['china', 'japan', 'india', 'australia', 'singapore', 'south korea', 'indonesia', 'thailand', 'malaysia', 'philippines', 'vietnam', 'new zealand'],
-        'latin-america': ['brazil', 'argentina', 'chile', 'colombia', 'peru', 'venezuela', 'uruguay'],
-        'middle-east': ['united arab emirates', 'saudi arabia', 'israel', 'egypt', 'qatar', 'kuwait', 'south africa', 'nigeria', 'kenya']
+      const regionMap: Record<string, { v: string; b: string; s: string }[]> = {
+        'north-america': [
+          { v: "United States", b: "country", s: "i" },
+          { v: "Canada", b: "country", s: "i" },
+        ],
+        'europe': [
+          { v: "United Kingdom", b: "country", s: "i" },
+          { v: "Germany", b: "country", s: "i" },
+          { v: "France", b: "country", s: "i" },
+          { v: "Spain", b: "country", s: "i" },
+          { v: "Italy", b: "country", s: "i" },
+          { v: "Netherlands", b: "country", s: "i" },
+        ],
+        'asia-pacific': [
+          { v: "Australia", b: "country", s: "i" },
+          { v: "Japan", b: "country", s: "i" },
+          { v: "India", b: "country", s: "i" },
+          { v: "Singapore", b: "country", s: "i" },
+        ],
+        'latin-america': [
+          { v: "Brazil", b: "country", s: "i" },
+          { v: "Mexico", b: "country", s: "i" },
+          { v: "Argentina", b: "country", s: "i" },
+        ],
+        'middle-east': [
+          { v: "United Arab Emirates", b: "country", s: "i" },
+          { v: "Saudi Arabia", b: "country", s: "i" },
+          { v: "Israel", b: "country", s: "i" },
+        ],
       }
-
-      const countries = regionMap[geography.toLowerCase()]
-      if (countries) {
-        const countryConditions = countries.map(country => `location_country LIKE '%${country}%'`).join(' OR ')
-        conditions.push(`(${countryConditions})`)
+      const locations = regionMap[geography.toLowerCase()]
+      if (locations) {
+        filters.location = locations
       }
     }
-    // City/Country - supports both string and array
+
+    // City filter → Wiza location with city type
     if (city) {
       const cityList = Array.isArray(city) ? city : [city]
-      if (cityList.length > 0) {
-        const cityConditions = cityList
-          .filter((c: string) => c && c.trim())
-          .map((c: string) => {
-            const sanitizedCity = sanitizeSqlInput(c.trim())
-            return `(location_locality LIKE '%${sanitizedCity}%' OR location_region LIKE '%${sanitizedCity}%' OR location_country LIKE '%${sanitizedCity}%')`
-          })
-          .join(' OR ')
-        if (cityConditions) {
-          conditions.push(`(${cityConditions})`)
-        }
+      const cityLocations = cityList
+        .filter((c: string) => c && c.trim())
+        .map((c: string) => ({ v: c.trim(), b: "city", s: "i" }))
+      if (cityLocations.length > 0) {
+        filters.location = [...(filters.location || []), ...cityLocations]
       }
     }
 
-    // Industry - use LIKE for partial matches
-    if (industry && industry.length > 0) {
-      const industryConditions = industry.map((i: string) => `job_company_industry LIKE '%${i}%'`).join(' OR ')
-      conditions.push(`(${industryConditions})`)
+    // Industry → Wiza company_industry
+    if (industry?.length) {
+      const industryFilters = industry.map((i: string) => ({ v: i.toLowerCase(), s: "i" }))
+      filters.company_industry = industryFilters
     }
 
-    // Exclusions - use NOT LIKE
-    if (excludedNames && excludedNames.length > 0) {
-      excludedNames.forEach((name: string) => {
-        if (name && name.trim()) {
-          conditions.push(`full_name NOT LIKE '%${sanitizeSqlInput(name.trim())}%'`)
-        }
-      })
+    // Excluded industries
+    if (excludedIndustries?.length) {
+      const excludeIndustryFilters = excludedIndustries
+        .filter((i: string) => i && i.trim())
+        .map((i: string) => ({ v: i.trim().toLowerCase(), s: "e" }))
+      filters.company_industry = [...(filters.company_industry || []), ...excludeIndustryFilters]
     }
 
-    if (excludedCompanies && excludedCompanies.length > 0) {
-      excludedCompanies.forEach((company: string) => {
-        if (company && company.trim()) {
-          conditions.push(`job_company_name NOT LIKE '%${sanitizeSqlInput(company.trim())}%'`)
-        }
-      })
-    }
+    console.log("Wiza search filters:", JSON.stringify(filters, null, 2))
 
-    if (excludedTitles && excludedTitles.length > 0) {
-      excludedTitles.forEach((title: string) => {
-        if (title && title.trim()) {
-          conditions.push(`job_title NOT LIKE '%${sanitizeSqlInput(title.trim())}%'`)
-        }
-      })
-    }
-
-    if (excludedIndustries && excludedIndustries.length > 0) {
-      excludedIndustries.forEach((ind: string) => {
-        if (ind && ind.trim()) {
-          conditions.push(`job_company_industry NOT LIKE '%${sanitizeSqlInput(ind.trim())}%'`)
-        }
-      })
-    }
-
-    // Build SQL query
-    const whereClause = conditions.length > 0 ? conditions.join(" AND ") : "1=1"
-    const sqlQuery = `SELECT * FROM person WHERE ${whereClause}`
-
-    const searchParams: any = {
-      sql: sqlQuery,
-      size: limit,
-    }
-
-    // Log the query for debugging
-    console.log("PDL SQL Query:", sqlQuery)
-    console.log("Search params:", JSON.stringify(searchParams, null, 2))
-
-    // Call People Data Labs API
-    const response = await fetch("https://api.peopledatalabs.com/v5/person/search", {
+    // Call Wiza Prospect Search API
+    const response = await fetch("https://wiza.co/api/prospects/search", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Api-Key": apiKey,
+        "Authorization": `Bearer ${apiKey}`,
       },
-      body: JSON.stringify(searchParams),
+      body: JSON.stringify({
+        filters,
+        size: Math.min(limit, 30), // Wiza max is 30
+      }),
     })
 
     if (!response.ok) {
-      const errorData = await response.json()
-      console.error("People Data Labs API error:", errorData)
+      const errorData = await response.json().catch(() => ({}))
+      console.error("Wiza API error:", errorData)
       return NextResponse.json(
-        { error: errorData.error?.message || "Failed to search people" },
+        { error: errorData.status?.message || "Failed to search people" },
         { status: response.status }
       )
     }
 
     const data = await response.json()
-    console.log("PDL Response:", JSON.stringify(data, null, 2))
+    console.log("Wiza Response:", JSON.stringify(data, null, 2))
 
-    // Transform PDL response to our format
-    const transformedResults = data.data?.map((person: any) => {
-      const sortedEmails = sortEmails(person.emails || [], person.job_company_name)
-      // Ensure LinkedIn URL has https:// prefix
+    // Transform Wiza response to our format
+    const transformedResults = (data.data?.profiles || []).map((person: any) => {
       let linkedinUrl = person.linkedin_url
       if (linkedinUrl && !linkedinUrl.startsWith('http')) {
         linkedinUrl = `https://${linkedinUrl}`
       }
+
       return {
-        id: person.id,
+        id: person.linkedin_url || `${person.full_name}-${person.job_company_name}`,
         name: toTitleCase(person.full_name),
         title: person.job_title,
         company: toTitleCase(person.job_company_name),
-        location: `${person.location_locality || ""}, ${person.location_region || ""} ${person.location_country || ""}`.trim(),
-        email: sortedEmails[0] || null, // Primary email (company email if available)
-        emails: sortedEmails, // All emails, company emails first
-        phone: person.phone_numbers?.[0] || null,
+        location: person.location_name || "",
+        email: null, // Not available in search results, requires enrichment
+        emails: [],
+        phone: null,
         linkedin: linkedinUrl,
-        seniorityLevel: person.job_title_levels?.[0],
-        companySize: person.job_company_size,
-        industry: person.job_company_industry,
+        seniorityLevel: person.job_title_role || null,
+        companySize: null,
+        industry: person.industry || null,
+        companyWebsite: person.job_company_website || null,
         buyerIntent: calculateBuyerIntent(person),
       }
-    }) || []
+    })
+
+    // Filter out excluded names client-side (Wiza doesn't have a name exclusion filter)
+    let filteredResults = transformedResults
+    if (excludedNames?.length) {
+      const excludeLower = excludedNames.map((n: string) => n.toLowerCase())
+      filteredResults = transformedResults.filter((r: any) =>
+        !excludeLower.some((name: string) => r.name.toLowerCase().includes(name))
+      )
+    }
 
     return NextResponse.json({
-      results: transformedResults,
-      total: data.total || 0,
+      results: filteredResults,
+      total: data.data?.total || 0,
       limit,
-      offset,
+      offset: 0,
     })
   } catch (error: any) {
     console.error("Error searching people:", error)

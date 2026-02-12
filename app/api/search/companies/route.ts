@@ -3,14 +3,10 @@ import { withAuth } from "@/lib/auth/api-middleware"
 
 export const dynamic = 'force-dynamic'
 
-// POST /api/search/companies - Search for companies using People Data Labs API
+// POST /api/search/companies - Search for companies using Wiza Prospect Search API
+// Wiza doesn't have a dedicated company search, so we search for prospects
+// with company filters and extract unique companies from the results
 export const POST = withAuth(async (request: NextRequest, userId: string) => {
-  // Helper to sanitize SQL input by escaping single quotes
-  function sanitizeSqlInput(str: string): string {
-    return str.replace(/'/g, "''")
-  }
-
-  // Helper to capitalize names properly (title case)
   function toTitleCase(str: string | null | undefined): string {
     if (!str) return ""
     return str
@@ -20,65 +16,12 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       .join(" ")
   }
 
-  // Helper to format location
-  function formatLocation(company: any): string {
-    const parts = [
-      company.location_locality,
-      company.location_region,
-      company.location_country,
-    ].filter(Boolean)
-    return parts.join(", ")
-  }
-
-  // Helper to get size range
-  function getSizeRange(size: number | null): string {
-    if (!size) return "Unknown"
-    if (size < 50) return "1-49"
-    if (size < 200) return "50-199"
-    if (size < 500) return "200-499"
-    if (size < 1000) return "500-999"
-    if (size < 5000) return "1000-4999"
-    return "5000+"
-  }
-
-  // Helper to calculate buying signals
-  function calculateBuyingSignals(company: any): string[] {
-    const signals: string[] = []
-
-    // Recent funding
-    if (company.last_funding_date) {
-      const fundingDate = new Date(company.last_funding_date)
-      const monthsSinceFunding = (Date.now() - fundingDate.getTime()) / (1000 * 60 * 60 * 24 * 30)
-      if (monthsSinceFunding < 12) {
-        signals.push("Recent Funding")
-      }
-    }
-
-    // Growth indicators
-    if (company.employee_count_by_month) {
-      // Check for growth
-      signals.push("Growth Indicator")
-    }
-
-    // Technology adoption
-    if (company.tags && company.tags.length > 5) {
-      signals.push("Tech Adoption")
-    }
-
-    // Website presence
-    if (company.website) {
-      signals.push("Active Website")
-    }
-
-    return signals
-  }
-
   try {
-    const apiKey = process.env.PEOPLE_DATA_LABS_API_KEY
+    const apiKey = process.env.WIZA_API_KEY
 
     if (!apiKey) {
       return NextResponse.json(
-        { error: "People Data Labs API key not configured" },
+        { error: "Wiza API key not configured" },
         { status: 500 }
       )
     }
@@ -90,188 +33,152 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       headcountRange,
       location,
       city,
-      departmentHeadcount,
       technologies,
       jobOpportunities,
       recentActivities,
-      limit = 5,
-      offset = 0,
+      limit = 10,
     } = body
 
-    // Build SQL WHERE conditions
-    const conditions: string[] = []
+    // Build Wiza filters — use company-level filters
+    const filters: any = {}
 
-    // Free-text search with prioritized matching
-    // PDL uses Elasticsearch SQL where text fields are case-insensitive by default
+    // Company name search via company summary or job_company
     if (query) {
-      const sanitizedQuery = sanitizeSqlInput(query)
-      // Prioritize exact matches, then prefix matches, then contains matches
-      // Use OR to match any of: exact name, starts with, contains, or domain match
-      conditions.push(`(
-        name = '${sanitizedQuery}' OR
-        name LIKE '${sanitizedQuery}%' OR
-        name LIKE '%${sanitizedQuery}%' OR
-        website LIKE '%${sanitizedQuery.toLowerCase().replace(/\s+/g, '')}%'
-      )`)
+      filters.job_company = [{ v: query.trim(), s: "i" }]
     }
 
-    // Industry - use LIKE for partial matches
-    if (industry && industry.length > 0) {
-      const industryConditions = industry.map((i: string) => `industry LIKE '%${sanitizeSqlInput(i)}%'`).join(' OR ')
-      conditions.push(`(${industryConditions})`)
+    // Industry
+    if (industry?.length) {
+      filters.company_industry = industry.map((i: string) => ({ v: i.toLowerCase(), s: "i" }))
     }
 
-    // Note: PDL doesn't support revenue filtering in SQL queries
-    // Revenue data is available in results but can't be used as a filter
-
-    // Headcount range
+    // Headcount
     if (headcountRange && headcountRange.length === 2) {
       const [min, max] = headcountRange
-      conditions.push(`(size >= ${min} AND size <= ${max})`)
+      const sizeRanges = [
+        { range: "1-10", minVal: 1, maxVal: 10 },
+        { range: "11-50", minVal: 11, maxVal: 50 },
+        { range: "51-200", minVal: 51, maxVal: 200 },
+        { range: "201-500", minVal: 201, maxVal: 500 },
+        { range: "501-1000", minVal: 501, maxVal: 1000 },
+        { range: "1001-5000", minVal: 1001, maxVal: 5000 },
+        { range: "5001-10000", minVal: 5001, maxVal: 10000 },
+        { range: "10001+", minVal: 10001, maxVal: Infinity },
+      ]
+      const matchingRanges = sizeRanges
+        .filter(r => r.maxVal >= min && r.minVal <= max)
+        .map(r => r.range)
+      if (matchingRanges.length > 0) {
+        filters.company_size = matchingRanges
+      }
     }
 
-    // Location - map regions to countries
+    // Location
     if (location) {
-      const regionMap: { [key: string]: string[] } = {
-        'north-america': ['united states', 'canada', 'mexico'],
-        'europe': ['united kingdom', 'germany', 'france', 'spain', 'italy', 'netherlands', 'switzerland', 'sweden', 'norway', 'denmark', 'poland', 'belgium', 'austria', 'ireland', 'portugal'],
-        'asia-pacific': ['china', 'japan', 'india', 'australia', 'singapore', 'south korea', 'indonesia', 'thailand', 'malaysia', 'philippines', 'vietnam', 'new zealand'],
-        'latin-america': ['brazil', 'argentina', 'chile', 'colombia', 'peru', 'venezuela', 'uruguay'],
-        'middle-east': ['united arab emirates', 'saudi arabia', 'israel', 'egypt', 'qatar', 'kuwait', 'south africa', 'nigeria', 'kenya']
+      const regionMap: Record<string, { v: string; b: string; s: string }[]> = {
+        'north-america': [
+          { v: "United States", b: "country", s: "i" },
+          { v: "Canada", b: "country", s: "i" },
+        ],
+        'europe': [
+          { v: "United Kingdom", b: "country", s: "i" },
+          { v: "Germany", b: "country", s: "i" },
+          { v: "France", b: "country", s: "i" },
+        ],
+        'asia-pacific': [
+          { v: "Australia", b: "country", s: "i" },
+          { v: "Japan", b: "country", s: "i" },
+          { v: "India", b: "country", s: "i" },
+        ],
+        'latin-america': [
+          { v: "Brazil", b: "country", s: "i" },
+          { v: "Mexico", b: "country", s: "i" },
+        ],
+        'middle-east': [
+          { v: "United Arab Emirates", b: "country", s: "i" },
+          { v: "Saudi Arabia", b: "country", s: "i" },
+        ],
       }
-
-      const countries = regionMap[location.toLowerCase()]
-      if (countries) {
-        const countryConditions = countries.map(country => `location_country LIKE '%${country}%'`).join(' OR ')
-        conditions.push(`(${countryConditions})`)
+      const locations = regionMap[location.toLowerCase()]
+      if (locations) {
+        filters.company_location = locations
       } else {
-        // If it's not a region, treat it as a specific location
-        const sanitizedLocation = sanitizeSqlInput(location)
-        conditions.push(`(location_country LIKE '%${sanitizedLocation}%' OR location_region LIKE '%${sanitizedLocation}%')`)
+        filters.company_location = [{ v: location, b: "country", s: "i" }]
       }
     }
+
     if (city) {
-      const sanitizedCity = sanitizeSqlInput(city)
-      conditions.push(`(location_locality LIKE '%${sanitizedCity}%' OR location_region LIKE '%${sanitizedCity}%')`)
+      filters.company_location = [
+        ...(filters.company_location || []),
+        { v: city.trim(), b: "city", s: "i" },
+      ]
     }
 
-    // Technologies - PDL supports querying array fields directly
-    if (technologies && technologies.length > 0) {
-      // Use IN operator for array field matching
-      const sanitizedTechs = technologies.map((t: string) => `'${sanitizeSqlInput(t.toLowerCase())}'`).join(', ')
-      conditions.push(`tags IN (${sanitizedTechs})`)
+    // Funding signals
+    if (recentActivities?.includes("funding")) {
+      filters.funding_date = { t: "last", v: "1y" }
     }
 
-    // Department headcount
-    if (departmentHeadcount) {
-      const { department, min, max } = departmentHeadcount
-      if (department && (min || max)) {
-        if (min && max) {
-          conditions.push(`(${department.toLowerCase()}_size >= ${min} AND ${department.toLowerCase()}_size <= ${max})`)
-        } else if (min) {
-          conditions.push(`${department.toLowerCase()}_size >= ${min}`)
-        } else if (max) {
-          conditions.push(`${department.toLowerCase()}_size <= ${max}`)
-        }
-      }
-    }
+    // Search for C-level to get company-level data
+    filters.job_title_level = filters.job_title_level || ["CXO", "Owner", "VP"]
 
-    // Job opportunities (hiring signals)
-    if (jobOpportunities && jobOpportunities.length > 0) {
-      // Note: This is a placeholder - PDL doesn't have a direct field for this
-      conditions.push("size IS NOT NULL")
-    }
+    console.log("Wiza company search filters:", JSON.stringify(filters, null, 2))
 
-    // Recent activities (funding, etc.)
-    if (recentActivities && recentActivities.length > 0) {
-      if (recentActivities.includes("funding")) {
-        conditions.push("last_funding_date IS NOT NULL")
-      }
-    }
-
-    // Build SQL query
-    const whereClause = conditions.length > 0 ? conditions.join(" AND ") : "1=1"
-    const sqlQuery = `SELECT * FROM company WHERE ${whereClause}`
-
-    const searchParams: any = {
-      sql: sqlQuery,
-      size: limit,
-    }
-
-    // Log the query for debugging
-    console.log("PDL SQL Query:", sqlQuery)
-    console.log("Search params:", JSON.stringify(searchParams, null, 2))
-
-    // Call People Data Labs API
-    const response = await fetch("https://api.peopledatalabs.com/v5/company/search", {
+    const response = await fetch("https://wiza.co/api/prospects/search", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Api-Key": apiKey,
+        "Authorization": `Bearer ${apiKey}`,
       },
-      body: JSON.stringify(searchParams),
+      body: JSON.stringify({
+        filters,
+        size: 30, // Get max to dedupe companies
+      }),
     })
 
     if (!response.ok) {
-      const errorData = await response.json()
-      console.error("People Data Labs API error:", errorData)
+      const errorData = await response.json().catch(() => ({}))
+      console.error("Wiza API error:", errorData)
       return NextResponse.json(
-        { error: errorData.error?.message || "Failed to search companies" },
+        { error: errorData.status?.message || "Failed to search companies" },
         { status: response.status }
       )
     }
 
     const data = await response.json()
 
-    // Transform PDL response to our format
-    const transformedResults = data.data?.map((company: any) => ({
-      id: company.id,
-      name: toTitleCase(company.name),
-      industry: company.industry,
-      location: formatLocation(company),
-      website: company.website,
-      employees: company.size,
-      size: getSizeRange(company.size),
-      revenue: company.estimated_revenue || null,
-      verified: !!company.linkedin_url,
-      linkedin: company.linkedin_url,
-      description: company.summary,
-      founded: company.founded,
-      technologies: company.tags || [],
-      buyingSignals: calculateBuyingSignals(company),
-      _originalName: company.name, // Keep for sorting
-    })) || []
+    // Extract unique companies from prospect results
+    const seenCompanies = new Set<string>()
+    const companies: any[] = []
 
-    // Sort results by relevance if there's a query
-    if (query) {
-      const lowerQuery = query.toLowerCase()
-      transformedResults.sort((a: any, b: any) => {
-        const aName = a._originalName.toLowerCase()
-        const bName = b._originalName.toLowerCase()
+    for (const person of (data.data?.profiles || [])) {
+      const companyName = person.job_company_name?.toLowerCase()
+      if (!companyName || seenCompanies.has(companyName)) continue
+      seenCompanies.add(companyName)
 
-        // Exact match comes first
-        if (aName === lowerQuery && bName !== lowerQuery) return -1
-        if (bName === lowerQuery && aName !== lowerQuery) return 1
-
-        // Then prefix match
-        const aStartsWith = aName.startsWith(lowerQuery)
-        const bStartsWith = bName.startsWith(lowerQuery)
-        if (aStartsWith && !bStartsWith) return -1
-        if (bStartsWith && !aStartsWith) return 1
-
-        // Then by size (larger companies first for ambiguous matches)
-        return (b.employees || 0) - (a.employees || 0)
+      companies.push({
+        id: person.job_company_website || companyName,
+        name: toTitleCase(person.job_company_name),
+        industry: person.industry || null,
+        location: person.location_name || "",
+        website: person.job_company_website || null,
+        employees: null,
+        size: null,
+        revenue: null,
+        verified: !!person.linkedin_url,
+        linkedin: null,
+        description: null,
+        founded: null,
+        technologies: [],
+        buyingSignals: [],
       })
-
-      // Remove the temporary sorting field
-      transformedResults.forEach((result: any) => delete result._originalName)
     }
 
     return NextResponse.json({
-      results: transformedResults,
-      total: data.total || 0,
+      results: companies.slice(0, limit),
+      total: companies.length,
       limit,
-      offset,
+      offset: 0,
     })
   } catch (error: any) {
     console.error("Error searching companies:", error)

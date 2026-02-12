@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Search, ChevronDown, ChevronUp, Building2, Briefcase, User, BarChart, ArrowRight, Clock, Mail, Phone, Linkedin as LinkedinIcon, Loader2, MapPin, Calendar, TrendingUp, X, Save, FolderOpen, Trash2, Ban } from "lucide-react"
+import { Search, ChevronDown, ChevronUp, Building2, Briefcase, User, BarChart, ArrowRight, Clock, Mail, Phone, Linkedin as LinkedinIcon, Loader2, MapPin, Calendar, TrendingUp, X, Save, FolderOpen, Trash2, Ban, Eye } from "lucide-react"
 import { Collapsible } from "@/components/ui/collapsible"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
@@ -408,6 +408,27 @@ export function LeadsProspecting() {
     }
   }
 
+  // Handle revealing all search results
+  const handleRevealAll = async () => {
+    const unrevealed = searchResults.filter(
+      lead => !revealedContacts[lead.id] && !revealingContacts.has(lead.id)
+    )
+    if (unrevealed.length === 0) {
+      toast({ title: "All contacts already revealed" })
+      return
+    }
+
+    toast({
+      title: `Revealing ${unrevealed.length} contact${unrevealed.length !== 1 ? "s" : ""}...`,
+      description: "This may take a moment.",
+    })
+
+    // Reveal sequentially to avoid rate limiting
+    for (const lead of unrevealed) {
+      await handleReveal(lead)
+    }
+  }
+
   // Handle job title chip input
   const handleJobTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && jobTitleInput.trim()) {
@@ -735,6 +756,33 @@ export function LeadsProspecting() {
     } else {
       setSelectedProspects(searchResults.map(lead => lead.id))
     }
+  }
+
+  const handleBulkAddToProspects = async () => {
+    const selectedLeads = searchResults.filter(lead => selectedProspects.includes(lead.id))
+    if (selectedLeads.length === 0) return
+
+    let added = 0
+    let failed = 0
+
+    for (const lead of selectedLeads) {
+      try {
+        await handleAddToProspects(lead)
+        added++
+      } catch (err) {
+        failed++
+        console.error("Error adding prospect:", err)
+      }
+    }
+
+    toast({
+      title: `Added ${added} prospect${added !== 1 ? "s" : ""}!`,
+      description: failed > 0
+        ? `${failed} failed (may already exist).`
+        : `All selected prospects have been added.`,
+    })
+
+    setSelectedProspects([])
   }
 
   const handleBulkAddToSequence = async (sequenceId: string) => {
@@ -1387,18 +1435,40 @@ export function LeadsProspecting() {
                   </div>
                 )}
               </div>
-              <Select defaultValue="relevance">
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Sort by" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="relevance">Relevance</SelectItem>
-                  <SelectItem value="intent-high">Buyer Intent (High to Low)</SelectItem>
-                  <SelectItem value="recent-activity">Recent Activity</SelectItem>
-                  <SelectItem value="title">Job Title</SelectItem>
-                  <SelectItem value="company">Company</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-2">
+                {searchResults.length > 0 && searchResults.some(lead => !revealedContacts[lead.id]) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRevealAll}
+                    disabled={revealingContacts.size > 0}
+                  >
+                    {revealingContacts.size > 0 ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Revealing...
+                      </>
+                    ) : (
+                      <>
+                        <Eye className="mr-2 h-4 w-4" />
+                        Reveal All
+                      </>
+                    )}
+                  </Button>
+                )}
+                <Select defaultValue="relevance">
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Sort by" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="relevance">Relevance</SelectItem>
+                    <SelectItem value="intent-high">Buyer Intent (High to Low)</SelectItem>
+                    <SelectItem value="recent-activity">Recent Activity</SelectItem>
+                    <SelectItem value="title">Job Title</SelectItem>
+                    <SelectItem value="company">Company</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             {/* Bulk Actions Bar */}
@@ -1410,6 +1480,14 @@ export function LeadsProspecting() {
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleBulkAddToProspects}
+                  >
+                    <User className="mr-2 h-4 w-4" />
+                    Add All to Prospects
+                  </Button>
                   <Button
                     variant="outline"
                     size="sm"
@@ -1507,47 +1585,70 @@ export function LeadsProspecting() {
                               {/* Contact Info - Revealed or Reveal Button */}
                               {revealedContacts[lead.id] || primaryEmail || lead.phone ? (
                                 <div className="flex flex-col gap-2 text-sm">
-                                  {(revealedContacts[lead.id]?.emails?.length || primaryEmail) && (
+                                  {(revealedContacts[lead.id]?.emails?.length || revealedContacts[lead.id]?.email || primaryEmail) && (
                                     <>
-                                      {revealedContacts[lead.id]?.emails?.map((e, idx) => (
-                                        <div key={idx} className="flex items-center gap-2">
+                                      {revealedContacts[lead.id]?.emails?.length ? (
+                                        revealedContacts[lead.id].emails.map((e, idx) => (
+                                          <div key={idx} className="flex items-center gap-2">
+                                            <Mail className="h-3 w-3 text-green-500" />
+                                            <span className="text-muted-foreground">{e.email}</span>
+                                            <Badge variant="secondary" className="text-xs h-5">
+                                              {e.type === "work" ? "Work" : e.type === "personal" ? "Personal" : e.type}
+                                            </Badge>
+                                            {e.status === "valid" && (
+                                              <Badge className="bg-green-500/20 text-green-500 text-xs h-5">Verified</Badge>
+                                            )}
+                                            {e.status === "risky" && (
+                                              <Badge className="bg-yellow-500/20 text-yellow-500 text-xs h-5">Risky</Badge>
+                                            )}
+                                          </div>
+                                        ))
+                                      ) : revealedContacts[lead.id]?.email ? (
+                                        <div className="flex items-center gap-2">
                                           <Mail className="h-3 w-3 text-green-500" />
-                                          <span className="text-muted-foreground">{e.email}</span>
-                                          <Badge variant="secondary" className="text-xs h-5">
-                                            {e.type === "work" ? "Work" : e.type === "personal" ? "Personal" : e.type}
-                                          </Badge>
-                                          {e.status === "valid" && (
+                                          <span className="text-muted-foreground">{revealedContacts[lead.id].email}</span>
+                                          {revealedContacts[lead.id].emailType && (
+                                            <Badge variant="secondary" className="text-xs h-5">
+                                              {revealedContacts[lead.id].emailType === "work" ? "Work" : revealedContacts[lead.id].emailType === "personal" ? "Personal" : revealedContacts[lead.id].emailType}
+                                            </Badge>
+                                          )}
+                                          {revealedContacts[lead.id].emailStatus === "valid" && (
                                             <Badge className="bg-green-500/20 text-green-500 text-xs h-5">Verified</Badge>
                                           )}
-                                          {e.status === "risky" && (
-                                            <Badge className="bg-yellow-500/20 text-yellow-500 text-xs h-5">Risky</Badge>
-                                          )}
                                         </div>
-                                      )) || (primaryEmail && (
+                                      ) : primaryEmail ? (
                                         <div className="flex items-center gap-2">
                                           <Mail className="h-3 w-3 text-muted-foreground" />
                                           <span className="text-muted-foreground">{primaryEmail}</span>
                                           <Badge variant="secondary" className="text-xs h-5">Email</Badge>
                                         </div>
-                                      ))}
+                                      ) : null}
                                     </>
                                   )}
-                                  {(revealedContacts[lead.id]?.phones?.length || lead.phone) && (
+                                  {(revealedContacts[lead.id]?.phones?.length || revealedContacts[lead.id]?.phone || lead.phone) && (
                                     <>
-                                      {revealedContacts[lead.id]?.phones?.map((p, idx) => (
-                                        <div key={idx} className="flex items-center gap-2 text-muted-foreground">
+                                      {revealedContacts[lead.id]?.phones?.length ? (
+                                        revealedContacts[lead.id].phones.map((p, idx) => (
+                                          <div key={idx} className="flex items-center gap-2 text-muted-foreground">
+                                            <Phone className="h-3 w-3 text-green-500" />
+                                            <span>{p.prettyNumber || p.number}</span>
+                                            <Badge variant="secondary" className="text-xs h-5">
+                                              {p.type === "mobile" ? "Mobile" : "Phone"}
+                                            </Badge>
+                                          </div>
+                                        ))
+                                      ) : revealedContacts[lead.id]?.phone ? (
+                                        <div className="flex items-center gap-2 text-muted-foreground">
                                           <Phone className="h-3 w-3 text-green-500" />
-                                          <span>{p.prettyNumber || p.number}</span>
-                                          <Badge variant="secondary" className="text-xs h-5">
-                                            {p.type === "mobile" ? "Mobile" : "Phone"}
-                                          </Badge>
+                                          <span>{revealedContacts[lead.id].phone}</span>
+                                          <Badge variant="secondary" className="text-xs h-5">Phone</Badge>
                                         </div>
-                                      )) || (lead.phone && (
+                                      ) : lead.phone ? (
                                         <div className="flex items-center gap-2 text-muted-foreground">
                                           <Phone className="h-3 w-3" />
                                           <span>{lead.phone}</span>
                                         </div>
-                                      ))}
+                                      ) : null}
                                     </>
                                   )}
                                 </div>
@@ -1622,22 +1723,41 @@ export function LeadsProspecting() {
                                   <div className="space-y-2 text-sm text-muted-foreground pl-6">
                                     {revealedContacts[lead.id] ? (
                                       <>
-                                        {revealedContacts[lead.id].emails?.map((e, idx) => (
-                                          <div key={idx} className="flex items-center gap-2">
+                                        {revealedContacts[lead.id].emails?.length ? (
+                                          revealedContacts[lead.id].emails.map((e, idx) => (
+                                            <div key={idx} className="flex items-center gap-2">
+                                              <Mail className="h-3 w-3 text-green-500" />
+                                              <span>{e.email}</span>
+                                              <Badge variant="secondary" className="text-xs h-5">{e.type}</Badge>
+                                              {e.status === "valid" && <Badge className="bg-green-500/20 text-green-500 text-xs h-5">Verified</Badge>}
+                                            </div>
+                                          ))
+                                        ) : revealedContacts[lead.id].email ? (
+                                          <div className="flex items-center gap-2">
                                             <Mail className="h-3 w-3 text-green-500" />
-                                            <span>{e.email}</span>
-                                            <Badge variant="secondary" className="text-xs h-5">{e.type}</Badge>
-                                            {e.status === "valid" && <Badge className="bg-green-500/20 text-green-500 text-xs h-5">Verified</Badge>}
+                                            <span>{revealedContacts[lead.id].email}</span>
+                                            {revealedContacts[lead.id].emailType && (
+                                              <Badge variant="secondary" className="text-xs h-5">{revealedContacts[lead.id].emailType}</Badge>
+                                            )}
+                                            {revealedContacts[lead.id].emailStatus === "valid" && <Badge className="bg-green-500/20 text-green-500 text-xs h-5">Verified</Badge>}
                                           </div>
-                                        ))}
-                                        {revealedContacts[lead.id].phones?.map((p, idx) => (
-                                          <div key={idx} className="flex items-center gap-2">
+                                        ) : null}
+                                        {revealedContacts[lead.id].phones?.length ? (
+                                          revealedContacts[lead.id].phones.map((p, idx) => (
+                                            <div key={idx} className="flex items-center gap-2">
+                                              <Phone className="h-3 w-3 text-green-500" />
+                                              <span>{p.prettyNumber || p.number}</span>
+                                              <Badge variant="secondary" className="text-xs h-5">{p.type}</Badge>
+                                            </div>
+                                          ))
+                                        ) : revealedContacts[lead.id].phone ? (
+                                          <div className="flex items-center gap-2">
                                             <Phone className="h-3 w-3 text-green-500" />
-                                            <span>{p.prettyNumber || p.number}</span>
-                                            <Badge variant="secondary" className="text-xs h-5">{p.type}</Badge>
+                                            <span>{revealedContacts[lead.id].phone}</span>
+                                            <Badge variant="secondary" className="text-xs h-5">Phone</Badge>
                                           </div>
-                                        ))}
-                                        {!revealedContacts[lead.id].emails?.length && !revealedContacts[lead.id].phones?.length && (
+                                        ) : null}
+                                        {!revealedContacts[lead.id].emails?.length && !revealedContacts[lead.id].email && !revealedContacts[lead.id].phones?.length && !revealedContacts[lead.id].phone && (
                                           <p>No contact details found after reveal</p>
                                         )}
                                       </>

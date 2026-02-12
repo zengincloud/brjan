@@ -76,6 +76,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
     }
 
     const startData = await startResponse.json()
+    console.log("Wiza reveal start response:", JSON.stringify(startData, null, 2))
     const revealId = startData.data?.id
 
     if (!revealId) {
@@ -85,12 +86,53 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       )
     }
 
+    // Helper to extract reveal data from response
+    const extractRevealData = (d: any) => ({
+      email: d.email || null,
+      emailType: d.email_type || null,
+      emailStatus: d.email_status || null,
+      emails: (d.emails || []).map((e: any) => ({
+        email: e.email,
+        type: e.email_type,
+        status: e.email_status,
+      })),
+      phone: d.mobile_phone || d.phone_number || null,
+      phoneStatus: d.phone_status || null,
+      phones: (d.phones || []).map((p: any) => ({
+        number: p.number,
+        prettyNumber: p.pretty_number,
+        type: p.type,
+      })),
+      name: d.name || null,
+      title: d.title || null,
+      company: d.company || null,
+      location: d.location || null,
+      linkedinUrl: d.linkedin_profile_url || null,
+      companySize: d.company_size || null,
+      companySizeRange: d.company_size_range || null,
+      companyIndustry: d.company_industry || null,
+      companyDomain: d.company_domain || null,
+      companyFounded: d.company_founded || null,
+      companyRevenue: d.company_revenue || null,
+      companyDescription: d.company_description || null,
+    })
+
+    // Check if the initial response already has data (sometimes finishes instantly)
+    if (startData.data?.is_complete || startData.data?.status === "finished") {
+      console.log("Reveal completed immediately")
+      return NextResponse.json({
+        success: true,
+        data: extractRevealData(startData.data),
+      })
+    }
+
     // Poll for completion (max 30 seconds)
     const maxAttempts = 15
     const pollInterval = 2000 // 2 seconds
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      await new Promise((resolve) => setTimeout(resolve, pollInterval))
+      // First poll after 1 second, then every 2 seconds
+      await new Promise((resolve) => setTimeout(resolve, attempt === 0 ? 1000 : pollInterval))
 
       const pollResponse = await fetch(
         `https://wiza.co/api/individual_reveals/${revealId}`,
@@ -102,45 +144,19 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       )
 
       if (!pollResponse.ok) {
+        console.error("Wiza poll error:", pollResponse.status)
         continue
       }
 
       const pollData = await pollResponse.json()
       const status = pollData.data?.status
+      console.log(`Wiza reveal poll attempt ${attempt + 1}, status: ${status}`)
 
       if (status === "finished" || pollData.data?.is_complete) {
-        const d = pollData.data
+        console.log("Reveal finished:", JSON.stringify(pollData.data, null, 2))
         return NextResponse.json({
           success: true,
-          data: {
-            email: d.email || null,
-            emailType: d.email_type || null,
-            emailStatus: d.email_status || null,
-            emails: (d.emails || []).map((e: any) => ({
-              email: e.email,
-              type: e.email_type,
-              status: e.email_status,
-            })),
-            phone: d.mobile_phone || d.phone_number || null,
-            phoneStatus: d.phone_status || null,
-            phones: (d.phones || []).map((p: any) => ({
-              number: p.number,
-              prettyNumber: p.pretty_number,
-              type: p.type,
-            })),
-            name: d.name || null,
-            title: d.title || null,
-            company: d.company || null,
-            location: d.location || null,
-            linkedinUrl: d.linkedin_profile_url || null,
-            companySize: d.company_size || null,
-            companySizeRange: d.company_size_range || null,
-            companyIndustry: d.company_industry || null,
-            companyDomain: d.company_domain || null,
-            companyFounded: d.company_founded || null,
-            companyRevenue: d.company_revenue || null,
-            companyDescription: d.company_description || null,
-          },
+          data: extractRevealData(pollData.data),
         })
       }
 

@@ -108,8 +108,8 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
 
     const { name, email, title, company, phone, location, linkedin, status, sequence, sequenceStep, wizaData } = body
 
-    if (!name || !email) {
-      return NextResponse.json({ error: "Name and email are required" }, { status: 400 })
+    if (!name) {
+      return NextResponse.json({ error: "Name is required" }, { status: 400 })
     }
 
     // Check credits before creating

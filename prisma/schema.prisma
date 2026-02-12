@@ -121,7 +121,7 @@ model Event {
 model Prospect {
   id           String         @id @default(cuid())
   name         String
-  email        String
+  email        String?
   title        String?
   company      String?
   phone        String?

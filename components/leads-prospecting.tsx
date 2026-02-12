@@ -343,9 +343,9 @@ export function LeadsProspecting() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           linkedinUrl: lead.linkedin || undefined,
-          fullName: !lead.linkedin ? lead.name : undefined,
-          company: !lead.linkedin ? lead.company : undefined,
-          domain: !lead.linkedin && lead.companyWebsite ? lead.companyWebsite : undefined,
+          fullName: lead.name || undefined,
+          company: lead.company || undefined,
+          domain: lead.companyWebsite || undefined,
         }),
       })
 
@@ -620,9 +620,9 @@ export function LeadsProspecting() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               linkedinUrl: lead.linkedin || undefined,
-              fullName: !lead.linkedin ? lead.name : undefined,
-              company: !lead.linkedin ? lead.company : undefined,
-              domain: !lead.linkedin && lead.companyWebsite ? lead.companyWebsite : undefined,
+              fullName: lead.name || undefined,
+              company: lead.company || undefined,
+              domain: lead.companyWebsite || undefined,
             }),
           })
 

@@ -93,14 +93,14 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       emailStatus: d.email_status || null,
       emails: (d.emails || []).map((e: any) => ({
         email: e.email,
-        type: e.email_type,
-        status: e.email_status,
+        type: e.type || e.email_type,
+        status: e.status || e.email_status,
       })),
       phone: d.mobile_phone || d.phone_number || null,
       phoneStatus: d.phone_status || null,
       phones: (d.phones || []).map((p: any) => ({
         number: p.number,
-        prettyNumber: p.pretty_number,
+        prettyNumber: p.number_pretty || p.pretty_number,
         type: p.type,
       })),
       name: d.name || null,

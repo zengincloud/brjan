@@ -376,7 +376,7 @@ export function LeadsProspecting() {
                 ...r,
                 email: data.data.email || r.email,
                 phone: data.data.phone || r.phone,
-                emails: data.data.emails?.map((e: any) => e.email) || r.emails,
+                emails: data.data.emails?.map((e: any) => typeof e === 'string' ? e : e?.email).filter(Boolean) || r.emails,
               }
             }
             return r
@@ -644,7 +644,7 @@ export function LeadsProspecting() {
                       ...r,
                       email: revealData.data.email || r.email,
                       phone: revealData.data.phone || r.phone,
-                      emails: revealData.data.emails?.map((e: any) => e.email) || r.emails,
+                      emails: revealData.data.emails?.map((e: any) => typeof e === 'string' ? e : e?.email).filter(Boolean) || r.emails,
                     }
                   }
                   return r
@@ -1549,8 +1549,12 @@ export function LeadsProspecting() {
                 {searchResults.map((lead) => {
                   const isExpanded = expandedCards.has(lead.id)
                   // Get primary email (from current company) and phone
-                  const primaryEmail = lead.emails?.[0] || lead.email
-                  const otherEmails = lead.emails?.slice(1) || []
+                  // Safely extract email strings (handle both string[] and object[] cases)
+                  const rawPrimary = lead.emails?.[0]
+                  const primaryEmail = (typeof rawPrimary === 'string' ? rawPrimary : (rawPrimary as any)?.email) || lead.email
+                  const otherEmails = (lead.emails?.slice(1) || []).map(e =>
+                    typeof e === 'string' ? e : (e as any)?.email || ''
+                  ).filter(Boolean)
 
                   return (
                     <Card key={lead.id} className="cursor-pointer hover:shadow-md transition-shadow">

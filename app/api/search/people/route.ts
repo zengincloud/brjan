@@ -81,6 +81,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
     }
 
     // Free-text query - detect if it looks like a person name (two words, no common title keywords)
+    let isNameSearch = false
     if (query && !jobTitle?.length) {
       const trimmedQuery = query.trim()
       const queryParts = trimmedQuery.split(/\s+/)
@@ -99,6 +100,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
         // Treat as person name: first word = first name, rest = last name
         filters.first_name = [queryParts[0]]
         filters.last_name = [queryParts.slice(1).join(" ")]
+        isNameSearch = true
       } else {
         filters.job_title = [{ v: trimmedQuery, s: "i" }]
       }
@@ -168,7 +170,9 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
     }
 
     // Current company
-    if (currentCompany) {
+    // When doing a name search, skip sending company to Wiza (first_name + last_name + job_company
+    // as AND conditions is too strict and often returns nothing). We'll filter by company client-side instead.
+    if (currentCompany && !isNameSearch) {
       filters.job_company = [{ v: currentCompany.trim(), s: "i" }]
     }
 
@@ -316,11 +320,22 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       }
     })
 
-    // Filter out excluded names client-side (Wiza doesn't have a name exclusion filter)
+    // Client-side filtering
     let filteredResults = transformedResults
+
+    // When doing a name search with a company filter, filter by company client-side
+    // (we skipped sending it to Wiza to avoid the overly strict AND with first_name + last_name)
+    if (isNameSearch && currentCompany) {
+      const companyLower = currentCompany.trim().toLowerCase()
+      filteredResults = filteredResults.filter((r: any) =>
+        r.company?.toLowerCase().includes(companyLower)
+      )
+    }
+
+    // Filter out excluded names client-side (Wiza doesn't have a name exclusion filter)
     if (excludedNames?.length) {
       const excludeLower = excludedNames.map((n: string) => n.toLowerCase())
-      filteredResults = transformedResults.filter((r: any) =>
+      filteredResults = filteredResults.filter((r: any) =>
         !excludeLower.some((name: string) => r.name.toLowerCase().includes(name))
       )
     }

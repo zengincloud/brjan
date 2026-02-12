@@ -335,6 +335,47 @@ export function LeadsProspecting() {
         return
       }
 
+      // Detect website domain (e.g. salesforce.com, www.stripe.com, https://google.com)
+      const domainMatch = trimmedQuery.match(/^(?:https?:\/\/)?(?:www\.)?([a-zA-Z0-9-]+)\.[a-zA-Z]{2,}(?:\/.*)?$/i)
+      if (domainMatch && !trimmedQuery.includes(' ')) {
+        const companyName = domainMatch[1]
+        const domain = trimmedQuery.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '')
+        toast({ title: "Domain detected", description: `Searching for leads at "${toTitleCase(companyName)}"...` })
+
+        const response = await fetch("/api/search/people", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            currentCompany: companyName,
+            seniorityLevel: seniorityLevels.length > 0 ? seniorityLevels : undefined,
+            companyHeadcount: headcountRange,
+            geography,
+            city: cities,
+            industry: industries,
+            jobTitle: jobTitles,
+            jobFunction,
+            excludedNames,
+            excludedCompanies,
+            excludedTitles,
+            excludedIndustries,
+            limit: 5,
+          }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || "Failed to search people")
+        }
+
+        const data = await response.json()
+        setSearchResults(data.results)
+        setTotalResults(data.total)
+        setCurrentCompany(companyName)
+
+        setIsLoading(false)
+        return
+      }
+
       // Normal search flow
       const response = await fetch("/api/search/people", {
         method: "POST",
@@ -1009,7 +1050,7 @@ export function LeadsProspecting() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search by name, title, company, or paste a LinkedIn URL..."
+            placeholder="Search by name, title, or paste a LinkedIn URL or domain..."
             className="pl-10"
             value={query}
             onChange={(e) => setQuery(e.target.value)}

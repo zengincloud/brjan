@@ -170,9 +170,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
     }
 
     // Current company
-    // When doing a name search, skip sending company to Wiza (first_name + last_name + job_company
-    // as AND conditions is too strict and often returns nothing). We'll filter by company client-side instead.
-    if (currentCompany && !isNameSearch) {
+    if (currentCompany) {
       filters.job_company = [{ v: currentCompany.trim(), s: "i" }]
     }
 
@@ -270,67 +268,82 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
 
     console.log("Wiza search filters:", JSON.stringify(filters, null, 2))
 
-    // Call Wiza Prospect Search API
-    const response = await fetch("https://wiza.co/api/prospects/search", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        filters,
-        size: Math.min(limit, 30), // Wiza max is 30
-      }),
-    })
+    // Helper to call Wiza and transform results
+    const doSearch = async (searchFilters: any) => {
+      const response = await fetch("https://wiza.co/api/prospects/search", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          filters: searchFilters,
+          size: Math.min(limit, 30), // Wiza max is 30
+        }),
+      })
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      console.error("Wiza API error:", errorData)
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        console.error("Wiza API error:", errorData)
+        return { ok: false, errorData, status: response.status }
+      }
+
+      const data = await response.json()
+      console.log("Wiza Response:", JSON.stringify(data, null, 2))
+
+      const profiles = (data.data?.profiles || []).map((person: any) => {
+        let linkedinUrl = person.linkedin_url
+        if (linkedinUrl && !linkedinUrl.startsWith('http')) {
+          linkedinUrl = `https://${linkedinUrl}`
+        }
+
+        return {
+          id: person.linkedin_url || `${person.full_name}-${person.job_company_name}`,
+          name: toTitleCase(person.full_name),
+          title: person.job_title,
+          company: toTitleCase(person.job_company_name),
+          location: person.location_name || "",
+          email: null,
+          emails: [],
+          phone: null,
+          linkedin: linkedinUrl,
+          seniorityLevel: person.job_title_role || null,
+          companySize: null,
+          industry: person.industry || null,
+          companyWebsite: person.job_company_website || null,
+          buyerIntent: calculateBuyerIntent(person),
+        }
+      })
+
+      return { ok: true, profiles, total: data.data?.total || 0 }
+    }
+
+    // Primary search with all filters
+    const result = await doSearch(filters)
+
+    if (!result.ok) {
       return NextResponse.json(
-        { error: errorData.status?.message || "Failed to search people" },
-        { status: response.status }
+        { error: (result as any).errorData?.status?.message || "Failed to search people" },
+        { status: (result as any).status }
       )
     }
 
-    const data = await response.json()
-    console.log("Wiza Response:", JSON.stringify(data, null, 2))
+    let transformedResults = result.profiles
 
-    // Transform Wiza response to our format
-    const transformedResults = (data.data?.profiles || []).map((person: any) => {
-      let linkedinUrl = person.linkedin_url
-      if (linkedinUrl && !linkedinUrl.startsWith('http')) {
-        linkedinUrl = `https://${linkedinUrl}`
-      }
+    // Fallback: if name + company returned 0 results, retry without company filter
+    // (Wiza's company matching can be too strict for exact name + company AND)
+    if (transformedResults.length === 0 && isNameSearch && currentCompany) {
+      console.log("Name + company search returned 0 results, retrying without company filter...")
+      const { job_company, ...filtersWithoutCompany } = filters
+      const fallbackResult = await doSearch(filtersWithoutCompany)
 
-      return {
-        id: person.linkedin_url || `${person.full_name}-${person.job_company_name}`,
-        name: toTitleCase(person.full_name),
-        title: person.job_title,
-        company: toTitleCase(person.job_company_name),
-        location: person.location_name || "",
-        email: null, // Not available in search results, requires enrichment
-        emails: [],
-        phone: null,
-        linkedin: linkedinUrl,
-        seniorityLevel: person.job_title_role || null,
-        companySize: null,
-        industry: person.industry || null,
-        companyWebsite: person.job_company_website || null,
-        buyerIntent: calculateBuyerIntent(person),
+      if (fallbackResult.ok && fallbackResult.profiles.length > 0) {
+        transformedResults = fallbackResult.profiles
       }
-    })
+    }
 
     // Client-side filtering
     let filteredResults = transformedResults
-
-    // When doing a name search with a company filter, filter by company client-side
-    // (we skipped sending it to Wiza to avoid the overly strict AND with first_name + last_name)
-    if (isNameSearch && currentCompany) {
-      const companyLower = currentCompany.trim().toLowerCase()
-      filteredResults = filteredResults.filter((r: any) =>
-        r.company?.toLowerCase().includes(companyLower)
-      )
-    }
 
     // Filter out excluded names client-side (Wiza doesn't have a name exclusion filter)
     if (excludedNames?.length) {
@@ -342,7 +355,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
 
     return NextResponse.json({
       results: filteredResults,
-      total: data.data?.total || 0,
+      total: result.total || filteredResults.length,
       limit,
       offset: 0,
     })

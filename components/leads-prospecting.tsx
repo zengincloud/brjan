@@ -117,7 +117,7 @@ export function LeadsProspecting() {
   const [isBuyerIntentOpen, setIsBuyerIntentOpen] = useState(true)
   const [isBestPathOpen, setIsBestPathOpen] = useState(true)
   const [isRecentUpdatesOpen, setIsRecentUpdatesOpen] = useState(true)
-  const [headcountRange, setHeadcountRange] = useState([10, 5000])
+  const [headcountRange, setHeadcountRange] = useState([10, 50000])
 
   // Search filters
   const [query, setQuery] = useState("")
@@ -189,7 +189,7 @@ export function LeadsProspecting() {
         setBuyerIntent(state.buyerIntent || "all")
         setSeniorityLevels(state.seniorityLevels || [])
         setIndustries(state.industries || [])
-        setHeadcountRange(state.headcountRange || [10, 5000])
+        setHeadcountRange(state.headcountRange || [10, 50000])
         setSearchResults(state.searchResults || [])
         setTotalResults(state.totalResults || 0)
         // Load exclusions
@@ -312,7 +312,7 @@ export function LeadsProspecting() {
     setBuyerIntent("all")
     setSeniorityLevels([])
     setIndustries([])
-    setHeadcountRange([10, 5000])
+    setHeadcountRange([10, 50000])
     // Clear exclusions
     setExcludedNames([])
     setExcludedNameInput("")
@@ -575,7 +575,7 @@ export function LeadsProspecting() {
     setBuyerIntent(f.buyerIntent || "all")
     setSeniorityLevels(f.seniorityLevels || [])
     setIndustries(f.industries || [])
-    setHeadcountRange(f.headcountRange || [10, 5000])
+    setHeadcountRange(f.headcountRange || [10, 50000])
     setExcludedNames(f.excludedNames || [])
     setExcludedCompanies(f.excludedCompanies || [])
     setExcludedTitles(f.excludedTitles || [])
@@ -1029,27 +1029,26 @@ export function LeadsProspecting() {
                   <div className="flex items-center justify-between">
                     <Label className="text-sm font-medium">Company Headcount</Label>
                     <span className="text-xs font-medium text-primary">
-                      {headcountRange[0] === 10 ? "Any" : headcountRange[0].toLocaleString()} - {headcountRange[1] >= 5000 ? "5,000+" : headcountRange[1].toLocaleString()}
+                      {headcountRange[0] === 10 ? "Any" : headcountRange[0].toLocaleString()} - {headcountRange[1] >= 50000 ? "50,000+" : headcountRange[1].toLocaleString()}
                     </span>
                   </div>
                   <div className="px-2">
                     <Slider
-                      value={headcountRange.map(v => v >= 5000 ? 2100 : v)}
-                      min={10}
-                      max={2100}
-                      step={10}
+                      value={headcountRange.map(v => v >= 50000 ? 5100 : Math.round(v / 10))}
+                      min={1}
+                      max={5100}
+                      step={1}
                       onValueChange={(values) => {
-                        // Map 2100 to 5000+ for the actual value
-                        setHeadcountRange(values.map(v => v >= 2100 ? 5000 : v))
+                        setHeadcountRange(values.map(v => v >= 5100 ? 50000 : v * 10))
                       }}
                       className="my-5"
                     />
                     <div className="flex justify-between text-xs text-muted-foreground">
                       <span>10</span>
-                      <span>500</span>
                       <span>1,000</span>
-                      <span>2,000</span>
-                      <span>5,000+</span>
+                      <span>5,000</span>
+                      <span>10,000</span>
+                      <span>50,000+</span>
                     </div>
                   </div>
                 </div>

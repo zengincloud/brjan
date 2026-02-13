@@ -26,6 +26,11 @@ import {
   MessageSquare,
   Lightbulb,
   UserPlus,
+  Linkedin,
+  Shield,
+  AlertTriangle,
+  Zap,
+  BookOpen,
 } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 
@@ -35,6 +40,7 @@ type Account = {
   industry?: string | null
   location?: string | null
   website?: string | null
+  linkedin?: string | null
   employees?: number | null
   status: string
   sequence?: string | null
@@ -52,6 +58,31 @@ type CompanyInsights = {
   hiring: string | null
 }
 
+type POVData = {
+  industryLandscape: string
+  companyIntel: string
+  swot: {
+    strengths: string[]
+    weaknesses: string[]
+    opportunities: string[]
+    threats: string[]
+  }
+  keyPlayers: string[]
+  engagementStrategy: string
+}
+
+type Contact = {
+  id: string
+  name: string
+  email: string | null
+  title: string | null
+  company: string | null
+  phone: string | null
+  linkedin: string | null
+  status: string
+  lastActivity: string
+}
+
 export default function AccountDetailPage() {
   const params = useParams()
   const router = useRouter()
@@ -60,13 +91,19 @@ export default function AccountDetailPage() {
 
   const [account, setAccount] = useState<Account | null>(null)
   const [insights, setInsights] = useState<CompanyInsights | null>(null)
+  const [pov, setPov] = useState<POVData | null>(null)
+  const [contacts, setContacts] = useState<Contact[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingInsights, setLoadingInsights] = useState(false)
+  const [loadingPov, setLoadingPov] = useState(false)
+  const [loadingContacts, setLoadingContacts] = useState(false)
 
   useEffect(() => {
     if (accountId) {
       loadAccount()
       loadInsights()
+      loadPov()
+      loadContacts()
     }
   }, [accountId])
 
@@ -118,6 +155,47 @@ export default function AccountDetailPage() {
     }
   }
 
+  const loadPov = async (force: boolean = false) => {
+    try {
+      setLoadingPov(true)
+      const url = force
+        ? `/api/accounts/${accountId}/pov?force=true`
+        : `/api/accounts/${accountId}/pov`
+
+      const response = await fetch(url)
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        if (data.error?.includes('ANTHROPIC_API_KEY')) {
+          // Silently skip if no API key configured
+          return
+        }
+        throw new Error(data.error || "Failed to fetch POV")
+      }
+
+      const data = await response.json()
+      setPov(data.pov)
+    } catch (error) {
+      console.error("Error fetching POV:", error)
+    } finally {
+      setLoadingPov(false)
+    }
+  }
+
+  const loadContacts = async () => {
+    try {
+      setLoadingContacts(true)
+      const response = await fetch(`/api/accounts/${accountId}/contacts`)
+      if (!response.ok) throw new Error("Failed to fetch contacts")
+      const data = await response.json()
+      setContacts(data.contacts || [])
+    } catch (error) {
+      console.error("Error fetching contacts:", error)
+    } finally {
+      setLoadingContacts(false)
+    }
+  }
+
   const formatLastActivity = (dateString: string) => {
     try {
       return formatDistanceToNow(new Date(dateString), { addSuffix: true })
@@ -127,15 +205,12 @@ export default function AccountDetailPage() {
   }
 
   const handleMultithread = () => {
-    // Get the last 3 different roles that have been touched (dummy data for now)
-    // In the future, this will query actual prospect data for this account
     const recentRoles = ["VP", "Director", "Manager"]
 
-    // Build query params for leads prospecting
     const params = new URLSearchParams({
       company: account?.name || "",
       seniorityLevels: JSON.stringify(recentRoles),
-      autoSearch: "true", // Flag to trigger search on load
+      autoSearch: "true",
     })
 
     router.push(`/prospecting/outbound?tab=leads&${params.toString()}`)
@@ -158,7 +233,7 @@ export default function AccountDetailPage() {
         <div className="text-center">
           <Building2 className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
           <h2 className="text-2xl font-bold mb-2">Account Not Found</h2>
-          <p className="text-muted-foreground mb-4">The account you're looking for doesn't exist.</p>
+          <p className="text-muted-foreground mb-4">The account you&apos;re looking for doesn&apos;t exist.</p>
           <Button onClick={() => router.push("/accounts")}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Accounts
@@ -177,6 +252,14 @@ export default function AccountDetailPage() {
           Back to Accounts
         </Button>
         <div className="flex gap-2">
+          {account.linkedin && (
+            <Button variant="outline" asChild>
+              <a href={account.linkedin} target="_blank" rel="noopener noreferrer">
+                <Linkedin className="mr-2 h-4 w-4" />
+                LinkedIn
+              </a>
+            </Button>
+          )}
           <Button variant="outline" onClick={handleMultithread}>
             <UserPlus className="mr-2 h-4 w-4" />
             Multithread?
@@ -223,7 +306,7 @@ export default function AccountDetailPage() {
                 </div>
               </div>
             )}
-            {account.employees !== null && (
+            {account.employees != null && (
               <div className="flex items-center gap-2">
                 <Users className="h-4 w-4 text-muted-foreground" />
                 <div>
@@ -358,94 +441,170 @@ export default function AccountDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Point of View */}
+      {/* Point of View - AI Generated */}
       <Card>
         <CardHeader>
-          <CardTitle>Point of View</CardTitle>
-          <CardDescription>Strategic insights and engagement approach</CardDescription>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Lightbulb className="h-5 w-5 text-primary" />
+              <CardTitle>Point of View</CardTitle>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => loadPov(true)}
+              disabled={loadingPov}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${loadingPov ? "animate-spin" : ""}`} />
+              {pov ? "Refresh" : "Generate"}
+            </Button>
+          </div>
+          <CardDescription>AI-powered strategic intelligence and engagement strategy</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Intent Signals */}
-            <div className="space-y-3">
-              <h4 className="font-medium text-sm flex items-center gap-2">
-                <Target className="h-4 w-4" />
-                Intent Signals
-              </h4>
-              <div className="space-y-2 text-sm text-muted-foreground pl-6">
-                <div className="flex items-start gap-2">
-                  <TrendingUp className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="font-medium text-foreground">Recent Funding</p>
-                    <p className="text-xs">Series B: $25M raised 3 months ago</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-2">
-                  <DollarSign className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="font-medium text-foreground">Tech Stack Expansion</p>
-                    <p className="text-xs">Added 3 new tools in last quarter</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-2">
-                  <Users className="h-4 w-4 text-purple-500 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="font-medium text-foreground">Hiring Spree</p>
-                    <p className="text-xs">25+ open positions in Sales & Ops</p>
-                  </div>
+          {loadingPov ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <div className="flex flex-col items-center gap-3">
+                <RefreshCw className="h-6 w-6 animate-spin" />
+                <div>
+                  <p className="font-medium">Generating strategic briefing...</p>
+                  <p className="text-sm">Analyzing news, industry trends, and company data</p>
                 </div>
               </div>
             </div>
+          ) : pov ? (
+            <div className="space-y-6">
+              {/* Industry Landscape */}
+              <div className="space-y-3">
+                <h4 className="font-semibold flex items-center gap-2">
+                  <Globe className="h-4 w-4 text-primary" />
+                  Industry Landscape
+                </h4>
+                <div className="text-sm text-muted-foreground bg-muted/30 p-4 rounded-lg whitespace-pre-line leading-relaxed">
+                  {pov.industryLandscape}
+                </div>
+              </div>
 
-            {/* Past Conversations */}
-            <div className="space-y-3">
-              <h4 className="font-medium text-sm flex items-center gap-2">
-                <MessageSquare className="h-4 w-4" />
-                Past Conversations
-              </h4>
-              <div className="space-y-2 text-sm text-muted-foreground pl-6">
-                <div className="border-l-2 border-primary/30 pl-3 py-1">
-                  <p className="text-xs text-muted-foreground mb-1">Nov 15, 2025</p>
-                  <p className="font-medium text-foreground">Initial Discovery Call</p>
-                  <p className="text-xs">Discussed scaling challenges with John Smith (VP Sales)</p>
-                </div>
-                <div className="border-l-2 border-muted pl-3 py-1">
-                  <p className="text-xs text-muted-foreground mb-1">Oct 3, 2025</p>
-                  <p className="font-medium text-foreground">Product Demo Request</p>
-                  <p className="text-xs">Maria Garcia (Director of Ops) attended webinar</p>
+              {/* Company Intel */}
+              <div className="space-y-3">
+                <h4 className="font-semibold flex items-center gap-2">
+                  <Target className="h-4 w-4 text-primary" />
+                  Company Intelligence
+                </h4>
+                <div className="text-sm text-muted-foreground bg-muted/30 p-4 rounded-lg whitespace-pre-line leading-relaxed">
+                  {pov.companyIntel}
                 </div>
               </div>
-            </div>
 
-            {/* POV */}
-            <div className="space-y-3">
-              <h4 className="font-medium text-sm flex items-center gap-2">
-                <Lightbulb className="h-4 w-4" />
-                Engagement Strategy
-              </h4>
-              <div className="text-sm text-muted-foreground bg-muted/30 p-4 rounded-lg">
-                <p className="mb-2">
-                  <strong className="text-foreground">Opportunity:</strong> Recent funding and aggressive hiring
-                  indicate {account.name} is in rapid growth mode and likely experiencing operational scaling challenges.
-                </p>
-                <p className="mb-2">
-                  <strong className="text-foreground">Industry Context:</strong> In the {account.industry || "their"} space, companies like
-                  {" "}{account.name} are currently facing challenges around AI adoption, workforce efficiency, and maintaining
-                  competitive advantage during market shifts. With increasing pressure to do more with less and demonstrate clear ROI
-                  on technology investments, this is something they're likely worried about.
-                </p>
-                <p className="mb-2">
-                  <strong className="text-foreground">How to Help:</strong> Your platform's automation capabilities
-                  can help them scale their operations without proportional headcount increases.
-                </p>
-                <p>
-                  <strong className="text-foreground">Angle:</strong> Lead with ROI case studies from similar-sized
-                  companies. Emphasize time-to-value and ease of implementation given their rapid growth timeline.
-                  Focus on VP of Sales/Ops who owns scaling challenges.
-                </p>
+              {/* SWOT Analysis */}
+              <div className="space-y-3">
+                <h4 className="font-semibold flex items-center gap-2">
+                  <BookOpen className="h-4 w-4 text-primary" />
+                  SWOT Analysis
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-4 rounded-lg border bg-card">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Shield className="h-4 w-4 text-green-500" />
+                      <span className="font-medium text-sm">Strengths</span>
+                    </div>
+                    <ul className="space-y-2 text-sm text-muted-foreground">
+                      {pov.swot.strengths.map((s, i) => (
+                        <li key={i} className="flex items-start gap-2">
+                          <span className="text-green-500 mt-0.5">+</span>
+                          <span>{s}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="p-4 rounded-lg border bg-card">
+                    <div className="flex items-center gap-2 mb-3">
+                      <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                      <span className="font-medium text-sm">Weaknesses</span>
+                    </div>
+                    <ul className="space-y-2 text-sm text-muted-foreground">
+                      {pov.swot.weaknesses.map((w, i) => (
+                        <li key={i} className="flex items-start gap-2">
+                          <span className="text-yellow-500 mt-0.5">-</span>
+                          <span>{w}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="p-4 rounded-lg border bg-card">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Zap className="h-4 w-4 text-blue-500" />
+                      <span className="font-medium text-sm">Opportunities</span>
+                    </div>
+                    <ul className="space-y-2 text-sm text-muted-foreground">
+                      {pov.swot.opportunities.map((o, i) => (
+                        <li key={i} className="flex items-start gap-2">
+                          <span className="text-blue-500 mt-0.5">*</span>
+                          <span>{o}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="p-4 rounded-lg border bg-card">
+                    <div className="flex items-center gap-2 mb-3">
+                      <AlertTriangle className="h-4 w-4 text-red-500" />
+                      <span className="font-medium text-sm">Threats</span>
+                    </div>
+                    <ul className="space-y-2 text-sm text-muted-foreground">
+                      {pov.swot.threats.map((t, i) => (
+                        <li key={i} className="flex items-start gap-2">
+                          <span className="text-red-500 mt-0.5">!</span>
+                          <span>{t}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              {/* Key Players */}
+              <div className="space-y-3">
+                <h4 className="font-semibold flex items-center gap-2">
+                  <Users className="h-4 w-4 text-primary" />
+                  Key Players in the Space
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {pov.keyPlayers.map((player, i) => (
+                    <div key={i} className="flex items-start gap-2 p-3 rounded-lg border bg-card text-sm">
+                      <Building2 className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                      <span className="text-muted-foreground">{player}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Engagement Strategy */}
+              <div className="space-y-3">
+                <h4 className="font-semibold flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4 text-primary" />
+                  Engagement Strategy
+                </h4>
+                <div className="text-sm text-muted-foreground bg-primary/5 border border-primary/20 p-4 rounded-lg whitespace-pre-line leading-relaxed">
+                  {pov.engagementStrategy}
+                </div>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="text-center py-12 text-muted-foreground">
+              <Lightbulb className="h-8 w-8 mx-auto mb-3 opacity-50" />
+              <p className="font-medium mb-1">No briefing generated yet</p>
+              <p className="text-sm mb-4">Click Generate to create an AI-powered strategic briefing for {account.name}</p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => loadPov(false)}
+                disabled={loadingPov}
+              >
+                <Sparkles className="mr-2 h-4 w-4" />
+                Generate Briefing
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -462,21 +621,81 @@ export default function AccountDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Contacts */}
+      {/* Contacts - Linked Prospects */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
               <CardTitle>Contacts</CardTitle>
-              <CardDescription>People associated with this account</CardDescription>
+              <CardDescription>Prospects associated with {account.name}</CardDescription>
             </div>
-            <Button size="sm">Add Contact</Button>
+            <Button size="sm" onClick={handleMultithread}>
+              <UserPlus className="mr-2 h-4 w-4" />
+              Find More
+            </Button>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="text-center py-8 text-muted-foreground">
-            {account.contacts === 0 ? "No contacts added yet" : `${account.contacts} contacts`}
-          </div>
+          {loadingContacts ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <RefreshCw className="h-4 w-4 animate-spin mx-auto mb-2" />
+              Loading contacts...
+            </div>
+          ) : contacts.length > 0 ? (
+            <div className="space-y-3">
+              {contacts.map((contact) => (
+                <div key={contact.id} className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-muted/30 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center">
+                      <span className="text-sm font-medium text-primary">
+                        {contact.name.substring(0, 2).toUpperCase()}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="font-medium text-sm">{contact.name}</p>
+                      <p className="text-xs text-muted-foreground">{contact.title || "No title"}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {contact.email && (
+                      <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+                        <a href={`mailto:${contact.email}`} title={contact.email}>
+                          <Mail className="h-3.5 w-3.5" />
+                        </a>
+                      </Button>
+                    )}
+                    {contact.phone && (
+                      <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+                        <a href={`tel:${contact.phone}`} title={contact.phone}>
+                          <Phone className="h-3.5 w-3.5" />
+                        </a>
+                      </Button>
+                    )}
+                    {contact.linkedin && (
+                      <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+                        <a href={contact.linkedin} target="_blank" rel="noopener noreferrer" title="LinkedIn">
+                          <Linkedin className="h-3.5 w-3.5" />
+                        </a>
+                      </Button>
+                    )}
+                    <Badge variant="outline" className="text-xs">
+                      {contact.status.replace(/_/g, " ")}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <Users className="h-8 w-8 mx-auto mb-3 opacity-50" />
+              <p className="font-medium mb-1">No contacts yet</p>
+              <p className="text-sm mb-4">Save prospects from {account.name} to see them here</p>
+              <Button variant="outline" size="sm" onClick={handleMultithread}>
+                <UserPlus className="mr-2 h-4 w-4" />
+                Find Contacts
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -196,11 +196,11 @@ export function AccountsProspecting() {
         body: JSON.stringify({
           name: company.name,
           industry: company.industry,
+          location: company.location,
           website: company.website,
-          employeeCount: company.employees,
-          revenue: company.revenue,
+          linkedin: company.linkedin,
+          employees: company.employees,
           status: "new_lead",
-          source: "PDL Search",
         }),
       })
 
@@ -696,15 +696,15 @@ export function AccountsProspecting() {
                                       indicate {toTitleCase(company.name)} is in rapid growth mode and likely experiencing operational scaling challenges.
                                     </p>
                                     <p className="mb-2">
-                                      <strong className="text-foreground">Industry Context:</strong> In the {company.industry} space, companies like
-                                      {toTitleCase(company.name)} are currently facing challenges around AI adoption, workforce efficiency, and maintaining
+                                      <strong className="text-foreground">Industry Context:</strong> In the {company.industry || "their"} space, companies like
+                                      {" "}{toTitleCase(company.name)} are currently facing challenges around AI adoption, workforce efficiency, and maintaining
                                       competitive advantage during market shifts. With increasing pressure to do more with less and demonstrate clear ROI
                                       on technology investments, this is something they're likely worried about. Automation and intelligent workflows are
                                       hot topics right now as companies seek to scale without proportional cost increases.
                                     </p>
                                     <p className="mb-2">
                                       <strong className="text-foreground">How to Help:</strong> Your platform's automation capabilities
-                                      can help them scale their {company.industry.toLowerCase()} operations without proportional headcount increases.
+                                      can help them scale their {(company.industry || "business").toLowerCase()} operations without proportional headcount increases.
                                     </p>
                                     <p>
                                       <strong className="text-foreground">Angle:</strong> Lead with ROI case studies from similar-sized

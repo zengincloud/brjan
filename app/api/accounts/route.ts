@@ -50,7 +50,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
   try {
     const body = await request.json()
 
-    const { name, industry, location, website, employees, status, sequence, sequenceStep, contacts } = body
+    const { name, industry, location, website, linkedin, employees, status, sequence, sequenceStep, contacts } = body
 
     if (!name) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 })
@@ -68,6 +68,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
         industry,
         location,
         website,
+        linkedin,
         employees: employees ? parseInt(employees) : null,
         status,
         sequence,

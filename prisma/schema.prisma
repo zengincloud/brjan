@@ -152,6 +152,7 @@ model Account {
   location     String?
   website      String?
   employees    Int?
+  linkedin     String?
   status       AccountStatus @default(new_lead)
   sequence     String?
   sequenceStep String?
@@ -159,6 +160,8 @@ model Account {
   contacts     Int           @default(0)
   insights         Json?     // Store cached company insights
   insightsFetchedAt DateTime? // Track when insights were last fetched
+  pov              Json?     // Store cached AI-generated point of view
+  povFetchedAt     DateTime? // Track when POV was last generated
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   userId           String

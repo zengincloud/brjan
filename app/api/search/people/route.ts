@@ -195,8 +195,10 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
         { range: "5001-10000", minVal: 5001, maxVal: 10000 },
         { range: "10001+", minVal: 10001, maxVal: Infinity },
       ]
+      // When max >= 10000 (slider at max), treat as no upper bound
+      const effectiveMax = max >= 10000 ? Infinity : max
       const matchingRanges = sizeRanges
-        .filter(r => r.maxVal >= min && r.minVal <= max)
+        .filter(r => r.maxVal >= min && r.minVal <= effectiveMax)
         .map(r => r.range)
       if (matchingRanges.length > 0) {
         filters.company_size = matchingRanges

@@ -102,7 +102,6 @@ export default function AccountDetailPage() {
     if (accountId) {
       loadAccount()
       loadInsights()
-      loadPov()
       loadContacts()
     }
   }, [accountId])
@@ -116,6 +115,10 @@ export default function AccountDetailPage() {
       }
       const data = await response.json()
       setAccount(data.account)
+      // Pre-populate POV from cached account data if available
+      if (data.account?.pov) {
+        setPov(data.account.pov as POVData)
+      }
     } catch (error) {
       console.error(error)
       toast({

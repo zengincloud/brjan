@@ -178,8 +178,13 @@ export default function AccountDetailPage() {
 
       const data = await response.json()
       setPov(data.pov)
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching POV:", error)
+      toast({
+        title: "POV Generation Failed",
+        description: error.message || "Something went wrong generating the briefing",
+        variant: "destructive",
+      })
     } finally {
       setLoadingPov(false)
     }
@@ -484,7 +489,7 @@ export default function AccountDetailPage() {
                   Industry Landscape
                 </h4>
                 <div className="text-sm text-muted-foreground bg-muted/30 p-4 rounded-lg whitespace-pre-line leading-relaxed">
-                  {pov.industryLandscape}
+                  {pov.industryLandscape || "No industry data available."}
                 </div>
               </div>
 
@@ -495,7 +500,7 @@ export default function AccountDetailPage() {
                   Company Intelligence
                 </h4>
                 <div className="text-sm text-muted-foreground bg-muted/30 p-4 rounded-lg whitespace-pre-line leading-relaxed">
-                  {pov.companyIntel}
+                  {pov.companyIntel || "No company intel available."}
                 </div>
               </div>
 
@@ -512,7 +517,7 @@ export default function AccountDetailPage() {
                       <span className="font-medium text-sm">Strengths</span>
                     </div>
                     <ul className="space-y-2 text-sm text-muted-foreground">
-                      {pov.swot.strengths.map((s, i) => (
+                      {(pov.swot?.strengths || []).map((s, i) => (
                         <li key={i} className="flex items-start gap-2">
                           <span className="text-green-500 mt-0.5">+</span>
                           <span>{s}</span>
@@ -526,7 +531,7 @@ export default function AccountDetailPage() {
                       <span className="font-medium text-sm">Weaknesses</span>
                     </div>
                     <ul className="space-y-2 text-sm text-muted-foreground">
-                      {pov.swot.weaknesses.map((w, i) => (
+                      {(pov.swot?.weaknesses || []).map((w, i) => (
                         <li key={i} className="flex items-start gap-2">
                           <span className="text-yellow-500 mt-0.5">-</span>
                           <span>{w}</span>
@@ -540,7 +545,7 @@ export default function AccountDetailPage() {
                       <span className="font-medium text-sm">Opportunities</span>
                     </div>
                     <ul className="space-y-2 text-sm text-muted-foreground">
-                      {pov.swot.opportunities.map((o, i) => (
+                      {(pov.swot?.opportunities || []).map((o, i) => (
                         <li key={i} className="flex items-start gap-2">
                           <span className="text-blue-500 mt-0.5">*</span>
                           <span>{o}</span>
@@ -554,7 +559,7 @@ export default function AccountDetailPage() {
                       <span className="font-medium text-sm">Threats</span>
                     </div>
                     <ul className="space-y-2 text-sm text-muted-foreground">
-                      {pov.swot.threats.map((t, i) => (
+                      {(pov.swot?.threats || []).map((t, i) => (
                         <li key={i} className="flex items-start gap-2">
                           <span className="text-red-500 mt-0.5">!</span>
                           <span>{t}</span>
@@ -572,7 +577,7 @@ export default function AccountDetailPage() {
                   Key Players in the Space
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {pov.keyPlayers.map((player, i) => (
+                  {(pov.keyPlayers || []).map((player, i) => (
                     <div key={i} className="flex items-start gap-2 p-3 rounded-lg border bg-card text-sm">
                       <Building2 className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
                       <span className="text-muted-foreground">{player}</span>
@@ -588,7 +593,7 @@ export default function AccountDetailPage() {
                   Engagement Strategy
                 </h4>
                 <div className="text-sm text-muted-foreground bg-primary/5 border border-primary/20 p-4 rounded-lg whitespace-pre-line leading-relaxed">
-                  {pov.engagementStrategy}
+                  {pov.engagementStrategy || "No engagement strategy available."}
                 </div>
               </div>
             </div>

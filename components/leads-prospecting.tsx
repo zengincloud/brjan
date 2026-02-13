@@ -316,7 +316,7 @@ export function LeadsProspecting() {
             excludedCompanies,
             excludedTitles,
             excludedIndustries,
-            limit: 5,
+            limit: 2,
           }),
         })
 
@@ -358,7 +358,7 @@ export function LeadsProspecting() {
             excludedCompanies,
             excludedTitles,
             excludedIndustries,
-            limit: 5,
+            limit: 2,
           }),
         })
 
@@ -396,7 +396,7 @@ export function LeadsProspecting() {
           excludedCompanies,
           excludedTitles,
           excludedIndustries,
-          limit: 5,
+          limit: 2,
         }),
       })
 

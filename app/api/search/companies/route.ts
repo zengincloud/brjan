@@ -3,25 +3,14 @@ import { withAuth } from "@/lib/auth/api-middleware"
 
 export const dynamic = 'force-dynamic'
 
-// POST /api/search/companies - Search for companies using Wiza Prospect Search API
-// Wiza doesn't have a dedicated company search, so we search for prospects
-// with company filters and extract unique companies from the results
+// POST /api/search/companies - Search for companies using PDL Company Search API
 export const POST = withAuth(async (request: NextRequest, userId: string) => {
-  function toTitleCase(str: string | null | undefined): string {
-    if (!str) return ""
-    return str
-      .toLowerCase()
-      .split(" ")
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" ")
-  }
-
   try {
-    const apiKey = process.env.WIZA_API_KEY
+    const apiKey = process.env.PDL_API_KEY
 
     if (!apiKey) {
       return NextResponse.json(
-        { error: "Wiza API key not configured" },
+        { error: "PDL API key not configured. Add PDL_API_KEY to your .env file." },
         { status: 500 }
       )
     }
@@ -30,6 +19,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
     const {
       query,
       industry,
+      revenueRange,
       headcountRange,
       location,
       city,
@@ -39,144 +29,199 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       limit = 10,
     } = body
 
-    // Build Wiza filters — use company-level filters
-    const filters: any = {}
+    // Build Elasticsearch DSL query for PDL
+    const mustClauses: any[] = []
 
-    // Company name search via company summary or job_company
+    // Company name or domain search
     if (query) {
-      filters.job_company = [{ v: query.trim(), s: "i" }]
+      const trimmed = query.trim()
+      // Check if it looks like a domain (e.g. salesforce.com)
+      if (trimmed.match(/^[a-zA-Z0-9-]+\.[a-zA-Z]{2,}$/)) {
+        mustClauses.push({ term: { website: trimmed.toLowerCase() } })
+      } else {
+        // Use match for fuzzy company name search
+        mustClauses.push({ match: { name: trimmed.toLowerCase() } })
+      }
     }
 
-    // Industry
+    // Industry filter
     if (industry?.length) {
-      filters.company_industry = industry.map((i: string) => ({ v: i.toLowerCase(), s: "i" }))
+      mustClauses.push({
+        terms: { industry: industry.map((i: string) => i.toLowerCase()) }
+      })
     }
 
-    // Headcount
+    // Headcount / Employee count range
     if (headcountRange && headcountRange.length === 2) {
       const [min, max] = headcountRange
-      const sizeRanges = [
-        { range: "1-10", minVal: 1, maxVal: 10 },
-        { range: "11-50", minVal: 11, maxVal: 50 },
-        { range: "51-200", minVal: 51, maxVal: 200 },
-        { range: "201-500", minVal: 201, maxVal: 500 },
-        { range: "501-1000", minVal: 501, maxVal: 1000 },
-        { range: "1001-5000", minVal: 1001, maxVal: 5000 },
-        { range: "5001-10000", minVal: 5001, maxVal: 10000 },
-        { range: "10001+", minVal: 10001, maxVal: Infinity },
-      ]
-      const matchingRanges = sizeRanges
-        .filter(r => r.maxVal >= min && r.minVal <= max)
-        .map(r => r.range)
-      if (matchingRanges.length > 0) {
-        filters.company_size = matchingRanges
+      const rangeFilter: any = {}
+      if (min > 10) rangeFilter.gte = min
+      if (max < 50000) rangeFilter.lte = max
+      if (Object.keys(rangeFilter).length > 0) {
+        mustClauses.push({ range: { employee_count: rangeFilter } })
       }
     }
 
-    // Location
+    // Revenue range - map slider $M values to PDL inferred_revenue enum values
+    if (revenueRange && revenueRange.length === 2) {
+      const [minRev, maxRev] = revenueRange // in millions
+      const revenueEnums = [
+        { label: "$1M-$10M", min: 1, max: 10 },
+        { label: "$10M-$50M", min: 10, max: 50 },
+        { label: "$50M-$100M", min: 50, max: 100 },
+        { label: "$100M-$500M", min: 100, max: 500 },
+        { label: "$500M-$1B", min: 500, max: 1000 },
+        { label: "$1B-$10B", min: 1000, max: 10000 },
+        { label: "$10B+", min: 10000, max: Infinity },
+      ]
+      const matchingRevenues = revenueEnums
+        .filter(r => r.max >= minRev && r.min <= maxRev)
+        .map(r => r.label)
+      // Only apply filter if it's not selecting all ranges (i.e. user actually narrowed it)
+      if (matchingRevenues.length > 0 && matchingRevenues.length < revenueEnums.length) {
+        mustClauses.push({ terms: { inferred_revenue: matchingRevenues } })
+      }
+    }
+
+    // Location - region mapping
     if (location) {
-      const regionMap: Record<string, { v: string; b: string; s: string }[]> = {
-        'north-america': [
-          { v: "United States", b: "country", s: "i" },
-          { v: "Canada", b: "country", s: "i" },
-        ],
-        'europe': [
-          { v: "United Kingdom", b: "country", s: "i" },
-          { v: "Germany", b: "country", s: "i" },
-          { v: "France", b: "country", s: "i" },
-        ],
-        'asia-pacific': [
-          { v: "Australia", b: "country", s: "i" },
-          { v: "Japan", b: "country", s: "i" },
-          { v: "India", b: "country", s: "i" },
-        ],
-        'latin-america': [
-          { v: "Brazil", b: "country", s: "i" },
-          { v: "Mexico", b: "country", s: "i" },
-        ],
-        'middle-east': [
-          { v: "United Arab Emirates", b: "country", s: "i" },
-          { v: "Saudi Arabia", b: "country", s: "i" },
-        ],
+      const regionCountries: Record<string, string[]> = {
+        'north-america': ['united states', 'canada'],
+        'europe': ['united kingdom', 'germany', 'france', 'spain', 'italy', 'netherlands', 'sweden', 'switzerland'],
+        'asia-pacific': ['australia', 'japan', 'india', 'singapore', 'china', 'south korea'],
+        'latin-america': ['brazil', 'mexico', 'argentina', 'colombia', 'chile'],
+        'middle-east': ['united arab emirates', 'saudi arabia', 'israel', 'qatar'],
       }
-      const locations = regionMap[location.toLowerCase()]
-      if (locations) {
-        filters.company_location = locations
-      } else {
-        filters.company_location = [{ v: location, b: "country", s: "i" }]
+      const countries = regionCountries[location.toLowerCase()]
+      if (countries) {
+        mustClauses.push({ terms: { "location.country": countries } })
       }
     }
 
+    // City filter
     if (city) {
-      filters.company_location = [
-        ...(filters.company_location || []),
-        { v: city.trim(), b: "city", s: "i" },
-      ]
+      mustClauses.push({ term: { "location.locality": city.trim().toLowerCase() } })
     }
 
-    // Funding signals
-    if (recentActivities?.includes("funding")) {
-      filters.funding_date = { t: "last", v: "1y" }
+    // Technologies (PDL "tags" field)
+    if (technologies?.length) {
+      for (const tech of technologies) {
+        mustClauses.push({ term: { tags: tech.toLowerCase() } })
+      }
     }
 
-    // Search for C-level to get company-level data
-    filters.job_title_level = filters.job_title_level || ["CXO", "Owner", "VP"]
+    // Recent activities / buying signals
+    if (recentActivities?.length) {
+      if (recentActivities.includes("Funding Rounds")) {
+        const oneYearAgo = new Date()
+        oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
+        mustClauses.push({
+          range: { last_funding_date: { gte: oneYearAgo.toISOString().split('T')[0] } }
+        })
+      }
+      if (recentActivities.includes("Leadership Changes")) {
+        mustClauses.push({ exists: { field: "recent_exec_hires" } })
+      }
+    }
 
-    console.log("Wiza company search filters:", JSON.stringify(filters, null, 2))
+    // Job opportunities - hiring signals
+    if (jobOpportunities?.length) {
+      if (jobOpportunities.includes("Hiring Leadership")) {
+        mustClauses.push({ exists: { field: "recent_exec_hires" } })
+      }
+      if (jobOpportunities.includes("Hiring Sales Roles") || jobOpportunities.includes("Hiring Marketing Roles")) {
+        mustClauses.push({
+          range: { "employee_growth_rate.12_month": { gt: 0.05 } }
+        })
+      }
+    }
 
-    const response = await fetch("https://wiza.co/api/prospects/search", {
+    // Build final query
+    const esQuery = mustClauses.length > 0
+      ? { bool: { must: mustClauses } }
+      : { match_all: {} }
+
+    console.log("PDL company search query:", JSON.stringify(esQuery, null, 2))
+
+    const response = await fetch("https://api.peopledatalabs.com/v5/company/search", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
+        "X-API-Key": apiKey,
       },
       body: JSON.stringify({
-        filters,
-        size: 30, // Get max to dedupe companies
+        query: esQuery,
+        size: Math.min(limit, 100),
+        titlecase: true,
       }),
     })
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
-      console.error("Wiza API error:", errorData)
+      console.error("PDL API error:", response.status, errorData)
       return NextResponse.json(
-        { error: errorData.status?.message || "Failed to search companies" },
+        { error: errorData.error?.message || errorData.error?.type || "Failed to search companies" },
         { status: response.status }
       )
     }
 
     const data = await response.json()
+    console.log("PDL response total:", data.total, "returned:", data.data?.length)
 
-    // Extract unique companies from prospect results
-    const seenCompanies = new Set<string>()
-    const companies: any[] = []
+    // Transform PDL results to our CompanyResult format
+    const companies = (data.data || []).map((company: any) => {
+      // Build buying signals from available data
+      const buyingSignals: string[] = []
+      if (company.last_funding_date) {
+        const fundingMonthsAgo = Math.round(
+          (Date.now() - new Date(company.last_funding_date).getTime()) / (1000 * 60 * 60 * 24 * 30)
+        )
+        if (fundingMonthsAgo < 12) {
+          const stage = company.latest_funding_stage ? `${company.latest_funding_stage}` : "Funding"
+          const raised = company.total_funding_raised
+            ? ` ($${(company.total_funding_raised / 1_000_000).toFixed(0)}M raised)`
+            : ""
+          buyingSignals.push(`${stage}${raised} - ${fundingMonthsAgo}mo ago`)
+        }
+      }
+      if (company.recent_exec_hires?.length) {
+        buyingSignals.push(`${company.recent_exec_hires.length} recent exec hire(s)`)
+      }
+      if (company.employee_growth_rate?.["12_month"] > 0.1) {
+        buyingSignals.push(`${Math.round(company.employee_growth_rate["12_month"] * 100)}% headcount growth (12mo)`)
+      }
 
-    for (const person of (data.data?.profiles || [])) {
-      const companyName = person.job_company_name?.toLowerCase()
-      if (!companyName || seenCompanies.has(companyName)) continue
-      seenCompanies.add(companyName)
+      let website = company.website || null
+      if (website && !website.startsWith('http')) {
+        website = `https://${website}`
+      }
 
-      companies.push({
-        id: person.job_company_website || companyName,
-        name: toTitleCase(person.job_company_name),
-        industry: person.industry || null,
-        location: person.location_name || "",
-        website: person.job_company_website || null,
-        employees: null,
-        size: null,
-        revenue: null,
-        verified: !!person.linkedin_url,
-        linkedin: null,
-        description: null,
-        founded: null,
-        technologies: [],
-        buyingSignals: [],
-      })
-    }
+      let linkedinUrl = company.linkedin_url || null
+      if (linkedinUrl && !linkedinUrl.startsWith('http')) {
+        linkedinUrl = `https://${linkedinUrl}`
+      }
+
+      return {
+        id: company.id || company.website || company.name,
+        name: company.display_name || company.name || "",
+        industry: company.industry || null,
+        location: company.location?.name || "",
+        website,
+        employees: company.employee_count || null,
+        size: company.size || null,
+        revenue: company.inferred_revenue || null,
+        verified: !!company.linkedin_url,
+        linkedin: linkedinUrl,
+        description: company.summary || company.headline || null,
+        founded: company.founded || null,
+        technologies: company.tags || [],
+        buyingSignals,
+      }
+    })
 
     return NextResponse.json({
-      results: companies.slice(0, limit),
-      total: companies.length,
+      results: companies,
+      total: data.total || companies.length,
       limit,
       offset: 0,
     })

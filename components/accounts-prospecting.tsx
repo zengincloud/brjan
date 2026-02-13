@@ -46,7 +46,7 @@ export function AccountsProspecting() {
   const [isCompanyAttributesOpen, setIsCompanyAttributesOpen] = useState(true)
   const [isSpotlightOpen, setIsSpotlightOpen] = useState(true)
   const [revenueRange, setRevenueRange] = useState([10, 500])
-  const [headcountRange, setHeadcountRange] = useState([10, 5000])
+  const [headcountRange, setHeadcountRange] = useState([10, 50000])
 
   // Search filters
   const [query, setQuery] = useState("")
@@ -78,7 +78,7 @@ export function AccountsProspecting() {
         setJobOpportunities(state.jobOpportunities || [])
         setRecentActivities(state.recentActivities || [])
         setRevenueRange(state.revenueRange || [10, 500])
-        setHeadcountRange(state.headcountRange || [10, 5000])
+        setHeadcountRange(state.headcountRange || [10, 50000])
         setSearchResults(state.searchResults || [])
         setTotalResults(state.totalResults || 0)
       } catch (e) {
@@ -150,7 +150,7 @@ export function AccountsProspecting() {
     setJobOpportunities([])
     setRecentActivities([])
     setRevenueRange([10, 500])
-    setHeadcountRange([10, 5000])
+    setHeadcountRange([10, 50000])
     setSearchResults([])
     setTotalResults(0)
     setError(null)
@@ -181,7 +181,7 @@ export function AccountsProspecting() {
           employeeCount: company.employees,
           revenue: company.revenue,
           status: "new_lead",
-          source: "Wiza Search",
+          source: "PDL Search",
         }),
       })
 
@@ -314,22 +314,26 @@ export function AccountsProspecting() {
                   <div className="flex items-center justify-between">
                     <Label className="text-sm font-medium">Headcount</Label>
                     <span className="text-xs font-medium text-primary">
-                      {headcountRange[0] === 10 ? "Any" : headcountRange[0].toLocaleString()} - {headcountRange[1] === 5000 ? "Any" : headcountRange[1].toLocaleString()}
+                      {headcountRange[0] === 10 ? "Any" : headcountRange[0].toLocaleString()} - {headcountRange[1] >= 50000 ? "50,000+" : headcountRange[1].toLocaleString()}
                     </span>
                   </div>
                   <div className="px-2">
                     <Slider
-                      value={headcountRange}
-                      min={10}
-                      max={5000}
-                      step={50}
-                      onValueChange={setHeadcountRange}
+                      value={headcountRange.map(v => v >= 50000 ? 5100 : Math.round(v / 10))}
+                      min={1}
+                      max={5100}
+                      step={1}
+                      onValueChange={(values) => {
+                        setHeadcountRange(values.map(v => v >= 5100 ? 50000 : v * 10))
+                      }}
                       className="my-5"
                     />
                     <div className="flex justify-between text-xs text-muted-foreground">
                       <span>10</span>
-                      <span>2,500</span>
-                      <span>5,000+</span>
+                      <span>1,000</span>
+                      <span>5,000</span>
+                      <span>10,000</span>
+                      <span>50,000+</span>
                     </div>
                   </div>
                 </div>

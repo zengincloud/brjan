@@ -63,23 +63,28 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
     }
 
     // Revenue range - map slider $M values to PDL inferred_revenue enum values
+    // Slider max of 1000 ($1B) means "no upper bound"
     if (revenueRange && revenueRange.length === 2) {
       const [minRev, maxRev] = revenueRange // in millions
-      const revenueEnums = [
-        { label: "$1M-$10M", min: 1, max: 10 },
-        { label: "$10M-$50M", min: 10, max: 50 },
-        { label: "$50M-$100M", min: 50, max: 100 },
-        { label: "$100M-$500M", min: 100, max: 500 },
-        { label: "$500M-$1B", min: 500, max: 1000 },
-        { label: "$1B-$10B", min: 1000, max: 10000 },
-        { label: "$10B+", min: 10000, max: Infinity },
-      ]
-      const matchingRevenues = revenueEnums
-        .filter(r => r.max >= minRev && r.min <= maxRev)
-        .map(r => r.label)
-      // Only apply filter if it's not selecting all ranges (i.e. user actually narrowed it)
-      if (matchingRevenues.length > 0 && matchingRevenues.length < revenueEnums.length) {
-        mustClauses.push({ terms: { inferred_revenue: matchingRevenues } })
+      // Skip filter entirely if slider is at full range (no user customization)
+      if (minRev > 1 || maxRev < 1000) {
+        const revenueEnums = [
+          { label: "$1M-$10M", min: 1, max: 10 },
+          { label: "$10M-$50M", min: 10, max: 50 },
+          { label: "$50M-$100M", min: 50, max: 100 },
+          { label: "$100M-$500M", min: 100, max: 500 },
+          { label: "$500M-$1B", min: 500, max: 1000 },
+          { label: "$1B-$10B", min: 1000, max: 10000 },
+          { label: "$10B+", min: 10000, max: Infinity },
+        ]
+        // When maxRev >= 1000 (slider at max / "Any"), include all tiers from minRev upward
+        const effectiveMax = maxRev >= 1000 ? Infinity : maxRev
+        const matchingRevenues = revenueEnums
+          .filter(r => r.max >= minRev && r.min <= effectiveMax)
+          .map(r => r.label)
+        if (matchingRevenues.length > 0 && matchingRevenues.length < revenueEnums.length) {
+          mustClauses.push({ terms: { inferred_revenue: matchingRevenues } })
+        }
       }
     }
 

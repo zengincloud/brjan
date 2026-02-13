@@ -45,7 +45,7 @@ export function AccountsProspecting() {
   const { toast } = useToast()
   const [isCompanyAttributesOpen, setIsCompanyAttributesOpen] = useState(true)
   const [isSpotlightOpen, setIsSpotlightOpen] = useState(true)
-  const [revenueRange, setRevenueRange] = useState([10, 500])
+  const [revenueRange, setRevenueRange] = useState([1, 1000])
   const [headcountRange, setHeadcountRange] = useState([10, 10000])
 
   // Search filters
@@ -77,7 +77,7 @@ export function AccountsProspecting() {
         setTechnologies(state.technologies || [])
         setJobOpportunities(state.jobOpportunities || [])
         setRecentActivities(state.recentActivities || [])
-        setRevenueRange(state.revenueRange || [10, 500])
+        setRevenueRange(state.revenueRange || [1, 1000])
         setHeadcountRange(state.headcountRange || [10, 10000])
         setSearchResults(state.searchResults || [])
         setTotalResults(state.totalResults || 0)
@@ -124,7 +124,7 @@ export function AccountsProspecting() {
           technologies,
           jobOpportunities,
           recentActivities,
-          limit: 1,
+          limit: 5,
         }),
       })
 
@@ -168,7 +168,7 @@ export function AccountsProspecting() {
     setTechnologies([])
     setJobOpportunities([])
     setRecentActivities([])
-    setRevenueRange([10, 500])
+    setRevenueRange([1, 1000])
     setHeadcountRange([10, 10000])
     setSearchResults([])
     setTotalResults(0)

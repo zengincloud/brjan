@@ -56,7 +56,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       const [min, max] = headcountRange
       const rangeFilter: any = {}
       if (min > 10) rangeFilter.gte = min
-      if (max < 50000) rangeFilter.lte = max
+      if (max < 10000) rangeFilter.lte = max
       if (Object.keys(rangeFilter).length > 0) {
         mustClauses.push({ range: { employee_count: rangeFilter } })
       }

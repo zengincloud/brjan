@@ -46,7 +46,7 @@ export function AccountsProspecting() {
   const [isCompanyAttributesOpen, setIsCompanyAttributesOpen] = useState(true)
   const [isSpotlightOpen, setIsSpotlightOpen] = useState(true)
   const [revenueRange, setRevenueRange] = useState([10, 500])
-  const [headcountRange, setHeadcountRange] = useState([10, 50000])
+  const [headcountRange, setHeadcountRange] = useState([10, 10000])
 
   // Search filters
   const [query, setQuery] = useState("")
@@ -78,7 +78,7 @@ export function AccountsProspecting() {
         setJobOpportunities(state.jobOpportunities || [])
         setRecentActivities(state.recentActivities || [])
         setRevenueRange(state.revenueRange || [10, 500])
-        setHeadcountRange(state.headcountRange || [10, 50000])
+        setHeadcountRange(state.headcountRange || [10, 10000])
         setSearchResults(state.searchResults || [])
         setTotalResults(state.totalResults || 0)
       } catch (e) {
@@ -92,11 +92,30 @@ export function AccountsProspecting() {
     setError(null)
 
     try {
+      const trimmedQuery = query.trim()
+
+      // Detect LinkedIn company page URL (linkedin.com/company/company-name)
+      const companyLinkedInMatch = trimmedQuery.match(/(?:https?:\/\/)?(?:www\.)?linkedin\.com\/company\/([a-zA-Z0-9_-]+)/i)
+      let searchQuery = trimmedQuery
+      if (companyLinkedInMatch) {
+        // Extract company name from the URL slug
+        searchQuery = companyLinkedInMatch[1].replace(/-/g, " ")
+        toast({ title: "Company LinkedIn detected", description: `Searching for "${toTitleCase(searchQuery)}"...` })
+      } else {
+        // Detect website domain (e.g. salesforce.com, www.stripe.com, https://google.com)
+        const domainMatch = trimmedQuery.match(/^(?:https?:\/\/)?(?:www\.)?([a-zA-Z0-9-]+)\.[a-zA-Z]{2,}(?:\/.*)?$/i)
+        if (domainMatch && !trimmedQuery.includes(' ')) {
+          // Send the full domain so PDL can match on the website field
+          searchQuery = trimmedQuery.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '')
+          toast({ title: "Domain detected", description: `Searching for "${searchQuery}"...` })
+        }
+      }
+
       const response = await fetch("/api/search/companies", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          query,
+          query: searchQuery,
           industry: industries,
           revenueRange,
           headcountRange,
@@ -150,7 +169,7 @@ export function AccountsProspecting() {
     setJobOpportunities([])
     setRecentActivities([])
     setRevenueRange([10, 500])
-    setHeadcountRange([10, 50000])
+    setHeadcountRange([10, 10000])
     setSearchResults([])
     setTotalResults(0)
     setError(null)
@@ -247,7 +266,7 @@ export function AccountsProspecting() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search for companies by name, domain, or keywords..."
+            placeholder="Search by company name, domain, or paste a LinkedIn company URL..."
             className="pl-10"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -314,26 +333,25 @@ export function AccountsProspecting() {
                   <div className="flex items-center justify-between">
                     <Label className="text-sm font-medium">Headcount</Label>
                     <span className="text-xs font-medium text-primary">
-                      {headcountRange[0] === 10 ? "Any" : headcountRange[0].toLocaleString()} - {headcountRange[1] >= 50000 ? "50,000+" : headcountRange[1].toLocaleString()}
+                      {headcountRange[0] === 10 ? "Any" : headcountRange[0].toLocaleString()} - {headcountRange[1] >= 10000 ? "10,000+" : headcountRange[1].toLocaleString()}
                     </span>
                   </div>
                   <div className="px-2">
                     <Slider
-                      value={headcountRange.map(v => v >= 50000 ? 5100 : Math.round(v / 10))}
+                      value={headcountRange.map(v => v >= 10000 ? 1000 : Math.round(v / 10))}
                       min={1}
-                      max={5100}
+                      max={1000}
                       step={1}
                       onValueChange={(values) => {
-                        setHeadcountRange(values.map(v => v >= 5100 ? 50000 : v * 10))
+                        setHeadcountRange(values.map(v => v >= 1000 ? 10000 : v * 10))
                       }}
                       className="my-5"
                     />
                     <div className="flex justify-between text-xs text-muted-foreground">
                       <span>10</span>
-                      <span>1,000</span>
+                      <span>2,500</span>
                       <span>5,000</span>
-                      <span>10,000</span>
-                      <span>50,000+</span>
+                      <span>10,000+</span>
                     </div>
                   </div>
                 </div>

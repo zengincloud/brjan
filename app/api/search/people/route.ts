@@ -54,6 +54,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       jobFunction,
       seniorityLevel,
       currentCompany,
+      companyDomain,
       companyHeadcount,
       geography,
       city,
@@ -169,7 +170,10 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       }
     }
 
-    // Current company
+    // Current company — prefer domain-based search when available
+    if (companyDomain) {
+      filters.job_company_website = [companyDomain.trim()]
+    }
     if (currentCompany) {
       filters.job_company = [{ v: currentCompany.trim(), s: "i" }]
     }
@@ -332,11 +336,22 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
 
     let transformedResults = result.profiles
 
+    // Fallback: if domain search returned 0 results, retry without domain (use company name only)
+    if (transformedResults.length === 0 && companyDomain && currentCompany) {
+      console.log("Domain search returned 0 results, retrying with company name only...")
+      const { job_company_website, ...filtersWithoutDomain } = filters
+      const fallbackResult = await doSearch(filtersWithoutDomain)
+
+      if (fallbackResult.ok && fallbackResult.profiles.length > 0) {
+        transformedResults = fallbackResult.profiles
+      }
+    }
+
     // Fallback: if name + company returned 0 results, retry without company filter
     // (Wiza's company matching can be too strict for exact name + company AND)
     if (transformedResults.length === 0 && isNameSearch && currentCompany) {
       console.log("Name + company search returned 0 results, retrying without company filter...")
-      const { job_company, ...filtersWithoutCompany } = filters
+      const { job_company, job_company_website, ...filtersWithoutCompany } = filters
       const fallbackResult = await doSearch(filtersWithoutCompany)
 
       if (fallbackResult.ok && fallbackResult.profiles.length > 0) {

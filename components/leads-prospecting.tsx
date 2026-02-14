@@ -347,6 +347,7 @@ export function LeadsProspecting() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             currentCompany: companyName,
+            companyDomain: domain,
             seniorityLevel: seniorityLevels.length > 0 ? seniorityLevels : undefined,
             companyHeadcount: headcountRange,
             geography,

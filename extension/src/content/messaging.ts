@@ -11,6 +11,103 @@ import type {
  * and handles sending outbound messages queued from the Boilerroom web app.
  */
 
+// ——— Logged-in user info (for direction detection) ———
+
+let myName = ''
+
+async function fetchMyName() {
+  // 1. Try auth state from service worker (most reliable)
+  try {
+    const response = await sendMessage<{ authenticated: boolean; user?: { name?: string; email: string } }>(
+      { type: 'GET_AUTH_STATE' }
+    )
+    if (response?.authenticated && response.user?.name) {
+      myName = response.user.name.trim()
+      return
+    }
+  } catch {}
+
+  // 2. Fallback: LinkedIn nav bar profile photo alt text
+  const navSelectors = [
+    'img.global-nav__me-photo',
+    '.global-nav__me-photo',
+    '.global-nav__me img',
+    'img[alt].feed-identity-module__actor-image',
+  ]
+  for (const sel of navSelectors) {
+    const el = document.querySelector(sel) as HTMLImageElement | null
+    if (el?.alt && el.alt.length > 1) {
+      myName = el.alt.trim()
+      return
+    }
+  }
+
+  // 3. Fallback: profile link text in nav
+  const profileLink = document.querySelector('.global-nav__me-content .t-14') ||
+    document.querySelector('.feed-identity-module__actor-meta a')
+  if (profileLink?.textContent?.trim()) {
+    myName = profileLink.textContent.trim()
+  }
+}
+
+/** Check if a sender name matches the logged-in user */
+function isMe(senderName: string): boolean {
+  if (!senderName || !myName) return false
+
+  const sender = senderName.toLowerCase().trim()
+  const me = myName.toLowerCase().trim()
+
+  // Exact match
+  if (sender === me) return true
+
+  // First + last name match (handles "John D." vs "John Doe")
+  const myParts = me.split(/\s+/)
+  const senderParts = sender.split(/\s+/)
+
+  if (myParts.length > 0 && senderParts.length > 0) {
+    const myFirst = myParts[0]
+    const senderFirst = senderParts[0]
+
+    // First names must match
+    if (myFirst.length > 1 && myFirst === senderFirst) {
+      // If both have last names, check those too
+      if (myParts.length > 1 && senderParts.length > 1) {
+        const myLast = myParts[myParts.length - 1]
+        const senderLast = senderParts[senderParts.length - 1]
+        // Last name or initial matches
+        if (senderLast.startsWith(myLast[0]) || myLast.startsWith(senderLast[0])) {
+          return true
+        }
+      }
+      // Only first name available and it matches
+      if (senderParts.length === 1 || myParts.length === 1) {
+        return true
+      }
+    }
+  }
+
+  return false
+}
+
+/** Check if a sender name matches the conversation participant (the other person) */
+function isParticipant(senderName: string, participantName: string): boolean {
+  if (!senderName || !participantName) return false
+
+  const sender = senderName.toLowerCase().trim()
+  const participant = participantName.toLowerCase().trim()
+
+  if (sender === participant) return true
+
+  const pParts = participant.split(/\s+/)
+  const sParts = sender.split(/\s+/)
+
+  if (pParts.length > 0 && sParts.length > 0 && pParts[0].length > 1) {
+    if (pParts[0] === sParts[0]) return true
+  }
+
+  return false
+}
+
 // ——— Communication with service worker ———
 
 function sendMessage<T = any>(message: any): Promise<T> {
@@ -93,10 +190,6 @@ function scrapeConversationList(): LinkedInConversationSync[] {
     const participantName = nameEl?.textContent?.trim() || ''
     if (!participantName) continue
 
-    // Participant headline/title
-    const titleEl = item.querySelector('.msg-conversation-card__message-snippet-body')
-    const participantTitle = undefined // Title isn't visible in list; we'll get it from the thread
-
     // Avatar
     const avatarEl = item.querySelector('img.presence-entity__image') ||
       item.querySelector('.msg-facepile-grid--no-facepile img') ||
@@ -106,23 +199,71 @@ function scrapeConversationList(): LinkedInConversationSync[] {
     conversations.push({
       linkedinThreadId: threadId,
       participantName,
-      participantTitle,
       participantAvatar,
-      messages: [], // Messages are scraped per-thread when opened
+      messages: [],
     })
   }
 
   return conversations
 }
 
+/** Get the participant name from the thread header (when viewing a conversation) */
+function getThreadParticipantName(): string {
+  const headerSelectors = [
+    '.msg-overlay-bubble-header__title',
+    '.msg-thread__link-to-profile',
+    '.msg-entity-lockup__entity-title',
+    'h2.msg-overlay-bubble-header__title',
+    '.msg-s-message-list-container + .msg-thread h2',
+  ]
+
+  for (const sel of headerSelectors) {
+    const el = document.querySelector(sel)
+    if (el?.textContent?.trim()) {
+      return el.textContent.trim()
+    }
+  }
+
+  return ''
+}
+
+/** Determine message direction using multiple strategies */
+function determineDirection(senderName: string, participantName: string): 'inbound' | 'outbound' {
+  // Strategy 1: If we know the logged-in user's name, check against it
+  if (myName && isMe(senderName)) {
+    return 'outbound'
+  }
+
+  // Strategy 2: If we know the participant (other person), messages from them are inbound
+  if (participantName && isParticipant(senderName, participantName)) {
+    return 'inbound'
+  }
+
+  // Strategy 3: If we have myName but sender didn't match me, it's likely inbound
+  if (myName) {
+    return 'inbound'
+  }
+
+  // Strategy 4: If we have participantName but sender didn't match them, it's likely outbound
+  if (participantName) {
+    return 'outbound'
+  }
+
+  // Default: can't determine, assume inbound
+  return 'inbound'
+}
+
 /** Scrape messages from the currently open conversation thread */
-function scrapeCurrentThread(): { threadId: string; messages: LinkedInMessageSync[] } | null {
+function scrapeCurrentThread(): { threadId: string; participantName: string; messages: LinkedInMessageSync[] } | null {
   // Get thread ID from URL
   const urlMatch = window.location.pathname.match(/\/messaging\/thread\/([^/]+)/)
   if (!urlMatch) return null
 
   const threadId = urlMatch[1]
   const messages: LinkedInMessageSync[] = []
+
+  // Get the participant name from the thread header
+  const participantName = getThreadParticipantName()
 
   // Message event selectors
   const msgSelectors = [
@@ -137,13 +278,11 @@ function scrapeCurrentThread(): { threadId: string; messages: LinkedInMessageSyn
     if (msgItems.length > 0) break
   }
 
-  if (!msgItems || msgItems.length === 0) return { threadId, messages }
+  if (!msgItems || msgItems.length === 0) return { threadId, participantName, messages }
 
-  // Get the logged-in user's name for direction detection
-  const myNameEl =
-    document.querySelector('.global-nav__me-photo') ||
-    document.querySelector('img.global-nav__me-photo')
-  const myName = (myNameEl as HTMLImageElement)?.alt?.trim() || ''
+  // Track the last known sender for messages in the same group
+  let lastSenderName = ''
+  let lastDirection: 'inbound' | 'outbound' = 'inbound'
 
   for (const msgEl of msgItems) {
     // Message body
@@ -154,18 +293,23 @@ function scrapeCurrentThread(): { threadId: string; messages: LinkedInMessageSyn
     const body = bodyEl?.textContent?.trim() || ''
     if (!body) continue
 
-    // Sender name
+    // Sender name — LinkedIn groups consecutive messages from the same sender,
+    // so the sender name might only appear on the first message in the group
     const senderEl =
       msgEl.querySelector('.msg-s-message-group__name') ||
       msgEl.querySelector('.msg-s-event-listitem__header .t-bold') ||
       msgEl.querySelector('.msg-s-message-group__profile-link')
-    const senderName = senderEl?.textContent?.trim() || ''
+    let senderName = senderEl?.textContent?.trim() || ''
 
-    // Direction: compare sender to logged-in user
-    const direction: 'inbound' | 'outbound' =
-      myName && senderName.toLowerCase().includes(myName.toLowerCase().split(' ')[0])
-        ? 'outbound'
-        : 'inbound'
+    // If no sender name on this message, it's part of the same group as the previous
+    if (senderName) {
+      lastSenderName = senderName
+      lastDirection = determineDirection(senderName, participantName)
+    } else {
+      senderName = lastSenderName
+    }
+
+    const direction = lastDirection
 
     // Timestamp
     const timeEl =
@@ -174,7 +318,7 @@ function scrapeCurrentThread(): { threadId: string; messages: LinkedInMessageSyn
       msgEl.querySelector('time')
     const sentAt = timeEl?.getAttribute('datetime') || new Date().toISOString()
 
-    // Generate a message ID from content hash (LinkedIn doesn't expose message IDs in the DOM)
+    // Generate a stable message ID from content hash
     const linkedinMsgId = hashString(`${threadId}_${senderName}_${sentAt}_${body.substring(0, 50)}`)
 
     messages.push({
@@ -186,7 +330,7 @@ function scrapeCurrentThread(): { threadId: string; messages: LinkedInMessageSyn
     })
   }
 
-  return { threadId, messages }
+  return { threadId, participantName, messages }
 }
 
 /** Simple string hash for generating stable message IDs */
@@ -206,22 +350,28 @@ async function sendLinkedInMessage(threadId: string, body: string): Promise<bool
   // Navigate to the thread if not already there
   if (!window.location.pathname.includes(`/messaging/thread/${threadId}`)) {
     window.location.href = `https://www.linkedin.com/messaging/thread/${threadId}/`
-    // Wait for navigation
-    await new Promise(resolve => setTimeout(resolve, 3000))
+    // Wait for navigation and page load
+    await new Promise(resolve => setTimeout(resolve, 4000))
   }
 
-  // Find the message input
+  // Find the message input — try multiple selectors
   const inputSelectors = [
     '.msg-form__contenteditable[contenteditable="true"]',
     '.msg-form__msg-content-container .msg-form__contenteditable',
     'div[role="textbox"][contenteditable="true"]',
     '.msg-form__placeholder + div[contenteditable="true"]',
+    '.msg-form__contenteditable',
   ]
 
   let inputEl: HTMLElement | null = null
-  for (const sel of inputSelectors) {
-    inputEl = document.querySelector(sel) as HTMLElement | null
+  // Retry a few times since the DOM may still be loading
+  for (let retry = 0; retry < 3; retry++) {
+    for (const sel of inputSelectors) {
+      inputEl = document.querySelector(sel) as HTMLElement | null
+      if (inputEl) break
+    }
     if (inputEl) break
+    await new Promise(resolve => setTimeout(resolve, 1000))
   }
 
   if (!inputEl) {
@@ -229,28 +379,35 @@ async function sendLinkedInMessage(threadId: string, body: string): Promise<bool
     return false
   }
 
-  // Focus and type
+  // Focus the input
   inputEl.focus()
-  inputEl.textContent = body
 
-  // Dispatch input event so LinkedIn's React picks it up
-  inputEl.dispatchEvent(new Event('input', { bubbles: true }))
-  inputEl.dispatchEvent(new Event('change', { bubbles: true }))
+  // Clear existing content
+  inputEl.innerHTML = ''
 
-  // Small delay for LinkedIn to process
-  await new Promise(resolve => setTimeout(resolve, 500))
+  // Use execCommand for React-compatible input (simulates real typing)
+  document.execCommand('insertText', false, body)
+
+  // Also dispatch events LinkedIn might listen to
+  inputEl.dispatchEvent(new InputEvent('input', { bubbles: true, data: body, inputType: 'insertText' }))
+
+  // Wait for LinkedIn to process
+  await new Promise(resolve => setTimeout(resolve, 800))
 
   // Click send button
   const sendSelectors = [
     '.msg-form__send-button',
     'button.msg-form__send-btn',
     'button[type="submit"].msg-form__send-button',
+    '.msg-form__send-toggle button',
+    'button[data-control-name="send"]',
   ]
 
   let sendBtn: HTMLButtonElement | null = null
   for (const sel of sendSelectors) {
     sendBtn = document.querySelector(sel) as HTMLButtonElement | null
-    if (sendBtn) break
+    if (sendBtn && !sendBtn.disabled) break
+    sendBtn = null
   }
 
   if (!sendBtn) {
@@ -261,7 +418,7 @@ async function sendLinkedInMessage(threadId: string, body: string): Promise<bool
   sendBtn.click()
 
   // Wait for the message to be sent
-  await new Promise(resolve => setTimeout(resolve, 1000))
+  await new Promise(resolve => setTimeout(resolve, 1500))
 
   return true
 }
@@ -285,9 +442,10 @@ async function doSync() {
       if (existing) {
         existing.messages = currentThread.messages
       } else {
+        // Thread is open but not in sidebar list — add it
         conversations.push({
           linkedinThreadId: currentThread.threadId,
-          participantName: '',
+          participantName: currentThread.participantName,
           messages: currentThread.messages,
         })
       }
@@ -370,11 +528,15 @@ let syncDebounce: ReturnType<typeof setTimeout> | null = null
 
 // ——— Initialization ———
 
-function init() {
+async function init() {
   // Only run on messaging pages
   if (!window.location.pathname.startsWith('/messaging')) return
 
   console.log('[BR Messaging] Content script loaded')
+
+  // Fetch the logged-in user's name for direction detection
+  await fetchMyName()
+  console.log('[BR Messaging] Logged-in user:', myName || '(unknown)')
 
   // Notify service worker that messaging tab is ready
   sendMessage({ type: 'MESSAGING_TAB_READY' }).catch(() => {})

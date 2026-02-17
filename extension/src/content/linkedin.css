@@ -1,0 +1,235 @@
+/* Boilerroom LinkedIn Panel — injected as Shadow DOM-free overlay */
+
+#boilerroom-panel {
+  position: fixed;
+  top: 80px;
+  right: 20px;
+  z-index: 99999;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #1a1a2e;
+}
+
+.br-panel {
+  width: 320px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+}
+
+.br-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: #1a1a2e;
+  color: #fff;
+}
+
+.br-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: #6366f1;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: -0.5px;
+}
+
+.br-title {
+  flex: 1;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.br-close {
+  background: none;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  font-size: 20px;
+  padding: 0;
+  line-height: 1;
+}
+.br-close:hover {
+  color: #fff;
+}
+
+.br-body {
+  padding: 16px;
+}
+
+/* Sections */
+.br-section {
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f3f4f6;
+}
+.br-section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.br-contact-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 2px;
+}
+
+.br-contact-detail {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+/* Fields */
+.br-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.br-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #9ca3af;
+  min-width: 48px;
+}
+
+.br-value {
+  font-weight: 500;
+  color: #111827;
+  word-break: break-all;
+}
+
+.br-link {
+  color: #6366f1;
+  text-decoration: none;
+}
+.br-link:hover {
+  text-decoration: underline;
+}
+
+/* Badges */
+.br-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+.br-badge-green {
+  background: #d1fae5;
+  color: #065f46;
+}
+.br-badge-gray {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+/* Messages */
+.br-message {
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+.br-message-warn {
+  background: #fef3c7;
+  color: #92400e;
+}
+.br-message-error {
+  background: #fef2f2;
+  color: #991b1b;
+}
+.br-message-info {
+  background: #eff6ff;
+  color: #1e40af;
+}
+
+/* Buttons */
+.br-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+  white-space: nowrap;
+}
+.br-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.br-btn-primary {
+  background: #6366f1;
+  color: #fff;
+}
+.br-btn-primary:hover:not(:disabled) {
+  background: #4f46e5;
+}
+
+.br-btn-secondary {
+  background: #f3f4f6;
+  color: #374151;
+}
+.br-btn-secondary:hover:not(:disabled) {
+  background: #e5e7eb;
+}
+
+.br-btn-success {
+  background: #d1fae5 !important;
+  color: #065f46 !important;
+}
+
+.br-btn-error {
+  background: #fef2f2 !important;
+  color: #991b1b !important;
+}
+
+.br-reveal-btn {
+  width: 100%;
+}
+
+/* Actions */
+.br-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* Sequence picker */
+.br-sequence-picker {
+  display: flex;
+  gap: 8px;
+}
+
+.br-select {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  font-size: 12px;
+  background: #fff;
+  color: #111827;
+  cursor: pointer;
+}
+.br-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

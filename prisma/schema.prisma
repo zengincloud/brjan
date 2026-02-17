@@ -36,6 +36,7 @@ model User {
   emailTemplates   EmailTemplate[]
   gmailIntegration GmailIntegration?
   invitationsSent  Invitation[]
+  trackedEmails    TrackedEmail[]
 
   @@index([organizationId])
   @@map("users")
@@ -139,6 +140,7 @@ model Prospect {
   user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   calls             Call[]
   prospectSequences ProspectSequence[]
+  trackedEmails     TrackedEmail[]
 
   @@unique([userId, email])
   @@index([userId])
@@ -476,4 +478,52 @@ enum InvitationStatus {
   pending
   accepted
   expired
+}
+
+// ============================================
+// Chrome Extension: Email Tracking Models
+// ============================================
+
+model TrackedEmail {
+  id             String      @id @default(cuid())
+  recipientEmail String
+  subject        String
+  bodyHtml       String?     @db.Text
+  prospectId     String?
+  prospect       Prospect?   @relation(fields: [prospectId], references: [id], onDelete: SetNull)
+  sentAt         DateTime    @default(now())
+  createdAt      DateTime    @default(now())
+  userId         String
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  opens  EmailOpen[]
+  clicks EmailClick[]
+
+  @@index([userId])
+  @@index([recipientEmail])
+  @@map("tracked_emails")
+}
+
+model EmailOpen {
+  id             String       @id @default(cuid())
+  trackedEmailId String
+  trackedEmail   TrackedEmail @relation(fields: [trackedEmailId], references: [id], onDelete: Cascade)
+  openedAt       DateTime     @default(now())
+  ip             String?
+  userAgent      String?
+
+  @@index([trackedEmailId])
+  @@map("email_opens")
+}
+
+model EmailClick {
+  id             String       @id @default(cuid())
+  trackedEmailId String
+  trackedEmail   TrackedEmail @relation(fields: [trackedEmailId], references: [id], onDelete: Cascade)
+  clickedAt      DateTime     @default(now())
+  originalUrl    String
+  ip             String?
+
+  @@index([trackedEmailId])
+  @@map("email_clicks")
 }

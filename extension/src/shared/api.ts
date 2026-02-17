@@ -7,6 +7,9 @@ import type {
   SaveProspectResponse,
   AddToSequenceResponse,
   AccountPovResponse,
+  LinkedInConversationSync,
+  SyncMessagesResponse,
+  PendingMessagesResponse,
 } from './types'
 
 /** Make an authenticated API call to the Boilerroom backend */
@@ -66,4 +69,29 @@ export function fetchAccountPov(accountId: string): Promise<AccountPovResponse> 
   return apiFetch<AccountPovResponse>(
     `/api/extension/account-pov?accountId=${encodeURIComponent(accountId)}`
   )
+}
+
+/** POST /api/extension/sync-messages — sync scraped LinkedIn conversations */
+export function syncMessages(conversations: LinkedInConversationSync[]): Promise<SyncMessagesResponse> {
+  return apiFetch<SyncMessagesResponse>('/api/extension/sync-messages', {
+    method: 'POST',
+    body: JSON.stringify({ conversations }),
+  })
+}
+
+/** GET /api/extension/pending-messages — get queued outbound messages */
+export function getPendingMessages(): Promise<PendingMessagesResponse> {
+  return apiFetch<PendingMessagesResponse>('/api/extension/pending-messages')
+}
+
+/** POST /api/extension/pending-messages — report send result */
+export function reportPendingResult(
+  messageId: string,
+  success: boolean,
+  errorMessage?: string
+): Promise<{ success: boolean }> {
+  return apiFetch<{ success: boolean }>('/api/extension/pending-messages', {
+    method: 'POST',
+    body: JSON.stringify({ messageId, success, errorMessage }),
+  })
 }

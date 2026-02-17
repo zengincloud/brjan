@@ -201,19 +201,21 @@ export function App() {
   )
 }
 
-// Inline styles to avoid Tailwind dependency in popup (keeps bundle tiny)
+// Inline styles — dark theme matching web app
 const styles: Record<string, React.CSSProperties> = {
   container: {
     width: 360,
     minHeight: 200,
+    background: '#121620',
+    color: '#f2f3f5',
   },
   header: {
     display: 'flex',
     alignItems: 'center',
     gap: 8,
     padding: '14px 16px',
-    background: '#1a1a2e',
-    color: '#fff',
+    background: '#0d0f14',
+    color: '#f2f3f5',
   },
   logo: {
     display: 'inline-flex',
@@ -226,6 +228,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     fontSize: 11,
     letterSpacing: -0.5,
+    color: '#fff',
   },
   headerTitle: {
     fontWeight: 600,
@@ -235,7 +238,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: 16,
   },
   subtitle: {
-    color: '#6b7280',
+    color: '#808590',
     fontSize: 13,
     marginTop: 0,
     marginBottom: 16,
@@ -245,11 +248,13 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100%',
     padding: '10px 12px',
     marginBottom: 10,
-    border: '1px solid #d1d5db',
+    border: '1px solid #222833',
     borderRadius: 8,
     fontSize: 13,
     outline: 'none',
     boxSizing: 'border-box',
+    background: '#1e2330',
+    color: '#f2f3f5',
   },
   btnGoogle: {
     display: 'flex',
@@ -257,9 +262,9 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
     width: '100%',
     padding: '10px 16px',
-    background: '#fff',
-    color: '#3c4043',
-    border: '1px solid #dadce0',
+    background: '#1e2330',
+    color: '#f2f3f5',
+    border: '1px solid #222833',
     borderRadius: 8,
     fontWeight: 500,
     fontSize: 13,
@@ -276,10 +281,10 @@ const styles: Record<string, React.CSSProperties> = {
   dividerLine: {
     flex: 1,
     height: 1,
-    background: '#e5e7eb',
+    background: '#222833',
   },
   dividerText: {
-    color: '#9ca3af',
+    color: '#808590',
     fontSize: 12,
   },
   btnPrimary: {
@@ -298,8 +303,8 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'block',
     width: '100%',
     padding: '10px 16px',
-    background: '#f3f4f6',
-    color: '#374151',
+    background: '#1e2330',
+    color: '#f2f3f5',
     border: 'none',
     borderRadius: 8,
     fontWeight: 600,
@@ -312,23 +317,23 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100%',
     padding: '8px 16px',
     background: 'transparent',
-    color: '#9ca3af',
+    color: '#808590',
     border: 'none',
     borderRadius: 8,
     fontSize: 12,
     cursor: 'pointer',
   },
   error: {
-    background: '#fef2f2',
-    color: '#991b1b',
+    background: 'rgba(239, 68, 68, 0.1)',
+    color: '#ef4444',
     padding: '8px 12px',
     borderRadius: 8,
     fontSize: 12,
     marginBottom: 10,
   },
   userCard: {
-    background: '#f0fdf4',
-    border: '1px solid #bbf7d0',
+    background: 'rgba(76, 209, 18, 0.08)',
+    border: '1px solid rgba(76, 209, 18, 0.2)',
     borderRadius: 10,
     padding: '12px 14px',
     marginBottom: 16,
@@ -336,21 +341,21 @@ const styles: Record<string, React.CSSProperties> = {
   userEmail: {
     fontWeight: 600,
     fontSize: 13,
-    color: '#111827',
+    color: '#f2f3f5',
   },
   userStatus: {
     fontSize: 12,
-    color: '#16a34a',
+    color: '#4CD112',
     marginTop: 2,
   },
   hint: {
     fontSize: 12,
-    color: '#6b7280',
+    color: '#808590',
     lineHeight: '1.6',
     marginBottom: 16,
   },
   loadingText: {
-    color: '#9ca3af',
+    color: '#808590',
     fontSize: 13,
     textAlign: 'center',
   },

@@ -128,6 +128,12 @@ export type ExtensionMessage =
   | { type: 'GET_CACHED_REVEAL'; data: { linkedinUrl: string } }
   | { type: 'CACHE_REVEAL'; data: { linkedinUrl: string; result: RevealResponse } }
   | { type: 'FETCH_ACCOUNT_POV'; data: { accountId: string } }
+  | { type: 'SYNC_MESSAGES'; data: { conversations: LinkedInConversationSync[] } }
+  | { type: 'GET_PENDING_MESSAGES' }
+  | { type: 'REPORT_PENDING_RESULT'; data: { messageId: string; success: boolean; errorMessage?: string } }
+  | { type: 'ENSURE_MESSAGING_TAB' }
+  | { type: 'MESSAGING_TAB_READY' }
+  | { type: 'SEND_LINKEDIN_MESSAGE'; data: { linkedinThreadId: string; body: string } }
 
 export interface SaveProspectPayload {
   name: string
@@ -138,4 +144,41 @@ export interface SaveProspectPayload {
   location?: string | null
   linkedin?: string | null
   wizaData?: Record<string, any> | null
+}
+
+// =============================================
+// LinkedIn Messaging Bridge Types
+// =============================================
+
+export interface LinkedInConversationSync {
+  linkedinThreadId: string
+  participantName: string
+  participantTitle?: string
+  participantAvatar?: string
+  participantLinkedin?: string
+  messages: LinkedInMessageSync[]
+}
+
+export interface LinkedInMessageSync {
+  linkedinMsgId: string
+  direction: 'inbound' | 'outbound'
+  body: string
+  senderName: string
+  sentAt: string
+}
+
+export interface SyncMessagesResponse {
+  success: boolean
+  syncedConversations: number
+  syncedMessages: number
+}
+
+export interface PendingMessage {
+  id: string
+  linkedinThreadId: string
+  body: string
+}
+
+export interface PendingMessagesResponse {
+  messages: PendingMessage[]
 }

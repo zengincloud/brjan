@@ -8,6 +8,7 @@ module.exports = {
   entry: {
     background: './src/background/service-worker.ts',
     'content/linkedin': './src/content/linkedin.ts',
+    'content/messaging': './src/content/messaging.ts',
     'popup/popup': './src/popup/popup.tsx',
   },
   output: {

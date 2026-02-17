@@ -37,6 +37,8 @@ model User {
   gmailIntegration GmailIntegration?
   invitationsSent  Invitation[]
   trackedEmails    TrackedEmail[]
+  linkedInConversations LinkedInConversation[]
+  linkedInPendingMessages LinkedInPendingMessage[]
 
   @@index([organizationId])
   @@map("users")
@@ -141,6 +143,7 @@ model Prospect {
   calls             Call[]
   prospectSequences ProspectSequence[]
   trackedEmails     TrackedEmail[]
+  linkedInConversations LinkedInConversation[]
 
   @@unique([userId, email])
   @@index([userId])
@@ -526,4 +529,84 @@ model EmailClick {
 
   @@index([trackedEmailId])
   @@map("email_clicks")
+}
+
+// ============================================
+// Chrome Extension: LinkedIn Messaging Bridge
+// ============================================
+
+model LinkedInConversation {
+  id                String   @id @default(cuid())
+  linkedinThreadId  String   // LinkedIn's internal thread/conversation ID
+  participantName   String
+  participantTitle  String?
+  participantAvatar String?
+  participantLinkedin String? // LinkedIn profile URL
+  lastMessageText   String?  @db.Text
+  lastMessageAt     DateTime?
+  unreadCount       Int      @default(0)
+  prospectId        String?
+  prospect          Prospect? @relation(fields: [prospectId], references: [id], onDelete: SetNull)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  messages LinkedInMessage[]
+
+  @@unique([userId, linkedinThreadId])
+  @@index([userId])
+  @@index([prospectId])
+  @@map("linkedin_conversations")
+}
+
+model LinkedInMessage {
+  id             String   @id @default(cuid())
+  conversationId String
+  conversation   LinkedInConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  linkedinMsgId  String?  // LinkedIn's internal message ID (for dedup)
+  direction      LinkedInMessageDirection
+  body           String   @db.Text
+  senderName     String
+  status         LinkedInMessageStatus @default(delivered)
+  sentAt         DateTime @default(now())
+  createdAt      DateTime @default(now())
+
+  @@unique([conversationId, linkedinMsgId])
+  @@index([conversationId])
+  @@map("linkedin_messages")
+}
+
+// Outbound messages queued from the web app, waiting for the extension to send
+model LinkedInPendingMessage {
+  id             String   @id @default(cuid())
+  linkedinThreadId String // Which conversation to send to
+  body           String   @db.Text
+  status         LinkedInPendingStatus @default(pending)
+  errorMessage   String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@map("linkedin_pending_messages")
+}
+
+enum LinkedInMessageDirection {
+  inbound
+  outbound
+}
+
+enum LinkedInMessageStatus {
+  delivered
+  pending
+  failed
+}
+
+enum LinkedInPendingStatus {
+  pending
+  sending
+  sent
+  failed
 }

@@ -22,6 +22,7 @@ import {
   Send,
   Zap,
   Shield,
+  MessageSquare,
 } from "lucide-react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { useState, useEffect } from "react"
@@ -192,6 +193,20 @@ export function Sidebar({ className }: { className?: string }) {
           <Link href="/emailer">
             <Send className="h-4 w-4 mr-3" />
             Emailer
+          </Link>
+        </Button>
+
+        <Button
+          variant="ghost"
+          className={cn(
+            "w-full justify-start transition-colors",
+            pathname === "/messages" && "bg-accent/10 text-accent hover:bg-accent/15"
+          )}
+          asChild
+        >
+          <Link href="/messages">
+            <MessageSquare className="h-4 w-4 mr-3" />
+            Messages
           </Link>
         </Button>
 

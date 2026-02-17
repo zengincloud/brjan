@@ -6,7 +6,6 @@ import type {
   ExistingProspect,
   SequenceSummary,
   SaveProspectPayload,
-  AccountPovResponse,
 } from '@shared/types'
 
 // Import CSS for webpack to bundle it
@@ -86,18 +85,45 @@ function scrapeProfileData(): LinkedInScrapedData {
 
 function sendMessage<T = any>(message: any): Promise<T> {
   return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage(message, (response) => {
-      if (chrome.runtime.lastError) {
-        reject(new Error(chrome.runtime.lastError.message))
-        return
+    try {
+      chrome.runtime.sendMessage(message, (response) => {
+        if (chrome.runtime.lastError) {
+          const msg = chrome.runtime.lastError.message || ''
+          if (msg.includes('Extension context invalidated')) {
+            showStaleMessage()
+            return
+          }
+          reject(new Error(msg))
+          return
+        }
+        if (response?.error) {
+          reject(new Error(response.error))
+          return
+        }
+        resolve(response)
+      })
+    } catch (err: any) {
+      if (err.message?.includes('Extension context invalidated')) {
+        showStaleMessage()
+      } else {
+        reject(err)
       }
-      if (response?.error) {
-        reject(new Error(response.error))
-        return
-      }
-      resolve(response)
-    })
+    }
   })
+}
+
+function showStaleMessage() {
+  const body = document.getElementById('br-body')
+  if (body) {
+    body.innerHTML = `
+      <div class="br-message br-message-warn">
+        Extension was updated. Please refresh this page.
+      </div>
+      <button class="br-btn br-btn-primary br-reveal-btn" onclick="location.reload()">
+        Refresh Page
+      </button>
+    `
+  }
 }
 
 // ——— Panel UI ———
@@ -107,12 +133,14 @@ let panelRoot: HTMLDivElement | null = null
 function getOrCreatePanel(): HTMLDivElement {
   if (panelRoot) return panelRoot
 
+  const iconUrl = chrome.runtime.getURL('icons/icon128.png')
+
   panelRoot = document.createElement('div')
   panelRoot.id = 'boilerroom-panel'
   panelRoot.innerHTML = `
     <div class="br-panel" id="br-panel-expanded">
       <div class="br-header">
-        <span class="br-logo">BR</span>
+        <img class="br-logo" src="${iconUrl}" alt="BR" />
         <span class="br-title">Boilerroom</span>
         <button class="br-minimize" id="br-minimize" title="Minimize">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
@@ -127,7 +155,7 @@ function getOrCreatePanel(): HTMLDivElement {
       </div>
     </div>
     <button class="br-fab" id="br-fab" title="Open Boilerroom">
-      <span class="br-fab-logo">BR</span>
+      <img class="br-fab-logo" src="${iconUrl}" alt="BR" />
     </button>
   `
   document.body.appendChild(panelRoot)
@@ -142,12 +170,14 @@ function getOrCreatePanel(): HTMLDivElement {
   panelRoot.querySelector('#br-minimize')!.addEventListener('click', () => {
     expandedPanel.style.display = 'none'
     fab.style.display = 'flex'
+    showOtherFabs()
   })
 
   // FAB — expand panel back
   fab.addEventListener('click', () => {
     fab.style.display = 'none'
     expandedPanel.style.display = ''
+    hideOtherFabs()
   })
 
   // Fetch user name for greeting
@@ -157,8 +187,9 @@ function getOrCreatePanel(): HTMLDivElement {
     if (response?.authenticated && response.user) {
       const greeting = document.getElementById('br-user-greeting')
       if (greeting) {
-        const displayName = response.user.name || response.user.email.split('@')[0]
-        greeting.textContent = `Hi, ${displayName}`
+        const raw = response.user.name || response.user.email.split('@')[0]
+        const capitalized = raw.replace(/\b\w/g, (c) => c.toUpperCase())
+        greeting.textContent = capitalized
         greeting.style.display = ''
       }
     }
@@ -227,10 +258,11 @@ async function handleReveal(forceRefresh = false) {
   }
 
   // Show loading
+  const loadingText = forceRefresh ? 'Searching for updated contact data...' : 'Revealing...'
   body.innerHTML = `
     <div class="br-loading">
       <div class="br-spinner"></div>
-      <span>Revealing...</span>
+      <span>${loadingText}</span>
     </div>
   `
 
@@ -276,12 +308,11 @@ function renderRevealResult(result: RevealResponse, fromCache: boolean) {
 
   let html = ''
 
-  // Cached result notice with refresh button
+  // Refresh icon for cached results
   if (fromCache) {
-    html += `<div class="br-cache-notice">
-      <span class="br-cache-label">Cached result</span>
-      <button class="br-btn br-btn-secondary br-btn-sm" id="br-refresh-reveal">Refresh</button>
-    </div>`
+    html += `<button class="br-refresh-icon" id="br-refresh-reveal" title="Refresh">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+    </button>`
   }
 
   // Contact info
@@ -334,14 +365,22 @@ function renderRevealResult(result: RevealResponse, fromCache: boolean) {
     </div>`
   }
 
-  // POV placeholder (loads async)
-  if (account) {
-    html += `<div class="br-section" id="br-pov-section">
-      <div class="br-pov-loading">
-        <div class="br-spinner-sm"></div>
-        <span>Loading company brief...</span>
-      </div>
-    </div>`
+  // Company blip from reveal data
+  if (reveal?.companyDescription || reveal?.companyIndustry) {
+    html += `<div class="br-section">`
+    if (reveal.companyDescription) {
+      html += `<div class="br-company-blip">${escHtml(reveal.companyDescription)}</div>`
+    }
+    const details: string[] = []
+    if (reveal.companyIndustry) details.push(reveal.companyIndustry)
+    if (reveal.companySizeRange) details.push(`${reveal.companySizeRange} employees`)
+    else if (reveal.companySize) details.push(`${reveal.companySize.toLocaleString()} employees`)
+    if (reveal.companyFounded) details.push(`Founded ${reveal.companyFounded}`)
+    if (reveal.companyRevenue) details.push(reveal.companyRevenue)
+    if (details.length > 0) {
+      html += `<div class="br-company-details">${escHtml(details.join(' · '))}</div>`
+    }
+    html += `</div>`
   }
 
   // Existing prospect notice
@@ -452,55 +491,8 @@ function renderRevealResult(result: RevealResponse, fromCache: boolean) {
     }
   }
 
-  // Fetch POV if account matched
-  if (account) {
-    fetchAndRenderPov(account.id)
-  }
 }
 
-// ——— POV section ———
-
-async function fetchAndRenderPov(accountId: string) {
-  const povSection = document.getElementById('br-pov-section')
-  if (!povSection) return
-
-  try {
-    const response = await sendMessage<AccountPovResponse>({
-      type: 'FETCH_ACCOUNT_POV',
-      data: { accountId },
-    })
-
-    if (!response?.pov) {
-      povSection.innerHTML = `
-        <div class="br-pov-empty">No company brief available yet.</div>
-      `
-      return
-    }
-
-    const pov = response.pov
-    let povHtml = `<div class="br-pov-header">Company Brief</div>`
-
-    if (pov.companyIntel) {
-      povHtml += `<div class="br-pov-block">
-        <div class="br-pov-block-title">Company Intel</div>
-        <div class="br-pov-text">${escHtml(pov.companyIntel)}</div>
-      </div>`
-    }
-
-    if (pov.engagementStrategy) {
-      povHtml += `<div class="br-pov-block">
-        <div class="br-pov-block-title">Engagement Strategy</div>
-        <div class="br-pov-text">${escHtml(pov.engagementStrategy)}</div>
-      </div>`
-    }
-
-    povSection.innerHTML = povHtml
-  } catch {
-    povSection.innerHTML = `
-      <div class="br-pov-empty">Could not load company brief.</div>
-    `
-  }
-}
 
 // ——— Sequence picker ———
 
@@ -529,6 +521,42 @@ function enableSequencePicker(prospectId: string) {
       seqBtn.classList.add('br-btn-error')
     }
   })
+}
+
+// ——— Hide / show other FABs ———
+
+const hiddenFabs: { el: HTMLElement; prev: string }[] = []
+
+function findOtherFabs(): HTMLElement[] {
+  const results: HTMLElement[] = []
+  const all = document.querySelectorAll('body > *')
+  for (const el of all) {
+    if (el === panelRoot || !(el instanceof HTMLElement)) continue
+    const style = window.getComputedStyle(el)
+    if (style.position !== 'fixed') continue
+    const w = el.offsetWidth
+    const h = el.offsetHeight
+    // Small fixed elements (< 200px in both dimensions) are likely FABs
+    if (w > 0 && w < 200 && h > 0 && h < 200) {
+      results.push(el)
+    }
+  }
+  return results
+}
+
+function hideOtherFabs() {
+  hiddenFabs.length = 0
+  for (const el of findOtherFabs()) {
+    hiddenFabs.push({ el, prev: el.style.display })
+    el.style.display = 'none'
+  }
+}
+
+function showOtherFabs() {
+  for (const { el, prev } of hiddenFabs) {
+    el.style.display = prev
+  }
+  hiddenFabs.length = 0
 }
 
 // ——— Helpers ———

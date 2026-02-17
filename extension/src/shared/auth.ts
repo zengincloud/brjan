@@ -60,6 +60,9 @@ export async function login(email: string, password: string): Promise<AuthState>
     user: {
       id: data.user.id,
       email: data.user.email!,
+      name: data.user.user_metadata?.full_name
+        || data.user.user_metadata?.name
+        || undefined,
     },
   }
 
@@ -158,6 +161,9 @@ export async function loginWithGoogle(): Promise<AuthState> {
     user: {
       id: sessionData.user.id,
       email: sessionData.user.email!,
+      name: sessionData.user.user_metadata?.full_name
+        || sessionData.user.user_metadata?.name
+        || undefined,
     },
   }
 

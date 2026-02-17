@@ -6,6 +6,7 @@ import type {
   SaveProspectPayload,
   SaveProspectResponse,
   AddToSequenceResponse,
+  AccountPovResponse,
 } from './types'
 
 /** Make an authenticated API call to the Boilerroom backend */
@@ -58,4 +59,11 @@ export function addToSequence(prospectId: string, sequenceId: string): Promise<A
     method: 'POST',
     body: JSON.stringify({ prospectId, sequenceId }),
   })
+}
+
+/** GET /api/extension/account-pov — fetch account POV briefing */
+export function fetchAccountPov(accountId: string): Promise<AccountPovResponse> {
+  return apiFetch<AccountPovResponse>(
+    `/api/extension/account-pov?accountId=${encodeURIComponent(accountId)}`
+  )
 }

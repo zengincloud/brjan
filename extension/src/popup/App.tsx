@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react'
 type AuthStatus =
   | { state: 'loading' }
   | { state: 'unauthenticated' }
-  | { state: 'authenticated'; user: { id: string; email: string } }
+  | { state: 'authenticated'; user: { id: string; email: string; name?: string } }
 
 /** Safe wrapper — if the service worker is down, chrome.runtime can be undefined */
 function safeSendMessage(message: any, callback: (response: any) => void) {
@@ -113,7 +113,7 @@ export function App() {
         </div>
         <div style={styles.body}>
           <div style={styles.userCard}>
-            <div style={styles.userEmail}>{auth.user.email}</div>
+            <div style={styles.userEmail}>{auth.user.name || auth.user.email}</div>
             <div style={styles.userStatus}>Connected</div>
           </div>
 
@@ -221,7 +221,7 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
     width: 28,
     height: 28,
-    background: '#6366f1',
+    background: '#4CD112',
     borderRadius: 8,
     fontWeight: 700,
     fontSize: 11,
@@ -286,7 +286,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'block',
     width: '100%',
     padding: '10px 16px',
-    background: '#6366f1',
+    background: '#4CD112',
     color: '#fff',
     border: 'none',
     borderRadius: 8,

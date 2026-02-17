@@ -1,17 +1,23 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { withAuth } from '@/lib/auth/api-middleware'
-import { prisma } from '@/lib/prisma'
-import { fetchNewsArticles, generatePOV } from '@/lib/pov/generate'
+import { NextRequest, NextResponse } from "next/server"
+import { prisma } from "@/lib/prisma"
+import { withExtensionAuth } from "@/lib/auth/extension-middleware"
+import { fetchNewsArticles, generatePOV } from "@/lib/pov/generate"
 
-export const GET = withAuth(async (request: NextRequest, userId: string, context?: { params: { id: string } }) => {
+export const dynamic = 'force-dynamic'
+
+// GET /api/extension/account-pov?accountId=xxx
+// Returns the account's POV briefing, generating it if not cached.
+export const GET = withExtensionAuth(async (request: NextRequest, userId: string) => {
   try {
-    if (!context?.params?.id) {
-      return NextResponse.json({ error: 'Account ID is required' }, { status: 400 })
-    }
-
-    const accountId = context.params.id
     const { searchParams } = new URL(request.url)
-    const force = searchParams.get('force') === 'true'
+    const accountId = searchParams.get('accountId')
+
+    if (!accountId) {
+      return NextResponse.json(
+        { error: 'accountId query parameter is required' },
+        { status: 400 }
+      )
+    }
 
     const account = await prisma.account.findFirst({
       where: { id: accountId, userId },
@@ -21,10 +27,9 @@ export const GET = withAuth(async (request: NextRequest, userId: string, context
       return NextResponse.json({ error: 'Account not found' }, { status: 404 })
     }
 
-    // Check cache (48 hour expiry) unless force refresh
+    // Check cache (48 hour expiry)
     const cacheExpiry = 48 * 60 * 60 * 1000
     if (
-      !force &&
       account.pov &&
       account.povFetchedAt &&
       Date.now() - account.povFetchedAt.getTime() < cacheExpiry
@@ -38,12 +43,12 @@ export const GET = withAuth(async (request: NextRequest, userId: string, context
 
     if (!anthropicKey) {
       return NextResponse.json(
-        { error: 'ANTHROPIC_API_KEY not configured. Add it to your .env file.' },
+        { error: 'ANTHROPIC_API_KEY not configured' },
         { status: 500 }
       )
     }
 
-    // Fetch news in parallel: company-specific + industry-level
+    // Fetch news in parallel
     const [companyNews, industryNews] = await Promise.all([
       newsApiKey ? fetchNewsArticles(account.name, newsApiKey) : Promise.resolve([]),
       newsApiKey && account.industry
@@ -73,7 +78,7 @@ export const GET = withAuth(async (request: NextRequest, userId: string, context
 
     return NextResponse.json({ pov, cached: false })
   } catch (error: any) {
-    console.error('Error generating POV:', error)
+    console.error('Extension account-pov error:', error)
     return NextResponse.json(
       { error: error.message || 'Failed to generate POV' },
       { status: 500 }

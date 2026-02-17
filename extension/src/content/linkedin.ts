@@ -6,6 +6,7 @@ import type {
   ExistingProspect,
   SequenceSummary,
   SaveProspectPayload,
+  AccountPovResponse,
 } from '@shared/types'
 
 // Import CSS for webpack to bundle it
@@ -43,14 +44,12 @@ function scrapeProfileData(): LinkedInScrapedData {
     company = topCardCompany.textContent?.trim() || ''
   }
   if (!company) {
-    // Try the inline "Current company" button in the top card
     const companyButton = document.querySelector(
       'button[aria-label*="Current company"] span'
     )
     company = companyButton?.textContent?.trim() || ''
   }
   if (!company) {
-    // Fallback: first experience item
     const expCompany = document.querySelector(
       '#experience ~ .pvs-list__outer-container .t-bold span[aria-hidden="true"]'
     ) || document.querySelector(
@@ -62,7 +61,25 @@ function scrapeProfileData(): LinkedInScrapedData {
   // LinkedIn URL
   const linkedinUrl = window.location.href.split('?')[0]
 
-  return { name, title, company, linkedinUrl }
+  // Profile picture
+  let profilePictureUrl: string | undefined
+  const profileImgSelectors = [
+    'img.pv-top-card-profile-picture__image--show',
+    '.pv-top-card--photo img',
+    'button[aria-label*="photo"] img',
+    '.pv-top-card__photo-wrapper img',
+    'img.presence-entity__image',
+    '.pv-top-card-profile-picture img',
+  ]
+  for (const selector of profileImgSelectors) {
+    const img = document.querySelector(selector) as HTMLImageElement | null
+    if (img?.src && !img.src.includes('ghost') && !img.src.includes('default')) {
+      profilePictureUrl = img.src
+      break
+    }
+  }
+
+  return { name, title, company, linkedinUrl, profilePictureUrl }
 }
 
 // ——— Send message to background service worker ———
@@ -93,35 +110,102 @@ function getOrCreatePanel(): HTMLDivElement {
   panelRoot = document.createElement('div')
   panelRoot.id = 'boilerroom-panel'
   panelRoot.innerHTML = `
-    <div class="br-panel">
+    <div class="br-panel" id="br-panel-expanded">
       <div class="br-header">
         <span class="br-logo">BR</span>
         <span class="br-title">Boilerroom</span>
-        <button class="br-close" id="br-close">&times;</button>
-      </div>
-      <div class="br-body" id="br-body">
-        <button class="br-btn br-btn-primary br-reveal-btn" id="br-reveal">
-          Reveal Contact
+        <button class="br-minimize" id="br-minimize" title="Minimize">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
         </button>
       </div>
+      <div class="br-user-greeting" id="br-user-greeting" style="display:none;"></div>
+      <div class="br-body" id="br-body">
+        <div class="br-loading">
+          <div class="br-spinner"></div>
+          <span>Loading...</span>
+        </div>
+      </div>
     </div>
+    <button class="br-fab" id="br-fab" title="Open Boilerroom">
+      <span class="br-fab-logo">BR</span>
+    </button>
   `
   document.body.appendChild(panelRoot)
 
-  // Close button
-  panelRoot.querySelector('#br-close')!.addEventListener('click', () => {
-    panelRoot!.style.display = 'none'
+  const expandedPanel = panelRoot.querySelector('#br-panel-expanded') as HTMLElement
+  const fab = panelRoot.querySelector('#br-fab') as HTMLElement
+
+  // Start minimized, panel hidden
+  expandedPanel.style.display = 'none'
+
+  // Minimize button — collapse panel to small icon
+  panelRoot.querySelector('#br-minimize')!.addEventListener('click', () => {
+    expandedPanel.style.display = 'none'
+    fab.style.display = 'flex'
   })
 
-  // Reveal button
-  panelRoot.querySelector('#br-reveal')!.addEventListener('click', handleReveal)
+  // FAB — expand panel back
+  fab.addEventListener('click', () => {
+    fab.style.display = 'none'
+    expandedPanel.style.display = ''
+  })
+
+  // Fetch user name for greeting
+  sendMessage<{ authenticated: boolean; user?: { name?: string; email: string } }>(
+    { type: 'GET_AUTH_STATE' }
+  ).then((response) => {
+    if (response?.authenticated && response.user) {
+      const greeting = document.getElementById('br-user-greeting')
+      if (greeting) {
+        const displayName = response.user.name || response.user.email.split('@')[0]
+        greeting.textContent = `Hi, ${displayName}`
+        greeting.style.display = ''
+      }
+    }
+  }).catch(() => { /* silent fail */ })
+
+  // Check cache, then render
+  checkCacheAndRender()
 
   return panelRoot
 }
 
-async function handleReveal() {
+// ——— Cache-first reveal flow ———
+
+async function checkCacheAndRender() {
+  const body = document.getElementById('br-body')
+  if (!body) return
+
+  const linkedinUrl = window.location.href.split('?')[0]
+  try {
+    const cached = await sendMessage<(RevealResponse & { cachedAt?: number }) | null>({
+      type: 'GET_CACHED_REVEAL',
+      data: { linkedinUrl },
+    })
+    if (cached) {
+      // Re-scrape profile picture (LinkedIn CDN URLs may expire)
+      const freshPic = scrapeProfileData().profilePictureUrl
+      if (freshPic) {
+        cached.scrapedData.profilePictureUrl = freshPic
+      }
+      renderRevealResult(cached, true)
+      return
+    }
+  } catch {
+    // Cache miss or error
+  }
+
+  // No cache — show the reveal button
+  body.innerHTML = `
+    <button class="br-btn br-btn-primary br-reveal-btn" id="br-reveal">
+      Reveal Contact
+    </button>
+  `
+  document.getElementById('br-reveal')!.addEventListener('click', () => handleReveal())
+}
+
+async function handleReveal(forceRefresh = false) {
   const body = document.getElementById('br-body')!
-  const revealBtn = document.getElementById('br-reveal') as HTMLButtonElement
 
   // Check auth first
   try {
@@ -135,16 +219,20 @@ async function handleReveal() {
           Reveal Contact
         </button>
       `
-      document.getElementById('br-reveal')!.addEventListener('click', handleReveal)
+      document.getElementById('br-reveal')!.addEventListener('click', () => handleReveal())
       return
     }
   } catch {
-    // Continue anyway — the API call will fail with 401 if truly unauthenticated
+    // Continue anyway
   }
 
-  // Show loading state
-  revealBtn.disabled = true
-  revealBtn.textContent = 'Revealing...'
+  // Show loading
+  body.innerHTML = `
+    <div class="br-loading">
+      <div class="br-spinner"></div>
+      <span>Revealing...</span>
+    </div>
+  `
 
   const scrapedData = scrapeProfileData()
 
@@ -153,7 +241,17 @@ async function handleReveal() {
       type: 'REVEAL_CONTACT',
       data: scrapedData,
     })
-    renderRevealResult(result)
+
+    // Attach locally-scraped profile picture
+    result.scrapedData.profilePictureUrl = scrapedData.profilePictureUrl
+
+    // Cache the result
+    sendMessage({
+      type: 'CACHE_REVEAL',
+      data: { linkedinUrl: scrapedData.linkedinUrl, result },
+    }).catch(() => { /* silent cache fail */ })
+
+    renderRevealResult(result, false)
   } catch (err: any) {
     body.innerHTML = `
       <div class="br-message br-message-error">
@@ -163,11 +261,13 @@ async function handleReveal() {
         Try Again
       </button>
     `
-    document.getElementById('br-reveal')!.addEventListener('click', handleReveal)
+    document.getElementById('br-reveal')!.addEventListener('click', () => handleReveal())
   }
 }
 
-function renderRevealResult(result: RevealResponse) {
+// ——— Render reveal result ———
+
+function renderRevealResult(result: RevealResponse, fromCache: boolean) {
   const body = document.getElementById('br-body')!
   const reveal = result.revealData
   const account = result.matchedAccount
@@ -176,12 +276,34 @@ function renderRevealResult(result: RevealResponse) {
 
   let html = ''
 
+  // Cached result notice with refresh button
+  if (fromCache) {
+    html += `<div class="br-cache-notice">
+      <span class="br-cache-label">Cached result</span>
+      <button class="br-btn br-btn-secondary br-btn-sm" id="br-refresh-reveal">Refresh</button>
+    </div>`
+  }
+
   // Contact info
   if (reveal) {
     html += `<div class="br-section">`
-    html += `<div class="br-contact-name">${escHtml(reveal.name || result.scrapedData.name)}</div>`
-    if (reveal.title) html += `<div class="br-contact-detail">${escHtml(reveal.title)}</div>`
-    if (reveal.company) html += `<div class="br-contact-detail">${escHtml(reveal.company)}</div>`
+
+    // Profile picture + name
+    const picUrl = result.scrapedData?.profilePictureUrl
+    if (picUrl) {
+      html += `<div class="br-profile-pic-row">
+        <img class="br-profile-pic" src="${escHtml(picUrl)}" alt="" />
+        <div>
+          <div class="br-contact-name">${escHtml(reveal.name || result.scrapedData.name)}</div>
+          ${reveal.title ? `<div class="br-contact-detail">${escHtml(reveal.title)}</div>` : ''}
+          ${reveal.company ? `<div class="br-contact-detail">${escHtml(reveal.company)}</div>` : ''}
+        </div>
+      </div>`
+    } else {
+      html += `<div class="br-contact-name">${escHtml(reveal.name || result.scrapedData.name)}</div>`
+      if (reveal.title) html += `<div class="br-contact-detail">${escHtml(reveal.title)}</div>`
+      if (reveal.company) html += `<div class="br-contact-detail">${escHtml(reveal.company)}</div>`
+    }
 
     if (reveal.email) {
       html += `<div class="br-field">
@@ -212,6 +334,16 @@ function renderRevealResult(result: RevealResponse) {
     </div>`
   }
 
+  // POV placeholder (loads async)
+  if (account) {
+    html += `<div class="br-section" id="br-pov-section">
+      <div class="br-pov-loading">
+        <div class="br-spinner-sm"></div>
+        <span>Loading company brief...</span>
+      </div>
+    </div>`
+  }
+
   // Existing prospect notice
   if (existing) {
     html += `<div class="br-message br-message-info">
@@ -236,12 +368,25 @@ function renderRevealResult(result: RevealResponse) {
         <button class="br-btn br-btn-secondary" id="br-add-sequence" disabled>Add</button>
       </div>
     `
+  } else {
+    const appUrl = getAppUrl()
+    html += `
+      <div class="br-sequence-empty">
+        No sequences yet — <a href="${appUrl}/sequences" target="_blank" class="br-link">create one in Boilerroom</a>
+      </div>
+    `
   }
 
   html += `</div>`
   body.innerHTML = html
 
   // --- Wire up event handlers ---
+
+  // Refresh button
+  const refreshBtn = document.getElementById('br-refresh-reveal')
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', () => handleReveal(true))
+  }
 
   // Save as Prospect
   const saveBtn = document.getElementById('br-save-prospect')
@@ -306,7 +451,58 @@ function renderRevealResult(result: RevealResponse) {
       enableSequencePicker(existing.id)
     }
   }
+
+  // Fetch POV if account matched
+  if (account) {
+    fetchAndRenderPov(account.id)
+  }
 }
+
+// ——— POV section ———
+
+async function fetchAndRenderPov(accountId: string) {
+  const povSection = document.getElementById('br-pov-section')
+  if (!povSection) return
+
+  try {
+    const response = await sendMessage<AccountPovResponse>({
+      type: 'FETCH_ACCOUNT_POV',
+      data: { accountId },
+    })
+
+    if (!response?.pov) {
+      povSection.innerHTML = `
+        <div class="br-pov-empty">No company brief available yet.</div>
+      `
+      return
+    }
+
+    const pov = response.pov
+    let povHtml = `<div class="br-pov-header">Company Brief</div>`
+
+    if (pov.companyIntel) {
+      povHtml += `<div class="br-pov-block">
+        <div class="br-pov-block-title">Company Intel</div>
+        <div class="br-pov-text">${escHtml(pov.companyIntel)}</div>
+      </div>`
+    }
+
+    if (pov.engagementStrategy) {
+      povHtml += `<div class="br-pov-block">
+        <div class="br-pov-block-title">Engagement Strategy</div>
+        <div class="br-pov-text">${escHtml(pov.engagementStrategy)}</div>
+      </div>`
+    }
+
+    povSection.innerHTML = povHtml
+  } catch {
+    povSection.innerHTML = `
+      <div class="br-pov-empty">Could not load company brief.</div>
+    `
+  }
+}
+
+// ——— Sequence picker ———
 
 function enableSequencePicker(prospectId: string) {
   const seqBtn = document.getElementById('br-add-sequence') as HTMLButtonElement | null
@@ -335,10 +531,10 @@ function enableSequencePicker(prospectId: string) {
   })
 }
 
+// ——— Helpers ———
+
 function getAppUrl(): string {
-  // Check if we're in dev (extension loaded unpacked)
-  const manifest = chrome.runtime.getManifest()
-  return manifest.update_url ? 'https://app.boilerroom.ai' : 'http://localhost:3000'
+  return 'https://app.boilerroom.ai'
 }
 
 function escHtml(str: string): string {

@@ -4,6 +4,7 @@ export interface LinkedInScrapedData {
   title: string
   company: string
   linkedinUrl: string
+  profilePictureUrl?: string
 }
 
 // Response from POST /api/extension/reveal
@@ -86,6 +87,23 @@ export interface AddToSequenceResponse {
   sequenceName: string
 }
 
+// Response from GET /api/extension/account-pov
+export interface AccountPovResponse {
+  pov: {
+    companyIntel: string
+    engagementStrategy: string
+    industryLandscape?: string
+    swot?: {
+      strengths: string[]
+      weaknesses: string[]
+      opportunities: string[]
+      threats: string[]
+    }
+    keyPlayers?: string[]
+  } | null
+  cached: boolean
+}
+
 // Auth state stored in chrome.storage.local
 export interface AuthState {
   accessToken: string
@@ -94,6 +112,7 @@ export interface AuthState {
   user: {
     id: string
     email: string
+    name?: string
   }
 }
 
@@ -106,6 +125,9 @@ export type ExtensionMessage =
   | { type: 'LOGIN'; data: { email: string; password: string } }
   | { type: 'LOGIN_GOOGLE' }
   | { type: 'LOGOUT' }
+  | { type: 'GET_CACHED_REVEAL'; data: { linkedinUrl: string } }
+  | { type: 'CACHE_REVEAL'; data: { linkedinUrl: string; result: RevealResponse } }
+  | { type: 'FETCH_ACCOUNT_POV'; data: { accountId: string } }
 
 export interface SaveProspectPayload {
   name: string

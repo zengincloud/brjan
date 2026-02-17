@@ -1,5 +1,5 @@
 import { login, loginWithGoogle, logout, getAuthState, refreshTokenIfNeeded } from '@shared/auth'
-import { revealContact, saveProspect, addToSequence } from '@shared/api'
+import { revealContact, saveProspect, addToSequence, fetchAccountPov } from '@shared/api'
 import type { ExtensionMessage } from '@shared/types'
 
 /**
@@ -53,6 +53,27 @@ async function handleMessage(message: ExtensionMessage): Promise<any> {
 
     case 'ADD_TO_SEQUENCE': {
       return await addToSequence(message.data.prospectId, message.data.sequenceId)
+    }
+
+    case 'GET_CACHED_REVEAL': {
+      const cacheKey = `br_reveal_cache_${message.data.linkedinUrl}`
+      const result = await chrome.storage.local.get(cacheKey)
+      return result[cacheKey] || null
+    }
+
+    case 'CACHE_REVEAL': {
+      const cacheKey = `br_reveal_cache_${message.data.linkedinUrl}`
+      await chrome.storage.local.set({
+        [cacheKey]: {
+          ...message.data.result,
+          cachedAt: Date.now(),
+        },
+      })
+      return { success: true }
+    }
+
+    case 'FETCH_ACCOUNT_POV': {
+      return await fetchAccountPov(message.data.accountId)
     }
 
     default:

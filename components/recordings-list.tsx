@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Phone, Search, User, Building2, CalendarIcon, Clock, Download, Play, FileText, X, Mic, PhoneOutgoing } from "lucide-react"
+import { Phone, Search, User, Building2, CalendarIcon, Clock, Download, Play, FileText, X, Mic, PhoneOutgoing, TrendingUp, UserCheck, MessageSquare } from "lucide-react"
 import { format, isWithinInterval, startOfDay, endOfDay } from "date-fns"
 import { Skeleton } from "@/components/ui/skeleton"
 import { CallTranscript } from "@/components/call-transcript"
@@ -140,8 +140,70 @@ export function RecordingsList() {
     )
   }
 
+  // Compute stats from recordings
+  const now = new Date()
+  const startOfWeek = new Date(now)
+  startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay())
+  startOfWeek.setHours(0, 0, 0, 0)
+
+  const callsThisWeek = recordings.filter(r => new Date(r.createdAt) >= startOfWeek)
+  const connectedCalls = callsThisWeek.filter(r => r.outcome?.startsWith("connected"))
+  const conversations = callsThisWeek.filter(r => (r.duration || 0) > 60) // > 1 minute
+  const introsBooked = callsThisWeek.filter(r => r.outcome === "connected_intro_booked")
+  const connectRate = callsThisWeek.length > 0 ? Math.round((connectedCalls.length / callsThisWeek.length) * 100) : 0
+  const conversationRate = callsThisWeek.length > 0 ? Math.round((conversations.length / callsThisWeek.length) * 100) : 0
+
   return (
     <div className="space-y-4">
+      {/* Call Stats */}
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+        <Card className="border-border">
+          <CardContent className="pt-4 pb-3 px-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground">Calls This Week</p>
+                <p className="text-2xl font-bold">{callsThisWeek.length}</p>
+              </div>
+              <Phone className="h-5 w-5 text-muted-foreground" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-border">
+          <CardContent className="pt-4 pb-3 px-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground">Connect Rate</p>
+                <p className="text-2xl font-bold">{connectRate}%</p>
+              </div>
+              <UserCheck className="h-5 w-5 text-primary" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-border">
+          <CardContent className="pt-4 pb-3 px-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground">Conversation Rate</p>
+                <p className="text-2xl font-bold">{conversationRate}%</p>
+              </div>
+              <MessageSquare className="h-5 w-5 text-green-500" />
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">{conversations.length} calls &gt; 1 min</p>
+          </CardContent>
+        </Card>
+        <Card className="border-border">
+          <CardContent className="pt-4 pb-3 px-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground">Intros Booked</p>
+                <p className="text-2xl font-bold text-primary">{introsBooked.length}</p>
+              </div>
+              <TrendingUp className="h-5 w-5 text-primary" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Filter Tabs, Search, and Date Range */}
       <div className="flex items-center gap-3">
         <div className="flex items-center border rounded-lg p-0.5">

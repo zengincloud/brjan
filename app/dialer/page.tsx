@@ -61,6 +61,7 @@ import { SendEmailDialog } from "@/components/send-email-dialog"
 import { Calendar } from "lucide-react"
 import { Device, Call as TwilioCall } from "@twilio/voice-sdk"
 import { useUserRole } from "@/hooks/use-user-role"
+import { useSessionState } from "@/hooks/use-session-state"
 
 type CallStatus = "idle" | "ringing" | "connected" | "completed"
 
@@ -133,14 +134,14 @@ type DialerProspect = {
 export default function DialerPage() {
   const { toast } = useToast()
   const { isSuperAdmin } = useUserRole()
-  const [sessionActive, setSessionActive] = useState(false)
-  const [sessionPaused, setSessionPaused] = useState(false)
-  const [selectedSequence, setSelectedSequence] = useState<string>("all")
-  const [selectedPhone, setSelectedPhone] = useState<string>("+16282253832")
-  const [callSlots, setCallSlots] = useState<CallSlot[]>([
+  const [sessionActive, setSessionActive] = useSessionState("dialer_session_active", false)
+  const [sessionPaused, setSessionPaused] = useSessionState("dialer_session_paused", false)
+  const [selectedSequence, setSelectedSequence] = useSessionState<string>("dialer_sequence", "all")
+  const [selectedPhone, setSelectedPhone] = useSessionState<string>("dialer_phone", "+16282253832")
+  const [callSlots, setCallSlots] = useSessionState<CallSlot[]>("dialer_call_slots", [
     { id: "1", status: "idle", contact: null, startTime: null, notes: "", pendingOutcome: undefined, pendingPipelineStage: undefined },
   ])
-  const [stats, setStats] = useState<SessionStats>({
+  const [stats, setStats] = useSessionState<SessionStats>("dialer_stats", {
     totalCalls: 0,
     connected: 0,
     voicemail: 0,
@@ -149,7 +150,7 @@ export default function DialerPage() {
     callsPerHour: 0,
   })
   const [expandedSlots, setExpandedSlots] = useState<Set<string>>(new Set())
-  const [queueSize, setQueueSize] = useState(0)
+  const [queueSize, setQueueSize] = useSessionState("dialer_queue_size", 0)
   const [editingPhoneId, setEditingPhoneId] = useState<string | null>(null)
   const [editedPhone, setEditedPhone] = useState<string>("")
   const [prospectNotes, setProspectNotes] = useState<{ [key: string]: string }>({})
@@ -164,7 +165,7 @@ export default function DialerPage() {
   // Twilio state
   const [deviceReady, setDeviceReady] = useState(false)
   const [deviceError, setDeviceError] = useState<string | null>(null)
-  const [currentProspectIndex, setCurrentProspectIndex] = useState(0)
+  const [currentProspectIndex, setCurrentProspectIndex] = useSessionState("dialer_prospect_index", 0)
   const [isMuted, setIsMuted] = useState(false)
   const [callDuration, setCallDuration] = useState(0)
   const [showOutcomeButtons, setShowOutcomeButtons] = useState(false)
@@ -392,10 +393,11 @@ export default function DialerPage() {
     }
   }, [toast])
 
-  // Call duration timer
+  // Call duration timer - only runs during active calls (ringing/connected), stops on hangup
   useEffect(() => {
     let interval: NodeJS.Timeout
-    if (callStartTimeRef.current && callSlots.some(s => s.status === "connected")) {
+    const hasActiveCall = callSlots.some(s => s.status === "ringing" || s.status === "connected")
+    if (callStartTimeRef.current && hasActiveCall) {
       interval = setInterval(() => {
         setCallDuration(Math.floor((Date.now() - callStartTimeRef.current!) / 1000))
       }, 1000)
@@ -611,7 +613,9 @@ export default function DialerPage() {
         throw new Error(data.error || "Failed to create call record")
       }
 
-      // Update slot to ringing state
+      // Update slot to ringing state and auto-expand the card
+      const slotId = callSlots[slotIndex]?.id || "1"
+      setExpandedSlots(prev => new Set(prev).add(slotId))
       setCallSlots(prev => prev.map((slot, idx) =>
         idx === slotIndex
           ? { ...slot, contact: prospect, status: "ringing" as CallStatus, startTime: Date.now(), callId: data.callId, taskId: prospect.taskId }
@@ -850,16 +854,39 @@ export default function DialerPage() {
       return
     }
 
+    // Pre-load the first prospect into the slot BEFORE toggling session active
+    // This prevents the flash where the page goes blank
+    const firstProspect = mockProspects[0]
+    if (firstProspect) {
+      setCallSlots([{
+        id: "1",
+        status: "idle",
+        contact: {
+          name: firstProspect.name,
+          company: firstProspect.company,
+          phone: firstProspect.phone,
+          title: firstProspect.title,
+          email: firstProspect.email,
+          aiNotes: firstProspect.aiNotes || "",
+          priorCalls: firstProspect.priorCalls || [],
+          lastEmailSent: firstProspect.lastEmailSent || "",
+          sequenceStage: firstProspect.sequenceStage || "",
+          sequence: firstProspect.sequence || "",
+        },
+        startTime: null,
+        notes: "",
+      }])
+      setQueueSize(mockProspects.length - 1)
+    }
+
     setSessionActive(true)
     setSessionPaused(false)
     setCurrentProspectIndex(0)
     setShowOutcomeButtons(false)
 
-    // Start with the first prospect
-    const firstProspect = mockProspects[0]
+    // Start calling the first prospect
     if (firstProspect) {
       await connectCall(firstProspect, 0)
-      setQueueSize(mockProspects.length - 1)
     }
   }
 
@@ -916,16 +943,16 @@ export default function DialerPage() {
   }
 
   const handleCallOutcome = async (slotId: string, outcome: string) => {
-    // Store the pending outcome on the slot (don't advance yet)
+    // Store the pending outcome on the slot (independent of pipeline)
     setCallSlots(prev => prev.map(slot =>
-      slot.id === slotId ? { ...slot, pendingOutcome: outcome, pendingPipelineStage: undefined } : slot
+      slot.id === slotId ? { ...slot, pendingOutcome: outcome } : slot
     ))
   }
 
   const handlePipelineOutcome = async (slotId: string, pipelineStage: PipelineStage) => {
-    // Store the pending pipeline stage on the slot (don't advance yet)
+    // Store the pending pipeline stage on the slot (independent of outcome)
     setCallSlots(prev => prev.map(slot =>
-      slot.id === slotId ? { ...slot, pendingPipelineStage: pipelineStage, pendingOutcome: undefined } : slot
+      slot.id === slotId ? { ...slot, pendingPipelineStage: pipelineStage } : slot
     ))
   }
 
@@ -936,83 +963,103 @@ export default function DialerPage() {
 
     const slot = callSlots[slotIndex]
 
-    if (slot.pendingPipelineStage) {
-      // Handle pipeline outcome
-      const pipelineStage = slot.pendingPipelineStage as PipelineStage
-      const contact = slot.contact
-
-      if (slot.callId) {
-        try {
-          await fetch(`/api/calls/${slot.callId}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              outcome: "connected",
-              pipelineStage,
-              notes: slot.notes,
-              endedAt: new Date().toISOString(),
-            }),
-          })
-        } catch (error) {
-          console.error("Error saving pipeline outcome:", error)
-        }
-      }
-
-      // Mark task as done if this call was from a task
-      if (slot.taskId) {
-        try {
-          await fetch(`/api/tasks/${slot.taskId}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ status: "done" }),
-          })
-        } catch (error) {
-          console.error("Error completing task:", error)
-        }
-      }
-
-      toast({
-        title: `Pipeline: ${pipelineStageLabels[pipelineStage]}`,
-        description: contact ? `${contact.name} moved to ${pipelineStageLabels[pipelineStage]}` : "Pipeline updated",
-      })
-
-      setStats(prev => ({
-        ...prev,
-        totalCalls: prev.totalCalls + 1,
-        connected: prev.connected + 1,
-        pipeline: prev.pipeline + 1,
-        callsPerHour: Math.round((prev.totalCalls + 1) / ((Date.now() - (callSlots[0].startTime || Date.now())) / 3600000) || 0),
-      }))
-
-      // Reset slot and advance
-      setCallSlots(prev => prev.map((s, idx) =>
-        idx === slotIndex
-          ? { id: slotId, status: "idle" as CallStatus, contact: null, startTime: null, notes: "" }
-          : s
-      ))
-      setShowOutcomeButtons(false)
-      setCallDuration(0)
-      callStartTimeRef.current = null
-
-      // Auto-dial next
-      if (sessionActive && !sessionPaused && queueSize > 0) {
-        const nextProspectIndex = Math.floor(Math.random() * mockProspects.length)
-        const nextProspect = mockProspects[nextProspectIndex]
-        if (nextProspect) {
-          setTimeout(() => connectCall(nextProspect, slotIndex), 1500)
-          setQueueSize(prev => Math.max(0, prev - 1))
-        }
-      }
-    } else if (slot.pendingOutcome) {
-      // Handle regular outcome
-      await handleCallOutcomeAndAdvance(slotIndex, slot.pendingOutcome)
-    } else {
-      // No outcome selected, just skip
+    // Require at least an outcome to be selected
+    if (!slot.pendingOutcome && !slot.pendingPipelineStage) {
       toast({
         title: "No outcome selected",
-        description: "Please select an outcome before saving.",
+        description: "Please select an outcome or pipeline stage before saving.",
         variant: "destructive",
       })
+      return
+    }
+
+    const outcome = slot.pendingOutcome || "connected"
+    const pipelineStage = slot.pendingPipelineStage as PipelineStage | undefined
+    const contact = slot.contact
+
+    // Save call outcome + pipeline to database
+    if (slot.callId) {
+      try {
+        await fetch(`/api/calls/${slot.callId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            outcome,
+            ...(pipelineStage && { pipelineStage }),
+            notes: slot.notes,
+            endedAt: new Date().toISOString(),
+          }),
+        })
+      } catch (error) {
+        console.error("Error saving call outcome:", error)
+      }
+    }
+
+    // Mark task as done if this call was from a task
+    if (slot.taskId) {
+      try {
+        await fetch(`/api/tasks/${slot.taskId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "done" }),
+        })
+      } catch (error) {
+        console.error("Error completing task:", error)
+      }
+    }
+
+    // Show appropriate toast
+    if (pipelineStage) {
+      toast({
+        title: `${outcomeLabels[outcome] || outcome} + Pipeline: ${pipelineStageLabels[pipelineStage]}`,
+        description: contact ? `${contact.name} moved to ${pipelineStageLabels[pipelineStage]}` : "Saved",
+      })
+    } else {
+      toast({
+        title: outcomeLabels[outcome] || outcome,
+        description: contact ? `Call with ${contact.name} saved` : "Call saved",
+      })
+    }
+
+    // Update stats
+    setStats(prev => ({
+      ...prev,
+      totalCalls: prev.totalCalls + 1,
+      connected: outcome.startsWith("connected") ? prev.connected + 1 : prev.connected,
+      voicemail: outcome === "voicemail" ? prev.voicemail + 1 : prev.voicemail,
+      noAnswer: outcome === "no_answer" ? prev.noAnswer + 1 : prev.noAnswer,
+      pipeline: pipelineStage ? prev.pipeline + 1 : prev.pipeline,
+    }))
+
+    // Reset slot and advance
+    setCallSlots(prev => prev.map((s, idx) =>
+      idx === slotIndex
+        ? { id: slotId, status: "idle" as CallStatus, contact: null, startTime: null, notes: "" }
+        : s
+    ))
+    setShowOutcomeButtons(false)
+    setCallDuration(0)
+    callStartTimeRef.current = null
+
+    // Auto-dial next
+    if (sessionActive && !sessionPaused) {
+      const nextIndex = currentProspectIndex + 1
+      if (nextIndex < mockProspects.length) {
+        setCurrentProspectIndex(nextIndex)
+        setQueueSize(prev => Math.max(0, prev - 1))
+        setTimeout(() => {
+          const nextProspect = mockProspects[nextIndex]
+          if (nextProspect) {
+            connectCall(nextProspect, slotIndex)
+          }
+        }, 1500)
+      } else {
+        setSessionActive(false)
+        toast({
+          title: "Session Complete",
+          description: "You've reached the end of the call queue.",
+        })
+      }
     }
   }
 
@@ -1525,10 +1572,13 @@ export default function DialerPage() {
               >
                 {slot.contact ? (
                   <div className="space-y-3">
-                    {/* Main row with key info */}
-                    <div className="flex items-center gap-4 flex-wrap">
+                    {/* Clickable header row - click anywhere to expand/collapse */}
+                    <div
+                      className="flex items-center gap-4 flex-wrap cursor-pointer"
+                      onClick={() => toggleExpanded(slot.id)}
+                    >
                       {/* Status, Timer, and Call Controls */}
-                      <div className="flex items-center gap-2 min-w-[180px]">
+                      <div className="flex items-center gap-2 min-w-[180px]" onClick={(e) => e.stopPropagation()}>
                         {slot.status === "ringing" && (
                           <>
                             <Badge className="bg-primary/20 text-primary border-0 animate-pulse">
@@ -1570,15 +1620,15 @@ export default function DialerPage() {
                             </Button>
                           </>
                         )}
-                        {slot.status === "completed" && showOutcomeButtons && (
-                          <Badge variant="outline" className="border-orange-500/50 text-orange-600">
-                            Select outcome below
+                        {slot.status === "completed" && (
+                          <Badge variant="outline" className="border-muted-foreground/50">
+                            Completed • {String(Math.floor(callDuration / 60)).padStart(2, '0')}:{String(callDuration % 60).padStart(2, '0')}
                           </Badge>
                         )}
                         {slot.status === "idle" && (
                           <Badge variant="outline">Idle</Badge>
                         )}
-                        {slot.startTime && <CallTimer startTime={slot.startTime} />}
+                        {(slot.status === "ringing" || slot.status === "connected") && slot.startTime && <CallTimer startTime={slot.startTime} />}
                       </div>
 
                       {/* Contact Info */}
@@ -1595,7 +1645,7 @@ export default function DialerPage() {
                       </div>
 
                       {/* Phone */}
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                         <Phone className="h-3 w-3 text-muted-foreground" />
                         {editingPhoneId === slot.id ? (
                           <div className="flex items-center gap-1">
@@ -1633,18 +1683,28 @@ export default function DialerPage() {
                         )}
                       </div>
 
+                      {/* Expand/collapse indicator */}
+                      <div className="flex items-center">
+                        {expandedSlots.has(slot.id) ? (
+                          <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </div>
                     </div>
 
-                    {/* Outcome and Pipeline Dropdowns */}
+                    {/* Outcome, Pipeline, and Save & Next - always visible */}
                     <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-border/50">
+                        {/* Outcome dropdown */}
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
                               size="sm"
-                              className="bg-primary hover:bg-primary/90 text-primary-foreground h-7"
+                              variant={slot.pendingOutcome ? "default" : "outline"}
+                              className={slot.pendingOutcome ? "bg-primary hover:bg-primary/90 text-primary-foreground h-7" : "h-7"}
                             >
                               <UserCheck className="h-3 w-3 mr-1" />
-                              Outcome
+                              {slot.pendingOutcome ? outcomeLabels[slot.pendingOutcome] || slot.pendingOutcome : "Outcome"}
                               <ChevronDown className="h-3 w-3 ml-1" />
                             </Button>
                           </DropdownMenuTrigger>
@@ -1679,14 +1739,17 @@ export default function DialerPage() {
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
+
+                        {/* Pipeline dropdown - separate from outcome */}
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
                               size="sm"
-                              className="bg-green-600 hover:bg-green-700 text-white h-7"
+                              variant={slot.pendingPipelineStage ? "default" : "outline"}
+                              className={slot.pendingPipelineStage ? "bg-green-600 hover:bg-green-700 text-white h-7" : "h-7"}
                             >
                               <Rocket className="h-3 w-3 mr-1" />
-                              Pipeline
+                              {slot.pendingPipelineStage ? pipelineStageLabels[slot.pendingPipelineStage as PipelineStage] || slot.pendingPipelineStage : "Pipeline"}
                               <ChevronDown className="h-3 w-3 ml-1" />
                             </Button>
                           </DropdownMenuTrigger>
@@ -1709,24 +1772,19 @@ export default function DialerPage() {
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
-                        {(slot.pendingOutcome || slot.pendingPipelineStage) && (
-                          <>
-                            <div className="border-l border-border h-5 mx-1" />
-                            <Badge variant="secondary" className="text-xs">
-                              {slot.pendingOutcome
-                                ? outcomeLabels[slot.pendingOutcome] || slot.pendingOutcome
-                                : `Pipeline: ${pipelineStageLabels[slot.pendingPipelineStage as PipelineStage] || slot.pendingPipelineStage}`}
-                            </Badge>
-                            <Button
-                              size="sm"
-                              className="bg-green-600 hover:bg-green-700 text-white h-7"
-                              onClick={() => saveAndAdvance(slot.id)}
-                            >
-                              <Save className="h-3 w-3 mr-1" />
-                              Save & Next
-                            </Button>
-                          </>
-                        )}
+
+                        <div className="border-l border-border h-5 mx-1" />
+
+                        {/* Save & Next - always visible */}
+                        <Button
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700 text-white h-7"
+                          onClick={() => saveAndAdvance(slot.id)}
+                        >
+                          <Save className="h-3 w-3 mr-1" />
+                          Save & Next
+                        </Button>
+
                         <div className="border-l border-border h-5 mx-1" />
                         <Button
                           size="sm"
@@ -1749,30 +1807,7 @@ export default function DialerPage() {
                     </div>
 
                     {/* Expandable details section */}
-                    <div>
-                      <button
-                        onClick={() => toggleExpanded(slot.id)}
-                        className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        {expandedSlots.has(slot.id) ? (
-                          <ChevronUp className="h-3 w-3" />
-                        ) : (
-                          <ChevronDown className="h-3 w-3" />
-                        )}
-                        <span>{expandedSlots.has(slot.id) ? "Hide" : "Show"} Details</span>
-                        <span className="text-muted-foreground/60">•</span>
-                        <Sparkles className="h-3 w-3 text-primary" />
-                        <span className="text-primary">Insights</span>
-                        {slot.contact.priorCalls.length > 0 && (
-                          <>
-                            <span className="text-muted-foreground/60">•</span>
-                            <History className="h-3 w-3" />
-                            <span>{slot.contact.priorCalls.length} prior calls</span>
-                          </>
-                        )}
-                      </button>
-
-                      {expandedSlots.has(slot.id) && (
+                    {expandedSlots.has(slot.id) && (
                         <div className="mt-3 space-y-3 pl-4 border-l-2 border-border">
                           {/* AI Notes */}
                           <div className="p-2 rounded-lg bg-primary/5 border border-primary/20">
@@ -1989,7 +2024,6 @@ export default function DialerPage() {
                           />
                         </div>
                       )}
-                    </div>
                   </div>
                 ) : (
                   <div className="text-sm text-muted-foreground py-2">Waiting for next call...</div>
@@ -2100,95 +2134,90 @@ export default function DialerPage() {
                         onChange={(e) => updateNotes(slot.id, e.target.value)}
                         className="min-h-[60px] text-sm"
                       />
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            size="sm"
-                            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
-                          >
-                            <UserCheck className="h-3 w-3 mr-1" />
-                            Outcome
-                            <ChevronDown className="h-3 w-3 ml-1" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="center" className="w-48">
-                          <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "connected_intro_booked")}>
-                            <CalendarCheck className="h-4 w-4 mr-2 text-green-500" />
-                            Intro Booked
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "connected_referral")}>
-                            <UserCheck className="h-4 w-4 mr-2 text-blue-500" />
-                            Referral
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "connected_not_interested")}>
-                            <UserX className="h-4 w-4 mr-2 text-orange-500" />
-                            Not Interested
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "connected_info_gathered")}>
-                            <FileText className="h-4 w-4 mr-2 text-purple-500" />
-                            Informational
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "voicemail")}>
-                            <Voicemail className="h-4 w-4 mr-2" />
-                            Voicemail
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "no_answer")}>
-                            <UserX className="h-4 w-4 mr-2" />
-                            No Answer
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "no_answer")}>
-                            <SkipForward className="h-4 w-4 mr-2" />
-                            Skip
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            size="sm"
-                            className="w-full bg-green-600 hover:bg-green-700 text-white"
-                          >
-                            <Rocket className="h-3 w-3 mr-1" />
-                            Pipeline
-                            <ChevronDown className="h-3 w-3 ml-1" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="center" className="w-48">
-                          <DropdownMenuItem onClick={() => handlePipelineOutcome(slot.id, "interested")}>
-                            <Star className="h-4 w-4 mr-2 text-yellow-500" />
-                            Interested
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handlePipelineOutcome(slot.id, "intro_booked")}>
-                            <CalendarCheck className="h-4 w-4 mr-2 text-blue-500" />
-                            Intro Booked
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handlePipelineOutcome(slot.id, "opportunity")}>
-                            <Target className="h-4 w-4 mr-2 text-purple-500" />
-                            Opportunity
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handlePipelineOutcome(slot.id, "demo_booked")}>
-                            <Handshake className="h-4 w-4 mr-2 text-green-500" />
-                            Demo Booked
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                      {(slot.pendingOutcome || slot.pendingPipelineStage) && (
-                        <div className="flex items-center gap-2 pt-2 border-t border-border/50">
-                          <Badge variant="secondary">
-                            {slot.pendingOutcome
-                              ? outcomeLabels[slot.pendingOutcome] || slot.pendingOutcome
-                              : `Pipeline: ${pipelineStageLabels[slot.pendingPipelineStage as PipelineStage] || slot.pendingPipelineStage}`}
-                          </Badge>
-                          <Button
-                            size="sm"
-                            className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-                            onClick={() => saveAndAdvance(slot.id)}
-                          >
-                            <Save className="h-3 w-3 mr-1" />
-                            Save & Next
-                          </Button>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant={slot.pendingOutcome ? "default" : "outline"}
+                              className={slot.pendingOutcome ? "bg-primary hover:bg-primary/90 text-primary-foreground" : ""}
+                            >
+                              <UserCheck className="h-3 w-3 mr-1" />
+                              {slot.pendingOutcome ? outcomeLabels[slot.pendingOutcome] || slot.pendingOutcome : "Outcome"}
+                              <ChevronDown className="h-3 w-3 ml-1" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="center" className="w-48">
+                            <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "connected_intro_booked")}>
+                              <CalendarCheck className="h-4 w-4 mr-2 text-green-500" />
+                              Intro Booked
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "connected_referral")}>
+                              <UserCheck className="h-4 w-4 mr-2 text-blue-500" />
+                              Referral
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "connected_not_interested")}>
+                              <UserX className="h-4 w-4 mr-2 text-orange-500" />
+                              Not Interested
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "connected_info_gathered")}>
+                              <FileText className="h-4 w-4 mr-2 text-purple-500" />
+                              Informational
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "voicemail")}>
+                              <Voicemail className="h-4 w-4 mr-2" />
+                              Voicemail
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "no_answer")}>
+                              <UserX className="h-4 w-4 mr-2" />
+                              No Answer
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "no_answer")}>
+                              <SkipForward className="h-4 w-4 mr-2" />
+                              Skip
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant={slot.pendingPipelineStage ? "default" : "outline"}
+                              className={slot.pendingPipelineStage ? "bg-green-600 hover:bg-green-700 text-white" : ""}
+                            >
+                              <Rocket className="h-3 w-3 mr-1" />
+                              {slot.pendingPipelineStage ? pipelineStageLabels[slot.pendingPipelineStage as PipelineStage] || slot.pendingPipelineStage : "Pipeline"}
+                              <ChevronDown className="h-3 w-3 ml-1" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="center" className="w-48">
+                            <DropdownMenuItem onClick={() => handlePipelineOutcome(slot.id, "interested")}>
+                              <Star className="h-4 w-4 mr-2 text-yellow-500" />
+                              Interested
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handlePipelineOutcome(slot.id, "intro_booked")}>
+                              <CalendarCheck className="h-4 w-4 mr-2 text-blue-500" />
+                              Intro Booked
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handlePipelineOutcome(slot.id, "opportunity")}>
+                              <Target className="h-4 w-4 mr-2 text-purple-500" />
+                              Opportunity
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handlePipelineOutcome(slot.id, "demo_booked")}>
+                              <Handshake className="h-4 w-4 mr-2 text-green-500" />
+                              Demo Booked
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        <Button
+                          size="sm"
+                          className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                          onClick={() => saveAndAdvance(slot.id)}
+                        >
+                          <Save className="h-3 w-3 mr-1" />
+                          Save & Next
+                        </Button>
+                      </div>
                     </>
                   )}
                 </CardContent>

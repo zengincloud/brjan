@@ -303,8 +303,8 @@ export function OrganizationSettings() {
                 id="targetEmails"
                 type="number"
                 min={1}
-                value={formData.targetEmails}
-                onChange={(e) => setFormData({ ...formData, targetEmails: Math.max(1, Number(e.target.value) || 1) })}
+                value={formData.targetEmails || ""}
+                onChange={(e) => setFormData({ ...formData, targetEmails: e.target.value === "" ? 0 : Number(e.target.value) })}
                 disabled={!canEdit}
                 className={!canEdit ? "bg-muted cursor-not-allowed" : ""}
               />
@@ -317,8 +317,8 @@ export function OrganizationSettings() {
                 id="targetCalls"
                 type="number"
                 min={1}
-                value={formData.targetCalls}
-                onChange={(e) => setFormData({ ...formData, targetCalls: Math.max(1, Number(e.target.value) || 1) })}
+                value={formData.targetCalls || ""}
+                onChange={(e) => setFormData({ ...formData, targetCalls: e.target.value === "" ? 0 : Number(e.target.value) })}
                 disabled={!canEdit}
                 className={!canEdit ? "bg-muted cursor-not-allowed" : ""}
               />
@@ -331,8 +331,8 @@ export function OrganizationSettings() {
                 id="targetLeads"
                 type="number"
                 min={1}
-                value={formData.targetLeads}
-                onChange={(e) => setFormData({ ...formData, targetLeads: Math.max(1, Number(e.target.value) || 1) })}
+                value={formData.targetLeads || ""}
+                onChange={(e) => setFormData({ ...formData, targetLeads: e.target.value === "" ? 0 : Number(e.target.value) })}
                 disabled={!canEdit}
                 className={!canEdit ? "bg-muted cursor-not-allowed" : ""}
               />
@@ -345,8 +345,8 @@ export function OrganizationSettings() {
                 id="targetLinkedin"
                 type="number"
                 min={1}
-                value={formData.targetLinkedin}
-                onChange={(e) => setFormData({ ...formData, targetLinkedin: Math.max(1, Number(e.target.value) || 1) })}
+                value={formData.targetLinkedin || ""}
+                onChange={(e) => setFormData({ ...formData, targetLinkedin: e.target.value === "" ? 0 : Number(e.target.value) })}
                 disabled={!canEdit}
                 className={!canEdit ? "bg-muted cursor-not-allowed" : ""}
               />

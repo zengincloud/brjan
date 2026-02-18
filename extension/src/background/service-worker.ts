@@ -10,7 +10,12 @@ let messagingTabId: number | null = null
  * of content scripts and the popup. Content scripts send messages here
  * so that auth tokens stay in the background context (not in page DOM).
  */
-chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendResponse) => {
+  // Track messaging tab ID from the sender
+  if (message.type === 'MESSAGING_TAB_READY' && sender.tab?.id) {
+    messagingTabId = sender.tab.id
+  }
+
   handleMessage(message).then(sendResponse).catch((err) => {
     sendResponse({ error: err.message || 'Unknown error' })
   })

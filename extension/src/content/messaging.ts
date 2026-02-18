@@ -365,26 +365,61 @@ function hashString(str: string): string {
 
 // ——— Send a message via LinkedIn DOM ———
 
-async function sendLinkedInMessage(threadId: string, body: string): Promise<boolean> {
-  // Navigate to the thread if not already there
-  if (!window.location.pathname.includes(`/messaging/thread/${threadId}`)) {
-    window.location.href = `https://www.linkedin.com/messaging/thread/${threadId}/`
-    // Wait for navigation and page load
-    await new Promise(resolve => setTimeout(resolve, 4000))
+async function navigateToThread(threadId: string): Promise<boolean> {
+  // Already on this thread?
+  if (window.location.pathname.includes(`/messaging/thread/${threadId}`)) {
+    return true
   }
 
-  // Find the message input — try multiple selectors
+  // Strategy 1: Click the conversation in the sidebar (SPA-safe, no page reload)
+  const convLinks = document.querySelectorAll('a[href*="/messaging/thread/"]')
+  for (const link of convLinks) {
+    if ((link as HTMLAnchorElement).href?.includes(`/messaging/thread/${threadId}`)) {
+      ;(link as HTMLElement).click()
+      // Wait for SPA navigation and DOM update
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      return true
+    }
+  }
+
+  // Strategy 2: Use history.pushState + popstate to trigger SPA navigation
+  // (LinkedIn's React Router listens for popstate events)
+  try {
+    const targetUrl = `/messaging/thread/${threadId}/`
+    window.history.pushState({}, '', targetUrl)
+    window.dispatchEvent(new PopStateEvent('popstate', { state: {} }))
+    await new Promise(resolve => setTimeout(resolve, 2500))
+
+    // Verify we navigated successfully by checking if message input appeared
+    const input = document.querySelector('.msg-form__contenteditable, div[role="textbox"]')
+    if (input) return true
+  } catch {}
+
+  // Strategy 3: Last resort — skip this message. Don't navigate away as it kills the script.
+  console.warn(`[BR Messaging] Cannot navigate to thread ${threadId} — skipping for now`)
+  return false
+}
+
+async function sendLinkedInMessage(threadId: string, body: string): Promise<boolean> {
+  // Navigate to the thread within the SPA (no full page reload)
+  const navigated = await navigateToThread(threadId)
+  if (!navigated) {
+    return false
+  }
+
+  // Find the message input — try multiple selectors with retries
   const inputSelectors = [
     '.msg-form__contenteditable[contenteditable="true"]',
     '.msg-form__msg-content-container .msg-form__contenteditable',
     'div[role="textbox"][contenteditable="true"]',
     '.msg-form__placeholder + div[contenteditable="true"]',
     '.msg-form__contenteditable',
+    '.msg-form div[contenteditable]',
+    'form.msg-form div[contenteditable]',
   ]
 
   let inputEl: HTMLElement | null = null
-  // Retry a few times since the DOM may still be loading
-  for (let retry = 0; retry < 3; retry++) {
+  for (let retry = 0; retry < 5; retry++) {
     for (const sel of inputSelectors) {
       inputEl = document.querySelector(sel) as HTMLElement | null
       if (inputEl) break
@@ -394,47 +429,61 @@ async function sendLinkedInMessage(threadId: string, body: string): Promise<bool
   }
 
   if (!inputEl) {
-    console.error('[BR Messaging] Could not find message input')
+    console.error('[BR Messaging] Could not find message input after 5 retries')
     return false
   }
 
   // Focus the input
   inputEl.focus()
+  await new Promise(resolve => setTimeout(resolve, 200))
 
   // Clear existing content
-  inputEl.innerHTML = ''
+  const sel = window.getSelection()
+  if (sel) {
+    sel.selectAllChildren(inputEl)
+    sel.deleteFromDocument()
+  }
 
   // Use execCommand for React-compatible input (simulates real typing)
   document.execCommand('insertText', false, body)
 
   // Also dispatch events LinkedIn might listen to
   inputEl.dispatchEvent(new InputEvent('input', { bubbles: true, data: body, inputType: 'insertText' }))
+  inputEl.dispatchEvent(new Event('change', { bubbles: true }))
 
-  // Wait for LinkedIn to process
-  await new Promise(resolve => setTimeout(resolve, 800))
+  // Wait for LinkedIn to process and enable the send button
+  await new Promise(resolve => setTimeout(resolve, 1000))
 
-  // Click send button
+  // Click send button — try multiple selectors
   const sendSelectors = [
     '.msg-form__send-button',
     'button.msg-form__send-btn',
     'button[type="submit"].msg-form__send-button',
     '.msg-form__send-toggle button',
     'button[data-control-name="send"]',
+    'form.msg-form button[type="submit"]',
+    '.msg-form button.artdeco-button--primary',
   ]
 
   let sendBtn: HTMLButtonElement | null = null
-  for (const sel of sendSelectors) {
-    sendBtn = document.querySelector(sel) as HTMLButtonElement | null
-    if (sendBtn && !sendBtn.disabled) break
-    sendBtn = null
+  // Retry finding the send button (it may take a moment to become enabled)
+  for (let retry = 0; retry < 3; retry++) {
+    for (const sel of sendSelectors) {
+      sendBtn = document.querySelector(sel) as HTMLButtonElement | null
+      if (sendBtn && !sendBtn.disabled) break
+      sendBtn = null
+    }
+    if (sendBtn) break
+    await new Promise(resolve => setTimeout(resolve, 500))
   }
 
   if (!sendBtn) {
-    console.error('[BR Messaging] Could not find send button')
+    console.error('[BR Messaging] Could not find enabled send button')
     return false
   }
 
   sendBtn.click()
+  console.log('[BR Messaging] Clicked send button')
 
   // Wait for the message to be sent
   await new Promise(resolve => setTimeout(resolve, 1500))
@@ -491,17 +540,25 @@ async function checkPendingMessages() {
     if (!result.messages || result.messages.length === 0) return
 
     for (const msg of result.messages) {
+      console.log(`[BR Messaging] Attempting to send message ${msg.id} to thread ${msg.linkedinThreadId}`)
       const success = await sendLinkedInMessage(msg.linkedinThreadId, msg.body)
 
-      // Report result back
-      await sendMessage({
-        type: 'REPORT_PENDING_RESULT',
-        data: {
-          messageId: msg.id,
-          success,
-          errorMessage: success ? undefined : 'Failed to send via LinkedIn DOM',
-        },
-      })
+      // Report result back — but only if we actually attempted (navigated to thread)
+      // If navigation failed, we don't report so the message stays "sending" and
+      // gets recovered to "pending" after the 2-min timeout
+      try {
+        await sendMessage({
+          type: 'REPORT_PENDING_RESULT',
+          data: {
+            messageId: msg.id,
+            success,
+            errorMessage: success ? undefined : 'Failed to send via LinkedIn DOM',
+          },
+        })
+        console.log(`[BR Messaging] Reported result for ${msg.id}: ${success ? 'sent' : 'failed'}`)
+      } catch (err) {
+        console.error(`[BR Messaging] Failed to report result for ${msg.id}:`, err)
+      }
 
       // Wait between messages to not overwhelm LinkedIn
       if (result.messages.length > 1) {

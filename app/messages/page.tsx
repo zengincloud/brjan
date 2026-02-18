@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Send, MessageSquare, Loader2, ExternalLink, RefreshCw } from "lucide-react"
+import { Send, MessageSquare, Loader2, ExternalLink, RefreshCw, RotateCcw, AlertCircle, Clock } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 
 interface Prospect {
@@ -38,8 +38,17 @@ interface Message {
   sentAt: string
 }
 
+interface PendingMessageItem {
+  id: string
+  body: string
+  status: "pending" | "sending" | "failed"
+  errorMessage: string | null
+  createdAt: string
+}
+
 interface ConversationWithMessages extends Conversation {
   messages: Message[]
+  pendingMessages?: PendingMessageItem[]
 }
 
 export default function MessagesPage() {
@@ -61,7 +70,7 @@ export default function MessagesPage() {
   // Scroll to bottom instantly when a thread loads or messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "instant" })
-  }, [selectedConversation?.messages])
+  }, [selectedConversation?.messages, selectedConversation?.pendingMessages])
 
   async function loadConversations() {
     try {
@@ -155,6 +164,31 @@ export default function MessagesPage() {
       })
     } finally {
       setSending(false)
+    }
+  }
+
+  async function retryMessage(pendingMessageId: string) {
+    try {
+      const res = await fetch("/api/messages/retry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pendingMessageId }),
+      })
+      if (!res.ok) throw new Error("Failed to retry message")
+
+      // Refresh thread to show updated status
+      if (selectedId) loadThread(selectedId)
+
+      toast({
+        title: "Message re-queued",
+        description: "The message will be retried via the extension.",
+      })
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to retry message",
+        variant: "destructive",
+      })
     }
   }
 
@@ -364,10 +398,49 @@ export default function MessagesPage() {
                                 minute: "2-digit",
                               })}
                             </span>
-                            {msg.status === "pending" && (
-                              <Badge variant="outline" className="text-xs h-4">
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {/* Pending / Sending / Failed messages */}
+                    {selectedConversation.pendingMessages?.map((pm) => (
+                      <div key={pm.id} className="flex justify-end">
+                        <div className="max-w-[70%] rounded-lg px-3 py-2 text-sm bg-green-500/10 text-foreground border border-dashed border-green-500/30">
+                          <p className="whitespace-pre-wrap">{pm.body}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(pm.createdAt).toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                            {pm.status === "pending" && (
+                              <Badge variant="outline" className="text-xs h-4 gap-1">
+                                <Clock className="h-2.5 w-2.5" />
                                 Queued
                               </Badge>
+                            )}
+                            {pm.status === "sending" && (
+                              <Badge variant="outline" className="text-xs h-4 gap-1">
+                                <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                                Sending
+                              </Badge>
+                            )}
+                            {pm.status === "failed" && (
+                              <>
+                                <Badge variant="destructive" className="text-xs h-4 gap-1">
+                                  <AlertCircle className="h-2.5 w-2.5" />
+                                  Failed
+                                </Badge>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-5 w-5"
+                                  onClick={() => retryMessage(pm.id)}
+                                >
+                                  <RotateCcw className="h-3 w-3" />
+                                </Button>
+                              </>
                             )}
                           </div>
                         </div>

@@ -30,13 +30,34 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
         )
       }
 
+      // Fetch pending/sending/failed messages for this thread
+      const pendingMessages = await prisma.linkedInPendingMessage.findMany({
+        where: {
+          userId,
+          linkedinThreadId: conversation.linkedinThreadId,
+          status: { in: ["pending", "sending", "failed"] },
+        },
+        orderBy: { createdAt: "asc" },
+      })
+
       // Mark as read
       await prisma.linkedInConversation.update({
         where: { id: conversation.id },
         data: { unreadCount: 0 },
       })
 
-      return NextResponse.json({ conversation })
+      return NextResponse.json({
+        conversation: {
+          ...conversation,
+          pendingMessages: pendingMessages.map((m) => ({
+            id: m.id,
+            body: m.body,
+            status: m.status,
+            errorMessage: m.errorMessage,
+            createdAt: m.createdAt.toISOString(),
+          })),
+        },
+      })
     }
 
     // List all conversations

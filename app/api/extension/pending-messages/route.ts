@@ -8,6 +8,17 @@ export const dynamic = 'force-dynamic'
 // Returns messages queued from the web app that the extension needs to send via LinkedIn.
 export const GET = withExtensionAuth(async (request: NextRequest, userId: string) => {
   try {
+    // Also recover messages stuck in "sending" for more than 2 minutes
+    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000)
+    await prisma.linkedInPendingMessage.updateMany({
+      where: {
+        userId,
+        status: "sending",
+        updatedAt: { lt: twoMinutesAgo },
+      },
+      data: { status: "pending" },
+    })
+
     const pendingMessages = await prisma.linkedInPendingMessage.findMany({
       where: {
         userId,

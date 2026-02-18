@@ -88,6 +88,11 @@ export function OrganizationSettings() {
   const handleSave = async () => {
     if (!canEdit) return
 
+    if (!formData.name.trim()) {
+      toast.error("Please enter a Company Name before saving")
+      return
+    }
+
     setSaving(true)
     try {
       const response = await fetch("/api/organization", {
@@ -164,7 +169,7 @@ export function OrganizationSettings() {
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="orgName" className="text-muted-foreground text-sm">
-                Company Name
+                Company Name <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="orgName"

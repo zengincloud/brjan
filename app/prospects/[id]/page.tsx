@@ -265,10 +265,12 @@ export default function ProspectDetailPage() {
                   </p>
                   <div className="space-y-1">
                     {wizaData.emails && wizaData.emails.length > 0 ? (
-                      wizaData.emails.map((email: string, index: number) => (
+                      wizaData.emails.map((emailEntry: any, index: number) => {
+                        const emailAddr = typeof emailEntry === "string" ? emailEntry : emailEntry?.email || emailEntry
+                        return (
                         <div key={index} className="flex items-center gap-2">
-                          <a href={`mailto:${email}`} className="text-sm font-medium hover:underline">
-                            {email}
+                          <a href={`mailto:${emailAddr}`} className="text-sm font-medium hover:underline">
+                            {String(emailAddr)}
                           </a>
                           {index === 0 && wizaData.emails.length > 1 && (
                             <Badge variant="secondary" className="text-xs">
@@ -276,7 +278,8 @@ export default function ProspectDetailPage() {
                             </Badge>
                           )}
                         </div>
-                      ))
+                        )
+                      })
                     ) : (
                       <a href={`mailto:${prospect.email}`} className="text-sm font-medium hover:underline">
                         {prospect.email}

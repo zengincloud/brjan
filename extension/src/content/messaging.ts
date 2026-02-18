@@ -283,6 +283,7 @@ function scrapeCurrentThread(): { threadId: string; participantName: string; mes
   // Track the last known sender for messages in the same group
   let lastSenderName = ''
   let lastDirection: 'inbound' | 'outbound' = 'inbound'
+  let messageIndex = 0
 
   for (const msgEl of msgItems) {
     // Message body
@@ -311,15 +312,33 @@ function scrapeCurrentThread(): { threadId: string; participantName: string; mes
 
     const direction = lastDirection
 
-    // Timestamp
+    // Timestamp — walk up to find the nearest time element (LinkedIn puts timestamps
+    // on message groups, not individual messages)
+    let sentAt = ''
     const timeEl =
+      msgEl.querySelector('time') ||
       msgEl.querySelector('.msg-s-message-group__timestamp') ||
-      msgEl.querySelector('.msg-s-event-listitem__timestamp') ||
-      msgEl.querySelector('time')
-    const sentAt = timeEl?.getAttribute('datetime') || new Date().toISOString()
+      msgEl.querySelector('.msg-s-event-listitem__timestamp')
+    if (timeEl) {
+      sentAt = timeEl.getAttribute('datetime') || ''
+    }
+    // Walk up to parent group to find timestamp if not on this element
+    if (!sentAt) {
+      const parentGroup = msgEl.closest('.msg-s-message-group') || msgEl.parentElement
+      const groupTime = parentGroup?.querySelector('time')
+      if (groupTime) {
+        sentAt = groupTime.getAttribute('datetime') || ''
+      }
+    }
+    // Use message index as a stable fallback (not current time, to avoid duplicates)
+    if (!sentAt) {
+      sentAt = `unknown-${messageIndex}`
+    }
+    messageIndex++
 
-    // Generate a stable message ID from content hash
-    const linkedinMsgId = hashString(`${threadId}_${senderName}_${sentAt}_${body.substring(0, 50)}`)
+    // Generate a stable message ID from content that doesn't change between syncs
+    // Exclude timestamp since it may not be scrapeable — use body + sender + position
+    const linkedinMsgId = hashString(`${threadId}_${senderName}_${body.substring(0, 80)}_${messageIndex}`)
 
     messages.push({
       linkedinMsgId,

@@ -58,9 +58,9 @@ export default function MessagesPage() {
     loadConversations()
   }, [])
 
-  // Auto-scroll to bottom when messages change
+  // Scroll to bottom instantly when a thread loads or messages change
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+    messagesEndRef.current?.scrollIntoView({ behavior: "instant" })
   }, [selectedConversation?.messages])
 
   async function loadConversations() {

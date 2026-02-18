@@ -89,6 +89,19 @@ export const POST = withExtensionAuth(async (request: NextRequest, userId: strin
       // Insert messages (skip duplicates)
       for (const msg of conv.messages) {
         try {
+          // Parse sentAt — if it's an "unknown-X" fallback, use createdAt ordering
+          let sentAtDate: Date
+          if (msg.sentAt.startsWith('unknown-')) {
+            // Use a past date based on message order to preserve sequence
+            const idx = parseInt(msg.sentAt.replace('unknown-', ''), 10) || 0
+            sentAtDate = new Date(Date.now() - (conv.messages.length - idx) * 60000)
+          } else {
+            sentAtDate = new Date(msg.sentAt)
+            if (isNaN(sentAtDate.getTime())) {
+              sentAtDate = new Date()
+            }
+          }
+
           await prisma.linkedInMessage.upsert({
             where: {
               conversationId_linkedinMsgId: {
@@ -96,14 +109,16 @@ export const POST = withExtensionAuth(async (request: NextRequest, userId: strin
                 linkedinMsgId: msg.linkedinMsgId,
               },
             },
-            update: {},
+            update: {
+              direction: msg.direction,
+            },
             create: {
               conversationId: conversation.id,
               linkedinMsgId: msg.linkedinMsgId,
               direction: msg.direction,
               body: msg.body,
               senderName: msg.senderName,
-              sentAt: new Date(msg.sentAt),
+              sentAt: sentAtDate,
             },
           })
           syncedMessages++

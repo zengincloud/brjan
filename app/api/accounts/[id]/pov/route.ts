@@ -3,6 +3,8 @@ import { withAuth } from '@/lib/auth/api-middleware'
 import { prisma } from '@/lib/prisma'
 import { fetchNewsArticles, generatePOV } from '@/lib/pov/generate'
 
+export const dynamic = 'force-dynamic'
+
 export const GET = withAuth(async (request: NextRequest, userId: string, context?: { params: { id: string } }) => {
   try {
     if (!context?.params?.id) {

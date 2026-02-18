@@ -5,6 +5,8 @@ import sgMail from "@sendgrid/mail"
 import { sendEmailViaGmail } from "@/lib/gmail/send"
 import { advanceSequenceStep } from "@/lib/sequences"
 
+export const dynamic = 'force-dynamic'
+
 // Initialize SendGrid with API key
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY
 const SENDGRID_FROM_EMAIL =

@@ -121,8 +121,8 @@ export const PATCH = withAuth(async (request: NextRequest, userId: string) => {
       )
     }
 
-    // Only owners and managers can update
-    if (user.role !== "owner" && user.role !== "manager") {
+    // Only owners, managers, and super admins can update
+    if (user.role !== "owner" && user.role !== "manager" && user.role !== "super_admin") {
       return NextResponse.json(
         { error: "Only owners and managers can update organization settings" },
         { status: 403 }

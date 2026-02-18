@@ -26,7 +26,7 @@ type Organization = {
 }
 
 type UserInfo = {
-  role: "owner" | "manager" | "member"
+  role: "super_admin" | "owner" | "manager" | "member"
   organizationId: string | null
 }
 
@@ -49,7 +49,7 @@ export function OrganizationSettings() {
     targetLinkedin: 20,
   })
 
-  const canEdit = userInfo?.role === "owner" || userInfo?.role === "manager"
+  const canEdit = userInfo?.role === "owner" || userInfo?.role === "manager" || userInfo?.role === "super_admin"
 
   useEffect(() => {
     loadOrganization()

@@ -83,6 +83,9 @@ type CallSlot = {
   notes: string
   callId?: string
   twilioSid?: string
+  taskId?: string | null
+  pendingOutcome?: string
+  pendingPipelineStage?: string
 }
 
 type SessionStats = {
@@ -135,7 +138,7 @@ export default function DialerPage() {
   const [selectedSequence, setSelectedSequence] = useState<string>("all")
   const [selectedPhone, setSelectedPhone] = useState<string>("+16282253832")
   const [callSlots, setCallSlots] = useState<CallSlot[]>([
-    { id: "1", status: "idle", contact: null, startTime: null, notes: "" },
+    { id: "1", status: "idle", contact: null, startTime: null, notes: "", pendingOutcome: undefined, pendingPipelineStage: undefined },
   ])
   const [stats, setStats] = useState<SessionStats>({
     totalCalls: 0,
@@ -611,7 +614,7 @@ export default function DialerPage() {
       // Update slot to ringing state
       setCallSlots(prev => prev.map((slot, idx) =>
         idx === slotIndex
-          ? { ...slot, contact: prospect, status: "ringing" as CallStatus, startTime: Date.now(), callId: data.callId }
+          ? { ...slot, contact: prospect, status: "ringing" as CallStatus, startTime: Date.now(), callId: data.callId, taskId: prospect.taskId }
           : slot
       ))
 
@@ -755,6 +758,19 @@ export default function DialerPage() {
       }
     }
 
+    // Mark task as done if this call was from a task
+    if (slot?.taskId) {
+      try {
+        await fetch(`/api/tasks/${slot.taskId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "done" }),
+        })
+      } catch (error) {
+        console.error("Error completing task:", error)
+      }
+    }
+
     // Update stats
     setStats(prev => ({
       ...prev,
@@ -886,75 +902,117 @@ export default function DialerPage() {
     demo_booked: "Demo Booked",
   }
 
-  const handleCallOutcome = async (slotId: string, outcome: string) => {
-    const slotIndex = callSlots.findIndex(s => s.id === slotId)
-    if (slotIndex === -1) return
+  const outcomeLabels: Record<string, string> = {
+    connected: "Connected",
+    connected_intro_booked: "Intro Booked",
+    connected_referral: "Referral",
+    connected_not_interested: "Not Interested",
+    connected_info_gathered: "Info Gathered",
+    voicemail: "Voicemail",
+    no_answer: "No Answer",
+    busy: "Busy",
+    failed: "Failed",
+    gatekeeper: "Gatekeeper",
+  }
 
-    await handleCallOutcomeAndAdvance(slotIndex, outcome)
+  const handleCallOutcome = async (slotId: string, outcome: string) => {
+    // Store the pending outcome on the slot (don't advance yet)
+    setCallSlots(prev => prev.map(slot =>
+      slot.id === slotId ? { ...slot, pendingOutcome: outcome, pendingPipelineStage: undefined } : slot
+    ))
   }
 
   const handlePipelineOutcome = async (slotId: string, pipelineStage: PipelineStage) => {
+    // Store the pending pipeline stage on the slot (don't advance yet)
+    setCallSlots(prev => prev.map(slot =>
+      slot.id === slotId ? { ...slot, pendingPipelineStage: pipelineStage, pendingOutcome: undefined } : slot
+    ))
+  }
+
+  // Save outcome/notes and advance to next prospect
+  const saveAndAdvance = async (slotId: string) => {
     const slotIndex = callSlots.findIndex(s => s.id === slotId)
     if (slotIndex === -1) return
 
     const slot = callSlots[slotIndex]
-    const contact = slot.contact
 
-    // Save call outcome to database if we have a callId
-    if (slot.callId) {
-      try {
-        await fetch(`/api/calls/${slot.callId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            outcome: "connected",
-            pipelineStage,
-            notes: slot.notes,
-          }),
-        })
-      } catch (error) {
-        console.error("Error saving pipeline outcome:", error)
+    if (slot.pendingPipelineStage) {
+      // Handle pipeline outcome
+      const pipelineStage = slot.pendingPipelineStage as PipelineStage
+      const contact = slot.contact
+
+      if (slot.callId) {
+        try {
+          await fetch(`/api/calls/${slot.callId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              outcome: "connected",
+              pipelineStage,
+              notes: slot.notes,
+              endedAt: new Date().toISOString(),
+            }),
+          })
+        } catch (error) {
+          console.error("Error saving pipeline outcome:", error)
+        }
       }
-    }
 
-    // Show toast notification for pipeline progress
-    toast({
-      title: `Pipeline: ${pipelineStageLabels[pipelineStage]}`,
-      description: contact ? `${contact.name} moved to ${pipelineStageLabels[pipelineStage]}` : "Pipeline updated",
-    })
-
-    // Update stats (counts as connected + pipeline)
-    setStats(prev => ({
-      ...prev,
-      totalCalls: prev.totalCalls + 1,
-      connected: prev.connected + 1,
-      pipeline: prev.pipeline + 1,
-      callsPerHour: Math.round((prev.totalCalls + 1) / ((Date.now() - (callSlots[0].startTime || Date.now())) / 3600000) || 0),
-    }))
-
-    // Complete current call and start next
-    const updatedSlots = [...callSlots]
-    updatedSlots[slotIndex] = {
-      id: slotId,
-      status: "idle",
-      contact: null,
-      startTime: null,
-      notes: "",
-    }
-
-    setCallSlots(updatedSlots)
-
-    // Auto-dial next prospect if session is active and not paused
-    const shouldAutoDial = sessionActive && !sessionPaused && queueSize > 0
-    const canAutoDialThisSlot = slotIndex === 0
-
-    if (shouldAutoDial && canAutoDialThisSlot) {
-      const nextProspectIndex = Math.floor(Math.random() * mockProspects.length)
-      const nextProspect = mockProspects[nextProspectIndex]
-      if (nextProspect) {
-        await connectCall(nextProspect, slotIndex)
-        setQueueSize(prev => Math.max(0, prev - 1))
+      // Mark task as done if this call was from a task
+      if (slot.taskId) {
+        try {
+          await fetch(`/api/tasks/${slot.taskId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: "done" }),
+          })
+        } catch (error) {
+          console.error("Error completing task:", error)
+        }
       }
+
+      toast({
+        title: `Pipeline: ${pipelineStageLabels[pipelineStage]}`,
+        description: contact ? `${contact.name} moved to ${pipelineStageLabels[pipelineStage]}` : "Pipeline updated",
+      })
+
+      setStats(prev => ({
+        ...prev,
+        totalCalls: prev.totalCalls + 1,
+        connected: prev.connected + 1,
+        pipeline: prev.pipeline + 1,
+        callsPerHour: Math.round((prev.totalCalls + 1) / ((Date.now() - (callSlots[0].startTime || Date.now())) / 3600000) || 0),
+      }))
+
+      // Reset slot and advance
+      setCallSlots(prev => prev.map((s, idx) =>
+        idx === slotIndex
+          ? { id: slotId, status: "idle" as CallStatus, contact: null, startTime: null, notes: "" }
+          : s
+      ))
+      setShowOutcomeButtons(false)
+      setCallDuration(0)
+      callStartTimeRef.current = null
+
+      // Auto-dial next
+      if (sessionActive && !sessionPaused && queueSize > 0) {
+        const nextProspectIndex = Math.floor(Math.random() * mockProspects.length)
+        const nextProspect = mockProspects[nextProspectIndex]
+        if (nextProspect) {
+          setTimeout(() => connectCall(nextProspect, slotIndex), 1500)
+          setQueueSize(prev => Math.max(0, prev - 1))
+        }
+      }
+    } else if (slot.pendingOutcome) {
+      // Handle regular outcome
+      await handleCallOutcomeAndAdvance(slotIndex, slot.pendingOutcome)
+    } else {
+      // No outcome selected, just skip
+      toast({
+        title: "No outcome selected",
+        description: "Please select an outcome before saving.",
+        variant: "destructive",
+      })
     }
   }
 
@@ -1651,6 +1709,24 @@ export default function DialerPage() {
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
+                        {(slot.pendingOutcome || slot.pendingPipelineStage) && (
+                          <>
+                            <div className="border-l border-border h-5 mx-1" />
+                            <Badge variant="secondary" className="text-xs">
+                              {slot.pendingOutcome
+                                ? outcomeLabels[slot.pendingOutcome] || slot.pendingOutcome
+                                : `Pipeline: ${pipelineStageLabels[slot.pendingPipelineStage as PipelineStage] || slot.pendingPipelineStage}`}
+                            </Badge>
+                            <Button
+                              size="sm"
+                              className="bg-green-600 hover:bg-green-700 text-white h-7"
+                              onClick={() => saveAndAdvance(slot.id)}
+                            >
+                              <Save className="h-3 w-3 mr-1" />
+                              Save & Next
+                            </Button>
+                          </>
+                        )}
                         <div className="border-l border-border h-5 mx-1" />
                         <Button
                           size="sm"
@@ -2096,6 +2172,23 @@ export default function DialerPage() {
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
+                      {(slot.pendingOutcome || slot.pendingPipelineStage) && (
+                        <div className="flex items-center gap-2 pt-2 border-t border-border/50">
+                          <Badge variant="secondary">
+                            {slot.pendingOutcome
+                              ? outcomeLabels[slot.pendingOutcome] || slot.pendingOutcome
+                              : `Pipeline: ${pipelineStageLabels[slot.pendingPipelineStage as PipelineStage] || slot.pendingPipelineStage}`}
+                          </Badge>
+                          <Button
+                            size="sm"
+                            className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                            onClick={() => saveAndAdvance(slot.id)}
+                          >
+                            <Save className="h-3 w-3 mr-1" />
+                            Save & Next
+                          </Button>
+                        </div>
+                      )}
                     </>
                   )}
                 </CardContent>

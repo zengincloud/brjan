@@ -170,6 +170,10 @@ export default function DialerPage() {
   const [callDuration, setCallDuration] = useState(0)
   const [showOutcomeButtons, setShowOutcomeButtons] = useState(false)
 
+  // Keep a ref to the latest callSlots so async functions always read fresh state
+  const callSlotsRef = useRef(callSlots)
+  callSlotsRef.current = callSlots
+
   // Twilio refs
   const deviceRef = useRef<Device | null>(null)
   const activeCallRef = useRef<TwilioCall | null>(null)
@@ -743,7 +747,7 @@ export default function DialerPage() {
 
   // Handle call outcome and advance to next prospect
   const handleCallOutcomeAndAdvance = useCallback(async (slotIndex: number, outcome: string) => {
-    const slot = callSlots[slotIndex]
+    const slot = callSlotsRef.current[slotIndex]
 
     // Save outcome to database
     if (slot?.callId) {
@@ -817,7 +821,7 @@ export default function DialerPage() {
         })
       }
     }
-  }, [callSlots, sessionActive, sessionPaused, currentProspectIndex, mockProspects, connectCall, toast])
+  }, [sessionActive, sessionPaused, currentProspectIndex, mockProspects, connectCall, toast])
 
   // End current call
   const endCall = useCallback(() => {
@@ -958,10 +962,12 @@ export default function DialerPage() {
 
   // Save outcome/notes and advance to next prospect
   const saveAndAdvance = async (slotId: string) => {
-    const slotIndex = callSlots.findIndex(s => s.id === slotId)
+    // Read from ref to always get the latest state (avoids stale closures)
+    const currentSlots = callSlotsRef.current
+    const slotIndex = currentSlots.findIndex(s => s.id === slotId)
     if (slotIndex === -1) return
 
-    const slot = callSlots[slotIndex]
+    const slot = currentSlots[slotIndex]
 
     // Require at least an outcome to be selected
     if (!slot.pendingOutcome && !slot.pendingPipelineStage) {
@@ -980,7 +986,7 @@ export default function DialerPage() {
     // Save call outcome + pipeline to database
     if (slot.callId) {
       try {
-        await fetch(`/api/calls/${slot.callId}`, {
+        const res = await fetch(`/api/calls/${slot.callId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -990,6 +996,9 @@ export default function DialerPage() {
             endedAt: new Date().toISOString(),
           }),
         })
+        if (!res.ok) {
+          console.error("Failed to save call outcome:", await res.text())
+        }
       } catch (error) {
         console.error("Error saving call outcome:", error)
       }
@@ -1011,12 +1020,12 @@ export default function DialerPage() {
     // Show appropriate toast
     if (pipelineStage) {
       toast({
-        title: `${outcomeLabels[outcome] || outcome} + Pipeline: ${pipelineStageLabels[pipelineStage]}`,
+        title: `Saved: ${outcomeLabels[outcome] || outcome} + ${pipelineStageLabels[pipelineStage]}`,
         description: contact ? `${contact.name} moved to ${pipelineStageLabels[pipelineStage]}` : "Saved",
       })
     } else {
       toast({
-        title: outcomeLabels[outcome] || outcome,
+        title: `Saved: ${outcomeLabels[outcome] || outcome}`,
         description: contact ? `Call with ${contact.name} saved` : "Call saved",
       })
     }

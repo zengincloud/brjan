@@ -96,16 +96,16 @@ export function OrganizationSettings() {
         body: JSON.stringify(formData),
       })
 
+      const data = await response.json()
       if (!response.ok) {
-        throw new Error("Failed to save organization")
+        throw new Error(data.error || "Failed to save organization")
       }
 
-      const data = await response.json()
       setOrganization(data.organization)
-      toast.success("Organization settings saved")
-    } catch (error) {
+      toast.success("Organization settings saved successfully")
+    } catch (error: any) {
       console.error("Failed to save organization:", error)
-      toast.error("Failed to save organization settings")
+      toast.error(error.message || "Failed to save organization settings")
     } finally {
       setSaving(false)
     }

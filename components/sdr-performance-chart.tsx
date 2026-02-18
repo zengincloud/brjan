@@ -6,34 +6,31 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/
 import { Zap, TrendingUp } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { useUserRole } from "@/hooks/use-user-role"
+import { useDashboardStats } from "@/hooks/use-dashboard-stats"
 
-// SDR weekly targets
-const TARGETS = {
-  emails: 40,
-  calls: 500,
-  leads: 50,
-  linkedin: 20,
-}
-
-// Demo data for super admin
-const demoSdrProgress = [
-  { category: "Emails", value: 35, target: TARGETS.emails, fullMark: TARGETS.emails },
-  { category: "Calls", value: 400, target: TARGETS.calls, fullMark: TARGETS.calls },
-  { category: "Leads", value: 45, target: TARGETS.leads, fullMark: TARGETS.leads },
-  { category: "LinkedIn", value: 15, target: TARGETS.linkedin, fullMark: TARGETS.linkedin },
-]
-
-// Empty data for regular users
-const emptySdrProgress = [
-  { category: "Emails", value: 0, target: TARGETS.emails, fullMark: TARGETS.emails },
-  { category: "Calls", value: 0, target: TARGETS.calls, fullMark: TARGETS.calls },
-  { category: "Leads", value: 0, target: TARGETS.leads, fullMark: TARGETS.leads },
-  { category: "LinkedIn", value: 0, target: TARGETS.linkedin, fullMark: TARGETS.linkedin },
-]
+// Default targets (fallback)
+const DEFAULT_TARGETS = { emails: 40, calls: 500, leads: 50, linkedin: 20 }
 
 export function SDRPerformanceChart() {
   const { isSuperAdmin } = useUserRole()
-  const sdrProgress = isSuperAdmin ? demoSdrProgress : emptySdrProgress
+  const { stats } = useDashboardStats()
+
+  const TARGETS = stats?.weeklyTargets ?? DEFAULT_TARGETS
+
+  const wp = stats?.weeklyProgress
+  const sdrProgress = isSuperAdmin
+    ? [
+        { category: "Emails", value: 35, target: TARGETS.emails, fullMark: TARGETS.emails },
+        { category: "Calls", value: 400, target: TARGETS.calls, fullMark: TARGETS.calls },
+        { category: "Leads", value: 45, target: TARGETS.leads, fullMark: TARGETS.leads },
+        { category: "LinkedIn", value: 15, target: TARGETS.linkedin, fullMark: TARGETS.linkedin },
+      ]
+    : [
+        { category: "Emails", value: wp?.emails ?? 0, target: TARGETS.emails, fullMark: TARGETS.emails },
+        { category: "Calls", value: wp?.calls ?? 0, target: TARGETS.calls, fullMark: TARGETS.calls },
+        { category: "Leads", value: wp?.leads ?? 0, target: TARGETS.leads, fullMark: TARGETS.leads },
+        { category: "LinkedIn", value: wp?.linkedin ?? 0, target: TARGETS.linkedin, fullMark: TARGETS.linkedin },
+      ]
 
   const normalizedData = sdrProgress.map((item) => ({
     category: item.category,

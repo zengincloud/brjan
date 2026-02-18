@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useUserRole } from "@/hooks/use-user-role"
+import { useDashboardStats } from "@/hooks/use-dashboard-stats"
 
 const demoStatusData = [
   { label: "Total", value: 125, color: "bg-blue-100 text-blue-800" },
@@ -12,18 +13,21 @@ const demoStatusData = [
   { label: "Closed", value: 5, color: "bg-red-100 text-red-800" },
 ]
 
-const emptyStatusData = [
-  { label: "Total", value: 0, color: "bg-blue-100 text-blue-800" },
-  { label: "New", value: 0, color: "bg-gray-100 text-gray-800" },
-  { label: "In Sequence", value: 0, color: "bg-yellow-100 text-yellow-800" },
-  { label: "Engaged", value: 0, color: "bg-green-100 text-green-800" },
-  { label: "Opportunity", value: 0, color: "bg-purple-100 text-purple-800" },
-  { label: "Closed", value: 0, color: "bg-red-100 text-red-800" },
-]
-
 export function AccountStatusBoxes() {
   const { isSuperAdmin } = useUserRole()
-  const statusData = isSuperAdmin ? demoStatusData : emptyStatusData
+  const { stats } = useDashboardStats()
+
+  const as = stats?.accountStatuses
+  const statusData = isSuperAdmin
+    ? demoStatusData
+    : [
+        { label: "Total", value: as?.total ?? 0, color: "bg-blue-100 text-blue-800" },
+        { label: "New", value: as?.new_lead ?? 0, color: "bg-gray-100 text-gray-800" },
+        { label: "In Sequence", value: as?.in_sequence ?? 0, color: "bg-yellow-100 text-yellow-800" },
+        { label: "Contacted", value: as?.contacted ?? 0, color: "bg-green-100 text-green-800" },
+        { label: "Customer", value: as?.customer ?? 0, color: "bg-purple-100 text-purple-800" },
+        { label: "Churned", value: as?.churned ?? 0, color: "bg-red-100 text-red-800" },
+      ]
 
   return (
     <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">

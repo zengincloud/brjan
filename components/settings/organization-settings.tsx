@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { Building2, Lock, Loader2, Users, Target, AlertCircle, Sparkles } from "lucide-react"
+import { Building2, Lock, Loader2, Users, Target, AlertCircle, Sparkles, Zap } from "lucide-react"
 import { toast } from "sonner"
 
 type Organization = {
@@ -19,6 +19,10 @@ type Organization = {
   valueProposition: string | null
   industry: string | null
   website: string | null
+  targetEmails: number
+  targetCalls: number
+  targetLeads: number
+  targetLinkedin: number
 }
 
 type UserInfo = {
@@ -39,6 +43,10 @@ export function OrganizationSettings() {
     valueProposition: "",
     industry: "",
     website: "",
+    targetEmails: 40,
+    targetCalls: 500,
+    targetLeads: 50,
+    targetLinkedin: 20,
   })
 
   const canEdit = userInfo?.role === "owner" || userInfo?.role === "manager"
@@ -63,6 +71,10 @@ export function OrganizationSettings() {
             valueProposition: data.organization.valueProposition || "",
             industry: data.organization.industry || "",
             website: data.organization.website || "",
+            targetEmails: data.organization.targetEmails ?? 40,
+            targetCalls: data.organization.targetCalls ?? 500,
+            targetLeads: data.organization.targetLeads ?? 50,
+            targetLinkedin: data.organization.targetLinkedin ?? 20,
           })
         }
       }
@@ -261,6 +273,79 @@ export function OrganizationSettings() {
               rows={3}
               className={!canEdit ? "bg-muted cursor-not-allowed resize-none" : "resize-none"}
             />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* SDR Weekly Targets */}
+      <Card className={!canEdit ? "opacity-75" : ""}>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Zap className="h-4 w-4" />
+            SDR Weekly Targets
+          </CardTitle>
+          <CardDescription>
+            Set weekly activity targets for your SDR team
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="targetEmails" className="text-muted-foreground text-sm">
+                Emails per Week
+              </Label>
+              <Input
+                id="targetEmails"
+                type="number"
+                min={1}
+                value={formData.targetEmails}
+                onChange={(e) => setFormData({ ...formData, targetEmails: Math.max(1, Number(e.target.value) || 1) })}
+                disabled={!canEdit}
+                className={!canEdit ? "bg-muted cursor-not-allowed" : ""}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="targetCalls" className="text-muted-foreground text-sm">
+                Calls per Week
+              </Label>
+              <Input
+                id="targetCalls"
+                type="number"
+                min={1}
+                value={formData.targetCalls}
+                onChange={(e) => setFormData({ ...formData, targetCalls: Math.max(1, Number(e.target.value) || 1) })}
+                disabled={!canEdit}
+                className={!canEdit ? "bg-muted cursor-not-allowed" : ""}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="targetLeads" className="text-muted-foreground text-sm">
+                New Leads per Week
+              </Label>
+              <Input
+                id="targetLeads"
+                type="number"
+                min={1}
+                value={formData.targetLeads}
+                onChange={(e) => setFormData({ ...formData, targetLeads: Math.max(1, Number(e.target.value) || 1) })}
+                disabled={!canEdit}
+                className={!canEdit ? "bg-muted cursor-not-allowed" : ""}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="targetLinkedin" className="text-muted-foreground text-sm">
+                LinkedIn Outreaches per Week
+              </Label>
+              <Input
+                id="targetLinkedin"
+                type="number"
+                min={1}
+                value={formData.targetLinkedin}
+                onChange={(e) => setFormData({ ...formData, targetLinkedin: Math.max(1, Number(e.target.value) || 1) })}
+                disabled={!canEdit}
+                className={!canEdit ? "bg-muted cursor-not-allowed" : ""}
+              />
+            </div>
           </div>
         </CardContent>
       </Card>

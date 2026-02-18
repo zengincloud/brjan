@@ -57,7 +57,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
     }
 
     const body = await request.json()
-    const { name, description, targetAudience, painPoints, valueProposition, industry, website } = body
+    const { name, description, targetAudience, painPoints, valueProposition, industry, website, targetEmails, targetCalls, targetLeads, targetLinkedin } = body
 
     if (!name?.trim()) {
       return NextResponse.json(
@@ -76,6 +76,10 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
         valueProposition: valueProposition?.trim() || null,
         industry: industry?.trim() || null,
         website: website?.trim() || null,
+        ...(targetEmails != null && { targetEmails: Math.max(1, Math.round(Number(targetEmails))) }),
+        ...(targetCalls != null && { targetCalls: Math.max(1, Math.round(Number(targetCalls))) }),
+        ...(targetLeads != null && { targetLeads: Math.max(1, Math.round(Number(targetLeads))) }),
+        ...(targetLinkedin != null && { targetLinkedin: Math.max(1, Math.round(Number(targetLinkedin))) }),
       },
     })
 
@@ -126,7 +130,7 @@ export const PATCH = withAuth(async (request: NextRequest, userId: string) => {
     }
 
     const body = await request.json()
-    const { name, description, targetAudience, painPoints, valueProposition, industry, website } = body
+    const { name, description, targetAudience, painPoints, valueProposition, industry, website, targetEmails, targetCalls, targetLeads, targetLinkedin } = body
 
     const organization = await prisma.organization.update({
       where: { id: user.organizationId },
@@ -138,6 +142,10 @@ export const PATCH = withAuth(async (request: NextRequest, userId: string) => {
         valueProposition: valueProposition?.trim() || null,
         industry: industry?.trim() || null,
         website: website?.trim() || null,
+        ...(targetEmails != null && { targetEmails: Math.max(1, Math.round(Number(targetEmails))) }),
+        ...(targetCalls != null && { targetCalls: Math.max(1, Math.round(Number(targetCalls))) }),
+        ...(targetLeads != null && { targetLeads: Math.max(1, Math.round(Number(targetLeads))) }),
+        ...(targetLinkedin != null && { targetLinkedin: Math.max(1, Math.round(Number(targetLinkedin))) }),
       },
     })
 

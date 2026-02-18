@@ -4,45 +4,31 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Mail, Phone } from "lucide-react"
 import { useUserRole } from "@/hooks/use-user-role"
+import { useDashboardStats } from "@/hooks/use-dashboard-stats"
+import { formatDistanceToNow } from "date-fns"
 
 const demoActivities = [
-  {
-    id: 1,
-    type: "email",
-    user: "John Doe",
-    action: "sent an email to",
-    target: "Sarah Smith",
-    time: "2 hours ago",
-  },
-  {
-    id: 2,
-    type: "call",
-    user: "Emily Brown",
-    action: "had a call with",
-    target: "Michael Johnson",
-    time: "4 hours ago",
-  },
-  {
-    id: 3,
-    type: "email",
-    user: "David Wilson",
-    action: "sent an email to",
-    target: "Tech Corp",
-    time: "Yesterday",
-  },
-  {
-    id: 4,
-    type: "call",
-    user: "Sarah Smith",
-    action: "missed a call with",
-    target: "Startup Inc",
-    time: "Yesterday",
-  },
+  { id: "1", type: "email" as const, user: "John Doe", action: "sent an email to", target: "Sarah Smith", time: "2 hours ago" },
+  { id: "2", type: "call" as const, user: "Emily Brown", action: "had a call with", target: "Michael Johnson", time: "4 hours ago" },
+  { id: "3", type: "email" as const, user: "David Wilson", action: "sent an email to", target: "Tech Corp", time: "Yesterday" },
+  { id: "4", type: "call" as const, user: "Sarah Smith", action: "missed a call with", target: "Startup Inc", time: "Yesterday" },
 ]
 
 export function ActivityFeed() {
   const { isSuperAdmin } = useUserRole()
-  const activities = isSuperAdmin ? demoActivities : []
+  const { stats } = useDashboardStats()
+
+  // Build activities from real data or use demo
+  const activities = isSuperAdmin
+    ? demoActivities
+    : (stats?.recentActivity ?? []).map((item) => ({
+        id: item.id,
+        type: item.type,
+        user: "You",
+        action: item.type === "email" ? "sent an email to" : "called",
+        target: item.target + (item.company ? ` at ${item.company}` : ""),
+        time: formatDistanceToNow(new Date(item.time), { addSuffix: true }),
+      }))
 
   return (
     <Card>

@@ -1,69 +1,24 @@
 "use client"
 
 import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { formatDistanceToNow } from "date-fns"
 import {
   Phone,
   Mail,
   Users,
-  Zap,
-  Clock,
-  ArrowRight,
-  Sparkles,
-  CheckCircle2,
   TrendingUp,
   Calendar,
-  Target,
 } from "lucide-react"
-import { cn } from "@/lib/utils"
 import { useEffect, useState } from "react"
 import { useUserRole } from "@/hooks/use-user-role"
+import { useDashboardStats } from "@/hooks/use-dashboard-stats"
 
-// Quick stats for the dashboard
-const quickStats = [
-  {
-    label: "Active Prospects",
-    value: "247",
-    change: "+12%",
-    icon: Users,
-    trend: "up",
-  },
-  {
-    label: "Calls Today",
-    value: "34",
-    change: "+8",
-    icon: Phone,
-    trend: "up",
-  },
-  {
-    label: "Emails Sent",
-    value: "156",
-    change: "+23%",
-    icon: Mail,
-    trend: "up",
-  },
-  {
-    label: "Meetings Booked",
-    value: "8",
-    change: "+3",
-    icon: Calendar,
-    trend: "up",
-  },
-]
-
-// Active sequences summary
-const activeSequences = [
-  { name: "Enterprise Cold Outreach", prospects: 45, replies: 12, status: "active" },
-  { name: "Sales Leaders", prospects: 78, replies: 18, status: "active" },
-  { name: "SMB Prospecting", prospects: 120, replies: 34, status: "active" },
-]
-
-// Hot leads requiring attention
-const hotLeads = [
-  { name: "Sarah Kim", company: "Acme Corp", score: 98, action: "Follow-up call" },
-  { name: "Michael Chen", company: "TechStart", score: 94, action: "Send proposal" },
-  { name: "Emily Davis", company: "CloudFlow", score: 89, action: "Demo scheduled" },
+// Demo quick stats for super admin
+const demoQuickStats = [
+  { label: "Active Prospects", value: "247", change: "+12%", icon: Users, trend: "up" },
+  { label: "Calls Today", value: "34", change: "+8", icon: Phone, trend: "up" },
+  { label: "Emails Sent", value: "156", change: "+23%", icon: Mail, trend: "up" },
+  { label: "Meetings Booked", value: "8", change: "+3", icon: Calendar, trend: "up" },
 ]
 
 type ApiTask = {
@@ -92,6 +47,7 @@ const formatDueTime = (dueDate: string | null) => {
 
 export function DashboardOverview() {
   const { isSuperAdmin } = useUserRole()
+  const { stats } = useDashboardStats()
   const [upcomingTasks, setUpcomingTasks] = useState<UpcomingTask[]>([])
   const [upcomingLoading, setUpcomingLoading] = useState(true)
   const [upcomingError, setUpcomingError] = useState<string | null>(null)
@@ -135,11 +91,21 @@ export function DashboardOverview() {
     }
   }, [])
 
+  // Build quick stats from real data or demo data
+  const quickStats = isSuperAdmin
+    ? demoQuickStats
+    : [
+        { label: "Active Prospects", value: String(stats?.quickStats.activeProspects ?? 0), change: "--", icon: Users, trend: "up" },
+        { label: "Calls Today", value: String(stats?.quickStats.callsToday ?? 0), change: "--", icon: Phone, trend: "up" },
+        { label: "Emails Sent", value: String(stats?.quickStats.emailsSentToday ?? 0), change: "--", icon: Mail, trend: "up" },
+        { label: "Meetings Booked", value: String(stats?.quickStats.meetingsBooked ?? 0), change: "--", icon: Calendar, trend: "up" },
+      ]
+
   return (
     <div className="space-y-6">
       {/* Quick Stats Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {(isSuperAdmin ? quickStats : quickStats.map(s => ({ ...s, value: "0", change: "--" }))).map((stat) => (
+        {quickStats.map((stat) => (
           <Card key={stat.label} className="border-border bg-card">
             <CardContent className="p-4">
               <div className="flex items-start justify-between">

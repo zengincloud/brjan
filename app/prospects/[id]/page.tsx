@@ -8,6 +8,17 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { ArrowLeft, Mail, Phone, Linkedin, MapPin, Building, Briefcase, Calendar, Globe, Pencil, Zap, X, ClipboardList, Clock, ExternalLink, UserMinus, Loader2 } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
+
+function safeTimeAgo(dateStr: string | null | undefined): string {
+  if (!dateStr) return "Unknown"
+  try {
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return "Unknown"
+    return formatDistanceToNow(d, { addSuffix: true })
+  } catch {
+    return "Unknown"
+  }
+}
 import { CallHistory } from "@/components/call-history"
 import { CallProspectDialog } from "@/components/call-prospect-dialog"
 import { EditProspectDialog } from "@/components/edit-prospect-dialog"
@@ -358,14 +369,14 @@ export default function ProspectDetailPage() {
             <div>
               <p className="text-sm text-muted-foreground">Added</p>
               <p className="text-sm font-medium">
-                {formatDistanceToNow(new Date(prospect.createdAt), { addSuffix: true })}
+                {safeTimeAgo(prospect.createdAt)}
               </p>
             </div>
 
             <div>
               <p className="text-sm text-muted-foreground">Last Activity</p>
               <p className="text-sm font-medium">
-                {formatDistanceToNow(new Date(prospect.lastActivity), { addSuffix: true })}
+                {safeTimeAgo(prospect.lastActivity)}
               </p>
             </div>
           </CardContent>

@@ -6,6 +6,17 @@ import { Badge } from "@/components/ui/badge"
 import { Sparkles, Mail, Phone, Loader2, MessageSquare } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 
+function safeTimeAgo(dateStr: string | null | undefined): string {
+  if (!dateStr) return "recently"
+  try {
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return "recently"
+    return formatDistanceToNow(d, { addSuffix: true })
+  } catch {
+    return "recently"
+  }
+}
+
 type CorrespondenceItem = {
   id: string
   type: "email" | "call"
@@ -80,7 +91,7 @@ export function CorrespondenceSummary({ prospectId, prospectName }: Corresponden
       const recentEmail = emailList[0]
       parts.push(
         `${totalEmails} email${totalEmails > 1 ? "s" : ""} sent${
-          recentEmail ? `, most recent ${formatDistanceToNow(new Date(recentEmail.sentAt || recentEmail.createdAt), { addSuffix: true })}` : ""
+          recentEmail ? `, most recent ${safeTimeAgo(recentEmail.sentAt || recentEmail.createdAt)}` : ""
         }`
       )
     }
@@ -99,7 +110,7 @@ export function CorrespondenceSummary({ prospectId, prospectName }: Corresponden
         callPart += `, ${voicemails.length} voicemail${voicemails.length > 1 ? "s" : ""} left`
       }
       if (recentCall) {
-        callPart += `. Last call ${formatDistanceToNow(new Date(recentCall.startedAt || recentCall.createdAt), { addSuffix: true })}`
+        callPart += `. Last call ${safeTimeAgo(recentCall.startedAt || recentCall.createdAt)}`
         if (recentCall.outcome) {
           callPart += ` - ${recentCall.outcome.replace(/_/g, " ")}`
         }
@@ -176,9 +187,9 @@ export function CorrespondenceSummary({ prospectId, prospectName }: Corresponden
                 <div className="space-y-2">
                   {[...emails.slice(0, 2), ...calls.slice(0, 2)]
                     .sort((a, b) => {
-                      const dateA = new Date(a.sentAt || a.startedAt || a.createdAt)
-                      const dateB = new Date(b.sentAt || b.startedAt || b.createdAt)
-                      return dateB.getTime() - dateA.getTime()
+                      const dateA = new Date(a.sentAt || a.startedAt || a.createdAt || 0)
+                      const dateB = new Date(b.sentAt || b.startedAt || b.createdAt || 0)
+                      return (dateB.getTime() || 0) - (dateA.getTime() || 0)
                     })
                     .slice(0, 3)
                     .map((item, index) => (
@@ -197,10 +208,7 @@ export function CorrespondenceSummary({ prospectId, prospectName }: Corresponden
                           </>
                         )}
                         <span className="text-muted-foreground whitespace-nowrap">
-                          {formatDistanceToNow(
-                            new Date(item.sentAt || item.startedAt || item.createdAt),
-                            { addSuffix: true }
-                          )}
+                          {safeTimeAgo(item.sentAt || item.startedAt || item.createdAt)}
                         </span>
                       </div>
                     ))}

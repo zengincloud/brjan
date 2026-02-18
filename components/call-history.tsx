@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Phone, Clock, User, Building2, Play, FileText, ChevronRight } from "lucide-react"
-import { format } from "date-fns"
+import { format, isValid } from "date-fns"
 import { CallTranscript } from "@/components/call-transcript"
 import { cn } from "@/lib/utils"
 
@@ -52,7 +52,7 @@ export function CallHistory({ prospectId, limit }: { prospectId?: string; limit?
       const response = await fetch(`/api/calls?${params}`)
       const data = await response.json()
 
-      if (response.ok) {
+      if (response.ok && Array.isArray(data.calls)) {
         setCalls(data.calls)
         // Auto-select first call if available
         if (data.calls.length > 0 && !selectedCall) {
@@ -161,7 +161,7 @@ export function CallHistory({ prospectId, limit }: { prospectId?: string; limit?
                           {call.to}
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
-                          {format(new Date(call.createdAt), "MMM d, h:mm a")}
+                          {isValid(new Date(call.createdAt)) ? format(new Date(call.createdAt), "MMM d, h:mm a") : "Unknown"}
                         </p>
                       </div>
                       <div className="flex flex-col items-end gap-1 shrink-0">
@@ -222,7 +222,7 @@ export function CallHistory({ prospectId, limit }: { prospectId?: string; limit?
                     </div>
 
                     <p className="text-xs text-muted-foreground">
-                      {format(new Date(selectedCall.createdAt), "MMMM d, yyyy 'at' h:mm a")}
+                      {isValid(new Date(selectedCall.createdAt)) ? format(new Date(selectedCall.createdAt), "MMMM d, yyyy 'at' h:mm a") : "Unknown date"}
                     </p>
                   </div>
 

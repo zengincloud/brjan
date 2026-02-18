@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { withAuth } from '@/lib/auth/api-middleware'
+import { withAuth, resolveRealUser } from '@/lib/auth/api-middleware'
 import { prisma } from '@/lib/prisma'
 import { cookies } from 'next/headers'
 
@@ -34,10 +34,14 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    // Check if we're impersonating
-    const cookieStore = await cookies()
-    const impersonatingId = cookieStore.get('impersonating_user_id')?.value
-    const isImpersonating = !!impersonatingId && impersonatingId === userId
+    // Check if we're impersonating (only super_admin can impersonate)
+    let isImpersonating = false
+    const realUser = await resolveRealUser()
+    if (realUser && realUser.role === 'super_admin' && realUser.id !== userId) {
+      const cookieStore = await cookies()
+      const impersonatingId = cookieStore.get('impersonating_user_id')?.value
+      isImpersonating = !!impersonatingId && impersonatingId === userId
+    }
 
     return NextResponse.json({ user, isImpersonating })
   } catch (error) {

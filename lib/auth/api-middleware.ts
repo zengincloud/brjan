@@ -6,9 +6,10 @@ import { isSuperAdminEmail } from './helpers'
 import { cookies } from 'next/headers'
 
 /**
- * Internal helper to resolve the real authenticated user from Supabase + Prisma.
+ * Helper to resolve the real authenticated user from Supabase + Prisma.
+ * Exported so routes can check the real user (e.g. for impersonation detection).
  */
-async function resolveRealUser(): Promise<User | null> {
+export async function resolveRealUser(): Promise<User | null> {
   const supabase = await createClient()
   const {
     data: { user: supabaseUser },

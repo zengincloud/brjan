@@ -3,8 +3,9 @@
 import { useState } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
+import { useUserRole } from "@/hooks/use-user-role"
 
-const contactedProspects = [
+const demoContactedProspects = [
   { id: 1, name: "John Doe", company: "ABC Corp", date: "2023-06-15", status: "Interested" },
   { id: 2, name: "Jane Smith", company: "XYZ Inc", date: "2023-06-14", status: "Follow-up" },
   { id: 3, name: "Bob Johnson", company: "123 LLC", date: "2023-06-13", status: "Not Interested" },
@@ -13,7 +14,9 @@ const contactedProspects = [
 ]
 
 export function ContactedProspects() {
+  const { isSuperAdmin } = useUserRole()
   const [searchTerm, setSearchTerm] = useState("")
+  const contactedProspects = isSuperAdmin ? demoContactedProspects : []
 
   const filteredProspects = contactedProspects.filter(
     (prospect) =>

@@ -1,6 +1,9 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+"use client"
 
-const statusData = [
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useUserRole } from "@/hooks/use-user-role"
+
+const demoStatusData = [
   { label: "Total", value: 500, color: "bg-blue-100 text-blue-800" },
   { label: "Cold/Not Started", value: 200, color: "bg-gray-100 text-gray-800" },
   { label: "Working", value: 150, color: "bg-yellow-100 text-yellow-800" },
@@ -9,7 +12,19 @@ const statusData = [
   { label: "Unresponsive", value: 25, color: "bg-red-100 text-red-800" },
 ]
 
+const emptyStatusData = [
+  { label: "Total", value: 0, color: "bg-blue-100 text-blue-800" },
+  { label: "Cold/Not Started", value: 0, color: "bg-gray-100 text-gray-800" },
+  { label: "Working", value: 0, color: "bg-yellow-100 text-yellow-800" },
+  { label: "Replied", value: 0, color: "bg-green-100 text-green-800" },
+  { label: "Interested", value: 0, color: "bg-purple-100 text-purple-800" },
+  { label: "Unresponsive", value: 0, color: "bg-red-100 text-red-800" },
+]
+
 export function ProspectStatusBoxes() {
+  const { isSuperAdmin } = useUserRole()
+  const statusData = isSuperAdmin ? demoStatusData : emptyStatusData
+
   return (
     <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
       {statusData.map((status) => (

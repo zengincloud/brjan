@@ -18,6 +18,7 @@ import {
 import { ChartContainer } from "@/components/ui/chart"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { DateRange } from "react-day-picker"
+import { useUserRole } from "@/hooks/use-user-role"
 
 interface PipelineReportProps {
   date?: DateRange | undefined
@@ -46,6 +47,24 @@ const pipelineByMonth = [
 ]
 
 export function PipelineReport({ date, fullWidth = false }: PipelineReportProps) {
+  const { isSuperAdmin } = useUserRole()
+
+  if (!isSuperAdmin) {
+    return (
+      <Card className={fullWidth ? "w-full" : ""}>
+        <CardHeader>
+          <CardTitle>Pipeline Analysis</CardTitle>
+          <CardDescription>Deal stages, conversion rates, and forecasting</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+            <p>No pipeline data yet. Add deals to see pipeline analysis here.</p>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
   return (
     <Card className={fullWidth ? "w-full" : ""}>
       <CardHeader>

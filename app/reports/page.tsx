@@ -14,8 +14,10 @@ import { ConversionReport } from "@/components/reports/conversion-report"
 import { BookmarkIcon, Download, Share2 } from "lucide-react"
 import type { DateRange } from "react-day-picker"
 import { addDays } from "date-fns"
+import { useUserRole } from "@/hooks/use-user-role"
 
 export default function ReportsPage() {
+  const { isSuperAdmin } = useUserRole()
   const [date, setDate] = useState<DateRange | undefined>({
     from: addDays(new Date(), -30),
     to: new Date(),
@@ -52,10 +54,10 @@ export default function ReportsPage() {
 
         <TabsContent value="overview" className="space-y-6 mt-6">
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-            <MetricCard title="Total Revenue" value="$125,430" change="+12.5%" trend="up" description="Last 30 days" />
-            <MetricCard title="Deals Closed" value="42" change="+8.3%" trend="up" description="Last 30 days" />
-            <MetricCard title="Conversion Rate" value="24.8%" change="-2.1%" trend="down" description="Last 30 days" />
-            <MetricCard title="Avg. Deal Size" value="$2,986" change="+4.2%" trend="up" description="Last 30 days" />
+            <MetricCard title="Total Revenue" value={isSuperAdmin ? "$125,430" : "$0"} change={isSuperAdmin ? "+12.5%" : "--"} trend={isSuperAdmin ? "up" : "neutral"} description="Last 30 days" />
+            <MetricCard title="Deals Closed" value={isSuperAdmin ? "42" : "0"} change={isSuperAdmin ? "+8.3%" : "--"} trend={isSuperAdmin ? "up" : "neutral"} description="Last 30 days" />
+            <MetricCard title="Conversion Rate" value={isSuperAdmin ? "24.8%" : "0%"} change={isSuperAdmin ? "-2.1%" : "--"} trend={isSuperAdmin ? "down" : "neutral"} description="Last 30 days" />
+            <MetricCard title="Avg. Deal Size" value={isSuperAdmin ? "$2,986" : "$0"} change={isSuperAdmin ? "+4.2%" : "--"} trend={isSuperAdmin ? "up" : "neutral"} description="Last 30 days" />
           </div>
 
           <div className="grid gap-6 md:grid-cols-2">

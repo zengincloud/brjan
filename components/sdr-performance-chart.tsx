@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { Zap, TrendingUp } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { useUserRole } from "@/hooks/use-user-role"
 
 // SDR weekly targets
 const TARGETS = {
@@ -14,22 +15,32 @@ const TARGETS = {
   linkedin: 20,
 }
 
-// Sample data for the current week's progress
-const sdrProgress = [
+// Demo data for super admin
+const demoSdrProgress = [
   { category: "Emails", value: 35, target: TARGETS.emails, fullMark: TARGETS.emails },
   { category: "Calls", value: 400, target: TARGETS.calls, fullMark: TARGETS.calls },
   { category: "Leads", value: 45, target: TARGETS.leads, fullMark: TARGETS.leads },
   { category: "LinkedIn", value: 15, target: TARGETS.linkedin, fullMark: TARGETS.linkedin },
 ]
 
-// Normalized data for better visualization (percentage of target)
-const normalizedData = sdrProgress.map((item) => ({
-  category: item.category,
-  progress: Math.round((item.value / item.target) * 100),
-  target: 100, // Target is always 100%
-}))
+// Empty data for regular users
+const emptySdrProgress = [
+  { category: "Emails", value: 0, target: TARGETS.emails, fullMark: TARGETS.emails },
+  { category: "Calls", value: 0, target: TARGETS.calls, fullMark: TARGETS.calls },
+  { category: "Leads", value: 0, target: TARGETS.leads, fullMark: TARGETS.leads },
+  { category: "LinkedIn", value: 0, target: TARGETS.linkedin, fullMark: TARGETS.linkedin },
+]
 
 export function SDRPerformanceChart() {
+  const { isSuperAdmin } = useUserRole()
+  const sdrProgress = isSuperAdmin ? demoSdrProgress : emptySdrProgress
+
+  const normalizedData = sdrProgress.map((item) => ({
+    category: item.category,
+    progress: Math.round((item.value / item.target) * 100),
+    target: 100,
+  }))
+
   return (
     <Card className="w-full border-border bg-card overflow-hidden">
       {/* Window Controls Bar */}

@@ -4,6 +4,7 @@ import { withAuth } from "@/lib/auth/api-middleware"
 import sgMail from "@sendgrid/mail"
 import { sendEmailViaGmail } from "@/lib/gmail/send"
 import { advanceSequenceStep } from "@/lib/sequences"
+import { replaceEmailVariables } from "@/lib/template-variables"
 
 export const dynamic = 'force-dynamic'
 
@@ -53,6 +54,24 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       ? gmailIntegration.gmailEmail
       : SENDGRID_FROM_EMAIL
 
+    // Replace template variables if we have a prospect
+    let finalSubject = subject
+    let finalBodyText = bodyText
+    let finalBodyHtml = bodyHtml
+    if (prospectId) {
+      const prospect = await prisma.prospect.findUnique({
+        where: { id: prospectId },
+        select: { name: true, email: true, company: true, title: true, phone: true },
+      })
+      if (prospect) {
+        finalSubject = replaceEmailVariables(subject, prospect)
+        finalBodyText = replaceEmailVariables(bodyText, prospect)
+        if (finalBodyHtml) {
+          finalBodyHtml = replaceEmailVariables(bodyHtml, prospect)
+        }
+      }
+    }
+
     // Validate that we have at least one email provider configured
     if (!useGmail && !SENDGRID_API_KEY) {
       return NextResponse.json(
@@ -69,9 +88,9 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
         cc,
         bcc,
         from: fromEmail,
-        subject,
-        bodyText,
-        bodyHtml,
+        subject: finalSubject,
+        bodyText: finalBodyText,
+        bodyHtml: finalBodyHtml,
         prospectId,
         accountId,
         templateId,
@@ -93,9 +112,9 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
           to,
           cc,
           bcc,
-          subject,
-          bodyText,
-          bodyHtml,
+          subject: finalSubject,
+          bodyText: finalBodyText,
+          bodyHtml: finalBodyHtml,
           from: gmailIntegration.gmailEmail,
         })
         externalId = result.messageId
@@ -104,13 +123,13 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
         const msg: any = {
           to,
           from: SENDGRID_FROM_EMAIL,
-          subject,
-          text: bodyText,
+          subject: finalSubject,
+          text: finalBodyText,
         }
 
         if (cc) msg.cc = cc
         if (bcc) msg.bcc = bcc
-        if (bodyHtml) msg.html = bodyHtml
+        if (finalBodyHtml) msg.html = finalBodyHtml
 
         const [response] = await sgMail.send(msg)
         externalId = response.headers["x-message-id"] as string

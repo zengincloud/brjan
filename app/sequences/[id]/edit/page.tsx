@@ -25,6 +25,7 @@ import {
 import { useToast } from "@/components/ui/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
 import { RichTextEditor } from "@/components/rich-text-editor"
+import { TEMPLATE_VARIABLES } from "@/lib/template-variables"
 
 type StepType = "email" | "call" | "linkedin" | "task" | "wait"
 
@@ -435,6 +436,9 @@ export default function EditSequencePage() {
                           placeholder="Write your email..."
                         />
                       </div>
+                      <p className="text-xs text-muted-foreground">
+                        Variables: {TEMPLATE_VARIABLES.map(v => v.variable).join(", ")}
+                      </p>
                     </>
                   )}
 

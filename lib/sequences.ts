@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { replaceEmailVariables } from "@/lib/template-variables"
 
 /**
  * Advance a prospect to the next step in their sequence
@@ -148,14 +149,16 @@ export async function createTaskForStep(
   const now = new Date()
 
   switch (step.type) {
-    case 'email':
+    case 'email': {
+      const emailSubject = replaceEmailVariables(step.emailSubject || `Follow up with ${prospect.name}`, prospect)
+      const emailBody = replaceEmailVariables(step.emailBody || '', prospect)
       await prisma.email.create({
         data: {
           to: prospect.email,
           from: userId,
-          subject: step.emailSubject || `Follow up with ${prospect.name}`,
-          bodyText: step.emailBody || '',
-          bodyHtml: step.emailBody || '',
+          subject: emailSubject,
+          bodyText: emailBody,
+          bodyHtml: emailBody,
           prospectId: prospect.id,
           emailType: 'sequence',
           status: 'draft',
@@ -169,6 +172,7 @@ export async function createTaskForStep(
         },
       })
       return 'email'
+    }
 
     case 'call':
       await prisma.task.create({

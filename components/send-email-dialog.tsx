@@ -15,8 +15,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Send, Loader2, Mail, CheckCircle2, FileText, Clock } from "lucide-react"
+import { Send, Loader2, Mail, CheckCircle2, FileText, Clock, Braces } from "lucide-react"
 import { toast } from "sonner"
+import { replaceEmailVariables, TEMPLATE_VARIABLES } from "@/lib/template-variables"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 type Prospect = {
   id: string
@@ -108,20 +115,7 @@ export function SendEmailDialog({
   // Replace template variables with prospect data
   const replaceVariables = (text: string): string => {
     if (!prospect) return text
-
-    const firstName = prospect.name.split(" ")[0]
-    const lastName = prospect.name.split(" ").slice(1).join(" ")
-
-    return text
-      .replace(/\{\{name\}\}/gi, prospect.name)
-      .replace(/\{\{firstName\}\}/gi, firstName)
-      .replace(/\{\{first_name\}\}/gi, firstName)
-      .replace(/\{\{lastName\}\}/gi, lastName)
-      .replace(/\{\{last_name\}\}/gi, lastName)
-      .replace(/\{\{email\}\}/gi, prospect.email)
-      .replace(/\{\{company\}\}/gi, prospect.company || "")
-      .replace(/\{\{title\}\}/gi, prospect.title || "")
-      .replace(/\{\{phone\}\}/gi, prospect.phone || "")
+    return replaceEmailVariables(text, prospect)
   }
 
   // Handle template selection
@@ -160,14 +154,18 @@ export function SendEmailDialog({
     setSending(true)
 
     try {
+      // Replace any remaining template variables before sending
+      const finalSubject = replaceVariables(subject)
+      const finalBody = replaceVariables(body)
+
       const response = await fetch("/api/emails/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           to: prospect.email,
-          subject,
-          bodyText: body,
-          bodyHtml: `<p>${body.replace(/\n/g, "<br>")}</p>`,
+          subject: finalSubject,
+          bodyText: finalBody,
+          bodyHtml: `<p>${finalBody.replace(/\n/g, "<br>")}</p>`,
           prospectId: prospect.id,
           emailType: "one_off",
         }),
@@ -218,9 +216,9 @@ export function SendEmailDialog({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           to: prospect.email,
-          subject,
-          bodyText: body,
-          bodyHtml: `<p>${body.replace(/\n/g, "<br>")}</p>`,
+          subject: replaceVariables(subject),
+          bodyText: replaceVariables(body),
+          bodyHtml: `<p>${replaceVariables(body).replace(/\n/g, "<br>")}</p>`,
           prospectId: prospect.id,
           prospectName: prospect.name,
           status: "queued",
@@ -309,13 +307,34 @@ export function SendEmailDialog({
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              Templates auto-fill {"{{name}}"}, {"{{company}}"}, {"{{title}}"} with prospect data
+              Use {"{{firstName}}"}, {"{{company}}"}, {"{{title}}"} etc. to auto-fill prospect data
             </p>
           </div>
 
           {/* Subject */}
           <div className="space-y-2">
-            <Label htmlFor="subject">Subject</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="subject">Subject</Label>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-muted-foreground">
+                    <Braces className="h-3 w-3 mr-1" />
+                    Insert Variable
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {TEMPLATE_VARIABLES.map((v) => (
+                    <DropdownMenuItem
+                      key={v.variable}
+                      onClick={() => setSubject(prev => prev + v.variable)}
+                    >
+                      <span className="font-mono text-xs text-muted-foreground mr-2">{v.variable}</span>
+                      {v.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
             <Input
               id="subject"
               placeholder="Enter email subject..."
@@ -326,7 +345,28 @@ export function SendEmailDialog({
 
           {/* Body */}
           <div className="space-y-2">
-            <Label htmlFor="body">Message</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="body">Message</Label>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-muted-foreground">
+                    <Braces className="h-3 w-3 mr-1" />
+                    Insert Variable
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {TEMPLATE_VARIABLES.map((v) => (
+                    <DropdownMenuItem
+                      key={v.variable}
+                      onClick={() => setBody(prev => prev + v.variable)}
+                    >
+                      <span className="font-mono text-xs text-muted-foreground mr-2">{v.variable}</span>
+                      {v.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
             <Textarea
               id="body"
               placeholder="Write your message..."

@@ -47,12 +47,13 @@ export async function getCurrentUser() {
   if (!user) {
     const email = supabaseUser.email!
     const firstName = supabaseUser.user_metadata?.firstName || null
+    const orgName = supabaseUser.user_metadata?.organizationName || null
     const isSuperEmail = isSuperAdminEmail(email)
 
     // Auto-create an organization for every new user
     const org = await prisma.organization.create({
       data: {
-        name: firstName ? `${firstName}'s Team` : 'My Team',
+        name: orgName || (firstName ? `${firstName}'s Team` : 'My Team'),
       },
     })
 

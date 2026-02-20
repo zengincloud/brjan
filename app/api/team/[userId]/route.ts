@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { withAuthUser } from "@/lib/auth/api-middleware"
+import { createClient } from "@supabase/supabase-js"
 
 export const dynamic = "force-dynamic"
 
@@ -56,10 +57,12 @@ export const PATCH = withAuthUser(async (request: NextRequest, user, context: an
   }
 })
 
-// DELETE /api/team/[userId] - Remove a member from the organization
+// DELETE /api/team/[userId] - Delete a user entirely
 export const DELETE = withAuthUser(async (request: NextRequest, user, context: any) => {
   try {
     const { userId: targetUserId } = await context.params
+    const { searchParams } = new URL(request.url)
+    const permanent = searchParams.get("permanent") === "true"
 
     if (!user.organizationId) {
       return NextResponse.json({ error: "You don't belong to an organization" }, { status: 400 })
@@ -85,15 +88,36 @@ export const DELETE = withAuthUser(async (request: NextRequest, user, context: a
       return NextResponse.json({ error: "Cannot remove a super admin" }, { status: 403 })
     }
 
-    // Remove from org (don't delete the user, just unassign)
-    await prisma.user.update({
-      where: { id: targetUserId },
-      data: { organizationId: null, role: "member" },
-    })
+    if (permanent) {
+      // Permanently delete the user and all their data
+      // Prisma cascade will handle related records (calls, emails, prospects, tasks, etc.)
+      await prisma.user.delete({
+        where: { id: targetUserId },
+      })
 
-    return NextResponse.json({ message: "Member removed" })
+      // Also delete from Supabase Auth
+      try {
+        const supabaseAdmin = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!
+        )
+        await supabaseAdmin.auth.admin.deleteUser(targetUser.supabaseId)
+      } catch (err) {
+        console.error("Failed to delete Supabase auth user (DB user already deleted):", err)
+      }
+
+      return NextResponse.json({ message: "User permanently deleted" })
+    } else {
+      // Just remove from org
+      await prisma.user.update({
+        where: { id: targetUserId },
+        data: { organizationId: null, role: "member" },
+      })
+
+      return NextResponse.json({ message: "Member removed from organization" })
+    }
   } catch (error) {
-    console.error("Error removing team member:", error)
+    console.error("Error removing/deleting team member:", error)
     return NextResponse.json({ error: "Failed to remove team member" }, { status: 500 })
   }
 })

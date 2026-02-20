@@ -21,6 +21,7 @@ export default function SignupPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
+  const [organizationName, setOrganizationName] = useState('')
   const [agreeToTerms, setAgreeToTerms] = useState(false)
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
@@ -70,6 +71,7 @@ export default function SignupPage() {
           data: {
             firstName,
             lastName,
+            organizationName: organizationName.trim() || undefined,
           },
           emailRedirectTo: `${siteUrl}/auth/callback`,
         },
@@ -318,6 +320,18 @@ export default function SignupPage() {
                   className="h-12 bg-white/5 border-white/10 text-white placeholder:text-white/25 focus:border-[hsl(100,78%,44%)] focus:ring-[hsl(100,78%,44%,0.3)] transition-all"
                 />
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="organizationName" className="text-sm text-white/70">Organization name</Label>
+              <Input
+                id="organizationName"
+                type="text"
+                placeholder="Acme Inc."
+                value={organizationName}
+                onChange={(e) => setOrganizationName(e.target.value)}
+                disabled={loading}
+                className="h-12 bg-white/5 border-white/10 text-white placeholder:text-white/25 focus:border-[hsl(100,78%,44%)] focus:ring-[hsl(100,78%,44%,0.3)] transition-all"
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="email" className="text-sm text-white/70">Email</Label>

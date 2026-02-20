@@ -8,7 +8,23 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
-import { UserPlus, Phone, Mail, Users, Trash2 } from "lucide-react"
+import { UserPlus, Phone, Mail, Users, Trash2, MoreVertical, UserMinus } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { InviteDialog } from "@/components/invite-dialog"
 import { toast } from "sonner"
 import { format } from "date-fns"
@@ -43,6 +59,7 @@ export function TeamSettings() {
   const [loading, setLoading] = useState(true)
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [inviteOpen, setInviteOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<TeamMember | null>(null)
 
   useEffect(() => {
     loadData()
@@ -112,6 +129,25 @@ export function TeamSettings() {
       toast.error("Failed to remove member")
     }
   }
+
+  const handleDeleteUser = async () => {
+    if (!deleteTarget) return
+    try {
+      const res = await fetch(`/api/team/${deleteTarget.id}?permanent=true`, { method: "DELETE" })
+      if (!res.ok) {
+        const data = await res.json()
+        toast.error(data.error || "Failed to delete user")
+        return
+      }
+      toast.success("User permanently deleted")
+      setDeleteTarget(null)
+      loadData()
+    } catch {
+      toast.error("Failed to delete user")
+    }
+  }
+
+  const isOwnerOrAdmin = currentUser?.role === "owner" || currentUser?.role === "super_admin"
 
   const getInitials = (member: TeamMember) => {
     if (member.firstName && member.lastName) return `${member.firstName[0]}${member.lastName[0]}`
@@ -228,14 +264,34 @@ export function TeamSettings() {
                   {canManage && (
                     <TableCell>
                       {member.id !== currentUser?.id && member.role !== "super_admin" && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                          onClick={() => handleRemoveMember(member.id, member.firstName || member.email)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-muted-foreground"
+                            >
+                              <MoreVertical className="h-3.5 w-3.5" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => handleRemoveMember(member.id, member.firstName || member.email)}
+                            >
+                              <UserMinus className="h-4 w-4 mr-2" />
+                              Remove from team
+                            </DropdownMenuItem>
+                            {isOwnerOrAdmin && (
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={() => setDeleteTarget(member)}
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete permanently
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       )}
                     </TableCell>
                   )}
@@ -275,6 +331,26 @@ export function TeamSettings() {
         onOpenChange={setInviteOpen}
         onInviteSent={loadData}
       />
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete user permanently?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete <strong>{deleteTarget?.firstName || deleteTarget?.email}</strong> and all their data (prospects, calls, emails, tasks, sequences). This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteUser}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete permanently
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

@@ -56,6 +56,7 @@ import {
   Mic,
   MicOff,
   Loader2,
+  MoreVertical,
 } from "lucide-react"
 import { SendEmailDialog } from "@/components/send-email-dialog"
 import { Calendar } from "lucide-react"
@@ -85,6 +86,7 @@ type CallSlot = {
   callId?: string
   twilioSid?: string
   taskId?: string | null
+  queueItemId?: string
   pendingOutcome?: string
   pendingPipelineStage?: string
 }
@@ -622,7 +624,7 @@ export default function DialerPage() {
       setExpandedSlots(prev => new Set(prev).add(slotId))
       setCallSlots(prev => prev.map((slot, idx) =>
         idx === slotIndex
-          ? { ...slot, contact: prospect, status: "ringing" as CallStatus, startTime: Date.now(), callId: data.callId, taskId: prospect.taskId }
+          ? { ...slot, contact: prospect, status: "ringing" as CallStatus, startTime: Date.now(), callId: data.callId, taskId: prospect.taskId, queueItemId: prospect.id }
           : slot
       ))
 
@@ -749,10 +751,12 @@ export default function DialerPage() {
   const handleCallOutcomeAndAdvance = useCallback(async (slotIndex: number, outcome: string) => {
     const slot = callSlotsRef.current[slotIndex]
 
-    // Save outcome to database
+    // Save outcome + mark task done in parallel (fire-and-forget)
+    const savePromises: Promise<any>[] = []
+
     if (slot?.callId) {
-      try {
-        await fetch(`/api/calls/${slot.callId}`, {
+      savePromises.push(
+        fetch(`/api/calls/${slot.callId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -760,23 +764,25 @@ export default function DialerPage() {
             notes: slot.notes,
             endedAt: new Date().toISOString(),
           }),
-        })
-      } catch (error) {
-        console.error("Error saving call outcome:", error)
-      }
+        }).catch(err => console.error("Error saving call outcome:", err))
+      )
     }
 
-    // Mark task as done if this call was from a task
     if (slot?.taskId) {
-      try {
-        await fetch(`/api/tasks/${slot.taskId}`, {
+      savePromises.push(
+        fetch(`/api/tasks/${slot.taskId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ status: "done" }),
-        })
-      } catch (error) {
-        console.error("Error completing task:", error)
-      }
+        }).catch(err => console.error("Error completing task:", err))
+      )
+    }
+
+    Promise.all(savePromises)
+
+    // Remove from local queue so it doesn't reappear
+    if (slot?.queueItemId) {
+      setApiProspects(prev => prev.filter(p => p.id !== slot.queueItemId))
     }
 
     // Update stats
@@ -879,6 +885,8 @@ export default function DialerPage() {
         },
         startTime: null,
         notes: "",
+        taskId: firstProspect.taskId,
+        queueItemId: firstProspect.id,
       }])
       setQueueSize(mockProspects.length - 1)
     }
@@ -983,10 +991,12 @@ export default function DialerPage() {
     const pipelineStage = slot.pendingPipelineStage as PipelineStage | undefined
     const contact = slot.contact
 
-    // Save call outcome + pipeline to database
+    // Save call outcome + mark task done in parallel (fire-and-forget for speed)
+    const savePromises: Promise<any>[] = []
+
     if (slot.callId) {
-      try {
-        const res = await fetch(`/api/calls/${slot.callId}`, {
+      savePromises.push(
+        fetch(`/api/calls/${slot.callId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -995,26 +1005,26 @@ export default function DialerPage() {
             notes: slot.notes,
             endedAt: new Date().toISOString(),
           }),
-        })
-        if (!res.ok) {
-          console.error("Failed to save call outcome:", await res.text())
-        }
-      } catch (error) {
-        console.error("Error saving call outcome:", error)
-      }
+        }).catch(err => console.error("Error saving call outcome:", err))
+      )
     }
 
-    // Mark task as done if this call was from a task
     if (slot.taskId) {
-      try {
-        await fetch(`/api/tasks/${slot.taskId}`, {
+      savePromises.push(
+        fetch(`/api/tasks/${slot.taskId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ status: "done" }),
-        })
-      } catch (error) {
-        console.error("Error completing task:", error)
-      }
+        }).catch(err => console.error("Error completing task:", err))
+      )
+    }
+
+    // Fire both in parallel — don't block UI advancement
+    Promise.all(savePromises)
+
+    // Remove this prospect from the local queue so it doesn't reappear
+    if (slot.queueItemId) {
+      setApiProspects(prev => prev.filter(p => p.id !== slot.queueItemId))
     }
 
     // Show appropriate toast
@@ -1067,6 +1077,61 @@ export default function DialerPage() {
         toast({
           title: "Session Complete",
           description: "You've reached the end of the call queue.",
+        })
+      }
+    }
+  }
+
+  const skipProspect = (slotId: string) => {
+    const currentSlots = callSlotsRef.current
+    const slotIndex = currentSlots.findIndex(s => s.id === slotId)
+    if (slotIndex === -1) return
+
+    const slot = currentSlots[slotIndex]
+
+    // End any active call
+    if (activeCallRef.current && (slot.status === "ringing" || slot.status === "connected")) {
+      activeCallRef.current.disconnect()
+      activeCallRef.current = null
+    }
+
+    // Remove from local queue so it doesn't come back
+    if (slot.queueItemId) {
+      setApiProspects(prev => prev.filter(p => p.id !== slot.queueItemId))
+    }
+
+    toast({
+      title: "Skipped",
+      description: slot.contact ? `Skipped ${slot.contact.name}` : "Prospect skipped",
+    })
+
+    // Reset slot
+    setCallSlots(prev => prev.map((s, idx) =>
+      idx === slotIndex
+        ? { id: slotId, status: "idle" as CallStatus, contact: null, startTime: null, notes: "" }
+        : s
+    ))
+    setShowOutcomeButtons(false)
+    setCallDuration(0)
+    callStartTimeRef.current = null
+
+    // Auto-advance to next
+    if (sessionActive && !sessionPaused) {
+      const nextIndex = currentProspectIndex + 1
+      if (nextIndex < mockProspects.length) {
+        setCurrentProspectIndex(nextIndex)
+        setQueueSize(prev => Math.max(0, prev - 1))
+        setTimeout(() => {
+          const nextProspect = mockProspects[nextIndex]
+          if (nextProspect) {
+            connectCall(nextProspect, slotIndex)
+          }
+        }, 500)
+      } else {
+        setSessionActive(false)
+        toast({
+          title: "Session Complete",
+          description: "No more prospects in queue.",
         })
       }
     }
@@ -1692,13 +1757,34 @@ export default function DialerPage() {
                         )}
                       </div>
 
-                      {/* Expand/collapse indicator */}
-                      <div className="flex items-center">
-                        {expandedSlots.has(slot.id) ? (
-                          <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                        )}
+                      {/* 3-dot menu + expand/collapse */}
+                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                              <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => skipProspect(slot.id)}>
+                              <SkipForward className="h-4 w-4 mr-2" />
+                              Skip
+                            </DropdownMenuItem>
+                            {slot.contact?.email && (
+                              <DropdownMenuItem onClick={() => openEmailDialog(slot.contact as any)}>
+                                <Mail className="h-4 w-4 mr-2" />
+                                Send Email
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        <div className="cursor-pointer" onClick={() => toggleExpanded(slot.id)}>
+                          {expandedSlots.has(slot.id) ? (
+                            <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </div>
                       </div>
                     </div>
 

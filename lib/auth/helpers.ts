@@ -67,6 +67,9 @@ export async function getCurrentUser() {
         role: isSuperEmail ? 'super_admin' : 'owner',
       },
     })
+
+    // Notify Slack about new signup (fire-and-forget)
+    notifySlackNewUser(user).catch(() => {})
   } else {
     // For existing users: promote to super_admin if their email is in the list
     const shouldBeSuperAdmin = isSuperAdminEmail(user.email)
@@ -103,4 +106,19 @@ export async function requireAuth() {
     redirect('/login')
   }
   return user
+}
+
+async function notifySlackNewUser(user: User) {
+  const url = process.env.SLACK_WEBHOOK_URL
+  if (!url) return
+
+  const name = [user.firstName, user.lastName].filter(Boolean).join(' ') || 'Unknown'
+
+  await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      text: `🚀 New signup: *${name}* (${user.email})`,
+    }),
+  })
 }

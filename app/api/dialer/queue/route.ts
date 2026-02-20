@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { withAuth } from "@/lib/auth/api-middleware"
+import { formatDistanceToNow } from "date-fns"
 
 export const dynamic = 'force-dynamic'
 
@@ -11,6 +12,12 @@ export const dynamic = 'force-dynamic'
  * 1. Tasks with type 'follow_up' that have a prospectId in contact
  * 2. Tasks with descriptions that indicate a call
  * 3. Active prospects in sequences with call steps due
+ *
+ * Also enriches each prospect with:
+ * - Prior call history
+ * - Correspondence history (emails + calls)
+ * - Matched Account data (insights, POV, industry)
+ * - Prospect POV data
  */
 export const GET = withAuth(async (
   request: NextRequest,
@@ -45,8 +52,8 @@ export const GET = withAuth(async (
       take: 50
     })
 
-    // Transform tasks into dialer queue items
-    const queueItems = []
+    // Transform tasks into dialer queue items (basic info first)
+    const queueItems: any[] = []
 
     for (const task of tasks) {
       const contact = task.contact as any
@@ -113,9 +120,14 @@ export const GET = withAuth(async (
         sequenceStage: currentStep?.name || task.title || '',
         callScript: currentStep?.callScript || task.description || '',
 
-        // Prior activity
-        priorCalls: [], // Could be fetched separately if needed
+        // POV from prospect
+        pov: prospect?.povData || null,
+
+        // Placeholders — will be enriched below
+        priorCalls: [],
         lastEmailSent: null,
+        correspondenceHistory: [],
+        accountInfo: null,
 
         // Task info
         priority: task.priority,
@@ -133,8 +145,6 @@ export const GET = withAuth(async (
           status: 'active',
           ...(sequenceId && sequenceId !== 'all' ? { id: sequenceId } : {}),
         },
-        // Include all active sequences - don't filter by nextActionAt
-        // so we don't miss prospects whose call step just became active
       },
       include: {
         prospect: true,
@@ -176,15 +186,192 @@ export const GET = withAuth(async (
         sequenceStage: currentStep.name,
         callScript: currentStep.callScript || '',
 
-        // Prior activity
+        // POV from prospect
+        pov: ps.prospect.povData || null,
+
+        // Placeholders
         priorCalls: [],
         lastEmailSent: null,
+        correspondenceHistory: [],
+        accountInfo: null,
 
         // Task info
         priority: 'high',
         dueDate: ps.nextActionAt,
         status: 'to_do',
       })
+    }
+
+    // --- Batch-enrich all queue items with correspondence + account data ---
+    const prospectIds = queueItems
+      .map(item => item.prospectId)
+      .filter((id): id is string => !!id)
+
+    const companyNames = [...new Set(
+      queueItems.map(item => item.company).filter(Boolean)
+    )]
+
+    if (prospectIds.length > 0 || companyNames.length > 0) {
+      // Fetch all prior calls, emails, and matching accounts in parallel
+      const [allCalls, allEmails, matchedAccounts] = await Promise.all([
+        prospectIds.length > 0
+          ? prisma.call.findMany({
+              where: { prospectId: { in: prospectIds }, userId },
+              orderBy: { createdAt: 'desc' },
+              select: {
+                id: true,
+                prospectId: true,
+                outcome: true,
+                notes: true,
+                duration: true,
+                createdAt: true,
+              },
+            })
+          : Promise.resolve([]),
+
+        prospectIds.length > 0
+          ? prisma.email.findMany({
+              where: {
+                userId,
+                OR: prospectIds.map(pid => ({
+                  metadata: { path: ['prospectId'], equals: pid }
+                })).concat(
+                  // Also match by prospect email
+                  queueItems
+                    .filter(item => item.email)
+                    .map(item => ({ to: item.email }))
+                ),
+              },
+              orderBy: { createdAt: 'desc' },
+              select: {
+                id: true,
+                to: true,
+                subject: true,
+                status: true,
+                sentAt: true,
+                createdAt: true,
+                metadata: true,
+              },
+              take: 200,
+            }).catch(() => [])
+          : Promise.resolve([]),
+
+        companyNames.length > 0
+          ? prisma.account.findMany({
+              where: {
+                userId,
+                name: { in: companyNames, mode: 'insensitive' },
+              },
+              select: {
+                id: true,
+                name: true,
+                industry: true,
+                website: true,
+                employees: true,
+                location: true,
+                linkedin: true,
+                insights: true,
+                pov: true,
+              },
+            })
+          : Promise.resolve([]),
+      ])
+
+      // Index calls by prospectId
+      const callsByProspect = new Map<string, typeof allCalls>()
+      for (const call of allCalls) {
+        if (!call.prospectId) continue
+        if (!callsByProspect.has(call.prospectId)) {
+          callsByProspect.set(call.prospectId, [])
+        }
+        callsByProspect.get(call.prospectId)!.push(call)
+      }
+
+      // Index emails by recipient address
+      const emailsByRecipient = new Map<string, typeof allEmails>()
+      for (const email of allEmails) {
+        const addr = email.to?.toLowerCase()
+        if (!addr) continue
+        if (!emailsByRecipient.has(addr)) {
+          emailsByRecipient.set(addr, [])
+        }
+        emailsByRecipient.get(addr)!.push(email)
+      }
+
+      // Index accounts by name (lowercase)
+      const accountsByName = new Map<string, (typeof matchedAccounts)[0]>()
+      for (const account of matchedAccounts) {
+        accountsByName.set(account.name.toLowerCase(), account)
+      }
+
+      // Enrich each queue item
+      for (const item of queueItems) {
+        // Prior calls
+        const prospectCalls = item.prospectId ? (callsByProspect.get(item.prospectId) || []) : []
+        item.priorCalls = prospectCalls.slice(0, 10).map((c: any) => ({
+          date: safeTimeAgo(c.createdAt),
+          outcome: c.outcome || 'unknown',
+          notes: c.notes || '',
+        }))
+
+        // Correspondence history (combine calls + emails, most recent first)
+        const correspondenceItems: any[] = []
+
+        for (const c of prospectCalls.slice(0, 5)) {
+          correspondenceItems.push({
+            date: safeTimeAgo(c.createdAt),
+            type: 'call',
+            from: 'You',
+            summary: `Call - ${c.outcome || 'unknown'}${c.notes ? ': ' + c.notes.substring(0, 80) : ''}`,
+          })
+        }
+
+        const prospectEmails = item.email ? (emailsByRecipient.get(item.email.toLowerCase()) || []) : []
+        for (const e of prospectEmails.slice(0, 5)) {
+          correspondenceItems.push({
+            date: safeTimeAgo(e.sentAt || e.createdAt),
+            type: 'email',
+            from: 'You',
+            summary: `Email: ${e.subject || '(no subject)'} - ${e.status}`,
+          })
+        }
+
+        // Sort by recency (most recent first)
+        correspondenceItems.sort((a, b) => {
+          // Since we already have "time ago" strings, let's just interleave
+          return 0 // Already ordered within each type
+        })
+
+        item.correspondenceHistory = correspondenceItems.slice(0, 8)
+
+        // Last email sent
+        if (prospectEmails.length > 0) {
+          const lastEmail = prospectEmails[0]
+          item.lastEmailSent = safeTimeAgo(lastEmail.sentAt || lastEmail.createdAt)
+        }
+
+        // Account info
+        if (item.company) {
+          const account = accountsByName.get(item.company.toLowerCase())
+          if (account) {
+            item.accountInfo = {
+              id: account.id,
+              industry: account.industry,
+              website: account.website,
+              employees: account.employees,
+              location: account.location,
+              linkedin: account.linkedin,
+              insights: account.insights,
+              pov: account.pov,
+            }
+
+            // If prospect has no POV but account does, use account POV
+            if (!item.pov && account.pov) {
+              item.pov = account.pov
+            }
+          }
+        }
+      }
     }
 
     return NextResponse.json({
@@ -199,3 +386,14 @@ export const GET = withAuth(async (
     )
   }
 })
+
+function safeTimeAgo(date: Date | string | null | undefined): string {
+  if (!date) return 'Unknown'
+  try {
+    const d = typeof date === 'string' ? new Date(date) : date
+    if (isNaN(d.getTime())) return 'Unknown'
+    return formatDistanceToNow(d, { addSuffix: true })
+  } catch {
+    return 'Unknown'
+  }
+}

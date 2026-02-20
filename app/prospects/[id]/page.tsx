@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { ArrowLeft, Mail, Phone, Linkedin, MapPin, Building, Briefcase, Calendar, Globe, Pencil, Zap, X, ClipboardList, Clock, ExternalLink, UserMinus, Loader2, Star, Plus, Trash2 } from "lucide-react"
+import { ArrowLeft, Mail, Phone, Linkedin, MapPin, Building, Briefcase, Calendar, Globe, Pencil, Zap, X, ClipboardList, Clock, ExternalLink, UserMinus, Loader2, Star, Plus, Trash2, Check, Sparkles } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { formatDistanceToNow } from "date-fns"
 
@@ -91,6 +91,9 @@ export default function ProspectDetailPage() {
   const [showAddEmail, setShowAddEmail] = useState(false)
   const [newEmail, setNewEmail] = useState("")
   const [emailActionLoading, setEmailActionLoading] = useState(false)
+  const [editingEmail, setEditingEmail] = useState<string | null>(null)
+  const [editEmailValue, setEditEmailValue] = useState("")
+  const [enriching, setEnriching] = useState(false)
 
   useEffect(() => {
     if (params.id) {
@@ -182,6 +185,67 @@ export default function ProspectDetailPage() {
       toast.error("Failed to remove email")
     } finally {
       setEmailActionLoading(false)
+    }
+  }
+
+  const editEmail = async (oldEmail: string) => {
+    if (!editEmailValue.trim() || !editEmailValue.includes("@")) {
+      toast.error("Enter a valid email address")
+      return
+    }
+    if (editEmailValue.trim().toLowerCase() === oldEmail.toLowerCase()) {
+      setEditingEmail(null)
+      return
+    }
+    setEmailActionLoading(true)
+    try {
+      const response = await fetch(`/api/prospects/${params.id}/emails`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ oldEmail, newEmail: editEmailValue.trim() }),
+      })
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || "Failed to edit email")
+      }
+      toast.success("Email updated")
+      setEditingEmail(null)
+      loadProspect(params.id as string)
+    } catch (error: any) {
+      toast.error(error.message || "Failed to edit email")
+    } finally {
+      setEmailActionLoading(false)
+    }
+  }
+
+  const enrichProspect = async () => {
+    setEnriching(true)
+    try {
+      const response = await fetch(`/api/prospects/${params.id}/enrich`, {
+        method: "POST",
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to enrich")
+      }
+
+      const results = data.enrichmentResults
+      const parts: string[] = []
+      if (results.newEmails > 0) parts.push(`${results.newEmails} new email${results.newEmails > 1 ? 's' : ''}`)
+      if (results.newPhones > 0) parts.push(`${results.newPhones} new phone${results.newPhones > 1 ? 's' : ''}`)
+      if (results.fieldsUpdated.length > 0) parts.push(`updated: ${results.fieldsUpdated.join(', ')}`)
+
+      if (parts.length > 0) {
+        toast.success(`Enriched: ${parts.join(', ')}`)
+      } else {
+        toast.info("No new information found")
+      }
+
+      loadProspect(params.id as string)
+    } catch (error: any) {
+      toast.error(error.message || "Failed to enrich prospect")
+    } finally {
+      setEnriching(false)
     }
   }
 
@@ -306,6 +370,10 @@ export default function ProspectDetailPage() {
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={enrichProspect} disabled={enriching}>
+            {enriching ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
+            {enriching ? "Enriching..." : "Enrich"}
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setEditDialogOpen(true)}>
             <Pencil className="h-4 w-4 mr-2" />
             Edit
@@ -390,28 +458,59 @@ export default function ProspectDetailPage() {
                       <div key={email} className="flex items-center gap-2 group">
                         <button
                           onClick={() => !isPrimary && setPrimaryEmail(email)}
-                          disabled={isPrimary || emailActionLoading}
-                          className="shrink-0"
-                          title={isPrimary ? "Primary email" : "Set as primary"}
-                        >
-                          <Star className={`h-3.5 w-3.5 ${isPrimary ? "fill-yellow-500 text-yellow-500" : "text-muted-foreground/40 hover:text-yellow-500"}`} />
-                        </button>
-                        <a href={`mailto:${email}`} className="text-sm font-medium hover:underline flex-1 truncate">
-                          {email}
-                        </a>
-                        {isPrimary && (
-                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                            Primary
-                          </Badge>
-                        )}
-                        <button
-                          onClick={() => removeEmail(email)}
                           disabled={emailActionLoading}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                          title="Remove email"
+                          className="shrink-0"
+                          title={isPrimary ? "Primary email" : "Click to set as primary"}
                         >
-                          <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                          <Star className={`h-3.5 w-3.5 ${isPrimary ? "fill-yellow-500 text-yellow-500" : "text-muted-foreground/40 hover:text-yellow-500 cursor-pointer"}`} />
                         </button>
+                        {editingEmail === email ? (
+                          <div className="flex items-center gap-1 flex-1">
+                            <Input
+                              type="email"
+                              value={editEmailValue}
+                              onChange={(e) => setEditEmailValue(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") editEmail(email)
+                                if (e.key === "Escape") setEditingEmail(null)
+                              }}
+                              className="h-7 text-sm"
+                              autoFocus
+                            />
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => editEmail(email)} disabled={emailActionLoading}>
+                              <Check className="h-3.5 w-3.5 text-green-600" />
+                            </Button>
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setEditingEmail(null)}>
+                              <X className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <>
+                            <a href={`mailto:${email}`} className="text-sm font-medium hover:underline flex-1 truncate">
+                              {email}
+                            </a>
+                            {isPrimary && (
+                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                Primary
+                              </Badge>
+                            )}
+                            <button
+                              onClick={() => { setEditingEmail(email); setEditEmailValue(email) }}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                              title="Edit email"
+                            >
+                              <Pencil className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                            </button>
+                            <button
+                              onClick={() => removeEmail(email)}
+                              disabled={emailActionLoading}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                              title="Remove email"
+                            >
+                              <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                            </button>
+                          </>
+                        )}
                       </div>
                     ))
                   })()}

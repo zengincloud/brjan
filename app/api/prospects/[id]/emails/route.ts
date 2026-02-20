@@ -131,6 +131,65 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 }
 
 /**
+ * PUT /api/prospects/[id]/emails - Edit an email address
+ * Body: { oldEmail: string, newEmail: string }
+ */
+export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    const prospect = await getAuthedProspect(request, params.id)
+    if (!prospect) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 })
+    }
+
+    const { oldEmail, newEmail } = await request.json()
+    if (!oldEmail || !newEmail || !newEmail.includes("@")) {
+      return NextResponse.json({ error: "Valid old and new email required" }, { status: 400 })
+    }
+
+    const trimmedOld = oldEmail.trim().toLowerCase()
+    const trimmedNew = newEmail.trim().toLowerCase()
+
+    if (trimmedOld === trimmedNew) {
+      return NextResponse.json({ prospect })
+    }
+
+    const wizaData = (prospect.wizaData as any) || {}
+    const emails = normalizeEmails(wizaData.emails)
+
+    // Check new email doesn't already exist
+    const alreadyExists = emails.some((e) => e.email.toLowerCase() === trimmedNew)
+      || (prospect.email?.toLowerCase() === trimmedNew && prospect.email?.toLowerCase() !== trimmedOld)
+    if (alreadyExists) {
+      return NextResponse.json({ error: "Email already exists" }, { status: 400 })
+    }
+
+    // Replace in wizaData.emails
+    const updatedEmails = emails.map((e) =>
+      e.email.toLowerCase() === trimmedOld ? { ...e, email: trimmedNew } : e
+    )
+
+    const updateData: any = {
+      wizaData: { ...wizaData, emails: updatedEmails },
+    }
+
+    // If editing the primary email, update prospect.email too
+    if (prospect.email?.toLowerCase() === trimmedOld) {
+      updateData.email = trimmedNew
+    }
+
+    const updated = await prisma.prospect.update({
+      where: { id: params.id },
+      data: updateData,
+    })
+
+    return NextResponse.json({ prospect: updated })
+  } catch (error) {
+    console.error("Error editing email:", error)
+    return NextResponse.json({ error: "Failed to edit email" }, { status: 500 })
+  }
+}
+
+/**
  * DELETE /api/prospects/[id]/emails - Remove an email address
  * Body: { email: string }
  */

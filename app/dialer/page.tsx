@@ -57,6 +57,8 @@ import {
   MicOff,
   Loader2,
   MoreVertical,
+  Globe,
+  MapPin,
 } from "lucide-react"
 import { SendEmailDialog } from "@/components/send-email-dialog"
 import { Calendar } from "lucide-react"
@@ -128,6 +130,16 @@ type DialerProspect = {
     howToHelp: string
     angle: string
   }
+  accountInfo?: {
+    id: string
+    industry?: string | null
+    website?: string | null
+    employees?: number | null
+    location?: string | null
+    linkedin?: string | null
+    insights?: any
+    pov?: any
+  } | null
   priority?: string
   dueDate?: Date | string | null
   status?: string
@@ -1960,6 +1972,61 @@ export default function DialerPage() {
                               </div>
                             </div>
                           </div>
+
+                          {/* Account / Company Info */}
+                          {(slot.contact as any).accountInfo && (
+                            <div className="p-2 rounded-lg bg-blue-500/5 border border-blue-500/20">
+                              <div className="flex items-start gap-2">
+                                <Building2 className="h-3.5 w-3.5 text-blue-500 mt-0.5 flex-shrink-0" />
+                                <div className="flex-1">
+                                  <p className="text-xs font-medium text-foreground mb-1.5">Company Info — {slot.contact.company}</p>
+                                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                                    {(slot.contact as any).accountInfo.industry && (
+                                      <span>{(slot.contact as any).accountInfo.industry}</span>
+                                    )}
+                                    {(slot.contact as any).accountInfo.employees && (
+                                      <span>{(slot.contact as any).accountInfo.employees.toLocaleString()} employees</span>
+                                    )}
+                                    {(slot.contact as any).accountInfo.location && (
+                                      <span className="flex items-center gap-1">
+                                        <MapPin className="h-3 w-3" />
+                                        {(slot.contact as any).accountInfo.location}
+                                      </span>
+                                    )}
+                                    {(slot.contact as any).accountInfo.website && (
+                                      <a
+                                        href={(slot.contact as any).accountInfo.website.startsWith('http') ? (slot.contact as any).accountInfo.website : `https://${(slot.contact as any).accountInfo.website}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-1 text-blue-500 hover:underline"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        <Globe className="h-3 w-3" />
+                                        Website
+                                      </a>
+                                    )}
+                                  </div>
+                                  {/* Account Insights */}
+                                  {(slot.contact as any).accountInfo.insights && (
+                                    <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                                      {(slot.contact as any).accountInfo.insights.growth && (
+                                        <p><strong className="text-foreground">Growth:</strong> {(slot.contact as any).accountInfo.insights.growth}</p>
+                                      )}
+                                      {(slot.contact as any).accountInfo.insights.funding && (
+                                        <p><strong className="text-foreground">Funding:</strong> {(slot.contact as any).accountInfo.insights.funding}</p>
+                                      )}
+                                      {(slot.contact as any).accountInfo.insights.hiring && (
+                                        <p><strong className="text-foreground">Hiring:</strong> {(slot.contact as any).accountInfo.insights.hiring}</p>
+                                      )}
+                                      {(slot.contact as any).accountInfo.insights.techStack && (
+                                        <p><strong className="text-foreground">Tech:</strong> {(slot.contact as any).accountInfo.insights.techStack}</p>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          )}
 
                           {/* Point of View */}
                           {(slot.contact as any).pov && (

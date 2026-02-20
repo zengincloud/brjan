@@ -75,7 +75,7 @@ export async function getCurrentUser() {
     })
 
     // Notify Slack about new signup (fire-and-forget)
-    notifySlackNewUser(user).catch(() => {})
+    notifySlackNewUser(user, org.name).catch(() => {})
   } else {
     // For existing users: promote to super_admin if their email is in the list
     const shouldBeSuperAdmin = isSuperAdminEmail(user.email)
@@ -114,17 +114,18 @@ export async function requireAuth() {
   return user
 }
 
-export async function notifySlackNewUser(user: User) {
+export async function notifySlackNewUser(user: User, orgName?: string) {
   const url = process.env.SLACK_WEBHOOK_URL
   if (!url) return
 
   const name = [user.firstName, user.lastName].filter(Boolean).join(' ') || 'Unknown'
+  const company = orgName && !orgName.endsWith("'s Team") && orgName !== 'My Team' ? ` — ${orgName}` : ''
 
   await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      text: `🚀 New signup: *${name}* (${user.email})`,
+      text: `🚀 New signup: *${name}* (${user.email})${company}`,
     }),
   })
 }

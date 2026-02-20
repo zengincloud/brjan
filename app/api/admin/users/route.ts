@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { withSuperAdmin } from "@/lib/auth/api-middleware"
 import { TIER_CONFIG, type TierKey } from "@/lib/tier-config"
+import { createClient } from "@supabase/supabase-js"
 
 export const dynamic = "force-dynamic"
 
@@ -77,5 +78,54 @@ export const PATCH = withSuperAdmin(async (request: NextRequest, admin) => {
   } catch (error) {
     console.error("Error updating user:", error)
     return NextResponse.json({ error: "Failed to update user" }, { status: 500 })
+  }
+})
+
+// DELETE /api/admin/users - Permanently delete a user
+export const DELETE = withSuperAdmin(async (request: NextRequest, admin) => {
+  try {
+    const { searchParams } = new URL(request.url)
+    const userId = searchParams.get("userId")
+
+    if (!userId) {
+      return NextResponse.json({ error: "userId is required" }, { status: 400 })
+    }
+
+    if (userId === admin.id) {
+      return NextResponse.json({ error: "You cannot delete yourself" }, { status: 400 })
+    }
+
+    const targetUser = await prisma.user.findUnique({
+      where: { id: userId },
+    })
+
+    if (!targetUser) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 })
+    }
+
+    if (targetUser.role === "super_admin") {
+      return NextResponse.json({ error: "Cannot delete a super admin" }, { status: 403 })
+    }
+
+    // Delete from database (cascade handles related records)
+    await prisma.user.delete({
+      where: { id: userId },
+    })
+
+    // Delete from Supabase Auth
+    try {
+      const supabaseAdmin = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      )
+      await supabaseAdmin.auth.admin.deleteUser(targetUser.supabaseId)
+    } catch (err) {
+      console.error("Failed to delete Supabase auth user (DB user already deleted):", err)
+    }
+
+    return NextResponse.json({ message: "User permanently deleted" })
+  } catch (error) {
+    console.error("Error deleting user:", error)
+    return NextResponse.json({ error: "Failed to delete user" }, { status: 500 })
   }
 })

@@ -109,7 +109,7 @@ export async function requireAuth() {
   return user
 }
 
-async function notifySlackNewUser(user: User) {
+export async function notifySlackNewUser(user: User) {
   const url = process.env.SLACK_WEBHOOK_URL
   if (!url) return
 

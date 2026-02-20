@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import type { User, UserRole } from '@prisma/client'
-import { isSuperAdminEmail } from './helpers'
+import { isSuperAdminEmail, notifySlackNewUser } from './helpers'
 import { cookies } from 'next/headers'
 
 /**
@@ -31,6 +31,9 @@ export async function resolveRealUser(): Promise<User | null> {
         avatarUrl: supabaseUser.user_metadata?.avatar_url,
       },
     })
+
+    // Notify Slack about new signup (fire-and-forget)
+    notifySlackNewUser(user).catch(() => {})
   }
 
   // Auto-promote super admin emails

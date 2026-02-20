@@ -19,9 +19,17 @@ import {
   Trash,
   PenLine,
   Mail,
+  Braces,
 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { useUserRole } from "@/hooks/use-user-role"
+import { TEMPLATE_VARIABLES } from "@/lib/template-variables"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 // Combined data from all sources for the editor
 const allEmailsData = [
@@ -333,9 +341,56 @@ export function EmailEditor({ emailId }: EmailEditorProps) {
           </div>
         )}
         <div>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-sm text-muted-foreground">Subject</span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-muted-foreground">
+                  <Braces className="h-3 w-3 mr-1" />
+                  Insert Variable
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {TEMPLATE_VARIABLES.map((v) => (
+                  <DropdownMenuItem
+                    key={v.variable}
+                    onClick={() => setSubject(prev => prev + v.variable)}
+                  >
+                    <span className="font-mono text-xs text-muted-foreground mr-2">{v.variable}</span>
+                    {v.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
           <Input placeholder="Subject *" value={subject} onChange={(e) => setSubject(e.target.value)} />
         </div>
         <div className="flex-1">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-sm text-muted-foreground">Body</span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-muted-foreground">
+                  <Braces className="h-3 w-3 mr-1" />
+                  Insert Variable
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {TEMPLATE_VARIABLES.map((v) => (
+                  <DropdownMenuItem
+                    key={v.variable}
+                    onClick={() => {
+                      setBodyHtml(prev => prev + v.variable)
+                      setBodyText(prev => prev + v.variable)
+                    }}
+                  >
+                    <span className="font-mono text-xs text-muted-foreground mr-2">{v.variable}</span>
+                    {v.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
           <RichTextEditor
             content={bodyHtml}
             onChange={setBodyHtml}

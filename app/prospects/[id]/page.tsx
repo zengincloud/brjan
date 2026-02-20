@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { ArrowLeft, Mail, Phone, Linkedin, MapPin, Building, Briefcase, Calendar, Globe, Pencil, Zap, X, ClipboardList, Clock, ExternalLink, UserMinus, Loader2 } from "lucide-react"
+import { ArrowLeft, Mail, Phone, Linkedin, MapPin, Building, Briefcase, Calendar, Globe, Pencil, Zap, X, ClipboardList, Clock, ExternalLink, UserMinus, Loader2, Star, Plus, Trash2 } from "lucide-react"
+import { Input } from "@/components/ui/input"
 import { formatDistanceToNow } from "date-fns"
 
 function safeTimeAgo(dateStr: string | null | undefined): string {
@@ -87,6 +88,9 @@ export default function ProspectDetailPage() {
   const [removeSequenceDialogOpen, setRemoveSequenceDialogOpen] = useState(false)
   const [removingFromSequence, setRemovingFromSequence] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [showAddEmail, setShowAddEmail] = useState(false)
+  const [newEmail, setNewEmail] = useState("")
+  const [emailActionLoading, setEmailActionLoading] = useState(false)
 
   useEffect(() => {
     if (params.id) {
@@ -115,6 +119,69 @@ export default function ProspectDetailPage() {
     if (params.id) {
       loadProspect(params.id as string)
       setRefreshKey((prev) => prev + 1)
+    }
+  }
+
+  const addEmail = async () => {
+    if (!newEmail.trim() || !newEmail.includes("@")) {
+      toast.error("Enter a valid email address")
+      return
+    }
+    setEmailActionLoading(true)
+    try {
+      const response = await fetch(`/api/prospects/${params.id}/emails`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: newEmail.trim() }),
+      })
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || "Failed to add email")
+      }
+      toast.success("Email added")
+      setNewEmail("")
+      setShowAddEmail(false)
+      loadProspect(params.id as string)
+    } catch (error: any) {
+      toast.error(error.message || "Failed to add email")
+    } finally {
+      setEmailActionLoading(false)
+    }
+  }
+
+  const setPrimaryEmail = async (email: string) => {
+    setEmailActionLoading(true)
+    try {
+      const response = await fetch(`/api/prospects/${params.id}/emails`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      })
+      if (!response.ok) throw new Error("Failed to set primary")
+      toast.success(`${email} set as primary`)
+      loadProspect(params.id as string)
+    } catch {
+      toast.error("Failed to set primary email")
+    } finally {
+      setEmailActionLoading(false)
+    }
+  }
+
+  const removeEmail = async (email: string) => {
+    setEmailActionLoading(true)
+    try {
+      const response = await fetch(`/api/prospects/${params.id}/emails`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      })
+      if (!response.ok) throw new Error("Failed to remove email")
+      toast.success("Email removed")
+      loadProspect(params.id as string)
+    } catch {
+      toast.error("Failed to remove email")
+    } finally {
+      setEmailActionLoading(false)
     }
   }
 
@@ -256,39 +323,101 @@ export default function ProspectDetailPage() {
             <CardTitle>Contact Information</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {(wizaData.emails && wizaData.emails.length > 0) || prospect.email ? (
-              <div className="flex items-start gap-3">
-                <Mail className="h-5 w-5 text-muted-foreground mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-sm text-muted-foreground mb-1">
-                    {wizaData.emails && wizaData.emails.length > 1 ? "Emails" : "Email"}
-                  </p>
-                  <div className="space-y-1">
-                    {wizaData.emails && wizaData.emails.length > 0 ? (
-                      wizaData.emails.map((emailEntry: any, index: number) => {
-                        const emailAddr = typeof emailEntry === "string" ? emailEntry : emailEntry?.email || emailEntry
-                        return (
-                        <div key={index} className="flex items-center gap-2">
-                          <a href={`mailto:${emailAddr}`} className="text-sm font-medium hover:underline">
-                            {String(emailAddr)}
-                          </a>
-                          {index === 0 && wizaData.emails.length > 1 && (
-                            <Badge variant="secondary" className="text-xs">
-                              Primary
-                            </Badge>
-                          )}
-                        </div>
-                        )
-                      })
-                    ) : (
-                      <a href={`mailto:${prospect.email}`} className="text-sm font-medium hover:underline">
-                        {prospect.email}
-                      </a>
-                    )}
+            <div className="flex items-start gap-3">
+              <Mail className="h-5 w-5 text-muted-foreground mt-0.5" />
+              <div className="flex-1">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-sm text-muted-foreground">Emails</p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-xs"
+                    onClick={() => setShowAddEmail(!showAddEmail)}
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    Add
+                  </Button>
+                </div>
+
+                {showAddEmail && (
+                  <div className="flex items-center gap-2 mb-2">
+                    <Input
+                      type="email"
+                      placeholder="name@example.com"
+                      value={newEmail}
+                      onChange={(e) => setNewEmail(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && addEmail()}
+                      className="h-8 text-sm"
+                      autoFocus
+                    />
+                    <Button size="sm" className="h-8" onClick={addEmail} disabled={emailActionLoading}>
+                      Add
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-8" onClick={() => { setShowAddEmail(false); setNewEmail("") }}>
+                      <X className="h-3 w-3" />
+                    </Button>
                   </div>
+                )}
+
+                <div className="space-y-1">
+                  {(() => {
+                    // Build unified email list: primary first, then others from wizaData
+                    const allEmails: { email: string; isPrimary: boolean }[] = []
+                    const seen = new Set<string>()
+
+                    // Primary email first
+                    if (prospect.email) {
+                      allEmails.push({ email: prospect.email, isPrimary: true })
+                      seen.add(prospect.email.toLowerCase())
+                    }
+
+                    // Then wizaData emails
+                    if (wizaData.emails && Array.isArray(wizaData.emails)) {
+                      for (const entry of wizaData.emails) {
+                        const addr = typeof entry === "string" ? entry : entry?.email || ""
+                        if (addr && !seen.has(addr.toLowerCase())) {
+                          allEmails.push({ email: addr, isPrimary: false })
+                          seen.add(addr.toLowerCase())
+                        }
+                      }
+                    }
+
+                    if (allEmails.length === 0) {
+                      return <p className="text-sm text-muted-foreground italic">No emails added</p>
+                    }
+
+                    return allEmails.map(({ email, isPrimary }) => (
+                      <div key={email} className="flex items-center gap-2 group">
+                        <button
+                          onClick={() => !isPrimary && setPrimaryEmail(email)}
+                          disabled={isPrimary || emailActionLoading}
+                          className="shrink-0"
+                          title={isPrimary ? "Primary email" : "Set as primary"}
+                        >
+                          <Star className={`h-3.5 w-3.5 ${isPrimary ? "fill-yellow-500 text-yellow-500" : "text-muted-foreground/40 hover:text-yellow-500"}`} />
+                        </button>
+                        <a href={`mailto:${email}`} className="text-sm font-medium hover:underline flex-1 truncate">
+                          {email}
+                        </a>
+                        {isPrimary && (
+                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                            Primary
+                          </Badge>
+                        )}
+                        <button
+                          onClick={() => removeEmail(email)}
+                          disabled={emailActionLoading}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                          title="Remove email"
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                        </button>
+                      </div>
+                    ))
+                  })()}
                 </div>
               </div>
-            ) : null}
+            </div>
 
             {prospect.phone && (
               <div className="flex items-center gap-3">

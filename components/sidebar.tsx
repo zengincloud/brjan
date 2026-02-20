@@ -25,54 +25,28 @@ import {
   MessageSquare,
 } from "lucide-react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
+import { useUser } from "@/hooks/use-user"
 
 export function Sidebar({ className }: { className?: string }) {
   const [isActivityOpen, setIsActivityOpen] = useState(false)
-  const [userRole, setUserRole] = useState<string | null>(null)
-  const [userData, setUserData] = useState<{
-    firstName: string | null; lastName: string | null; email: string
-  } | null>(null)
-  const [creditStatus, setCreditStatus] = useState<{
-    tier: string; label: string; creditsUsed: number; creditsTotal: number; creditsRemaining: number
-  } | null>(null)
+  const { user, creditStatus, userRole } = useUser()
   const pathname = usePathname()
 
-  useEffect(() => {
-    fetch("/api/auth/user")
-      .then((r) => r.ok ? r.json() : null)
-      .then((data) => {
-        if (data?.user) {
-          setUserRole(data.user.role)
-          setUserData({
-            firstName: data.user.firstName,
-            lastName: data.user.lastName,
-            email: data.user.email,
-          })
-        }
-      })
-      .catch(() => {})
-
-    fetch("/api/credits")
-      .then((r) => r.ok ? r.json() : null)
-      .then((data) => { if (data) setCreditStatus(data) })
-      .catch(() => {})
-  }, [])
-
   const getInitials = () => {
-    if (userData?.firstName && userData?.lastName) return `${userData.firstName[0]}${userData.lastName[0]}`
-    if (userData?.firstName) return userData.firstName[0]
-    if (userData?.email) return userData.email[0].toUpperCase()
+    if (user?.firstName && user?.lastName) return `${user.firstName[0]}${user.lastName[0]}`
+    if (user?.firstName) return user.firstName[0]
+    if (user?.email) return user.email[0].toUpperCase()
     return "?"
   }
 
   const getDisplayName = () => {
-    if (userData?.firstName && userData?.lastName) return `${userData.firstName} ${userData.lastName}`
-    if (userData?.firstName) return userData.firstName
-    return userData?.email || ""
+    if (user?.firstName && user?.lastName) return `${user.firstName} ${user.lastName}`
+    if (user?.firstName) return user.firstName
+    return user?.email || ""
   }
 
   return (

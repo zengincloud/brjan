@@ -1,7 +1,6 @@
 "use client"
 
 import { Card, CardContent } from "@/components/ui/card"
-import { formatDistanceToNow } from "date-fns"
 import {
   Phone,
   Mail,
@@ -9,7 +8,6 @@ import {
   TrendingUp,
   Calendar,
 } from "lucide-react"
-import { useEffect, useState } from "react"
 import { useUserRole } from "@/hooks/use-user-role"
 import { useDashboardStats } from "@/hooks/use-dashboard-stats"
 
@@ -21,75 +19,9 @@ const demoQuickStats = [
   { label: "Meetings Booked", value: "8", change: "+3", icon: Calendar, trend: "up" },
 ]
 
-type ApiTask = {
-  id: string
-  title: string
-  description: string
-  type: string
-  status: string
-  priority: string
-  dueDate: string | null
-  createdAt: string
-  contact?: unknown
-  company?: unknown
-}
-
-type UpcomingTask = {
-  task: string
-  time: string
-  priority: string
-}
-
-const formatDueTime = (dueDate: string | null) => {
-  if (!dueDate) return "unscheduled"
-  return formatDistanceToNow(new Date(dueDate), { addSuffix: true })
-}
-
 export function DashboardOverview() {
   const { isSuperAdmin } = useUserRole()
   const { stats } = useDashboardStats()
-  const [upcomingTasks, setUpcomingTasks] = useState<UpcomingTask[]>([])
-  const [upcomingLoading, setUpcomingLoading] = useState(true)
-  const [upcomingError, setUpcomingError] = useState<string | null>(null)
-
-  useEffect(() => {
-    let isMounted = true
-
-    const loadUpcomingTasks = async () => {
-      try {
-        setUpcomingLoading(true)
-        setUpcomingError(null)
-        const response = await fetch("/api/tasks?view=upcoming")
-        if (!response.ok) {
-          throw new Error("Failed to load upcoming tasks")
-        }
-        const data = (await response.json()) as { tasks: ApiTask[] }
-        const nextTasks = data.tasks.slice(0, 3).map((task) => ({
-          task: task.title,
-          time: formatDueTime(task.dueDate),
-          priority: task.priority,
-        }))
-        if (isMounted) {
-          setUpcomingTasks(nextTasks)
-        }
-      } catch (error) {
-        console.error(error)
-        if (isMounted) {
-          setUpcomingError("Failed to load tasks")
-        }
-      } finally {
-        if (isMounted) {
-          setUpcomingLoading(false)
-        }
-      }
-    }
-
-    loadUpcomingTasks()
-
-    return () => {
-      isMounted = false
-    }
-  }, [])
 
   // Build quick stats from real data or demo data
   const quickStats = isSuperAdmin

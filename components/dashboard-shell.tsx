@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Sidebar } from "@/components/sidebar"
 import { ImpersonationBanner } from "@/components/impersonation-banner"
 import { Menu, Mail, Phone, Search, Bell, Zap } from "lucide-react"
+import { UserProvider, useUser } from "@/hooks/use-user"
 import { UserRoleProvider } from "@/hooks/use-user-role"
 import { DashboardStatsProvider } from "@/hooks/use-dashboard-stats"
 import { Input } from "@/components/ui/input"
@@ -24,26 +25,36 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Badge } from "@/components/ui/badge"
 import { createClient } from "@/lib/supabase/client"
 
-interface User {
-  id: string
-  email: string
-  firstName: string | null
-  lastName: string | null
-  avatarUrl: string | null
-}
-
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
-  const { toast } = useToast()
-  const [isSearchOpen, setIsSearchOpen] = useState(false)
-  const [user, setUser] = useState<User | null>(null)
-  const router = useRouter()
-  const supabase = createClient()
 
   // Auth pages that should not have the dashboard shell
   const authPages = ['/login', '/signup', '/reset-password', '/auth/callback']
   const isAuthPage = authPages.some(page => pathname?.startsWith(page))
+
+  if (isAuthPage) {
+    return <>{children}</>
+  }
+
+  return (
+    <UserProvider>
+      <UserRoleProvider>
+        <DashboardStatsProvider>
+          <DashboardShellInner>{children}</DashboardShellInner>
+        </DashboardStatsProvider>
+      </UserRoleProvider>
+    </UserProvider>
+  )
+}
+
+function DashboardShellInner({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname()
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const { toast } = useToast()
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const { user } = useUser()
+  const router = useRouter()
+  const supabase = createClient()
 
   const handleCall = () => {
     toast({
@@ -58,23 +69,6 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       description: "Opening email composer...",
     })
   }
-
-  useEffect(() => {
-    // Fetch current user
-    const fetchUser = async () => {
-      try {
-        const response = await fetch('/api/auth/user')
-        if (response.ok) {
-          const data = await response.json()
-          setUser(data.user)
-        }
-      } catch (error) {
-        console.error('Error fetching user:', error)
-      }
-    }
-
-    fetchUser()
-  }, [])
 
   const handleLogout = async () => {
     try {
@@ -132,14 +126,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     return user.email
   }
 
-  // If on auth page, just render children without shell
-  if (isAuthPage) {
-    return <>{children}</>
-  }
-
   return (
-    <UserRoleProvider>
-    <DashboardStatsProvider>
     <div className="flex h-screen bg-background">
       {/* Sidebar */}
       <Sidebar className={`w-64 border-r border-border lg:block ${isSidebarOpen ? "block" : "hidden"}`} />
@@ -292,7 +279,5 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         <main className="flex-1 overflow-auto p-6">{children}</main>
       </div>
     </div>
-    </DashboardStatsProvider>
-    </UserRoleProvider>
   )
 }

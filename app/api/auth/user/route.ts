@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { withAuth, resolveRealUser } from '@/lib/auth/api-middleware'
 import { prisma } from '@/lib/prisma'
 import { cookies } from 'next/headers'
+import { getCreditStatus } from '@/lib/credits'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,16 +35,21 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    // Check if we're impersonating (only super_admin can impersonate)
-    let isImpersonating = false
-    const realUser = await resolveRealUser()
-    if (realUser && realUser.role === 'super_admin' && realUser.id !== userId) {
-      const cookieStore = await cookies()
-      const impersonatingId = cookieStore.get('impersonating_user_id')?.value
-      isImpersonating = !!impersonatingId && impersonatingId === userId
-    }
+    // Fetch impersonation status and credit status in parallel
+    const [impersonationResult, creditStatus] = await Promise.all([
+      (async () => {
+        const realUser = await resolveRealUser()
+        if (realUser && realUser.role === 'super_admin' && realUser.id !== userId) {
+          const cookieStore = await cookies()
+          const impersonatingId = cookieStore.get('impersonating_user_id')?.value
+          return !!impersonatingId && impersonatingId === userId
+        }
+        return false
+      })(),
+      getCreditStatus(userId).catch(() => null),
+    ])
 
-    return NextResponse.json({ user, isImpersonating })
+    return NextResponse.json({ user, isImpersonating: impersonationResult, creditStatus })
   } catch (error) {
     console.error('Error fetching user:', error)
     return NextResponse.json(

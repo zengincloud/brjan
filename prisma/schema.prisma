@@ -113,6 +113,9 @@ model Task {
   events      Event[]
 
   @@index([userId])
+  @@index([userId, status])
+  @@index([userId, dueDate])
+  @@index([userId, type, createdAt])
   @@map("tasks")
 }
 
@@ -151,6 +154,7 @@ model Prospect {
 
   @@unique([userId, email])
   @@index([userId])
+  @@index([userId, status])
   @@map("prospects")
 }
 
@@ -210,6 +214,7 @@ model Email {
   user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([userId, status, sentAt])
   @@map("emails")
 }
 
@@ -241,6 +246,7 @@ model Call {
   account              Account?    @relation(fields: [accountId], references: [id], onDelete: SetNull)
 
   @@index([userId])
+  @@index([userId, createdAt])
   @@index([prospectId])
   @@index([accountId])
   @@map("calls")

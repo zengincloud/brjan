@@ -46,8 +46,13 @@ export async function getCurrentUser() {
 
   if (!user) {
     const email = supabaseUser.email!
-    const firstName = supabaseUser.user_metadata?.firstName || null
-    const orgName = supabaseUser.user_metadata?.organizationName || null
+    const metadata = supabaseUser.user_metadata || {}
+    // For Google OAuth, parse the full name into first/last as a fallback
+    const googleName = metadata.name || metadata.full_name || ''
+    const [googleFirst, ...googleLastParts] = googleName.split(' ')
+    const firstName = metadata.firstName || googleFirst || null
+    const lastName = metadata.lastName || googleLastParts.join(' ') || null
+    const orgName = metadata.organizationName || null
     const isSuperEmail = isSuperAdminEmail(email)
 
     // Auto-create an organization for every new user
@@ -62,8 +67,8 @@ export async function getCurrentUser() {
         supabaseId: supabaseUser.id,
         email,
         firstName,
-        lastName: supabaseUser.user_metadata?.lastName,
-        avatarUrl: supabaseUser.user_metadata?.avatar_url,
+        lastName,
+        avatarUrl: metadata.avatar_url,
         organizationId: org.id,
         role: isSuperEmail ? 'super_admin' : 'owner',
       },

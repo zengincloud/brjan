@@ -22,13 +22,17 @@ export async function resolveRealUser(): Promise<User | null> {
   })
 
   if (!user) {
+    const metadata = supabaseUser.user_metadata || {}
+    const googleName = metadata.name || metadata.full_name || ''
+    const [googleFirst, ...googleLastParts] = googleName.split(' ')
+
     user = await prisma.user.create({
       data: {
         supabaseId: supabaseUser.id,
         email: supabaseUser.email!,
-        firstName: supabaseUser.user_metadata?.firstName,
-        lastName: supabaseUser.user_metadata?.lastName,
-        avatarUrl: supabaseUser.user_metadata?.avatar_url,
+        firstName: metadata.firstName || googleFirst || null,
+        lastName: metadata.lastName || googleLastParts.join(' ') || null,
+        avatarUrl: metadata.avatar_url,
       },
     })
 

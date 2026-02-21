@@ -19,13 +19,22 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         id: params.id,
         userId: user.id,
       },
+      include: {
+        _count: { select: { prospects: true } },
+      },
     })
 
     if (!account) {
       return NextResponse.json({ error: "Account not found" }, { status: 404 })
     }
 
-    return NextResponse.json({ account })
+    return NextResponse.json({
+      account: {
+        ...account,
+        contacts: account._count.prospects,
+        _count: undefined,
+      },
+    })
   } catch (error) {
     console.error("Error fetching account:", error)
     return NextResponse.json({ error: "Failed to fetch account" }, { status: 500 })

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { withExtensionAuth } from "@/lib/auth/extension-middleware"
 import { checkCredits, deductCredits } from "@/lib/credits"
+import { findOrCreateAccount } from "@/lib/account-linking"
 
 export const dynamic = 'force-dynamic'
 
@@ -32,20 +33,17 @@ export const POST = withExtensionAuth(async (request: NextRequest, userId: strin
       return NextResponse.json({ error: creditCheck.error }, { status: 403 })
     }
 
-    // If there's a company name, find the matching Account to use its exact name
-    // so the prospect auto-links via case-insensitive company match.
+    // Auto-link or create account for company
+    const accountId = company ? await findOrCreateAccount(userId, company) : null
+
+    // If linked to an existing account, use its exact name
     let resolvedCompany = company
-    if (company) {
-      const matchedAccount = await prisma.account.findFirst({
-        where: {
-          userId,
-          name: { equals: company, mode: "insensitive" },
-        },
+    if (accountId) {
+      const account = await prisma.account.findUnique({
+        where: { id: accountId },
         select: { name: true },
       })
-      if (matchedAccount) {
-        resolvedCompany = matchedAccount.name
-      }
+      if (account) resolvedCompany = account.name
     }
 
     // Generate basic POV data
@@ -70,6 +68,7 @@ export const POST = withExtensionAuth(async (request: NextRequest, userId: strin
         status: "new_lead",
         wizaData,
         ...(povData && { povData }),
+        ...(accountId && { accountId }),
         userId,
       },
     })

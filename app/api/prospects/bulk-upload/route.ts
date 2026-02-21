@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { withAuth } from "@/lib/auth/api-middleware"
 import { prisma } from "@/lib/prisma"
 import { checkCredits, deductCredits } from "@/lib/credits"
+import { findOrCreateAccount } from "@/lib/account-linking"
 import Papa from "papaparse"
 
 export const dynamic = 'force-dynamic'
@@ -104,6 +105,9 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       return NextResponse.json({ error: creditCheck.error }, { status: 403 })
     }
 
+    // Build a cache of company -> accountId to avoid repeated lookups
+    const accountCache = new Map<string, string | null>()
+
     // Insert prospects in batch, checking credits before each
     let created = 0
     const duplicates: string[] = []
@@ -117,9 +121,24 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
         break
       }
 
+      // Auto-link or create account for company
+      let accountId: string | null = null
+      if (prospect.company) {
+        const cacheKey = prospect.company.toLowerCase()
+        if (accountCache.has(cacheKey)) {
+          accountId = accountCache.get(cacheKey)!
+        } else {
+          accountId = await findOrCreateAccount(userId, prospect.company)
+          accountCache.set(cacheKey, accountId)
+        }
+      }
+
       try {
         await prisma.prospect.create({
-          data: prospect,
+          data: {
+            ...prospect,
+            ...(accountId && { accountId }),
+          },
         })
         await deductCredits(userId)
         created++

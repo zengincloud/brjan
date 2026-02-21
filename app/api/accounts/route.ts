@@ -36,9 +36,19 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
     const accounts = await prisma.account.findMany({
       where,
       orderBy: { lastActivity: "desc" },
+      include: {
+        _count: { select: { prospects: true } },
+      },
     })
 
-    return NextResponse.json({ accounts })
+    // Map _count.prospects to the contacts field for backwards compatibility
+    const accountsWithCounts = accounts.map((a) => ({
+      ...a,
+      contacts: a._count.prospects,
+      _count: undefined,
+    }))
+
+    return NextResponse.json({ accounts: accountsWithCounts })
   } catch (error) {
     console.error("Error fetching accounts:", error)
     return NextResponse.json({ error: "Failed to fetch accounts" }, { status: 500 })

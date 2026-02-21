@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { createClient } from "@/lib/supabase/server"
+import { findMatchingAccount } from "@/lib/account-linking"
 
 export const dynamic = 'force-dynamic'
 
@@ -28,6 +29,9 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         userId: user.id, // Verify ownership
       },
       include: {
+        account: {
+          select: { id: true, name: true },
+        },
         prospectSequences: {
           where: { status: 'active' },
           include: {
@@ -99,7 +103,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     }
 
     const body = await request.json()
-    const { name, email, phone, title, company, location, linkedin, status } = body
+    const { name, email, phone, title, company, location, linkedin, status, accountId: explicitAccountId } = body
 
     // Check if prospect exists and belongs to user
     const existingProspect = await prisma.prospect.findFirst({
@@ -132,6 +136,27 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       }
     }
 
+    // Resolve accountId: explicit accountId takes priority, otherwise auto-match by company name
+    let resolvedAccountId = existingProspect.accountId
+    if (explicitAccountId !== undefined) {
+      // Explicit link/unlink: null means unlink, string means link
+      resolvedAccountId = explicitAccountId || null
+      // If linking to an account, also update the company name to match
+      if (resolvedAccountId) {
+        const linkedAccount = await prisma.account.findFirst({
+          where: { id: resolvedAccountId, userId: user.id },
+          select: { name: true },
+        })
+        if (linkedAccount) {
+          body.company = linkedAccount.name
+        }
+      }
+    } else if (company && company !== existingProspect.company) {
+      // Company changed — try to auto-match to an account
+      const matchedAccount = await findMatchingAccount(user.id, company)
+      resolvedAccountId = matchedAccount?.id || null
+    }
+
     // Update prospect
     const updatedProspect = await prisma.prospect.update({
       where: { id: params.id },
@@ -140,10 +165,11 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         email,
         phone: phone || null,
         title: title || null,
-        company: company || null,
+        company: body.company || company || null,
         location: location || null,
         linkedin: linkedin || null,
         status: status || existingProspect.status,
+        accountId: resolvedAccountId,
         updatedAt: new Date(),
       },
     })

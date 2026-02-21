@@ -147,6 +147,8 @@ model Prospect {
   updatedAt    DateTime       @updatedAt
   userId            String
   user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId         String?
+  account           Account?           @relation(fields: [accountId], references: [id], onDelete: SetNull)
   calls             Call[]
   prospectSequences ProspectSequence[]
   trackedEmails     TrackedEmail[]
@@ -155,6 +157,7 @@ model Prospect {
   @@unique([userId, email])
   @@index([userId])
   @@index([userId, status])
+  @@index([accountId])
   @@map("prospects")
 }
 
@@ -179,6 +182,7 @@ model Account {
   updatedAt    DateTime      @updatedAt
   userId           String
   user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prospects        Prospect[]
   calls            Call[]
   accountSequences AccountSequence[]
 

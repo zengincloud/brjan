@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { withAuth } from "@/lib/auth/api-middleware"
 import { checkCredits, deductCredits } from "@/lib/credits"
+import { findOrCreateAccount } from "@/lib/account-linking"
 
 export const dynamic = 'force-dynamic'
 
@@ -129,6 +130,9 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       buyerIntent: wizaData?.buyerIntent,
     })
 
+    // Auto-link or create account for company
+    const accountId = company ? await findOrCreateAccount(userId, company) : null
+
     const prospect = await prisma.prospect.create({
       data: {
         name,
@@ -142,8 +146,9 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
         sequence,
         sequenceStep,
         wizaData,
-        ...(povData && { povData }), // Include generated POV data if not null
-        userId, // Associate with current user
+        ...(povData && { povData }),
+        ...(accountId && { accountId }),
+        userId,
       },
     })
 

@@ -56,6 +56,11 @@ type CurrentStepDetails = {
   sequenceName: string
 }
 
+type AccountLink = {
+  id: string
+  name: string
+}
+
 type Prospect = {
   id: string
   name: string
@@ -73,6 +78,8 @@ type Prospect = {
   povData?: POVData | null
   lastActivity: string
   createdAt: string
+  accountId?: string | null
+  account?: AccountLink | null
 }
 
 export default function ProspectDetailPage() {
@@ -94,6 +101,10 @@ export default function ProspectDetailPage() {
   const [editingEmail, setEditingEmail] = useState<string | null>(null)
   const [editEmailValue, setEditEmailValue] = useState("")
   const [enriching, setEnriching] = useState(false)
+  const [editingAccount, setEditingAccount] = useState(false)
+  const [accountSearch, setAccountSearch] = useState("")
+  const [accountResults, setAccountResults] = useState<AccountLink[]>([])
+  const [accountSearchLoading, setAccountSearchLoading] = useState(false)
 
   useEffect(() => {
     if (params.id) {
@@ -246,6 +257,53 @@ export default function ProspectDetailPage() {
       toast.error(error.message || "Failed to enrich prospect")
     } finally {
       setEnriching(false)
+    }
+  }
+
+  const searchAccounts = async (query: string) => {
+    setAccountSearch(query)
+    if (query.length < 1) {
+      setAccountResults([])
+      return
+    }
+    setAccountSearchLoading(true)
+    try {
+      const response = await fetch(`/api/accounts?search=${encodeURIComponent(query)}`)
+      if (response.ok) {
+        const data = await response.json()
+        setAccountResults((data.accounts || []).map((a: any) => ({ id: a.id, name: a.name })))
+      }
+    } catch {
+      // ignore
+    } finally {
+      setAccountSearchLoading(false)
+    }
+  }
+
+  const linkToAccount = async (accountId: string | null) => {
+    try {
+      const response = await fetch(`/api/prospects/${params.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: prospect!.name,
+          email: prospect!.email,
+          phone: prospect!.phone,
+          title: prospect!.title,
+          company: prospect!.company,
+          location: prospect!.location,
+          linkedin: prospect!.linkedin,
+          accountId,
+        }),
+      })
+      if (!response.ok) throw new Error("Failed to update")
+      toast.success(accountId ? "Linked to account" : "Unlinked from account")
+      setEditingAccount(false)
+      setAccountSearch("")
+      setAccountResults([])
+      loadProspect(params.id as string)
+    } catch {
+      toast.error("Failed to update account link")
     }
   }
 
@@ -629,12 +687,74 @@ export default function ProspectDetailPage() {
               </div>
             )}
 
-            {prospect.company && (
+            {(prospect.company || prospect.account) && (
               <div className="flex items-start gap-3">
                 <Building className="h-5 w-5 text-muted-foreground mt-0.5" />
-                <div>
+                <div className="flex-1">
                   <p className="text-sm text-muted-foreground">Current Company</p>
-                  <p className="text-sm font-medium">{prospect.company}</p>
+                  {editingAccount ? (
+                    <div className="space-y-2 mt-1">
+                      <Input
+                        value={accountSearch}
+                        onChange={(e) => searchAccounts(e.target.value)}
+                        placeholder="Search accounts..."
+                        className="h-8 text-sm"
+                        autoFocus
+                      />
+                      {accountResults.length > 0 && (
+                        <div className="border rounded-md max-h-40 overflow-y-auto">
+                          {accountResults.map((a) => (
+                            <button
+                              key={a.id}
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors"
+                              onClick={() => linkToAccount(a.id)}
+                            >
+                              {a.name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {accountSearch.length > 0 && accountResults.length === 0 && !accountSearchLoading && (
+                        <p className="text-xs text-muted-foreground">No accounts found</p>
+                      )}
+                      <div className="flex gap-2">
+                        {prospect.account && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs text-destructive hover:text-destructive"
+                            onClick={() => linkToAccount(null)}
+                          >
+                            Unlink
+                          </Button>
+                        )}
+                        <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => { setEditingAccount(false); setAccountSearch(""); setAccountResults([]) }}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      {prospect.account ? (
+                        <button
+                          className="text-sm font-medium text-primary hover:underline cursor-pointer"
+                          onClick={() => router.push(`/accounts/${prospect.account!.id}`)}
+                        >
+                          {prospect.account.name}
+                        </button>
+                      ) : (
+                        <p className="text-sm font-medium">{prospect.company}</p>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => setEditingAccount(true)}
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

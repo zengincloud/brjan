@@ -166,7 +166,7 @@ export function SequencesList() {
             {processing ? "Processing..." : "Process Sequences"}
           </Button>
           <Button
-            className="gap-2 bg-accent hover:bg-accent/90"
+            className="gap-2 bg-green-600 hover:bg-green-700 text-white"
             onClick={() => router.push("/sequences/new")}
           >
             <Plus className="h-4 w-4" />
@@ -201,8 +201,8 @@ export function SequencesList() {
                 <Card
                   key={sequence.id}
                   className={cn(
-                    "border-border bg-card overflow-hidden transition-all hover:border-accent/30 cursor-pointer",
-                    sequence.status === "active" && "border-l-2 border-l-accent"
+                    "border-border bg-card overflow-hidden transition-all hover:border-green-500/30 cursor-pointer",
+                    sequence.status === "active" && "border-l-2 border-l-green-500"
                   )}
                   onClick={() => router.push(`/sequences/${sequence.id}`)}
                 >
@@ -212,7 +212,7 @@ export function SequencesList() {
                       <div
                         className={cn(
                           "w-2.5 h-2.5 rounded-full",
-                          sequence.status === "active" ? "bg-accent" : "bg-yellow-500"
+                          sequence.status === "active" ? "bg-green-500" : "bg-yellow-500"
                         )}
                       />
                     </div>
@@ -225,13 +225,13 @@ export function SequencesList() {
                         className={cn(
                           "border-0 gap-1",
                           sequence.status === "active"
-                            ? "bg-accent/20 text-accent"
-                            : "bg-yellow-500/20 text-yellow-600"
+                            ? "bg-green-500/20 text-green-500"
+                            : "bg-yellow-500/20 text-yellow-500"
                         )}
                       >
                         {sequence.status === "active" ? (
                           <>
-                            <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
                             Active
                           </>
                         ) : (
@@ -257,7 +257,7 @@ export function SequencesList() {
                       {/* Left: Steps Visualization */}
                       <div className="lg:col-span-5">
                         <div className="flex items-center gap-2 mb-3">
-                          <Zap className="w-4 h-4 text-accent" />
+                          <Zap className="w-4 h-4 text-green-500" />
                           <span className="text-sm font-medium">Sequence Steps</span>
                         </div>
                         {sequence.steps.length > 0 ? (
@@ -287,11 +287,11 @@ export function SequencesList() {
                             <div className="text-sm font-semibold">{sequence.stats.completed}</div>
                             <div className="text-[10px] text-muted-foreground">Completed</div>
                           </div>
-                          <div className="p-2 rounded-lg bg-accent/10 text-center">
-                            <div className="flex items-center justify-center gap-1 text-accent mb-1">
+                          <div className="p-2 rounded-lg bg-green-500/10 text-center">
+                            <div className="flex items-center justify-center gap-1 text-green-500 mb-1">
                               <Users className="w-3 h-3" />
                             </div>
-                            <div className="text-sm font-semibold text-accent">
+                            <div className="text-sm font-semibold text-green-500">
                               {sequence.stats.total}
                             </div>
                             <div className="text-[10px] text-muted-foreground">Total</div>
@@ -321,13 +321,13 @@ export function SequencesList() {
                       {/* Right: Prospects & Actions */}
                       <div className="lg:col-span-3">
                         <div className="flex items-center gap-2 mb-3">
-                          <Users className="w-4 h-4 text-accent" />
+                          <Users className="w-4 h-4 text-green-500" />
                           <span className="text-sm font-medium">Prospects</span>
                         </div>
 
                         <div className="space-y-2 mb-4">
                           <div className="flex items-center gap-2 text-sm">
-                            <Play className="h-3 w-3 text-accent" />
+                            <Play className="h-3 w-3 text-green-500" />
                             <span className="flex-1">Active</span>
                             <span className="font-medium">{sequence.stats.active}</span>
                           </div>
@@ -360,8 +360,8 @@ export function SequencesList() {
                             className={cn(
                               "flex-1 text-xs",
                               sequence.status === "active"
-                                ? "bg-yellow-500/20 text-yellow-600 hover:bg-yellow-500/30"
-                                : "bg-accent hover:bg-accent/90"
+                                ? "bg-yellow-500/20 text-yellow-500 hover:bg-yellow-500/30"
+                                : "bg-green-600 text-white hover:bg-green-700"
                             )}
                             onClick={(e) => {
                               e.stopPropagation()

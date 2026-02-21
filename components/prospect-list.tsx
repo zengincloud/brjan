@@ -33,14 +33,10 @@ type Prospect = {
   lastActivity: string
 }
 
-// Available sequences
-const sequences = [
-  { id: "enterprise-outreach", name: "Enterprise Outreach" },
-  { id: "smb-follow-up", name: "SMB Follow-up" },
-  { id: "sales-leaders", name: "Sales Leaders" },
-  { id: "product-demo", name: "Product Demo Request" },
-  { id: "new-lead", name: "New Lead Welcome" },
-]
+type SequenceOption = {
+  id: string
+  name: string
+}
 
 export function ProspectList() {
   const router = useRouter()
@@ -60,10 +56,24 @@ export function ProspectList() {
   const [quickEditId, setQuickEditId] = useState<string | null>(null)
   const [quickEditData, setQuickEditData] = useState({ email: "", phone: "" })
   const [quickEditSaving, setQuickEditSaving] = useState(false)
+  const [sequences, setSequences] = useState<SequenceOption[]>([])
 
   useEffect(() => {
     loadProspects()
+    loadSequences()
   }, [])
+
+  const loadSequences = async () => {
+    try {
+      const response = await fetch("/api/sequences")
+      if (response.ok) {
+        const data = await response.json()
+        setSequences((data.sequences || []).map((s: any) => ({ id: s.id, name: s.name })))
+      }
+    } catch (error) {
+      console.error("Error loading sequences:", error)
+    }
+  }
 
   const loadProspects = async () => {
     try {
@@ -99,7 +109,7 @@ export function ProspectList() {
       (prospect.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (prospect.company?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
         prospect.email.toLowerCase().includes(searchTerm.toLowerCase())) &&
-      (selectedSequence === "" || prospect.sequence === sequences.find((s) => s.id === selectedSequence)?.name),
+      (selectedSequence === "" || selectedSequence === "all" || prospect.sequence === sequences.find((s) => s.id === selectedSequence)?.name),
   )
 
   const handleAction = (action: string, name: string) => {
@@ -216,56 +226,55 @@ export function ProspectList() {
             className="max-w-sm"
           />
         </div>
-        <div className="flex items-center gap-2">
-          <Select value={selectedSequence} onValueChange={setSelectedSequence}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Filter by sequence" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Sequences</SelectItem>
-              {sequences.map((sequence) => (
-                <SelectItem key={sequence.id} value={sequence.id}>
-                  {sequence.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button variant="outline">
-            <Filter className="mr-2 h-4 w-4" />
-            More Filters
-          </Button>
-          <Button variant="outline" onClick={() => setUploadDialogOpen(true)}>
-            <Upload className="mr-2 h-4 w-4" />
-            Upload CSV
-          </Button>
-          <Button onClick={() => setAddDialogOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Prospect
-          </Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          {selectedRows.length > 0 ? (
+            <>
+              <Badge variant="secondary" className="text-sm px-3 py-1">
+                {selectedRows.length} selected
+              </Badge>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setSequenceDialogOpen(true)}
+              >
+                <Zap className="h-4 w-4 mr-2" />
+                Add to Sequence
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setSelectedRows([])}
+              >
+                Clear
+              </Button>
+            </>
+          ) : (
+            <>
+              <Select value={selectedSequence} onValueChange={setSelectedSequence}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Filter by sequence" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Sequences</SelectItem>
+                  {sequences.map((sequence) => (
+                    <SelectItem key={sequence.id} value={sequence.id}>
+                      {sequence.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button variant="outline" onClick={() => setUploadDialogOpen(true)}>
+                <Upload className="mr-2 h-4 w-4" />
+                Upload CSV
+              </Button>
+              <Button onClick={() => setAddDialogOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Prospect
+              </Button>
+            </>
+          )}
         </div>
       </div>
-
-      {/* Bulk action bar */}
-      {selectedRows.length > 0 && (
-        <div className="flex items-center gap-3 p-3 rounded-lg border bg-primary/5 border-primary/20">
-          <span className="text-sm font-medium">{selectedRows.length} selected</span>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setSequenceDialogOpen(true)}
-          >
-            <Zap className="h-4 w-4 mr-2" />
-            Add to Sequence
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => setSelectedRows([])}
-          >
-            Clear selection
-          </Button>
-        </div>
-      )}
 
       <Table>
         <TableHeader>

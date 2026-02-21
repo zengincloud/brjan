@@ -67,11 +67,14 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
     const errors: string[] = []
 
     for (const [index, row] of (results.data as any[]).entries()) {
-      const name = row.name || row.Name
-      const email = row.email || row.Email
-      const title = row.title || row.Title || null
-      const company = row.company || row.Company || null
-      const phone = row.phone || row.Phone || null
+      const name = row.name || row.Name || row.NAME || row["Full Name"] || row["full name"] || null
+      const email = row.email || row.Email || row.EMAIL || row["Email Address"] || row["email address"] || null
+      const title = row.title || row.Title || row.TITLE || row["Job Title"] || row["job title"] || null
+      const company = row.company || row.Company || row.COMPANY || row["Company Name"] || row["company name"] || row.organization || row.Organization || null
+      const phone = row.phone || row.Phone || row.PHONE || row["Phone Number"] || row["phone number"] || row.mobile || row.Mobile || null
+      const location = row.location || row.Location || row.LOCATION || row.city || row.City || row["Company HQ"] || row["company hq"] || row.headquarters || row.Headquarters || null
+      const linkedin = row.linkedin || row.LinkedIn || row.LINKEDIN || row["LinkedIn URL"] || row["linkedin url"] || row["LinkedIn Profile"] || null
+      const industry = row.industry || row.Industry || row.INDUSTRY || null
 
       if (!name || !email) {
         errors.push(`Row ${index + 1}: Missing required fields (name, email)`)
@@ -81,13 +84,31 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       // Generate POV data for this prospect
       const povData = generatePOVData({ name, title, company })
 
+      // Store extra data in wizaData if available
+      const wizaData: any = {}
+      if (industry) wizaData.companyIndustry = industry
+      // Check for employee count in CSV
+      const employeesRaw = row.employees || row.Employees || row.EMPLOYEES || row["Employee Count"] || row["employee count"] || null
+      if (employeesRaw) wizaData.companySize = employeesRaw
+      // Check for company phone
+      const companyPhone = row["Company Phone"] || row["company phone"] || row["Company Number"] || null
+      if (companyPhone) wizaData.companyPhone = companyPhone
+      // Check for company website
+      const website = row.website || row.Website || row.WEBSITE || row["Company Website"] || null
+      if (website) wizaData.companyWebsite = website
+
+      const hasWizaData = Object.keys(wizaData).length > 0
+
       prospects.push({
         name,
         email,
         title,
         company,
         phone,
+        location,
+        linkedin,
         ...(povData && { povData }),
+        ...(hasWizaData && { wizaData }),
         userId,
       })
     }

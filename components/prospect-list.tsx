@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
-import { Mail, Pencil, Phone, Filter, ChevronDown, Upload, Plus, Check, X } from "lucide-react"
+import { Mail, Pencil, Phone, Filter, ChevronDown, Upload, Plus, Check, X, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -16,6 +16,7 @@ import { UploadProspectsDialog } from "./upload-prospects-dialog"
 import { AddProspectDialog } from "./add-prospect-dialog"
 import { EditProspectDialog } from "./edit-prospect-dialog"
 import { CallProspectDialog } from "./call-prospect-dialog"
+import { AddToSequenceDialog } from "./add-to-sequence-dialog"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Label } from "@/components/ui/label"
 
@@ -55,6 +56,7 @@ export function ProspectList() {
   const [editingProspect, setEditingProspect] = useState<Prospect | null>(null)
   const [callDialogOpen, setCallDialogOpen] = useState(false)
   const [callingProspect, setCallingProspect] = useState<Prospect | null>(null)
+  const [sequenceDialogOpen, setSequenceDialogOpen] = useState(false)
   const [quickEditId, setQuickEditId] = useState<string | null>(null)
   const [quickEditData, setQuickEditData] = useState({ email: "", phone: "" })
   const [quickEditSaving, setQuickEditSaving] = useState(false)
@@ -243,6 +245,28 @@ export function ProspectList() {
         </div>
       </div>
 
+      {/* Bulk action bar */}
+      {selectedRows.length > 0 && (
+        <div className="flex items-center gap-3 p-3 rounded-lg border bg-primary/5 border-primary/20">
+          <span className="text-sm font-medium">{selectedRows.length} selected</span>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setSequenceDialogOpen(true)}
+          >
+            <Zap className="h-4 w-4 mr-2" />
+            Add to Sequence
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setSelectedRows([])}
+          >
+            Clear selection
+          </Button>
+        </div>
+      )}
+
       <Table>
         <TableHeader>
           <TableRow>
@@ -418,6 +442,19 @@ export function ProspectList() {
         onOpenChange={setCallDialogOpen}
         prospect={callingProspect}
         onCallCompleted={loadProspects}
+      />
+      <AddToSequenceDialog
+        open={sequenceDialogOpen}
+        onOpenChange={setSequenceDialogOpen}
+        prospectIds={selectedRows}
+        prospectName={selectedRows.length === 1
+          ? prospects.find(p => p.id === selectedRows[0])?.name || "Prospect"
+          : `${selectedRows.length} prospects`
+        }
+        onSequenceAdded={() => {
+          setSelectedRows([])
+          loadProspects()
+        }}
       />
     </div>
   )

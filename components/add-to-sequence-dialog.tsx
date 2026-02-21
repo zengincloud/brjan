@@ -47,7 +47,8 @@ type Sequence = {
 type AddToSequenceDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
-  prospectId: string
+  prospectId?: string
+  prospectIds?: string[]
   prospectName: string
   currentSequence?: string | null
   onSequenceAdded?: () => void
@@ -57,10 +58,13 @@ export function AddToSequenceDialog({
   open,
   onOpenChange,
   prospectId,
+  prospectIds,
   prospectName,
   currentSequence,
   onSequenceAdded,
 }: AddToSequenceDialogProps) {
+  const resolvedIds = prospectIds || (prospectId ? [prospectId] : [])
+  const isBulk = resolvedIds.length > 1
   const [sequences, setSequences] = useState<Sequence[]>([])
   const [loading, setLoading] = useState(false)
   const [loadingSequences, setLoadingSequences] = useState(true)
@@ -100,7 +104,7 @@ export function AddToSequenceDialog({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prospectIds: [prospectId],
+          prospectIds: resolvedIds,
         }),
       })
 
@@ -110,7 +114,7 @@ export function AddToSequenceDialog({
         throw new Error(data.error || "Failed to add to sequence")
       }
 
-      toast.success(`${prospectName} added to sequence`)
+      toast.success(isBulk ? `${resolvedIds.length} prospects added to sequence` : `${prospectName} added to sequence`)
       onOpenChange(false)
       setSelectedSequenceId("")
       onSequenceAdded?.()
@@ -147,9 +151,11 @@ export function AddToSequenceDialog({
         <DialogHeader>
           <DialogTitle>Add to Sequence</DialogTitle>
           <DialogDescription>
-            {currentSequence
-              ? `${prospectName} is currently in "${currentSequence}". Select a new sequence to move them.`
-              : `Select a sequence to add ${prospectName} to.`}
+            {isBulk
+              ? `Select a sequence to add ${resolvedIds.length} selected prospects to.`
+              : currentSequence
+                ? `${prospectName} is currently in "${currentSequence}". Select a new sequence to move them.`
+                : `Select a sequence to add ${prospectName} to.`}
           </DialogDescription>
         </DialogHeader>
 

@@ -59,9 +59,9 @@ export function DraftEmailList({
   const [sending, setSending] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
 
-  const loadDrafts = async () => {
+  const loadDrafts = async (showLoading = true) => {
     try {
-      setLoading(true)
+      if (showLoading) setLoading(true)
       const response = await fetch("/api/emails/queue")
       if (response.ok) {
         const data = await response.json()
@@ -126,7 +126,7 @@ export function DraftEmailList({
 
       toast.success(`Email sent to ${selectedDraft.metadata?.prospectName || selectedDraft.to}`)
       setSelectedDraft(null)
-      loadDrafts()
+      loadDrafts(false)
     } catch (error: any) {
       console.error("Error sending email:", error)
       toast.error(error.message || "Failed to send email")
@@ -150,7 +150,7 @@ export function DraftEmailList({
       if (selectedDraft?.id === draftId) {
         setSelectedDraft(null)
       }
-      loadDrafts()
+      loadDrafts(false)
     } catch (error: any) {
       console.error("Error deleting draft:", error)
       toast.error(error.message || "Failed to delete draft")

@@ -136,6 +136,8 @@ function TasksContent() {
   const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set())
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null)
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false)
+  const [bulkActioning, setBulkActioning] = useState(false)
   const [updatingTasks, setUpdatingTasks] = useState<Set<string>>(new Set())
 
   useEffect(() => {
@@ -268,6 +270,89 @@ function TasksContent() {
   const confirmDelete = (taskId: string) => {
     setTaskToDelete(taskId)
     setDeleteDialogOpen(true)
+  }
+
+  const bulkMarkDone = async () => {
+    const ids = Array.from(selectedTasks)
+    const notDone = ids.filter((id) => {
+      const task = tasks.find((t) => t.id === id)
+      return task && task.status !== "done"
+    })
+
+    if (notDone.length === 0) {
+      toast.info("All selected tasks are already done")
+      return
+    }
+
+    setBulkActioning(true)
+    let successCount = 0
+
+    for (const taskId of notDone) {
+      try {
+        const response = await fetch(`/api/tasks/${taskId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "done" }),
+        })
+        if (response.ok) {
+          successCount++
+          setTasks((prev) =>
+            prev.map((t) => (t.id === taskId ? { ...t, status: "done" as TaskStatus } : t))
+          )
+        }
+      } catch (error) {
+        console.error(`Error marking task ${taskId} as done:`, error)
+      }
+    }
+
+    toast.success(`${successCount} task${successCount !== 1 ? "s" : ""} marked as done`)
+    setSelectedTasks(new Set())
+    setBulkActioning(false)
+  }
+
+  const bulkOpenLinkedIns = () => {
+    const ids = Array.from(selectedTasks)
+    const withLinkedIn = ids
+      .map((id) => tasks.find((t) => t.id === id))
+      .filter((t) => t?.contact?.linkedin)
+
+    if (withLinkedIn.length === 0) {
+      toast.error("No selected tasks have LinkedIn URLs")
+      return
+    }
+
+    withLinkedIn.forEach((t) => {
+      if (t?.contact?.linkedin) {
+        window.open(t.contact.linkedin, "_blank")
+      }
+    })
+
+    toast.success(`Opened ${withLinkedIn.length} LinkedIn profile${withLinkedIn.length !== 1 ? "s" : ""}`)
+  }
+
+  const bulkDeleteTasks = async () => {
+    const ids = Array.from(selectedTasks)
+    setBulkActioning(true)
+    let successCount = 0
+
+    for (const taskId of ids) {
+      try {
+        const response = await fetch(`/api/tasks/${taskId}`, {
+          method: "DELETE",
+        })
+        if (response.ok) {
+          successCount++
+          setTasks((prev) => prev.filter((t) => t.id !== taskId))
+        }
+      } catch (error) {
+        console.error(`Error deleting task ${taskId}:`, error)
+      }
+    }
+
+    toast.success(`${successCount} task${successCount !== 1 ? "s" : ""} deleted`)
+    setSelectedTasks(new Set())
+    setBulkActioning(false)
+    setBulkDeleteDialogOpen(false)
   }
 
   const updateTaskStatus = async (taskId: string, newStatus: TaskStatus) => {
@@ -513,6 +598,54 @@ function TasksContent() {
               )}
             </div>
           </div>
+
+          {/* Bulk action bar */}
+          {selectedTasks.size > 0 && (
+            <div className="flex items-center gap-3 mt-3 p-3 rounded-lg border bg-primary/5 border-primary/20">
+              <span className="text-sm font-medium">{selectedTasks.size} selected</span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={bulkMarkDone}
+                disabled={bulkActioning}
+              >
+                {bulkActioning ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                )}
+                Mark as Done
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-2"
+                onClick={bulkOpenLinkedIns}
+                disabled={bulkActioning}
+              >
+                <Linkedin className="h-4 w-4" />
+                Open LinkedIns
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                onClick={() => setBulkDeleteDialogOpen(true)}
+                disabled={bulkActioning}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setSelectedTasks(new Set())}
+                disabled={bulkActioning}
+              >
+                Clear selection
+              </Button>
+            </div>
+          )}
         </CardHeader>
 
         <CardContent>
@@ -655,6 +788,34 @@ function TasksContent() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedTasks.size} task{selectedTasks.size !== 1 ? "s" : ""}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete {selectedTasks.size} selected task{selectedTasks.size !== 1 ? "s" : ""}. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkActioning}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={bulkDeleteTasks}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={bulkActioning}
+            >
+              {bulkActioning ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                `Delete ${selectedTasks.size} task${selectedTasks.size !== 1 ? "s" : ""}`
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

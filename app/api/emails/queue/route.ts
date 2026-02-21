@@ -97,6 +97,7 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
       where: {
         userId,
         status: "draft",
+        emailType: { not: "sequence" },
       },
       orderBy: { createdAt: "desc" },
     })

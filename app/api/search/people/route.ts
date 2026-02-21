@@ -247,12 +247,12 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       }
     }
 
-    // City filter → Wiza location with city type
+    // City filter → Wiza location with region type (more lenient than "city" which requires "city, state, country" format)
     if (city) {
       const cityList = Array.isArray(city) ? city : [city]
       const cityLocations = cityList
         .filter((c: string) => c && c.trim())
-        .map((c: string) => ({ v: c.trim(), b: "city", s: "i" }))
+        .map((c: string) => ({ v: c.trim(), b: "region", s: "i" }))
       if (cityLocations.length > 0) {
         filters.location = [...(filters.location || []), ...cityLocations]
       }

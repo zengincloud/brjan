@@ -17,26 +17,32 @@ function toTitleCase(str: string | null | undefined): string {
     .join(" ")
 }
 
-// Generate POV data from prospect data
+// Generate POV data from prospect data (uses industry/company data when available)
 function generatePOVData(data: {
   name: string
   title?: string | null
   company?: string | null
+  industry?: string | null
+  companySize?: string | null
 }): { opportunity: string; industryContext: string; howToHelp: string; angle: string } | null {
   if (!data.name) return null
 
   const name = toTitleCase(data.name)
   const title = toTitleCase(data.title)
   const company = toTitleCase(data.company)
+  const industry = data.industry || "their industry"
+  const companySize = data.companySize || "mid-sized"
 
   return {
-    opportunity: `${name} is a ${title || "professional"} at ${company || "their company"}. ${title ? `As a ${title}, their job entails overseeing team performance, driving strategic initiatives, and managing key stakeholder relationships.` : ""} They may be actively evaluating solutions.`,
+    opportunity: `${name} is a ${title || "professional"} at ${company || "their company"}${data.industry ? `, a ${companySize} company in the ${industry} space` : ""}. ${title ? `As a ${title}, their job entails overseeing team performance, driving strategic initiatives, and managing key stakeholder relationships.` : ""} They may be actively evaluating solutions.`,
 
-    industryContext: `Companies like ${company || "theirs"} are currently facing challenges around digital transformation and operational efficiency. With increasing pressure to modernize systems and do more with less, this is something they're likely worried about.`,
+    industryContext: data.industry
+      ? `In the ${industry} space, companies like ${company || "theirs"} are currently facing challenges around digital transformation and operational efficiency. With increasing pressure to modernize systems and do more with less, this is something they're likely worried about.`
+      : `Companies like ${company || "theirs"} are currently facing challenges around digital transformation and operational efficiency. With increasing pressure to modernize systems and do more with less, this is something they're likely worried about.`,
 
     howToHelp: `Your platform can help ${name} address operational efficiency, team productivity, and scalable processes while delivering measurable ROI on new investments.`,
 
-    angle: `Lead with ROI metrics and case studies from similar companies. Emphasize quick time-to-value and ease of implementation. Focus on how your solution addresses their key priorities: efficiency gains, cost reduction, and competitive advantage.`
+    angle: `Lead with ROI metrics and case studies from similar ${data.industry ? `companies in the ${industry} space` : "companies"}. Emphasize quick time-to-value and ease of implementation. Focus on how your solution addresses their key priorities: efficiency gains, cost reduction, and competitive advantage.`
   }
 }
 
@@ -81,9 +87,6 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
         continue
       }
 
-      // Generate POV data for this prospect
-      const povData = generatePOVData({ name, title, company })
-
       // Store extra data in wizaData if available
       const wizaData: any = {}
       if (industry) wizaData.companyIndustry = industry
@@ -98,6 +101,15 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       if (website) wizaData.companyWebsite = website
 
       const hasWizaData = Object.keys(wizaData).length > 0
+
+      // Generate POV data (after wizaData is built so we can use industry/size)
+      const povData = generatePOVData({
+        name,
+        title,
+        company,
+        industry: industry || wizaData.companyIndustry,
+        companySize: employeesRaw || wizaData.companySize,
+      })
 
       prospects.push({
         name,

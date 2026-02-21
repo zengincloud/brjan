@@ -287,7 +287,7 @@ export default function SequenceDetailPage() {
 
   const filteredProspects = prospects.filter(
     (p) =>
-      !sequence?.prospectSequences.some((ps) => ps.prospect.id === p.id) &&
+      !sequence?.prospectSequences?.some((ps) => ps.prospect?.id === p.id) &&
       (p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         p.email.toLowerCase().includes(searchTerm.toLowerCase()))
   )
@@ -315,7 +315,7 @@ export default function SequenceDetailPage() {
         </div>
         <Badge
           className={
-            sequence.status === "active" ? "bg-accent/20 text-accent" : "bg-yellow-500/20"
+            sequence.status === "active" ? "bg-green-500/20 text-green-500" : "bg-yellow-500/20 text-yellow-500"
           }
         >
           {sequence.status}

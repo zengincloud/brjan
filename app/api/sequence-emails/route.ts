@@ -43,6 +43,49 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
       },
     })
 
+    // Also fetch actual sequence email drafts (created by sequence processing)
+    const sequenceDraftEmails = await prisma.email.findMany({
+      where: {
+        userId,
+        emailType: "sequence",
+        status: "draft",
+      },
+      orderBy: { createdAt: "desc" },
+    })
+
+    const draftEmailItems = sequenceDraftEmails.map((email) => {
+      const meta = (email.metadata as any) || {}
+      const isPriority = true // Draft sequence emails are always actionable
+
+      if (type === "sequence" && isPriority) return null
+      if (type === "priority") {
+        return {
+          id: email.id,
+          prospectId: email.prospectId,
+          recipient: meta.prospectName || email.to,
+          email: email.to,
+          company: meta.company || "Unknown Company",
+          title: null,
+          subject: email.subject,
+          preview: email.bodyText?.substring(0, 80).replace(/\n/g, " ") + "..." || "No preview",
+          sequence: meta.sequenceName || "Sequence",
+          stage: meta.stepName || "Email Step",
+          date: "Ready to send",
+          status: "pending",
+          priority: "high",
+          stepOrder: null,
+          totalSteps: null,
+          nextActionAt: email.createdAt,
+          emailBody: email.bodyText,
+          context: "Draft sequence email - ready to send",
+          contextType: "sequence_email",
+          isDraft: true,
+          draftId: email.id,
+        }
+      }
+      return null
+    }).filter(Boolean)
+
     // Transform to email format
     const emails = prospectSequences
       .map((ps) => {
@@ -119,7 +162,7 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
       })
       .filter(Boolean)
 
-    return NextResponse.json({ emails })
+    return NextResponse.json({ emails: [...draftEmailItems, ...emails] })
   } catch (error: any) {
     console.error("Error fetching sequence emails:", error)
     return NextResponse.json(

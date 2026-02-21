@@ -46,14 +46,15 @@ export const POST = withExtensionAuth(async (request: NextRequest, userId: strin
       if (account) resolvedCompany = account.name
     }
 
-    // Generate basic POV data
+    // Generate POV data
+    const industry = wizaData?.companyIndustry || null
     const povData = name ? {
-      opportunity: `${toTitleCase(name)} is a ${toTitleCase(title) || "professional"} at ${toTitleCase(resolvedCompany) || "their company"}. Sourced via LinkedIn extension reveal.`,
-      industryContext: wizaData?.companyIndustry
-        ? `Works in the ${wizaData.companyIndustry} space.`
-        : "Industry context pending enrichment.",
-      howToHelp: "Evaluate fit based on role and company profile.",
-      angle: "Personalize outreach based on LinkedIn activity and current role.",
+      opportunity: `${toTitleCase(name)} is a ${toTitleCase(title) || "professional"} at ${toTitleCase(resolvedCompany) || "their company"}${industry ? ` in the ${industry} space` : ""}. ${title ? `As a ${toTitleCase(title)}, their job entails overseeing team performance, driving strategic initiatives, and managing key stakeholder relationships.` : ""} They may be actively evaluating solutions.`,
+      industryContext: industry
+        ? `In the ${industry} space, companies like ${toTitleCase(resolvedCompany) || "theirs"} are currently facing challenges around digital transformation and operational efficiency. With increasing pressure to modernize systems and do more with less, this is something they're likely worried about.`
+        : `Companies like ${toTitleCase(resolvedCompany) || "theirs"} are currently facing challenges around digital transformation and operational efficiency. With increasing pressure to modernize systems and do more with less, this is something they're likely worried about.`,
+      howToHelp: `Your platform can help ${toTitleCase(name)} address operational efficiency, team productivity, and scalable processes while delivering measurable ROI on new investments.`,
+      angle: `Lead with ROI metrics and case studies from similar ${industry ? `companies in the ${industry} space` : "companies"}. Emphasize quick time-to-value and ease of implementation. Focus on how your solution addresses their key priorities: efficiency gains, cost reduction, and competitive advantage.`,
     } : null
 
     const prospect = await prisma.prospect.create({

@@ -380,10 +380,16 @@ export default function DialerPage() {
 
         device.on("error", (error) => {
           console.error("Twilio Device error:", error)
-          setDeviceError(error.message || "Device error")
+          // Don't set deviceError for transient connection errors (31005) - just show a toast
+          const isTransient = error.code === 31005 || error.message?.includes("connection")
+          if (!isTransient) {
+            setDeviceError(error.message || "Device error")
+          }
           toast({
-            title: "Device Error",
-            description: error.message || "Failed to initialize calling device",
+            title: isTransient ? "Connection issue" : "Device Error",
+            description: isTransient
+              ? "Temporary connection drop. The dialer will reconnect automatically."
+              : (error.message || "Failed to initialize calling device"),
             variant: "destructive",
           })
         })
@@ -724,12 +730,21 @@ export default function DialerPage() {
         // Play hangup sound
         playHangupSound()
 
+        // Show brief failed status instead of immediately resetting
+        setCallSlots(prev => prev.map((s, idx) =>
+          idx === slotIndex ? { ...s, status: "idle" as CallStatus } : s
+        ))
+
         toast({
-          title: "Call Error",
-          description: error.message || "An error occurred during the call",
+          title: "Call failed",
+          description: "Moving to next prospect...",
           variant: "destructive",
         })
-        handleCallOutcomeAndAdvance(slotIndex, "failed")
+
+        // Small delay so the user sees what happened before advancing
+        setTimeout(() => {
+          handleCallOutcomeAndAdvance(slotIndex, "failed")
+        }, 800)
       })
 
       // When prospect answers, update status to connected

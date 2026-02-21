@@ -124,6 +124,16 @@ export function CallHistory({ prospectId, limit }: { prospectId?: string; limit?
     )
   }
 
+  // Summary stats
+  const connectedCalls = calls.filter(c => c.outcome?.startsWith("connected"))
+  const firstCallDate = calls.length > 0 ? calls[calls.length - 1].createdAt : null
+  const daysSinceFirst = firstCallDate && isValid(new Date(firstCallDate))
+    ? Math.max(1, Math.round((Date.now() - new Date(firstCallDate).getTime()) / (1000 * 60 * 60 * 24)))
+    : null
+  const showSummary = calls.length > 3
+  const [showAll, setShowAll] = useState(false)
+  const displayedCalls = showAll || !showSummary ? calls : calls.slice(0, 3)
+
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -131,6 +141,15 @@ export function CallHistory({ prospectId, limit }: { prospectId?: string; limit?
           <Phone className="h-4 w-4" />
           Call History ({calls.length})
         </CardTitle>
+        {showSummary && (
+          <p className="text-xs text-muted-foreground mt-1">
+            {calls.length} calls{daysSinceFirst ? ` in the last ${daysSinceFirst} day${daysSinceFirst !== 1 ? "s" : ""}` : ""}
+            {connectedCalls.length > 0 ? ` · ${connectedCalls.length} answered` : ""}
+            {connectedCalls.length > 0 && isValid(new Date(connectedCalls[0].createdAt))
+              ? ` · last answered ${format(new Date(connectedCalls[0].createdAt), "MMM d")}`
+              : ""}
+          </p>
+        )}
       </CardHeader>
       <CardContent className="p-0">
         <div className="flex h-[500px]">
@@ -138,7 +157,7 @@ export function CallHistory({ prospectId, limit }: { prospectId?: string; limit?
           <div className="w-[280px] border-r">
             <ScrollArea className="h-full">
               <div className="p-2 space-y-1">
-                {calls.map((call) => (
+                {displayedCalls.map((call) => (
                   <button
                     key={call.id}
                     onClick={() => setSelectedCall(call)}
@@ -175,11 +194,24 @@ export function CallHistory({ prospectId, limit }: { prospectId?: string; limit?
                         )}
                       </div>
                     </div>
-                    {selectedCall?.id === call.id && (
-                      <ChevronRight className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    )}
                   </button>
                 ))}
+                {showSummary && !showAll && (
+                  <button
+                    onClick={() => setShowAll(true)}
+                    className="w-full text-center py-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Show {calls.length - 3} more calls
+                  </button>
+                )}
+                {showAll && showSummary && (
+                  <button
+                    onClick={() => setShowAll(false)}
+                    className="w-full text-center py-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Show less
+                  </button>
+                )}
               </div>
             </ScrollArea>
           </div>

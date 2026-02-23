@@ -106,9 +106,9 @@ export function ProspectList() {
 
   const filteredProspects = prospects.filter(
     (prospect) =>
-      (prospect.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      ((prospect.name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
         (prospect.company?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-        prospect.email.toLowerCase().includes(searchTerm.toLowerCase())) &&
+        (prospect.email?.toLowerCase() || "").includes(searchTerm.toLowerCase())) &&
       (selectedSequence === "" || selectedSequence === "all" || prospect.sequence === sequences.find((s) => s.id === selectedSequence)?.name),
   )
 
@@ -308,7 +308,7 @@ export function ProspectList() {
                   <Avatar className="h-8 w-8">
                     <AvatarImage src={`/placeholder.svg?height=32&width=32`} />
                     <AvatarFallback>
-                      {prospect.name
+                      {(prospect.name || "")
                         .split(" ")
                         .map((n) => n[0])
                         .join("")}

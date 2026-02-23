@@ -175,47 +175,9 @@ export function CorrespondenceSummary({ prospectId, prospectName }: Corresponden
             <span>Generating summary...</span>
           </div>
         ) : (
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              {summary}
-            </p>
-
-            {/* Recent activity timeline */}
-            {(emails.length > 0 || calls.length > 0) && (
-              <div className="mt-4 border-t pt-4">
-                <p className="text-xs font-medium text-muted-foreground mb-2">Recent Activity</p>
-                <div className="space-y-2">
-                  {[...emails.slice(0, 2), ...calls.slice(0, 2)]
-                    .sort((a, b) => {
-                      const dateA = new Date(a.sentAt || a.startedAt || a.createdAt || 0)
-                      const dateB = new Date(b.sentAt || b.startedAt || b.createdAt || 0)
-                      return (dateB.getTime() || 0) - (dateA.getTime() || 0)
-                    })
-                    .slice(0, 3)
-                    .map((item, index) => (
-                      <div key={index} className="flex items-center gap-2 text-xs">
-                        {"subject" in item ? (
-                          <>
-                            <Mail className="h-3 w-3 text-blue-500" />
-                            <span className="text-muted-foreground">Email:</span>
-                            <span className="truncate flex-1">{item.subject || "No subject"}</span>
-                          </>
-                        ) : (
-                          <>
-                            <Phone className="h-3 w-3 text-green-500" />
-                            <span className="text-muted-foreground">Call:</span>
-                            <span className="capitalize">{item.outcome?.replace(/_/g, " ") || "Unknown"}</span>
-                          </>
-                        )}
-                        <span className="text-muted-foreground whitespace-nowrap">
-                          {safeTimeAgo(item.sentAt || item.startedAt || item.createdAt)}
-                        </span>
-                      </div>
-                    ))}
-                </div>
-              </div>
-            )}
-          </div>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            {summary}
+          </p>
         )}
       </CardContent>
     </Card>

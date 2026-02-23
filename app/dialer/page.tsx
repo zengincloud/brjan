@@ -2203,10 +2203,81 @@ export default function DialerPage() {
                       )}
                   </div>
                 ) : (
-                  <div className="text-sm text-muted-foreground py-2">Waiting for next call...</div>
+                  <div className="py-2">
+                    {(() => {
+                      const nextProspect = mockProspects[currentProspectIndex + 1] || mockProspects[currentProspectIndex]
+                      if (nextProspect) {
+                        return (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                              <span className="text-xs text-primary font-medium">Dialing next...</span>
+                            </div>
+                            <div className="p-3 rounded-lg border border-border bg-muted/30">
+                              <div className="flex items-center gap-3">
+                                <div className="flex-1">
+                                  <span className="font-semibold text-sm">{nextProspect.name}</span>
+                                  <span className="text-xs text-muted-foreground ml-2">{nextProspect.title}</span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 mt-1">
+                                <Building2 className="h-3 w-3 text-muted-foreground" />
+                                <span className="text-xs text-muted-foreground">{nextProspect.company}</span>
+                                <span className="text-xs text-muted-foreground">•</span>
+                                <Phone className="h-3 w-3 text-muted-foreground" />
+                                <span className="text-xs font-mono text-muted-foreground">{nextProspect.phone}</span>
+                              </div>
+                              {nextProspect.aiNotes && (
+                                <div className="mt-2 p-2 rounded bg-primary/5 border border-primary/10">
+                                  <div className="flex items-start gap-1.5">
+                                    <Sparkles className="h-3 w-3 text-primary mt-0.5 flex-shrink-0" />
+                                    <p className="text-xs text-foreground leading-relaxed">{nextProspect.aiNotes}</p>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      }
+                      return <div className="text-sm text-muted-foreground">No more prospects in queue</div>
+                    })()}
+                  </div>
                 )}
               </div>
             ))}
+
+            {/* Up Next queue preview — always visible during session */}
+            {mockProspects.length > currentProspectIndex + 1 && (
+              <div className="mt-4">
+                <h3 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
+                  <Users className="h-3.5 w-3.5" />
+                  Up Next ({Math.min(5, mockProspects.length - currentProspectIndex - 1)} of {mockProspects.length - currentProspectIndex - 1} remaining)
+                </h3>
+                <div className="space-y-1.5">
+                  {mockProspects.slice(currentProspectIndex + 1, currentProspectIndex + 6).map((prospect, idx) => (
+                    <div
+                      key={prospect.id}
+                      className="flex items-center gap-3 px-3 py-2 rounded-lg border border-border bg-card hover:bg-muted/30 transition-colors"
+                    >
+                      <span className="text-xs text-muted-foreground w-5 text-center font-mono">{idx + 1}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium truncate">{prospect.name}</span>
+                          <span className="text-xs text-muted-foreground truncate">{prospect.title}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Building2 className="h-3 w-3 flex-shrink-0" />
+                          <span className="truncate">{prospect.company}</span>
+                          <span>•</span>
+                          <Phone className="h-3 w-3 flex-shrink-0" />
+                          <span className="font-mono">{prospect.phone}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           /* Card-based layout when session is not active */
@@ -2297,7 +2368,7 @@ export default function DialerPage() {
                           </div>
                         </>
                       ) : (
-                        <div className="text-sm text-muted-foreground">Waiting for next call...</div>
+                        <div className="text-sm text-muted-foreground">Ready to start session</div>
                       )}
                     </div>
                   </div>

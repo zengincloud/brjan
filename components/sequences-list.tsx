@@ -109,6 +109,42 @@ export function SequencesList() {
     }
   }
 
+  const toggleSequenceStatus = async (sequenceId: string, currentStatus: string) => {
+    const newStatus = currentStatus === "active" ? "paused" : "active"
+    const isActive = newStatus === "active"
+
+    // Optimistic update
+    const original = [...sequences]
+    setSequences(sequences.map(s =>
+      s.id === sequenceId ? { ...s, status: newStatus, isActive } : s
+    ))
+
+    try {
+      const response = await fetch(`/api/sequences/${sequenceId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus, isActive }),
+      })
+
+      if (!response.ok) {
+        setSequences(original)
+        throw new Error("Failed to update sequence")
+      }
+
+      toast({
+        title: newStatus === "active" ? "Sequence Activated" : "Sequence Paused",
+        description: `Sequence has been ${newStatus === "active" ? "activated" : "paused"}`,
+      })
+    } catch (error) {
+      console.error("Error toggling sequence status:", error)
+      toast({
+        title: "Error",
+        description: "Failed to update sequence status",
+        variant: "destructive",
+      })
+    }
+  }
+
   const filteredSequences = sequences.filter((sequence) => {
     const matchesSearch = sequence.name.toLowerCase().includes(searchTerm.toLowerCase())
 
@@ -365,7 +401,7 @@ export function SequencesList() {
                             )}
                             onClick={(e) => {
                               e.stopPropagation()
-                              // TODO: Toggle sequence status
+                              toggleSequenceStatus(sequence.id, sequence.status)
                             }}
                           >
                             {sequence.status === "active" ? "Pause" : "Activate"}

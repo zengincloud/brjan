@@ -17,11 +17,13 @@ export const POST = withAuth(async (
       return NextResponse.json({ error: "Name is required" }, { status: 400 })
     }
 
-    // Create sequence with steps
+    // Create sequence with steps — default to active
     const sequence = await prisma.sequence.create({
       data: {
         name,
         description,
+        status: "active",
+        isActive: true,
         userId,
         steps: steps ? {
           create: steps.map((step: any, index: number) => ({

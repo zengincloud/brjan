@@ -25,10 +25,27 @@ import {
 import { Progress } from "@/components/ui/progress"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { cn } from "@/lib/utils"
 import { formatDistanceToNow } from "date-fns"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast"
+import { Trash2 } from "lucide-react"
 
 type Sequence = {
   id: string
@@ -63,6 +80,8 @@ export function SequencesList() {
   const [sequences, setSequences] = useState<Sequence[]>([])
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deletingSequence, setDeletingSequence] = useState<Sequence | null>(null)
 
   useEffect(() => {
     loadSequences()
@@ -142,6 +161,39 @@ export function SequencesList() {
         description: "Failed to update sequence status",
         variant: "destructive",
       })
+    }
+  }
+
+  const deleteSequence = async () => {
+    if (!deletingSequence) return
+
+    const original = [...sequences]
+    setSequences(sequences.filter(s => s.id !== deletingSequence.id))
+    setDeleteDialogOpen(false)
+
+    try {
+      const response = await fetch(`/api/sequences/${deletingSequence.id}`, {
+        method: "DELETE",
+      })
+
+      if (!response.ok) {
+        setSequences(original)
+        throw new Error("Failed to delete sequence")
+      }
+
+      toast({
+        title: "Sequence Deleted",
+        description: `"${deletingSequence.name}" has been deleted`,
+      })
+    } catch (error) {
+      console.error("Error deleting sequence:", error)
+      toast({
+        title: "Error",
+        description: "Failed to delete sequence",
+        variant: "destructive",
+      })
+    } finally {
+      setDeletingSequence(null)
     }
   }
 
@@ -277,14 +329,30 @@ export function SequencesList() {
                           </>
                         )}
                       </Badge>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => {
+                              setDeletingSequence(sequence)
+                              setDeleteDialogOpen(true)
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </div>
 
@@ -416,6 +484,26 @@ export function SequencesList() {
           )}
         </TabsContent>
       </Tabs>
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Sequence</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deletingSequence?.name}"? This will remove the sequence and all its steps. Prospects already in this sequence will be unaffected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={deleteSequence}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

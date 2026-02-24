@@ -1,9 +1,9 @@
 "use client"
 
 import { useState } from "react"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DateRangePicker } from "@/components/date-range-picker"
 import { Button } from "@/components/ui/button"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ReportTemplates } from "@/components/report-templates"
 import { PipelineReport } from "@/components/reports/pipeline-report"
 import { ActivityReport } from "@/components/reports/activity-report"
@@ -18,7 +18,7 @@ export default function ReportsPage() {
     to: new Date(),
   })
 
-  const [activeTab, setActiveTab] = useState("activity")
+  const [selectedReport, setSelectedReport] = useState("activity")
   const { stats, isLoading } = useReportStats(date)
 
   return (
@@ -39,14 +39,19 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="activity">Activity</TabsTrigger>
-          <TabsTrigger value="pipeline">Pipeline</TabsTrigger>
-          <TabsTrigger value="templates">Report Templates</TabsTrigger>
-        </TabsList>
+      <Select value={selectedReport} onValueChange={setSelectedReport}>
+        <SelectTrigger className="w-[220px]">
+          <SelectValue placeholder="Select report" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="activity">Activity</SelectItem>
+          <SelectItem value="pipeline">Pipeline</SelectItem>
+          <SelectItem value="templates">Report Templates</SelectItem>
+        </SelectContent>
+      </Select>
 
-        <TabsContent value="activity" className="space-y-6 mt-6">
+      <div className="mt-6">
+        {selectedReport === "activity" && (
           <ActivityReport
             date={date}
             data={{
@@ -58,16 +63,16 @@ export default function ReportsPage() {
             fullWidth
             isLoading={isLoading}
           />
-        </TabsContent>
+        )}
 
-        <TabsContent value="pipeline" className="space-y-6 mt-6">
+        {selectedReport === "pipeline" && (
           <PipelineReport date={date} data={stats?.pipeline} fullWidth isLoading={isLoading} />
-        </TabsContent>
+        )}
 
-        <TabsContent value="templates" className="space-y-6 mt-6">
+        {selectedReport === "templates" && (
           <ReportTemplates />
-        </TabsContent>
-      </Tabs>
+        )}
+      </div>
     </div>
   )
 }

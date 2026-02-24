@@ -33,6 +33,7 @@ const getOutcomeLabel = (outcome: string | null) => {
     connected_referral: "Referral",
     connected_not_interested: "Not Interested",
     connected_info_gathered: "Info Gathered",
+    callback: "Call Back Later",
     voicemail: "Voicemail",
     no_answer: "No Answer",
     busy: "Busy",

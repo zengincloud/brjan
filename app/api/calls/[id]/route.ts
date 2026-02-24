@@ -103,12 +103,17 @@ export const PATCH = withAuth<{ params: { id: string } }>(async (
     // Push call to HubSpot in background (non-blocking)
     if (outcome && call.prospect) {
       getValidAccessToken(userId).then((hsToken) => {
-        if (!hsToken) return
+        if (!hsToken) {
+          console.log("HubSpot: no valid token, skipping sync")
+          return
+        }
+        console.log(`HubSpot: syncing call outcome "${outcome}" for prospect ${call.prospectId}`)
         ;(async () => {
           try {
             // Ensure prospect exists as a HubSpot contact
-            const hubspotData = (call.prospect!.wizaData as any)?.hubspotContactId
-              ? { hubspotContactId: (call.prospect!.wizaData as any).hubspotContactId, created: false }
+            const existingHsId = (call.prospect!.wizaData as any)?.hubspotContactId
+            const hubspotData = existingHsId
+              ? { hubspotContactId: existingHsId, created: false }
               : await pushContact(hsToken, {
                   name: call.prospect!.name,
                   email: call.prospect!.email,
@@ -117,6 +122,8 @@ export const PATCH = withAuth<{ params: { id: string } }>(async (
                   company: call.prospect!.company,
                   linkedin: call.prospect!.linkedin,
                 })
+
+            console.log(`HubSpot: contact ${hubspotData.hubspotContactId} (created=${hubspotData.created})`)
 
             // Store HubSpot ID if newly created
             if (hubspotData.created && call.prospectId) {
@@ -141,11 +148,13 @@ export const PATCH = withAuth<{ params: { id: string } }>(async (
             })
 
             console.log(`HubSpot: logged call for prospect ${call.prospectId}`)
-          } catch (err) {
-            console.error("HubSpot sync error (non-blocking):", err)
+          } catch (err: any) {
+            console.error("HubSpot sync error (non-blocking):", err?.message || err)
           }
         })()
       })
+    } else if (outcome) {
+      console.log(`HubSpot: skipping sync - no prospect linked to call ${params.id}`)
     }
 
     return NextResponse.json({ call: updatedCall, sequenceAdvanced })

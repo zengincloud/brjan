@@ -142,6 +142,7 @@ export function RecordingsList() {
       connected_referral: { variant: "default", label: "Referral" },
       connected_not_interested: { variant: "secondary", label: "Not Interested" },
       connected_info_gathered: { variant: "default", label: "Info Gathered" },
+      callback: { variant: "secondary", label: "Call Back Later" },
       voicemail: { variant: "secondary", label: "Voicemail" },
       no_answer: { variant: "outline", label: "No Answer" },
       busy: { variant: "outline", label: "Busy" },

@@ -201,6 +201,7 @@ export async function logCall(accessToken: string, params: {
     busy: "BUSY",
     failed: "FAILED",
     gatekeeper: "CONNECTED",
+    callback: "CONNECTED",
   }
 
   const properties: Record<string, string> = {

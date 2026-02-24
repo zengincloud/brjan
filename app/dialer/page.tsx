@@ -876,6 +876,7 @@ export default function DialerPage() {
     connected_referral: "Referral",
     connected_not_interested: "Not Interested",
     connected_info_gathered: "Info Gathered",
+    callback: "Call Back Later",
     voicemail: "Voicemail",
     no_answer: "No Answer",
     busy: "Busy",
@@ -1889,6 +1890,10 @@ export default function DialerPage() {
                               <FileText className="h-4 w-4 mr-2 text-purple-500" />
                               Informational
                             </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "callback")}>
+                              <Phone className="h-4 w-4 mr-2 text-amber-500" />
+                              Call Back Later
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "voicemail")}>
                               <Voicemail className="h-4 w-4 mr-2" />
                               Voicemail
@@ -2507,6 +2512,10 @@ export default function DialerPage() {
                             <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "connected_info_gathered")}>
                               <FileText className="h-4 w-4 mr-2 text-purple-500" />
                               Informational
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "callback")}>
+                              <Phone className="h-4 w-4 mr-2 text-amber-500" />
+                              Call Back Later
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "voicemail")}>
                               <Voicemail className="h-4 w-4 mr-2" />

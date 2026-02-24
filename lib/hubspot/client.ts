@@ -124,14 +124,20 @@ async function findExistingCompany(accessToken: string, name: string, domain?: s
     } catch {}
   }
 
-  // Fall back to name search
+  // Fall back to name search (try exact match first, then case-insensitive contains)
   try {
+    // Exact match
     const data = await hubspotFetch(accessToken, "/crm/v3/objects/companies/search", {
       method: "POST",
       body: JSON.stringify({
-        filterGroups: [{
-          filters: [{ propertyName: "name", operator: "EQ", value: name }],
-        }],
+        filterGroups: [
+          {
+            filters: [{ propertyName: "name", operator: "EQ", value: name }],
+          },
+          {
+            filters: [{ propertyName: "name", operator: "EQ", value: name.trim() }],
+          },
+        ],
         limit: 1,
       }),
     })

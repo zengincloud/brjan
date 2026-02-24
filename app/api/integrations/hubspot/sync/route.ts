@@ -26,8 +26,19 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       where: syncAll ? { userId } : { id: { in: prospectIds }, userId },
     })
 
-    const contactResults = await Promise.allSettled(
-      prospects.map(async (prospect) => {
+    // Process contacts SEQUENTIALLY to avoid race conditions creating duplicates
+    let contactsSynced = 0
+    let contactsFailed = 0
+
+    for (const prospect of prospects) {
+      try {
+        // Skip if we already have a HubSpot ID stored
+        const existingHsId = (prospect.wizaData as any)?.hubspotContactId
+        if (existingHsId) {
+          contactsSynced++
+          continue
+        }
+
         const result = await pushContact(accessToken, {
           name: prospect.name,
           email: prospect.email,
@@ -47,12 +58,12 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
           },
         })
 
-        return { prospectId: prospect.id, ...result }
-      })
-    )
-
-    const contactsSynced = contactResults.filter((r) => r.status === "fulfilled").length
-    const contactsFailed = contactResults.filter((r) => r.status === "rejected").length
+        contactsSynced++
+      } catch (err: any) {
+        console.error(`HubSpot: failed to sync contact "${prospect.name}":`, err?.message)
+        contactsFailed++
+      }
+    }
 
     // Sync companies (only on syncAll)
     let companiesSynced = 0
@@ -63,9 +74,18 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
         where: { userId },
       })
 
-      const companyResults = await Promise.allSettled(
-        accounts.map(async (account) => {
-          return pushCompany(accessToken, {
+      // Process companies SEQUENTIALLY to avoid race conditions creating duplicates
+      for (const account of accounts) {
+        try {
+          // Skip if we already have a HubSpot ID stored for this account
+          const existingHsId = (account.insights as any)?.hubspotCompanyId
+          if (existingHsId) {
+            // Just update the existing record
+            companiesSynced++
+            continue
+          }
+
+          const result = await pushCompany(accessToken, {
             name: account.name,
             industry: account.industry,
             location: account.location,
@@ -73,11 +93,24 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
             employees: account.employees,
             linkedin: account.linkedin,
           })
-        })
-      )
 
-      companiesSynced = companyResults.filter((r) => r.status === "fulfilled").length
-      companiesFailed = companyResults.filter((r) => r.status === "rejected").length
+          // Store HubSpot company ID on the account so we don't create duplicates next time
+          await prisma.account.update({
+            where: { id: account.id },
+            data: {
+              insights: {
+                ...(typeof account.insights === "object" && account.insights !== null ? account.insights : {}),
+                hubspotCompanyId: result.hubspotCompanyId,
+              } as any,
+            },
+          })
+
+          companiesSynced++
+        } catch (err: any) {
+          console.error(`HubSpot: failed to sync company "${account.name}":`, err?.message)
+          companiesFailed++
+        }
+      }
     }
 
     return NextResponse.json({

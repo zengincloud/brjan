@@ -176,7 +176,7 @@ export function OrganizationSettings() {
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 disabled={!canEdit}
-                placeholder="Acme Inc."
+                placeholder="Your company name"
                 className={!canEdit ? "bg-muted cursor-not-allowed" : ""}
               />
             </div>
@@ -189,7 +189,7 @@ export function OrganizationSettings() {
                 value={formData.industry}
                 onChange={(e) => setFormData({ ...formData, industry: e.target.value })}
                 disabled={!canEdit}
-                placeholder="SaaS / Technology"
+                placeholder="e.g. Healthcare, Finance, Manufacturing..."
                 className={!canEdit ? "bg-muted cursor-not-allowed" : ""}
               />
             </div>
@@ -231,7 +231,7 @@ export function OrganizationSettings() {
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               disabled={!canEdit}
-              placeholder="We provide a sales engagement platform that helps B2B sales teams automate outreach, track engagement, and close more deals..."
+              placeholder="Describe what your company does, your core products or services..."
               rows={3}
               className={!canEdit ? "bg-muted cursor-not-allowed resize-none" : "resize-none"}
             />
@@ -245,7 +245,7 @@ export function OrganizationSettings() {
               value={formData.valueProposition}
               onChange={(e) => setFormData({ ...formData, valueProposition: e.target.value })}
               disabled={!canEdit}
-              placeholder="Help sales teams increase reply rates by 3x and book 40% more meetings through AI-powered personalization..."
+              placeholder="What makes your offering unique? Why do customers choose you over alternatives?"
               rows={2}
               className={!canEdit ? "bg-muted cursor-not-allowed resize-none" : "resize-none"}
             />
@@ -274,7 +274,7 @@ export function OrganizationSettings() {
               value={formData.targetAudience}
               onChange={(e) => setFormData({ ...formData, targetAudience: e.target.value })}
               disabled={!canEdit}
-              placeholder="VP of Sales, Sales Directors, and Revenue Leaders at B2B SaaS companies with 50-500 employees who are looking to scale their outbound sales efforts..."
+              placeholder="Who are your ideal customers? Include titles, company size, industry, and what they're looking for..."
               rows={3}
               className={!canEdit ? "bg-muted cursor-not-allowed resize-none" : "resize-none"}
             />
@@ -376,11 +376,7 @@ export function OrganizationSettings() {
               value={formData.painPoints}
               onChange={(e) => setFormData({ ...formData, painPoints: e.target.value })}
               disabled={!canEdit}
-              placeholder="- Low email reply rates (under 5%)
-- SDRs spending too much time on manual tasks
-- Difficulty scaling personalized outreach
-- Lack of visibility into team performance
-- Disconnected tools slowing down workflows..."
+              placeholder="What challenges do your prospects typically face that your product or service solves?"
               rows={5}
               className={!canEdit ? "bg-muted cursor-not-allowed resize-none" : "resize-none"}
             />

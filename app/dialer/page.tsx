@@ -81,6 +81,7 @@ type CallSlot = {
     email: string
     linkedin?: string | null
     location?: string | null
+    companyDescription?: string | null
     aiNotes: string
     priorCalls: { date: string; outcome: string; notes: string }[]
     lastEmailSent: string
@@ -128,6 +129,7 @@ type DialerProspect = {
   email: string
   linkedin?: string | null
   location?: string | null
+  companyDescription?: string | null
   industry?: string
   companySize?: string
   businessDescription?: string
@@ -163,7 +165,7 @@ type DialerProspect = {
 
 export default function DialerPage() {
   const { toast } = useToast()
-  const { isSuperAdmin } = useUserRole()
+  useUserRole() // Keep hook for auth check
   const [sessionActive, setSessionActive] = useSessionState("dialer_session_active", false)
   const [sessionPaused, setSessionPaused] = useSessionState("dialer_session_paused", false)
   const [selectedSequence, setSelectedSequence] = useSessionState<string>("dialer_sequence", "all")
@@ -461,165 +463,8 @@ export default function DialerPage() {
     return () => clearInterval(interval)
   }, [callSlots])
 
-  // Demo prospects data (fallback when no API data)
-  const allProspects = [
-    {
-      name: "Emily Rodriguez",
-      company: "CloudWorks",
-      phone: "+1 (555) 345-6789",
-      title: "Director of Ops",
-      email: "emily.r@cloudworks.com",
-      industry: "Cloud Infrastructure",
-      companySize: "50-200",
-      businessDescription: "CloudWorks provides cloud infrastructure solutions including hosting, storage, and compute services for mid-market businesses.",
-      whatTheySell: "Cloud hosting, managed infrastructure, and DevOps automation tools",
-      aiNotes: "Pain point: Manual outreach taking 15hrs/week. Mentioned competitor in last email. Strong buying signals.",
-      priorCalls: [],
-      lastEmailSent: "2025-01-20",
-      sequenceStage: "Step 1 of 5",
-      sequence: "smb",
-      correspondenceHistory: [
-        { date: "2025-01-20", type: "email", from: "Sarah M. (SDR)", summary: "Sent intro email about platform automation features" },
-        { date: "2025-01-15", type: "linkedin", from: "Sarah M. (SDR)", summary: "Connection request accepted" }
-      ],
-      pov: {
-        opportunity: "As Director of Ops at a 50-200 person cloud infrastructure company, Emily is responsible for operational efficiency and team productivity. Manual outreach consuming 15 hours per week indicates significant automation opportunity.",
-        industryContext: "In the Cloud Infrastructure space, companies like CloudWorks are facing challenges around scaling operations without proportional headcount increases. With increasing pressure to demonstrate ROI and streamline workflows, automation tools are becoming essential.",
-        howToHelp: "Your platform can help Emily reclaim 80% of the time currently spent on manual outreach, allowing her team to focus on high-value conversations and strategic initiatives.",
-        angle: "Lead with time-savings metrics and show ROI calculator. Emphasize quick implementation and minimal training required. Focus on operational efficiency gains."
-      }
-    },
-    {
-      name: "Michael Chen",
-      company: "DataSystems Inc",
-      phone: "+1 (555) 234-5678",
-      title: "CTO",
-      email: "mchen@datasystems.io",
-      industry: "Data Analytics",
-      companySize: "200-500",
-      businessDescription: "DataSystems Inc offers enterprise data analytics and business intelligence solutions for Fortune 500 companies.",
-      whatTheySell: "Data warehousing, BI dashboards, and predictive analytics software",
-      aiNotes: "Technical decision maker. Team size: 45. Looking to consolidate tools. Budget approved for Q1.",
-      priorCalls: [
-        { date: "2025-01-12", outcome: "No Answer", notes: "Called at 2pm EST" }
-      ],
-      lastEmailSent: "2025-01-16",
-      sequenceStage: "Step 2 of 5",
-      sequence: "enterprise",
-      correspondenceHistory: [
-        { date: "2025-01-16", type: "email", from: "Tom R. (AE)", summary: "Follow-up on tool consolidation discussion, shared case study" },
-        { date: "2025-01-12", type: "call", from: "Tom R. (AE)", summary: "Attempted call - no answer" },
-        { date: "2025-01-08", type: "email", from: "Tom R. (AE)", summary: "Initial outreach mentioning Q1 budget cycles" }
-      ],
-      pov: {
-        opportunity: "Michael is the technical decision maker at a 200-500 person data analytics company with budget approved for Q1. His interest in tool consolidation suggests he's looking to streamline operations and reduce tech stack complexity.",
-        industryContext: "In the Data Analytics space, companies like DataSystems Inc are facing challenges around data security, integration complexity, and demonstrating clear ROI on technology investments. Tool consolidation is a hot topic as companies seek to reduce costs and improve efficiency.",
-        howToHelp: "Your platform can help Michael consolidate multiple tools into a single solution, reducing integration overhead and total cost of ownership while improving team productivity.",
-        angle: "Lead with integration capabilities and total cost of ownership analysis. Emphasize technical architecture and security features. Focus on Q1 implementation timeline to align with approved budget."
-      }
-    },
-    {
-      name: "Jessica Taylor",
-      company: "Enterprise Solutions",
-      phone: "+1 (555) 567-8901",
-      title: "Head of Marketing",
-      email: "jtaylor@enterprisesolutions.com",
-      industry: "Enterprise Software",
-      companySize: "1000-5000",
-      businessDescription: "Enterprise Solutions develops enterprise resource planning (ERP) and workflow management software for large organizations.",
-      whatTheySell: "ERP systems, process automation, and enterprise collaboration tools",
-      aiNotes: "Previously churned customer (2023). New leadership, different pain points. Opportunity to re-engage.",
-      priorCalls: [
-        { date: "2025-01-08", outcome: "Voicemail", notes: "Mentioned new product features" },
-        { date: "2025-01-05", outcome: "Gatekeeper", notes: "EA screening calls" }
-      ],
-      lastEmailSent: "2025-01-17",
-      sequenceStage: "Step 3 of 5",
-      sequence: "enterprise",
-      correspondenceHistory: [
-        { date: "2025-01-17", type: "email", from: "Lisa K. (CSM)", summary: "Re-engagement email highlighting new features since 2023" },
-        { date: "2025-01-08", type: "call", from: "Lisa K. (CSM)", summary: "Left voicemail mentioning product improvements" },
-        { date: "2025-01-05", type: "call", from: "Lisa K. (CSM)", summary: "Reached EA, scheduled follow-up" },
-        { date: "2023-06-15", type: "note", from: "Previous CSM", summary: "Account churned - pricing concerns and feature gaps cited" }
-      ],
-      pov: {
-        opportunity: "Jessica is new leadership at a previously churned account. The company's pain points may have evolved, and our platform has added significant features since 2023. This represents a strong re-engagement opportunity.",
-        industryContext: "In the Enterprise Software space, companies like Enterprise Solutions are facing increasing pressure to consolidate vendors and demonstrate marketing ROI. With new leadership often comes budget reallocation and tool evaluation.",
-        howToHelp: "Your platform's new features directly address the gaps that led to churn in 2023. Updated automation capabilities, improved analytics, and competitive pricing make this a strong fit for their current needs.",
-        angle: "Acknowledge past relationship, highlight what's changed since 2023. Lead with new features and improved value proposition. Position as a fresh look with new leadership. Focus on marketing ROI metrics."
-      }
-    },
-    {
-      name: "David Park",
-      company: "Innovation Labs",
-      phone: "+1 (555) 456-7890",
-      title: "CEO",
-      email: "dpark@innovationlabs.co",
-      industry: "SaaS",
-      companySize: "20-50",
-      businessDescription: "Innovation Labs is a fast-growing Series B startup building AI-powered productivity tools for modern teams.",
-      whatTheySell: "AI productivity software, team collaboration platform, and workflow automation",
-      aiNotes: "Referral from existing customer. Fast-growing startup (Series B). Urgency: High - scaling SDR team.",
-      priorCalls: [
-        { date: "2025-01-14", outcome: "Connected", notes: "Requested pricing, mentioned 20-seat license" }
-      ],
-      lastEmailSent: "2025-01-19",
-      sequenceStage: "Step 4 of 5",
-      sequence: "referral",
-      correspondenceHistory: [
-        { date: "2025-01-19", type: "email", from: "Alex D. (AE)", summary: "Sent pricing proposal for 20-seat license with implementation timeline" },
-        { date: "2025-01-14", type: "call", from: "Alex D. (AE)", summary: "Connected - discussed SDR team scaling challenges, pricing questions" },
-        { date: "2025-01-10", type: "email", from: "Alex D. (AE)", summary: "Warm intro from TechCorp (existing customer)" }
-      ],
-      pov: {
-        opportunity: "David is the CEO of a Series B startup actively scaling their SDR team. The referral from an existing customer (TechCorp) significantly increases trust. His direct engagement with pricing indicates high intent and urgency.",
-        industryContext: "In the SaaS space, companies like Innovation Labs are facing challenges around rapid growth and scaling go-to-market operations efficiently. Post-Series B startups need to demonstrate quick returns on investment and prove unit economics to investors.",
-        howToHelp: "Your platform can help David scale his SDR team efficiently without proportional cost increases. Proven results from the referring customer (TechCorp) provide social proof and reduce perceived risk.",
-        angle: "Lead with referral success story from TechCorp. Emphasize fast time-to-value and onboarding support for rapidly scaling teams. Focus on metrics that matter to investors: efficiency gains, cost per acquisition, and revenue impact."
-      }
-    },
-    {
-      name: "Sarah Johnson",
-      company: "TechCorp",
-      phone: "+1 (555) 123-4567",
-      title: "VP of Sales",
-      email: "sarah.j@techcorp.com",
-      industry: "Technology",
-      companySize: "500-1000",
-      businessDescription: "TechCorp is a technology company specializing in custom software development and IT consulting services for enterprise clients.",
-      whatTheySell: "Custom software development, IT consulting, and digital transformation services",
-      aiNotes: "High-intent prospect. Recently visited pricing page 3x. Company is actively evaluating sales engagement platforms.",
-      priorCalls: [
-        { date: "2025-01-15", outcome: "Connected", notes: "Interested in demo, asked about integrations" },
-        { date: "2025-01-10", outcome: "Voicemail", notes: "Left callback request" }
-      ],
-      lastEmailSent: "2025-01-18",
-      sequenceStage: "Step 3 of 5",
-      sequence: "sales-leaders",
-      correspondenceHistory: [
-        { date: "2025-01-18", type: "email", from: "Mike P. (AE)", summary: "Follow-up with demo recording and integration documentation" },
-        { date: "2025-01-15", type: "call", from: "Mike P. (AE)", summary: "Connected - demo discussion, integration requirements gathered" },
-        { date: "2025-01-10", type: "call", from: "Mike P. (AE)", summary: "Left voicemail requesting callback" },
-        { date: "2025-01-08", type: "email", from: "Mike P. (AE)", summary: "Initial outreach - sales automation platform overview" }
-      ],
-      pov: {
-        opportunity: "Sarah is a VP of Sales at a 500-1000 person technology company showing high buying intent (3 pricing page visits). Active evaluation of sales engagement platforms indicates budget allocation and decision timeline are likely defined.",
-        industryContext: "In the Technology sector, companies like TechCorp are facing increasing pressure to improve sales efficiency, reduce cost per acquisition, and demonstrate clear pipeline impact. Sales leaders are being asked to do more with the same or smaller teams.",
-        howToHelp: "Your platform can help Sarah's sales team increase productivity through automation, improve visibility into pipeline health, and demonstrate ROI through detailed analytics and reporting.",
-        angle: "Lead with integration capabilities since she specifically asked about this. Show pipeline impact metrics from similar-sized companies. Emphasize executive reporting features that help VPs demonstrate team effectiveness to leadership."
-      }
-    },
-  ]
-
-  // Combine API prospects with demo prospects (API prospects first)
-  const demoProspects = selectedSequence === "all"
-    ? allProspects
-    : allProspects.filter(p => p.sequence === selectedSequence)
-
-  // Use API prospects if available, otherwise use demo data (super_admin only)
-  const mockProspects: DialerProspect[] = apiProspects.length > 0
-    ? apiProspects.filter(p => p.phone) // Only include prospects with phone numbers
-    : isSuperAdmin ? demoProspects.map(p => ({ ...p, id: `demo-${p.email}` })) : []
+  // Use API prospects only (filtered to those with phone numbers)
+  const mockProspects: DialerProspect[] = apiProspects.filter(p => p.phone)
 
   // Update queue size when prospects change
   useEffect(() => {
@@ -942,6 +787,7 @@ export default function DialerPage() {
           email: firstProspect.email,
           linkedin: firstProspect.linkedin || null,
           location: firstProspect.location || null,
+          companyDescription: firstProspect.companyDescription || null,
           aiNotes: firstProspect.aiNotes || "",
           priorCalls: firstProspect.priorCalls || [],
           lastEmailSent: firstProspect.lastEmailSent || "",
@@ -1692,7 +1538,7 @@ export default function DialerPage() {
                       </div>
 
                       {/* Insights */}
-                      {(prospect.title || prospect.pov || prospect.accountInfo?.pov) && (
+                      {(prospect.title || prospect.companyDescription || prospect.accountInfo?.industry || prospect.accountInfo?.employees) && (
                       <div className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
                         <div className="flex items-start gap-2">
                           <Sparkles className="h-3.5 w-3.5 text-primary mt-0.5 flex-shrink-0" />
@@ -1702,10 +1548,10 @@ export default function DialerPage() {
                               {prospect.title && prospect.company && (
                                 <li>{prospect.name} is {prospect.title} at {prospect.company}</li>
                               )}
-                              {(prospect.pov?.industryContext || prospect.accountInfo?.pov?.industryContext || prospect.accountInfo?.industry) && (
+                              {(prospect.companyDescription || prospect.accountInfo?.industry || prospect.accountInfo?.employees) && (
                                 <li>
-                                  {prospect.company}{prospect.accountInfo?.industry ? ` is in ${prospect.accountInfo.industry}` : ""}{prospect.accountInfo?.employees ? `, ${prospect.accountInfo.employees.toLocaleString()} employees` : ""}
-                                  {(prospect.pov?.industryContext || prospect.accountInfo?.pov?.industryContext) ? ` — ${prospect.pov?.industryContext || prospect.accountInfo?.pov?.industryContext}` : ""}
+                                  {prospect.company}{prospect.accountInfo?.employees ? `, ${prospect.accountInfo.employees.toLocaleString()} employees` : ""}
+                                  {prospect.companyDescription ? ` — ${prospect.companyDescription}` : prospect.accountInfo?.industry ? ` — ${prospect.accountInfo.industry}` : ""}
                                 </li>
                               )}
                             </ul>
@@ -2128,7 +1974,7 @@ export default function DialerPage() {
                     {expandedSlots.has(slot.id) && (
                         <div className="mt-3 space-y-3 pl-4 border-l-2 border-border">
                           {/* AI Notes / POV */}
-                          {(slot.contact.pov || slot.contact.accountInfo?.pov || slot.contact.title) && (
+                          {(slot.contact.title || (slot.contact as any).companyDescription || (slot.contact.accountInfo as any)?.industry || (slot.contact.accountInfo as any)?.employees) && (
                           <div className="p-2 rounded-lg bg-primary/5 border border-primary/20">
                             <div className="flex items-start gap-2">
                               <Sparkles className="h-3.5 w-3.5 text-primary mt-0.5 flex-shrink-0" />
@@ -2138,10 +1984,10 @@ export default function DialerPage() {
                                   {slot.contact.title && slot.contact.company && (
                                     <li>{slot.contact.name} is {slot.contact.title} at {slot.contact.company}</li>
                                   )}
-                                  {(slot.contact.pov?.industryContext || slot.contact.accountInfo?.pov?.industryContext || (slot.contact.accountInfo as any)?.industry) && (
+                                  {((slot.contact as any).companyDescription || (slot.contact.accountInfo as any)?.industry || (slot.contact.accountInfo as any)?.employees) && (
                                     <li>
-                                      {slot.contact.company}{(slot.contact.accountInfo as any)?.industry ? ` is in ${(slot.contact.accountInfo as any).industry}` : ""}{(slot.contact.accountInfo as any)?.employees ? `, ${(slot.contact.accountInfo as any).employees.toLocaleString()} employees` : ""}
-                                      {(slot.contact.pov?.industryContext || slot.contact.accountInfo?.pov?.industryContext) ? ` — ${slot.contact.pov?.industryContext || slot.contact.accountInfo?.pov?.industryContext}` : ""}
+                                      {slot.contact.company}{(slot.contact.accountInfo as any)?.employees ? `, ${(slot.contact.accountInfo as any).employees.toLocaleString()} employees` : ""}
+                                      {(slot.contact as any).companyDescription ? ` — ${(slot.contact as any).companyDescription}` : (slot.contact.accountInfo as any)?.industry ? ` — ${(slot.contact.accountInfo as any).industry}` : ""}
                                     </li>
                                   )}
                                 </ul>
@@ -2268,10 +2114,10 @@ export default function DialerPage() {
                                 {slot.contact.title && slot.contact.company && (
                                   <li>{slot.contact.name} is {slot.contact.title} at {slot.contact.company}</li>
                                 )}
-                                {((slot.contact as any).pov?.industryContext || (slot.contact.accountInfo as any)?.industry) && (
+                                {((slot.contact as any).companyDescription || (slot.contact.accountInfo as any)?.industry || (slot.contact.accountInfo as any)?.employees) && (
                                   <li>
-                                    {slot.contact.company}{(slot.contact.accountInfo as any)?.industry ? ` is in ${(slot.contact.accountInfo as any).industry}` : ""}{(slot.contact.accountInfo as any)?.employees ? `, ${(slot.contact.accountInfo as any).employees.toLocaleString()} employees` : ""}
-                                    {(slot.contact as any).pov?.industryContext ? ` — ${(slot.contact as any).pov.industryContext}` : ""}
+                                    {slot.contact.company}{(slot.contact.accountInfo as any)?.employees ? `, ${(slot.contact.accountInfo as any).employees.toLocaleString()} employees` : ""}
+                                    {(slot.contact as any).companyDescription ? ` — ${(slot.contact as any).companyDescription}` : (slot.contact.accountInfo as any)?.industry ? ` — ${(slot.contact.accountInfo as any).industry}` : ""}
                                   </li>
                                 )}
                               </ul>

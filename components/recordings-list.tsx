@@ -46,6 +46,7 @@ export function RecordingsList() {
   const [selectedRecording, setSelectedRecording] = useState<CallRecording | null>(null)
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined)
   const [filter, setFilter] = useState<"all" | "recordings">("all")
+  const [metricFilter, setMetricFilter] = useState<"none" | "calls_this_week" | "connected" | "conversations" | "intros_booked">("none")
 
   useEffect(() => {
     loadRecordings()
@@ -68,9 +69,43 @@ export function RecordingsList() {
     }
   }
 
+  // Compute stats from recordings (before filtering so metric cards always show totals)
+  const now = new Date()
+  const startOfWeek = new Date(now)
+  startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay())
+  startOfWeek.setHours(0, 0, 0, 0)
+
+  const callsThisWeek = recordings.filter(r => new Date(r.createdAt) >= startOfWeek)
+  const connectedCalls = callsThisWeek.filter(r => r.outcome?.startsWith("connected"))
+  const conversations = callsThisWeek.filter(r => (r.duration || 0) > 60) // > 1 minute
+  const introsBooked = callsThisWeek.filter(r => r.outcome === "connected_intro_booked")
+  const connectRate = callsThisWeek.length > 0 ? Math.round((connectedCalls.length / callsThisWeek.length) * 100) : 0
+  const conversationRate = callsThisWeek.length > 0 ? Math.round((conversations.length / callsThisWeek.length) * 100) : 0
+
   const filteredRecordings = recordings.filter((recording) => {
     // Recording filter
     if (filter === "recordings" && !recording.recordingUrl) return false
+
+    // Metric card filter
+    if (metricFilter !== "none") {
+      const recordingDate = new Date(recording.createdAt)
+      const isThisWeek = recordingDate >= startOfWeek
+      if (!isThisWeek) return false
+
+      switch (metricFilter) {
+        case "calls_this_week":
+          break // All calls this week pass
+        case "connected":
+          if (!recording.outcome?.startsWith("connected")) return false
+          break
+        case "conversations":
+          if ((recording.duration || 0) <= 60) return false
+          break
+        case "intros_booked":
+          if (recording.outcome !== "connected_intro_booked") return false
+          break
+      }
+    }
 
     // Text search filter
     const searchLower = searchTerm.toLowerCase()
@@ -140,24 +175,14 @@ export function RecordingsList() {
     )
   }
 
-  // Compute stats from recordings
-  const now = new Date()
-  const startOfWeek = new Date(now)
-  startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay())
-  startOfWeek.setHours(0, 0, 0, 0)
-
-  const callsThisWeek = recordings.filter(r => new Date(r.createdAt) >= startOfWeek)
-  const connectedCalls = callsThisWeek.filter(r => r.outcome?.startsWith("connected"))
-  const conversations = callsThisWeek.filter(r => (r.duration || 0) > 60) // > 1 minute
-  const introsBooked = callsThisWeek.filter(r => r.outcome === "connected_intro_booked")
-  const connectRate = callsThisWeek.length > 0 ? Math.round((connectedCalls.length / callsThisWeek.length) * 100) : 0
-  const conversationRate = callsThisWeek.length > 0 ? Math.round((conversations.length / callsThisWeek.length) * 100) : 0
-
   return (
     <div className="space-y-4">
-      {/* Call Stats */}
+      {/* Call Stats - Clickable to filter call list */}
       <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
-        <Card className="border-border">
+        <Card
+          className={cn("border-border cursor-pointer transition-all hover:border-primary/50", metricFilter === "calls_this_week" && "border-primary ring-1 ring-primary/20")}
+          onClick={() => setMetricFilter(metricFilter === "calls_this_week" ? "none" : "calls_this_week")}
+        >
           <CardContent className="pt-4 pb-3 px-4">
             <div className="flex items-center justify-between">
               <div>
@@ -168,7 +193,10 @@ export function RecordingsList() {
             </div>
           </CardContent>
         </Card>
-        <Card className="border-border">
+        <Card
+          className={cn("border-border cursor-pointer transition-all hover:border-primary/50", metricFilter === "connected" && "border-primary ring-1 ring-primary/20")}
+          onClick={() => setMetricFilter(metricFilter === "connected" ? "none" : "connected")}
+        >
           <CardContent className="pt-4 pb-3 px-4">
             <div className="flex items-center justify-between">
               <div>
@@ -177,9 +205,13 @@ export function RecordingsList() {
               </div>
               <UserCheck className="h-5 w-5 text-primary" />
             </div>
+            <p className="text-xs text-muted-foreground mt-1">{connectedCalls.length} connected</p>
           </CardContent>
         </Card>
-        <Card className="border-border">
+        <Card
+          className={cn("border-border cursor-pointer transition-all hover:border-primary/50", metricFilter === "conversations" && "border-primary ring-1 ring-primary/20")}
+          onClick={() => setMetricFilter(metricFilter === "conversations" ? "none" : "conversations")}
+        >
           <CardContent className="pt-4 pb-3 px-4">
             <div className="flex items-center justify-between">
               <div>
@@ -191,7 +223,10 @@ export function RecordingsList() {
             <p className="text-xs text-muted-foreground mt-1">{conversations.length} calls &gt; 1 min</p>
           </CardContent>
         </Card>
-        <Card className="border-border">
+        <Card
+          className={cn("border-border cursor-pointer transition-all hover:border-primary/50", metricFilter === "intros_booked" && "border-primary ring-1 ring-primary/20")}
+          onClick={() => setMetricFilter(metricFilter === "intros_booked" ? "none" : "intros_booked")}
+        >
           <CardContent className="pt-4 pb-3 px-4">
             <div className="flex items-center justify-between">
               <div>
@@ -203,6 +238,18 @@ export function RecordingsList() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Active metric filter indicator */}
+      {metricFilter !== "none" && (
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary" className="gap-1">
+            Showing: {metricFilter === "calls_this_week" ? "All calls this week" : metricFilter === "connected" ? "Connected calls" : metricFilter === "conversations" ? "Conversations (> 1 min)" : "Intros booked"}
+            <button onClick={() => setMetricFilter("none")} className="ml-1 hover:text-foreground">
+              <X className="h-3 w-3" />
+            </button>
+          </Badge>
+        </div>
+      )}
 
       {/* Filter Tabs, Search, and Date Range */}
       <div className="flex items-center gap-3">

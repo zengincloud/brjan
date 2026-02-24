@@ -54,10 +54,15 @@ export const GET = withAuth(async (
 
     // Transform tasks into dialer queue items (basic info first)
     const queueItems: any[] = []
+    const seenProspectIds = new Set<string>()
 
     for (const task of tasks) {
       const contact = task.contact as any
       if (!contact?.phone && !contact?.prospectId) continue
+
+      // Skip duplicate prospects (multiple tasks for same person)
+      if (contact?.prospectId && seenProspectIds.has(contact.prospectId)) continue
+      if (contact?.prospectId) seenProspectIds.add(contact.prospectId)
 
       // If we have a prospectId, fetch the full prospect data
       let prospect = null
@@ -114,6 +119,7 @@ export const GET = withAuth(async (
         email: contact?.email || prospect?.email || '',
         linkedin: contact?.linkedin || prospect?.linkedin || null,
         location: prospect?.location || null,
+        companyDescription: (prospect?.wizaData as any)?.companyDescription || null,
 
         // Sequence info
         sequence: sequence?.name || null,
@@ -164,16 +170,18 @@ export const GET = withAuth(async (
       }
     })
 
+    // Build a set of prospect IDs already in the queue for fast dedup
+    const queuedProspectIds = new Set(
+      queueItems.map(item => item.prospectId).filter(Boolean)
+    )
+
     // Add prospects whose current step is a call
     for (const ps of prospectsWithCallSteps) {
       const currentStep = ps.sequence.steps[ps.currentStep]
       if (currentStep?.type !== 'call') continue
 
       // Check if already in queue (has a task)
-      const alreadyInQueue = queueItems.some(
-        item => item.prospectId === ps.prospectId
-      )
-      if (alreadyInQueue) continue
+      if (queuedProspectIds.has(ps.prospectId)) continue
 
       queueItems.push({
         id: `ps-${ps.id}`,
@@ -186,6 +194,7 @@ export const GET = withAuth(async (
         email: ps.prospect.email,
         linkedin: ps.prospect.linkedin || null,
         location: ps.prospect.location || null,
+        companyDescription: (ps.prospect.wizaData as any)?.companyDescription || null,
 
         // Sequence info
         sequence: ps.sequence.name,
@@ -214,9 +223,9 @@ export const GET = withAuth(async (
       .map(item => item.prospectId)
       .filter((id): id is string => !!id)
 
-    const companyNames = [...new Set(
+    const companyNames = Array.from(new Set(
       queueItems.map(item => item.company).filter(Boolean)
-    )]
+    ))
 
     if (prospectIds.length > 0 || companyNames.length > 0) {
       // Fetch all prior calls, emails, and matching accounts in parallel

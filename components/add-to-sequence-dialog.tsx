@@ -79,7 +79,7 @@ export function AddToSequenceDialog({
   const loadSequences = async () => {
     try {
       setLoadingSequences(true)
-      const response = await fetch("/api/sequences?status=active")
+      const response = await fetch("/api/sequences")
       if (response.ok) {
         const data = await response.json()
         setSequences(data.sequences || [])
@@ -168,7 +168,7 @@ export function AddToSequenceDialog({
               </div>
             ) : sequences.length === 0 ? (
               <p className="text-sm text-muted-foreground py-2">
-                No active sequences available. Create a sequence first.
+                No sequences available. Create a sequence first.
               </p>
             ) : (
               <Select value={selectedSequenceId} onValueChange={setSelectedSequenceId}>

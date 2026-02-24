@@ -7,7 +7,6 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Mail, Pencil, Phone, Filter, ChevronDown, Upload, Plus, Check, X, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/components/ui/use-toast"
@@ -304,18 +303,7 @@ export function ProspectList() {
                 <Checkbox checked={selectedRows.includes(prospect.id)} onCheckedChange={() => toggleRow(prospect.id)} />
               </TableCell>
               <TableCell>
-                <div className="flex items-center gap-3">
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage src={`/placeholder.svg?height=32&width=32`} />
-                    <AvatarFallback>
-                      {(prospect.name || "")
-                        .split(" ")
-                        .map((n) => n[0])
-                        .join("")}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="font-medium">{prospect.name}</span>
-                </div>
+                <span className="font-medium">{prospect.name}</span>
               </TableCell>
               <TableCell onClick={(e) => e.stopPropagation()}>
                 <Popover open={quickEditId === prospect.id} onOpenChange={(open) => !open && cancelQuickEdit()}>

@@ -94,8 +94,37 @@ export async function pushContact(accessToken: string, prospect: {
   return { hubspotContactId: data.id, created: true }
 }
 
-// Search for an existing HubSpot company by name
-export async function findCompanyByName(accessToken: string, name: string): Promise<string | null> {
+// Extract domain from a URL (e.g., "https://www.acme.com/about" -> "acme.com")
+function extractDomain(url: string): string | null {
+  try {
+    const hostname = new URL(url).hostname.replace(/^www\./, "")
+    return hostname || null
+  } catch {
+    // If not a valid URL, try treating it as a bare domain
+    const cleaned = url.replace(/^www\./, "").split("/")[0]
+    return cleaned || null
+  }
+}
+
+// Search for an existing HubSpot company by domain or name
+async function findExistingCompany(accessToken: string, name: string, domain?: string | null): Promise<string | null> {
+  // Try domain first (HubSpot's primary dedup key for companies)
+  if (domain) {
+    try {
+      const data = await hubspotFetch(accessToken, "/crm/v3/objects/companies/search", {
+        method: "POST",
+        body: JSON.stringify({
+          filterGroups: [{
+            filters: [{ propertyName: "domain", operator: "EQ", value: domain }],
+          }],
+          limit: 1,
+        }),
+      })
+      if (data.results?.[0]?.id) return data.results[0].id
+    } catch {}
+  }
+
+  // Fall back to name search
   try {
     const data = await hubspotFetch(accessToken, "/crm/v3/objects/companies/search", {
       method: "POST",
@@ -121,17 +150,20 @@ export async function pushCompany(accessToken: string, account: {
   employees?: number | null
   linkedin?: string | null
 }): Promise<{ hubspotCompanyId: string; created: boolean }> {
+  const domain = account.website ? extractDomain(account.website) : null
+
   const properties: Record<string, string> = {
     name: account.name,
   }
+  if (domain) properties.domain = domain
   if (account.industry) properties.industry = account.industry
   if (account.location) properties.city = account.location
   if (account.website) properties.website = account.website
   if (account.employees) properties.numberofemployees = String(account.employees)
   if (account.linkedin) properties.linkedin_company_page = account.linkedin
 
-  // Try to find existing company by name first
-  const existingId = await findCompanyByName(accessToken, account.name)
+  // Try to find existing company by domain first, then name
+  const existingId = await findExistingCompany(accessToken, account.name, domain)
   if (existingId) {
     await hubspotFetch(accessToken, `/crm/v3/objects/companies/${existingId}`, {
       method: "PATCH",

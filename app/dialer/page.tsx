@@ -1165,6 +1165,42 @@ export default function DialerPage() {
     }
   }
 
+  // Quick-dial a specific prospect without starting a full session
+  const quickDial = useCallback((prospect: DialerProspect) => {
+    if (!deviceReady) {
+      toast({
+        title: "Not Ready",
+        description: "Calling device is still initializing. Please wait.",
+        variant: "destructive",
+      })
+      return
+    }
+    if (!prospect.phone) {
+      toast({
+        title: "No Phone Number",
+        description: `${prospect.name} doesn't have a phone number.`,
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Load prospect into the call slot and dial
+    setCallSlots([{
+      id: "1",
+      status: "idle" as CallStatus,
+      contact: prospect,
+      startTime: null,
+      notes: "",
+      pendingOutcome: undefined,
+      pendingPipelineStage: undefined,
+    }])
+
+    // Small delay to let state settle, then connect
+    setTimeout(() => {
+      connectCall(prospect, 0)
+    }, 200)
+  }, [deviceReady, connectCall, toast])
+
   const updateNotes = (slotId: string, notes: string) => {
     setCallSlots(prev => prev.map(slot =>
       slot.id === slotId ? { ...slot, notes } : slot
@@ -2475,7 +2511,7 @@ export default function DialerPage() {
                           onClick={() => saveAndAdvance(slot.id)}
                         >
                           <Save className="h-3 w-3 mr-1" />
-                          Save & Next
+                          {sessionActive ? "Save & Next" : "Save & Done"}
                         </Button>
                       </div>
                     </>
@@ -2483,6 +2519,59 @@ export default function DialerPage() {
                 </CardContent>
               </Card>
             ))}
+
+            {/* Quick-dial queue — pick a specific prospect to call */}
+            {mockProspects.length > 0 && (
+              <div className="mt-6 max-w-2xl">
+                <h3 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
+                  <Users className="h-3.5 w-3.5" />
+                  Call Queue ({mockProspects.length} prospect{mockProspects.length !== 1 ? "s" : ""})
+                </h3>
+                <div className="space-y-1.5">
+                  {mockProspects.map((prospect) => (
+                    <div
+                      key={prospect.id}
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border bg-card hover:bg-muted/30 transition-colors group"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium truncate">{prospect.name}</span>
+                          <span className="text-xs text-muted-foreground truncate">{prospect.title}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Building2 className="h-3 w-3 flex-shrink-0" />
+                          <span className="truncate">{prospect.company}</span>
+                          <span>•</span>
+                          <Phone className="h-3 w-3 flex-shrink-0" />
+                          <span className="font-mono">{prospect.phone}</span>
+                        </div>
+                      </div>
+                      {prospect.dueDate && (
+                        <span className="text-[10px] text-muted-foreground whitespace-nowrap hidden sm:inline">
+                          {(() => {
+                            try {
+                              const d = new Date(prospect.dueDate)
+                              if (isNaN(d.getTime())) return ""
+                              return formatDistanceToNow(d, { addSuffix: true })
+                            } catch { return "" }
+                          })()}
+                        </span>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity h-8 px-3"
+                        onClick={() => quickDial(prospect)}
+                        disabled={!deviceReady || callSlots[0]?.status !== "idle"}
+                      >
+                        <Phone className="h-3.5 w-3.5 mr-1.5" />
+                        Call
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import {
   Card,
   CardContent,
@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Check, Loader2, AlertCircle, RefreshCw } from "lucide-react"
+import { Check, Loader2, AlertCircle, RefreshCw, ExternalLink, X } from "lucide-react"
 import { toast } from "sonner"
 
 function HubSpotIcon({ className }: { className?: string }) {
@@ -24,25 +24,124 @@ function HubSpotIcon({ className }: { className?: string }) {
   )
 }
 
+interface HubspotStatus {
+  connected: boolean
+  integration: {
+    portalId: number
+    isActive: boolean
+    connectedAt: string
+    tokenValid: boolean
+  } | null
+}
+
 export function HubspotIntegration() {
-  const [status, setStatus] = useState<{ connected: boolean; portalId?: number; error?: string } | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [status, setStatus] = useState<HubspotStatus | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isConnecting, setIsConnecting] = useState(false)
+  const [isDisconnecting, setIsDisconnecting] = useState(false)
   const [syncing, setSyncing] = useState(false)
 
-  useEffect(() => {
-    checkStatus()
+  const fetchStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/integrations/hubspot/status")
+      if (res.ok) {
+        const data = await res.json()
+        setStatus(data)
+        return data
+      }
+    } catch (error) {
+      console.error("Failed to fetch HubSpot status:", error)
+    } finally {
+      setIsLoading(false)
+    }
+    return null
   }, [])
 
-  const checkStatus = async () => {
+  useEffect(() => {
+    fetchStatus()
+
+    // Check for success/error from OAuth callback
+    const params = new URLSearchParams(window.location.search)
+    if (params.get("hubspot_success") === "true") {
+      toast.success("HubSpot connected successfully!")
+      window.history.replaceState({}, "", "/settings?tab=integrations")
+      fetchStatus()
+    }
+    if (params.get("hubspot_error")) {
+      const error = params.get("hubspot_error")
+      const errorMessages: Record<string, string> = {
+        access_denied: "You declined the HubSpot connection request",
+        missing_params: "Missing OAuth parameters",
+        invalid_state: "Invalid state - please try again",
+        user_mismatch: "User mismatch - please try again",
+        token_error: "Failed to get HubSpot tokens",
+        callback_failed: "OAuth callback failed",
+      }
+      toast.error(errorMessages[error!] || `HubSpot connection failed: ${error}`)
+      window.history.replaceState({}, "", "/settings?tab=integrations")
+    }
+  }, [fetchStatus])
+
+  const handleConnect = async () => {
+    setIsConnecting(true)
     try {
-      setLoading(true)
-      const res = await fetch("/api/integrations/hubspot/status")
+      const res = await fetch("/api/integrations/hubspot/connect")
       const data = await res.json()
-      setStatus(data)
-    } catch {
-      setStatus({ connected: false, error: "Failed to check status" })
+
+      if (data.authUrl) {
+        window.open(data.authUrl, "_blank", "noopener,noreferrer")
+
+        // Poll for connection status
+        const pollInterval = setInterval(async () => {
+          const newStatus = await fetchStatus()
+          if (newStatus?.connected) {
+            clearInterval(pollInterval)
+            setIsConnecting(false)
+            toast.success("HubSpot connected successfully!")
+          }
+        }, 2000)
+
+        setTimeout(() => {
+          clearInterval(pollInterval)
+          setIsConnecting(false)
+        }, 5 * 60 * 1000)
+
+        const handleFocus = async () => {
+          const newStatus = await fetchStatus()
+          if (newStatus?.connected) {
+            clearInterval(pollInterval)
+            setIsConnecting(false)
+            window.removeEventListener("focus", handleFocus)
+            toast.success("HubSpot connected successfully!")
+          }
+        }
+        window.addEventListener("focus", handleFocus)
+      } else {
+        throw new Error(data.error || "No auth URL received")
+      }
+    } catch (error: any) {
+      console.error("Failed to initiate HubSpot connection:", error)
+      toast.error(error.message || "Failed to connect HubSpot")
+      setIsConnecting(false)
+    }
+  }
+
+  const handleDisconnect = async () => {
+    setIsDisconnecting(true)
+    try {
+      const res = await fetch("/api/integrations/hubspot/disconnect", {
+        method: "POST",
+      })
+
+      if (!res.ok) throw new Error("Disconnect failed")
+
+      toast.success("HubSpot disconnected successfully")
+      setStatus({ connected: false, integration: null })
+    } catch (error) {
+      console.error("Failed to disconnect HubSpot:", error)
+      toast.error("Failed to disconnect HubSpot")
     } finally {
-      setLoading(false)
+      setIsDisconnecting(false)
     }
   }
 
@@ -64,6 +163,29 @@ export function HubspotIntegration() {
     }
   }
 
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded bg-secondary flex items-center justify-center">
+              <HubSpotIcon className="h-6 w-6" />
+            </div>
+            <div>
+              <CardTitle className="text-base">HubSpot CRM</CardTitle>
+              <CardDescription>Loading...</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="flex justify-center py-4">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    )
+  }
+
+  const isConnected = status?.connected && status.integration?.isActive && status.integration?.tokenValid
+
   return (
     <Card>
       <CardHeader>
@@ -77,9 +199,7 @@ export function HubspotIntegration() {
               <CardDescription>Auto-sync prospects and call activities</CardDescription>
             </div>
           </div>
-          {loading ? (
-            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-          ) : status?.connected ? (
+          {isConnected ? (
             <Badge variant="default" className="gap-1 bg-green-600 hover:bg-green-700">
               <Check className="h-3 w-3" />
               Connected
@@ -93,16 +213,31 @@ export function HubspotIntegration() {
         </div>
       </CardHeader>
       <CardContent>
-        {loading ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Checking connection...
-          </div>
-        ) : status?.connected ? (
+        {isConnected && status.integration ? (
           <div className="space-y-3">
-            <div className="text-sm text-muted-foreground space-y-1">
-              <p>Portal ID: <span className="font-mono text-foreground">{status.portalId}</span></p>
-              <p>New prospects and call outcomes are automatically pushed to HubSpot.</p>
+            <div className="flex items-center justify-between p-3 border border-green-500/30 bg-green-500/5 rounded-lg">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-white border-2 border-green-500/30 flex items-center justify-center">
+                  <HubSpotIcon className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="font-medium">Portal ID: <span className="font-mono">{status.integration.portalId}</span></p>
+                  <p className="text-sm text-muted-foreground">Prospects and calls auto-sync to HubSpot</p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDisconnect}
+                disabled={isDisconnecting}
+              >
+                {isDisconnecting ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                ) : (
+                  <X className="h-3.5 w-3.5 mr-1.5" />
+                )}
+                Disconnect
+              </Button>
             </div>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" onClick={syncAllProspects} disabled={syncing}>
@@ -120,13 +255,46 @@ export function HubspotIntegration() {
               </Button>
             </div>
           </div>
+        ) : status?.connected && status.integration && !status.integration.tokenValid ? (
+          <div className="flex items-center justify-between p-3 border border-yellow-500/30 bg-yellow-500/5 rounded-lg">
+            <div>
+              <p className="font-medium text-yellow-600">Reconnection required</p>
+              <p className="text-sm text-muted-foreground">Your HubSpot token has expired. Please reconnect.</p>
+            </div>
+            <Button onClick={handleConnect} disabled={isConnecting} size="sm">
+              {isConnecting ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+              ) : (
+                <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+              )}
+              {isConnecting ? "Connecting..." : "Reconnect"}
+            </Button>
+          </div>
         ) : (
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              {status?.error || "HubSpot is not connected. Add your HubSpot Private App access token to the environment variables to enable sync."}
-            </p>
-            <Button variant="outline" size="sm" onClick={checkStatus}>
-              Retry Connection
+          <div className="flex items-center justify-between p-3 border-2 border-dashed border-muted-foreground/30 rounded-lg">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-white border flex items-center justify-center">
+                <HubSpotIcon className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="font-medium">Connect HubSpot</p>
+                <p className="text-sm text-muted-foreground">
+                  Sync prospects and call outcomes to your CRM
+                </p>
+              </div>
+            </div>
+            <Button
+              onClick={handleConnect}
+              disabled={isConnecting}
+              size="sm"
+              className="gap-1.5"
+            >
+              {isConnecting ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <ExternalLink className="h-3.5 w-3.5" />
+              )}
+              {isConnecting ? "Connecting..." : "Connect"}
             </Button>
           </div>
         )}

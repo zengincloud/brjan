@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { withAuth } from "@/lib/auth/api-middleware"
-import { pushContact, isConfigured } from "@/lib/hubspot/client"
+import { pushContact } from "@/lib/hubspot/client"
+import { getValidAccessToken } from "@/lib/hubspot/oauth"
 
 export const dynamic = "force-dynamic"
 
@@ -9,8 +10,9 @@ export const dynamic = "force-dynamic"
 // Pass { syncAll: true } to sync all prospects, or { prospectIds: [...] } for specific ones
 export const POST = withAuth(async (request: NextRequest, userId: string) => {
   try {
-    if (!isConfigured()) {
-      return NextResponse.json({ error: "HubSpot not configured" }, { status: 400 })
+    const accessToken = await getValidAccessToken(userId)
+    if (!accessToken) {
+      return NextResponse.json({ error: "HubSpot not connected" }, { status: 400 })
     }
 
     const { prospectIds, syncAll } = await request.json()
@@ -25,7 +27,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
 
     const results = await Promise.allSettled(
       prospects.map(async (prospect) => {
-        const result = await pushContact({
+        const result = await pushContact(accessToken, {
           name: prospect.name,
           email: prospect.email,
           phone: prospect.phone,

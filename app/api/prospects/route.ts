@@ -3,7 +3,8 @@ import { prisma } from "@/lib/prisma"
 import { withAuth } from "@/lib/auth/api-middleware"
 import { checkCredits, deductCredits } from "@/lib/credits"
 import { findOrCreateAccount } from "@/lib/account-linking"
-import { pushContact, isConfigured as hubspotConfigured } from "@/lib/hubspot/client"
+import { pushContact } from "@/lib/hubspot/client"
+import { getValidAccessToken } from "@/lib/hubspot/oauth"
 
 export const dynamic = 'force-dynamic'
 
@@ -162,10 +163,10 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
     await deductCredits(userId)
 
     // Push to HubSpot in background (non-blocking)
-    if (hubspotConfigured()) {
-      (async () => {
-        try {
-          const result = await pushContact({ name, email, phone, title, company, linkedin })
+    getValidAccessToken(userId).then((hsToken) => {
+      if (!hsToken) return
+      pushContact(hsToken, { name, email, phone, title, company, linkedin })
+        .then(async (result) => {
           await prisma.prospect.update({
             where: { id: prospect.id },
             data: {
@@ -176,11 +177,9 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
             },
           })
           console.log(`HubSpot: synced new prospect ${prospect.id} → contact ${result.hubspotContactId}`)
-        } catch (err) {
-          console.error("HubSpot sync error (non-blocking):", err)
-        }
-      })()
-    }
+        })
+        .catch((err) => console.error("HubSpot sync error (non-blocking):", err))
+    })
 
     return NextResponse.json({ prospect }, { status: 201 })
   } catch (error: any) {

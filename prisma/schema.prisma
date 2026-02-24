@@ -34,7 +34,8 @@ model User {
   calls            Call[]
   sequences        Sequence[]
   emailTemplates   EmailTemplate[]
-  gmailIntegration GmailIntegration?
+  gmailIntegration   GmailIntegration?
+  hubspotIntegration HubspotIntegration?
   invitationsSent  Invitation[]
   trackedEmails    TrackedEmail[]
   linkedInConversations LinkedInConversation[]
@@ -95,6 +96,23 @@ model GmailIntegration {
 
   @@index([userId])
   @@map("gmail_integrations")
+}
+
+model HubspotIntegration {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  portalId       Int
+  accessToken    String   @db.Text
+  refreshToken   String   @db.Text
+  tokenExpiresAt DateTime
+  scopes         String
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId])
+  @@map("hubspot_integrations")
 }
 
 model Task {

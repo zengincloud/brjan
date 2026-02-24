@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { withAuth } from "@/lib/auth/api-middleware"
 import { advanceSequenceStep } from "@/lib/sequences"
-import { pushContact, logCall as hubspotLogCall, isConfigured as hubspotConfigured } from "@/lib/hubspot/client"
+import { pushContact, logCall as hubspotLogCall } from "@/lib/hubspot/client"
+import { getValidAccessToken } from "@/lib/hubspot/oauth"
 
 export const dynamic = 'force-dynamic'
 
@@ -100,48 +101,51 @@ export const PATCH = withAuth<{ params: { id: string } }>(async (
     }
 
     // Push call to HubSpot in background (non-blocking)
-    if (outcome && call.prospect && hubspotConfigured()) {
-      (async () => {
-        try {
-          // Ensure prospect exists as a HubSpot contact
-          const hubspotData = (call.prospect!.wizaData as any)?.hubspotContactId
-            ? { hubspotContactId: (call.prospect!.wizaData as any).hubspotContactId, created: false }
-            : await pushContact({
-                name: call.prospect!.name,
-                email: call.prospect!.email,
-                phone: call.prospect!.phone,
-                title: call.prospect!.title,
-                company: call.prospect!.company,
-                linkedin: call.prospect!.linkedin,
+    if (outcome && call.prospect) {
+      getValidAccessToken(userId).then((hsToken) => {
+        if (!hsToken) return
+        ;(async () => {
+          try {
+            // Ensure prospect exists as a HubSpot contact
+            const hubspotData = (call.prospect!.wizaData as any)?.hubspotContactId
+              ? { hubspotContactId: (call.prospect!.wizaData as any).hubspotContactId, created: false }
+              : await pushContact(hsToken, {
+                  name: call.prospect!.name,
+                  email: call.prospect!.email,
+                  phone: call.prospect!.phone,
+                  title: call.prospect!.title,
+                  company: call.prospect!.company,
+                  linkedin: call.prospect!.linkedin,
+                })
+
+            // Store HubSpot ID if newly created
+            if (hubspotData.created && call.prospectId) {
+              await prisma.prospect.update({
+                where: { id: call.prospectId },
+                data: {
+                  wizaData: {
+                    ...(typeof call.prospect!.wizaData === "object" && call.prospect!.wizaData !== null ? call.prospect!.wizaData : {}),
+                    hubspotContactId: hubspotData.hubspotContactId,
+                  } as any,
+                },
               })
+            }
 
-          // Store HubSpot ID if newly created
-          if (hubspotData.created && call.prospectId) {
-            await prisma.prospect.update({
-              where: { id: call.prospectId },
-              data: {
-                wizaData: {
-                  ...(typeof call.prospect!.wizaData === "object" && call.prospect!.wizaData !== null ? call.prospect!.wizaData : {}),
-                  hubspotContactId: hubspotData.hubspotContactId,
-                } as any,
-              },
+            // Log the call activity
+            await hubspotLogCall(hsToken, {
+              hubspotContactId: hubspotData.hubspotContactId,
+              outcome,
+              notes,
+              durationMs: duration ? duration * 1000 : undefined,
+              timestamp: updatedCall.startedAt?.toISOString(),
             })
+
+            console.log(`HubSpot: logged call for prospect ${call.prospectId}`)
+          } catch (err) {
+            console.error("HubSpot sync error (non-blocking):", err)
           }
-
-          // Log the call activity
-          await hubspotLogCall({
-            hubspotContactId: hubspotData.hubspotContactId,
-            outcome,
-            notes,
-            durationMs: duration ? duration * 1000 : undefined,
-            timestamp: updatedCall.startedAt?.toISOString(),
-          })
-
-          console.log(`HubSpot: logged call for prospect ${call.prospectId}`)
-        } catch (err) {
-          console.error("HubSpot sync error (non-blocking):", err)
-        }
-      })()
+        })()
+      })
     }
 
     return NextResponse.json({ call: updatedCall, sequenceAdvanced })

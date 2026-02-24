@@ -1,17 +1,12 @@
+import { getValidAccessToken } from "./oauth"
+
 const HUBSPOT_API_BASE = "https://api.hubapi.com"
 
-function getAccessToken(): string | null {
-  return process.env.HUBSPOT_ACCESS_TOKEN || null
-}
-
-async function hubspotFetch(path: string, options: RequestInit = {}) {
-  const token = getAccessToken()
-  if (!token) throw new Error("HubSpot access token not configured")
-
+async function hubspotFetch(accessToken: string, path: string, options: RequestInit = {}) {
   const res = await fetch(`${HUBSPOT_API_BASE}${path}`, {
     ...options,
     headers: {
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
       ...options.headers,
     },
@@ -25,13 +20,13 @@ async function hubspotFetch(path: string, options: RequestInit = {}) {
   return res.json()
 }
 
-// Check if the HubSpot connection is valid
-export async function checkConnection(): Promise<{ connected: boolean; portalId?: number; error?: string }> {
+// Check if the HubSpot connection is valid for a user
+export async function checkConnection(userId: string): Promise<{ connected: boolean; portalId?: number; error?: string }> {
   try {
-    const token = getAccessToken()
-    if (!token) return { connected: false, error: "No access token configured" }
+    const token = await getValidAccessToken(userId)
+    if (!token) return { connected: false, error: "HubSpot not connected" }
 
-    const data = await hubspotFetch("/account-info/v3/details")
+    const data = await hubspotFetch(token, "/account-info/v3/details")
     return { connected: true, portalId: data.portalId }
   } catch (err: any) {
     return { connected: false, error: err.message }
@@ -39,9 +34,9 @@ export async function checkConnection(): Promise<{ connected: boolean; portalId?
 }
 
 // Search for an existing HubSpot contact by email
-export async function findContactByEmail(email: string): Promise<string | null> {
+export async function findContactByEmail(accessToken: string, email: string): Promise<string | null> {
   try {
-    const data = await hubspotFetch("/crm/v3/objects/contacts/search", {
+    const data = await hubspotFetch(accessToken, "/crm/v3/objects/contacts/search", {
       method: "POST",
       body: JSON.stringify({
         filterGroups: [{
@@ -57,7 +52,7 @@ export async function findContactByEmail(email: string): Promise<string | null> 
 }
 
 // Create or update a HubSpot contact from a Boilerroom prospect
-export async function pushContact(prospect: {
+export async function pushContact(accessToken: string, prospect: {
   name: string
   email?: string | null
   phone?: string | null
@@ -80,9 +75,9 @@ export async function pushContact(prospect: {
 
   // Try to find existing contact by email first
   if (prospect.email) {
-    const existingId = await findContactByEmail(prospect.email)
+    const existingId = await findContactByEmail(accessToken, prospect.email)
     if (existingId) {
-      await hubspotFetch(`/crm/v3/objects/contacts/${existingId}`, {
+      await hubspotFetch(accessToken, `/crm/v3/objects/contacts/${existingId}`, {
         method: "PATCH",
         body: JSON.stringify({ properties }),
       })
@@ -91,7 +86,7 @@ export async function pushContact(prospect: {
   }
 
   // Create new contact
-  const data = await hubspotFetch("/crm/v3/objects/contacts", {
+  const data = await hubspotFetch(accessToken, "/crm/v3/objects/contacts", {
     method: "POST",
     body: JSON.stringify({ properties }),
   })
@@ -100,7 +95,7 @@ export async function pushContact(prospect: {
 }
 
 // Log a call activity to HubSpot and associate it with a contact
-export async function logCall(params: {
+export async function logCall(accessToken: string, params: {
   hubspotContactId: string
   outcome: string
   notes?: string | null
@@ -133,13 +128,14 @@ export async function logCall(params: {
     properties.hs_call_duration = String(params.durationMs)
   }
 
-  const data = await hubspotFetch("/crm/v3/objects/calls", {
+  const data = await hubspotFetch(accessToken, "/crm/v3/objects/calls", {
     method: "POST",
     body: JSON.stringify({ properties }),
   })
 
   // Associate call with contact
   await hubspotFetch(
+    accessToken,
     `/crm/v3/objects/calls/${data.id}/associations/contacts/${params.hubspotContactId}/call_to_contact`,
     { method: "PUT" }
   )
@@ -147,6 +143,8 @@ export async function logCall(params: {
   return { engagementId: data.id }
 }
 
-export function isConfigured(): boolean {
-  return !!getAccessToken()
+// Check if a user has HubSpot connected
+export async function isConfiguredForUser(userId: string): Promise<boolean> {
+  const token = await getValidAccessToken(userId)
+  return !!token
 }

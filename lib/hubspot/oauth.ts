@@ -7,6 +7,12 @@ const HUBSPOT_TOKEN_URL = "https://api.hubapi.com/oauth/v1/token"
 const SCOPES = [
   "crm.objects.contacts.read",
   "crm.objects.contacts.write",
+  "crm.schemas.contacts.read",
+  "crm.schemas.contacts.write",
+  "crm.objects.companies.read",
+  "crm.objects.companies.write",
+  "crm.schemas.companies.read",
+  "crm.schemas.companies.write",
 ]
 
 function getClientId(): string {

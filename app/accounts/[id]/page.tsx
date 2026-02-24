@@ -31,6 +31,8 @@ import {
   AlertTriangle,
   Zap,
   BookOpen,
+  Mic,
+  Clock,
 } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 
@@ -83,6 +85,19 @@ type Contact = {
   lastActivity: string
 }
 
+type ActivityItem = {
+  id: string
+  type: "call" | "email"
+  contactName: string | null
+  detail: string
+  time: string
+  outcome?: string | null
+  duration?: number | null
+  recordingUrl?: string | null
+  emailStatus?: string | null
+  subject?: string | null
+}
+
 export default function AccountDetailPage() {
   const params = useParams()
   const router = useRouter()
@@ -93,16 +108,19 @@ export default function AccountDetailPage() {
   const [insights, setInsights] = useState<CompanyInsights | null>(null)
   const [pov, setPov] = useState<POVData | null>(null)
   const [contacts, setContacts] = useState<Contact[]>([])
+  const [activity, setActivity] = useState<ActivityItem[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingInsights, setLoadingInsights] = useState(false)
   const [loadingPov, setLoadingPov] = useState(false)
   const [loadingContacts, setLoadingContacts] = useState(false)
+  const [loadingActivity, setLoadingActivity] = useState(false)
 
   useEffect(() => {
     if (accountId) {
       loadAccount()
       loadInsights()
       loadContacts()
+      loadActivity()
     }
   }, [accountId])
 
@@ -202,6 +220,35 @@ export default function AccountDetailPage() {
     } finally {
       setLoadingContacts(false)
     }
+  }
+
+  const loadActivity = async () => {
+    try {
+      setLoadingActivity(true)
+      const response = await fetch(`/api/accounts/${accountId}/activity`)
+      if (!response.ok) throw new Error("Failed to fetch activity")
+      const data = await response.json()
+      setActivity(data.activity || [])
+    } catch (error) {
+      console.error("Error fetching activity:", error)
+    } finally {
+      setLoadingActivity(false)
+    }
+  }
+
+  const formatDuration = (seconds: number | null | undefined) => {
+    if (!seconds) return "0:00"
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins}:${secs.toString().padStart(2, "0")}`
+  }
+
+  const getOutcomeVariant = (outcome: string | null | undefined): "default" | "secondary" | "destructive" | "outline" => {
+    if (!outcome) return "outline"
+    if (outcome.startsWith("connected")) return "default"
+    if (outcome === "voicemail" || outcome === "gatekeeper") return "secondary"
+    if (outcome === "failed") return "destructive"
+    return "outline"
   }
 
   const formatLastActivity = (dateString: string) => {
@@ -623,9 +670,69 @@ export default function AccountDetailPage() {
           <CardDescription>Emails, calls, and other interactions</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="text-center py-8 text-muted-foreground">
-            No activity recorded yet
-          </div>
+          {loadingActivity ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <RefreshCw className="h-4 w-4 animate-spin mx-auto mb-2" />
+              Loading activity...
+            </div>
+          ) : activity.length > 0 ? (
+            <div className="space-y-2">
+              {activity.map((item) => (
+                <div key={`${item.type}-${item.id}`} className="flex flex-col gap-1.5 p-3 rounded-lg border bg-muted/30">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {item.type === "call" ? (
+                        <Phone className="h-4 w-4 text-primary" />
+                      ) : (
+                        <Mail className="h-4 w-4 text-blue-500" />
+                      )}
+                      {item.type === "call" && item.outcome && (
+                        <Badge variant={getOutcomeVariant(item.outcome)} className="text-xs">
+                          {item.detail.replace("Call — ", "")}
+                        </Badge>
+                      )}
+                      {item.type === "email" && (
+                        <span className="text-sm">{item.detail}</span>
+                      )}
+                      {item.type === "call" && item.duration != null && item.duration > 0 && (
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Clock className="h-3 w-3" />
+                          {formatDuration(item.duration)}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {item.contactName && (
+                        <span className="text-xs text-muted-foreground">{item.contactName}</span>
+                      )}
+                      <span className="text-xs text-muted-foreground">
+                        {formatLastActivity(item.time)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Recording player for calls */}
+                  {item.type === "call" && item.recordingUrl && (
+                    <div className="flex items-center gap-2 mt-1">
+                      <Mic className="h-3 w-3 text-primary" />
+                      <span className="text-xs font-medium">Recording</span>
+                      <audio
+                        controls
+                        className="h-7 flex-1"
+                        src={`/api/calls/${item.id}/recording`}
+                      >
+                        Your browser does not support audio playback.
+                      </audio>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              No activity recorded yet
+            </div>
+          )}
         </CardContent>
       </Card>
 

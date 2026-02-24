@@ -113,6 +113,7 @@ export const GET = withAuth(async (
         title: contact?.title || prospect?.title || '',
         email: contact?.email || prospect?.email || '',
         linkedin: contact?.linkedin || prospect?.linkedin || null,
+        location: prospect?.location || null,
 
         // Sequence info
         sequence: sequence?.name || null,
@@ -179,6 +180,7 @@ export const GET = withAuth(async (
         title: ps.prospect.title || '',
         email: ps.prospect.email,
         linkedin: ps.prospect.linkedin || null,
+        location: ps.prospect.location || null,
 
         // Sequence info
         sequence: ps.sequence.name,

@@ -80,6 +80,7 @@ type CallSlot = {
     title: string
     email: string
     linkedin?: string | null
+    location?: string | null
     aiNotes: string
     priorCalls: { date: string; outcome: string; notes: string }[]
     lastEmailSent: string
@@ -124,6 +125,7 @@ type DialerProspect = {
   title: string
   email: string
   linkedin?: string | null
+  location?: string | null
   industry?: string
   companySize?: string
   businessDescription?: string
@@ -933,6 +935,7 @@ export default function DialerPage() {
           title: firstProspect.title,
           email: firstProspect.email,
           linkedin: firstProspect.linkedin || null,
+          location: firstProspect.location || null,
           aiNotes: firstProspect.aiNotes || "",
           priorCalls: firstProspect.priorCalls || [],
           lastEmailSent: firstProspect.lastEmailSent || "",
@@ -1597,6 +1600,13 @@ export default function DialerPage() {
                           <div className="flex items-center gap-2 mt-1">
                             <Building2 className="h-3 w-3 text-muted-foreground" />
                             <span className="text-xs text-muted-foreground">{prospect.company}</span>
+                            {(prospect.location || prospect.accountInfo?.location) && (
+                              <>
+                                <span className="text-xs text-muted-foreground">•</span>
+                                <MapPin className="h-3 w-3 text-muted-foreground" />
+                                <span className="text-xs text-muted-foreground">{prospect.location || prospect.accountInfo?.location}</span>
+                              </>
+                            )}
                           </div>
                           <p className="text-xs text-muted-foreground mt-0.5">{prospect.title}</p>
                         </div>
@@ -1874,6 +1884,13 @@ export default function DialerPage() {
                         <div className="flex items-center gap-2 mt-0.5">
                           <Building2 className="h-3 w-3 text-muted-foreground" />
                           <span className="text-xs text-muted-foreground">{slot.contact.company}</span>
+                          {((slot.contact as any).location || (slot.contact.accountInfo as any)?.location) && (
+                            <>
+                              <span className="text-xs text-muted-foreground">•</span>
+                              <MapPin className="h-3 w-3 text-muted-foreground" />
+                              <span className="text-xs text-muted-foreground">{(slot.contact as any).location || (slot.contact.accountInfo as any)?.location}</span>
+                            </>
+                          )}
                         </div>
                       </div>
 
@@ -2475,6 +2492,13 @@ export default function DialerPage() {
                               <div className="flex items-center gap-2 mt-1">
                                 <Building2 className="h-3 w-3 text-muted-foreground" />
                                 <span className="text-xs text-muted-foreground">{slot.contact.company}</span>
+                                {((slot.contact as any).location || (slot.contact.accountInfo as any)?.location) && (
+                                  <>
+                                    <span className="text-xs text-muted-foreground">•</span>
+                                    <MapPin className="h-3 w-3 text-muted-foreground" />
+                                    <span className="text-xs text-muted-foreground">{(slot.contact as any).location || (slot.contact.accountInfo as any)?.location}</span>
+                                  </>
+                                )}
                               </div>
                               <p className="text-xs text-muted-foreground mt-0.5">{slot.contact.title}</p>
                             </div>

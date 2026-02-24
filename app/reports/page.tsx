@@ -1,36 +1,32 @@
 "use client"
 
 import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DateRangePicker } from "@/components/date-range-picker"
 import { Button } from "@/components/ui/button"
 import { ReportTemplates } from "@/components/report-templates"
-import { CustomReportBuilder } from "@/components/custom-report-builder"
-import { SalesPerformanceReport } from "@/components/reports/sales-performance-report"
 import { PipelineReport } from "@/components/reports/pipeline-report"
 import { ActivityReport } from "@/components/reports/activity-report"
-import { ConversionReport } from "@/components/reports/conversion-report"
-import { BookmarkIcon, Download, Share2 } from "lucide-react"
+import { Download, Share2 } from "lucide-react"
 import type { DateRange } from "react-day-picker"
 import { addDays } from "date-fns"
-import { useUserRole } from "@/hooks/use-user-role"
+import { useReportStats } from "@/hooks/use-report-stats"
 
 export default function ReportsPage() {
-  const { isSuperAdmin } = useUserRole()
   const [date, setDate] = useState<DateRange | undefined>({
     from: addDays(new Date(), -30),
     to: new Date(),
   })
 
-  const [activeTab, setActiveTab] = useState("overview")
+  const [activeTab, setActiveTab] = useState("activity")
+  const { stats, isLoading } = useReportStats(date)
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold">Reports</h1>
-          <p className="text-muted-foreground">Analyze your sales data and create custom reports</p>
+          <p className="text-muted-foreground">Analyze your sales activity and pipeline</p>
         </div>
         <div className="flex items-center gap-2">
           <DateRangePicker date={date} setDate={setDate} />
@@ -44,83 +40,34 @@ export default function ReportsPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="sales">Sales Performance</TabsTrigger>
-          <TabsTrigger value="pipeline">Pipeline</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="activity">Activity</TabsTrigger>
-          <TabsTrigger value="custom">Custom Reports</TabsTrigger>
+          <TabsTrigger value="pipeline">Pipeline</TabsTrigger>
+          <TabsTrigger value="templates">Report Templates</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-6 mt-6">
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-            <MetricCard title="Total Revenue" value={isSuperAdmin ? "$125,430" : "$0"} change={isSuperAdmin ? "+12.5%" : "--"} trend={isSuperAdmin ? "up" : "neutral"} description="Last 30 days" />
-            <MetricCard title="Deals Closed" value={isSuperAdmin ? "42" : "0"} change={isSuperAdmin ? "+8.3%" : "--"} trend={isSuperAdmin ? "up" : "neutral"} description="Last 30 days" />
-            <MetricCard title="Conversion Rate" value={isSuperAdmin ? "24.8%" : "0%"} change={isSuperAdmin ? "-2.1%" : "--"} trend={isSuperAdmin ? "down" : "neutral"} description="Last 30 days" />
-            <MetricCard title="Avg. Deal Size" value={isSuperAdmin ? "$2,986" : "$0"} change={isSuperAdmin ? "+4.2%" : "--"} trend={isSuperAdmin ? "up" : "neutral"} description="Last 30 days" />
-          </div>
-
-          <div className="grid gap-6 md:grid-cols-2">
-            <SalesPerformanceReport date={date} />
-            <PipelineReport date={date} />
-          </div>
-
-          <div className="grid gap-6 md:grid-cols-2">
-            <ActivityReport date={date} />
-            <ConversionReport date={date} />
-          </div>
-
-          <ReportTemplates />
-        </TabsContent>
-
-        <TabsContent value="sales" className="space-y-6 mt-6">
-          <SalesPerformanceReport date={date} fullWidth />
+        <TabsContent value="activity" className="space-y-6 mt-6">
+          <ActivityReport
+            date={date}
+            data={{
+              activityByDay: stats?.activityByDay,
+              activityByType: stats?.activityByType,
+              recentActivity: stats?.recentActivity,
+              emailEngagement: stats?.emailEngagement,
+            }}
+            fullWidth
+            isLoading={isLoading}
+          />
         </TabsContent>
 
         <TabsContent value="pipeline" className="space-y-6 mt-6">
-          <PipelineReport date={date} fullWidth />
+          <PipelineReport date={date} data={stats?.pipeline} fullWidth isLoading={isLoading} />
         </TabsContent>
 
-        <TabsContent value="activity" className="space-y-6 mt-6">
-          <ActivityReport date={date} fullWidth />
-        </TabsContent>
-
-        <TabsContent value="custom" className="space-y-6 mt-6">
-          <CustomReportBuilder date={date} />
+        <TabsContent value="templates" className="space-y-6 mt-6">
+          <ReportTemplates />
         </TabsContent>
       </Tabs>
     </div>
-  )
-}
-
-interface MetricCardProps {
-  title: string
-  value: string
-  change: string
-  trend: "up" | "down" | "neutral"
-  description: string
-}
-
-function MetricCard({ title, value, change, trend, description }: MetricCardProps) {
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        <Button variant="ghost" size="icon" className="h-4 w-4">
-          <BookmarkIcon className="h-4 w-4 text-muted-foreground" />
-        </Button>
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
-        <p className="text-xs text-muted-foreground">{description}</p>
-        <div
-          className={`mt-1 text-xs ${
-            trend === "up" ? "text-green-500" : trend === "down" ? "text-red-500" : "text-muted-foreground"
-          }`}
-        >
-          {change}
-        </div>
-      </CardContent>
-    </Card>
   )
 }

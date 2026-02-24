@@ -59,6 +59,7 @@ import {
   MoreVertical,
   Globe,
   MapPin,
+  Linkedin,
 } from "lucide-react"
 import { SendEmailDialog } from "@/components/send-email-dialog"
 import { Calendar } from "lucide-react"
@@ -78,11 +79,21 @@ type CallSlot = {
     phone: string
     title: string
     email: string
+    linkedin?: string | null
     aiNotes: string
     priorCalls: { date: string; outcome: string; notes: string }[]
     lastEmailSent: string
     sequenceStage: string
     sequence: string
+    pov?: {
+      opportunity: string
+      industryContext: string
+      howToHelp: string
+      angle: string
+    } | null
+    accountInfo?: {
+      pov?: any
+    } | null
   } | null
   startTime: number | null
   notes: string
@@ -905,11 +916,14 @@ export default function DialerPage() {
           phone: firstProspect.phone,
           title: firstProspect.title,
           email: firstProspect.email,
+          linkedin: firstProspect.linkedin || null,
           aiNotes: firstProspect.aiNotes || "",
           priorCalls: firstProspect.priorCalls || [],
           lastEmailSent: firstProspect.lastEmailSent || "",
           sequenceStage: firstProspect.sequenceStage || "",
           sequence: firstProspect.sequence || "",
+          pov: firstProspect.pov || null,
+          accountInfo: firstProspect.accountInfo || null,
         },
         startTime: null,
         notes: "",
@@ -1514,6 +1528,15 @@ export default function DialerPage() {
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
                             <CardTitle className="text-base">{prospect.name}</CardTitle>
+                            {prospect.linkedin && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); window.open(prospect.linkedin!, "_blank") }}
+                                className="p-0.5 rounded hover:bg-[#0A66C2]/10 transition-colors"
+                                title="Open LinkedIn"
+                              >
+                                <Linkedin className="h-3.5 w-3.5 text-[#0A66C2]" />
+                              </button>
+                            )}
                             <Badge variant="outline" className="text-xs">
                               #{idx + 1} in queue
                             </Badge>
@@ -1551,25 +1574,54 @@ export default function DialerPage() {
                       </div>
 
                       {/* Insights */}
+                      {(prospect.pov || prospect.accountInfo?.pov || (prospect as any).businessDescription) && (
                       <div className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
                         <div className="flex items-start gap-2">
                           <Sparkles className="h-3.5 w-3.5 text-primary mt-0.5 flex-shrink-0" />
                           <div className="flex-1 space-y-2">
                             <p className="text-xs font-medium text-primary">Insights</p>
                             <div className="space-y-1.5">
-                              <p className="text-xs text-foreground leading-relaxed">
-                                <span className="font-medium text-muted-foreground">What they do:</span> {(prospect as any).businessDescription}
-                              </p>
-                              <p className="text-xs text-foreground leading-relaxed">
-                                <span className="font-medium text-muted-foreground">What they sell:</span> {(prospect as any).whatTheySell}
-                              </p>
-                              <p className="text-xs text-foreground leading-relaxed">
-                                <span className="font-medium text-muted-foreground">Key intel:</span> {prospect.aiNotes}
-                              </p>
+                              {(prospect.pov || prospect.accountInfo?.pov) ? (
+                                <>
+                                  {(prospect.pov?.opportunity || prospect.accountInfo?.pov?.opportunity) && (
+                                    <p className="text-xs text-foreground leading-relaxed">
+                                      <span className="font-medium text-muted-foreground">Opportunity:</span> {prospect.pov?.opportunity || prospect.accountInfo?.pov?.opportunity}
+                                    </p>
+                                  )}
+                                  {(prospect.pov?.industryContext || prospect.accountInfo?.pov?.industryContext) && (
+                                    <p className="text-xs text-foreground leading-relaxed">
+                                      <span className="font-medium text-muted-foreground">Industry context:</span> {prospect.pov?.industryContext || prospect.accountInfo?.pov?.industryContext}
+                                    </p>
+                                  )}
+                                  {(prospect.pov?.howToHelp || prospect.accountInfo?.pov?.howToHelp) && (
+                                    <p className="text-xs text-foreground leading-relaxed">
+                                      <span className="font-medium text-muted-foreground">How to help:</span> {prospect.pov?.howToHelp || prospect.accountInfo?.pov?.howToHelp}
+                                    </p>
+                                  )}
+                                  {(prospect.pov?.angle || prospect.accountInfo?.pov?.angle) && (
+                                    <p className="text-xs text-foreground leading-relaxed">
+                                      <span className="font-medium text-muted-foreground">Angle:</span> {prospect.pov?.angle || prospect.accountInfo?.pov?.angle}
+                                    </p>
+                                  )}
+                                </>
+                              ) : (
+                                <>
+                                  <p className="text-xs text-foreground leading-relaxed">
+                                    <span className="font-medium text-muted-foreground">What they do:</span> {(prospect as any).businessDescription}
+                                  </p>
+                                  <p className="text-xs text-foreground leading-relaxed">
+                                    <span className="font-medium text-muted-foreground">What they sell:</span> {(prospect as any).whatTheySell}
+                                  </p>
+                                  <p className="text-xs text-foreground leading-relaxed">
+                                    <span className="font-medium text-muted-foreground">Key intel:</span> {prospect.aiNotes}
+                                  </p>
+                                </>
+                              )}
                             </div>
                           </div>
                         </div>
                       </div>
+                      )}
 
                       {/* Prior Call History */}
                       {prospect.priorCalls.length > 0 && (
@@ -1773,6 +1825,15 @@ export default function DialerPage() {
                       <div className="flex-1 min-w-[200px]">
                         <div className="flex items-center gap-3">
                           <span className="font-semibold text-sm">{slot.contact.name}</span>
+                          {slot.contact.linkedin && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); window.open(slot.contact!.linkedin!, "_blank") }}
+                              className="p-0.5 rounded hover:bg-[#0A66C2]/10 transition-colors"
+                              title="Open LinkedIn"
+                            >
+                              <Linkedin className="h-3.5 w-3.5 text-[#0A66C2]" />
+                            </button>
+                          )}
                           <span className="text-xs text-muted-foreground">•</span>
                           <span className="text-xs text-muted-foreground">{slot.contact.title}</span>
                         </div>
@@ -1968,16 +2029,38 @@ export default function DialerPage() {
                     {/* Expandable details section */}
                     {expandedSlots.has(slot.id) && (
                         <div className="mt-3 space-y-3 pl-4 border-l-2 border-border">
-                          {/* AI Notes */}
+                          {/* AI Notes / POV */}
+                          {(slot.contact.pov || slot.contact.accountInfo?.pov || slot.contact.aiNotes) && (
                           <div className="p-2 rounded-lg bg-primary/5 border border-primary/20">
                             <div className="flex items-start gap-2">
                               <Sparkles className="h-3.5 w-3.5 text-primary mt-0.5 flex-shrink-0" />
                               <div className="flex-1">
                                 <p className="text-xs font-medium text-primary mb-1">Insights</p>
-                                <p className="text-xs text-foreground leading-relaxed">{slot.contact.aiNotes}</p>
+                                {(slot.contact.pov || slot.contact.accountInfo?.pov) ? (
+                                  <div className="space-y-1.5">
+                                    {(slot.contact.pov?.opportunity || slot.contact.accountInfo?.pov?.opportunity) && (
+                                      <p className="text-xs text-foreground leading-relaxed">
+                                        <span className="font-medium text-muted-foreground">Opportunity:</span> {slot.contact.pov?.opportunity || slot.contact.accountInfo?.pov?.opportunity}
+                                      </p>
+                                    )}
+                                    {(slot.contact.pov?.howToHelp || slot.contact.accountInfo?.pov?.howToHelp) && (
+                                      <p className="text-xs text-foreground leading-relaxed">
+                                        <span className="font-medium text-muted-foreground">How to help:</span> {slot.contact.pov?.howToHelp || slot.contact.accountInfo?.pov?.howToHelp}
+                                      </p>
+                                    )}
+                                    {(slot.contact.pov?.angle || slot.contact.accountInfo?.pov?.angle) && (
+                                      <p className="text-xs text-foreground leading-relaxed">
+                                        <span className="font-medium text-muted-foreground">Angle:</span> {slot.contact.pov?.angle || slot.contact.accountInfo?.pov?.angle}
+                                      </p>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <p className="text-xs text-foreground leading-relaxed">{slot.contact.aiNotes}</p>
+                                )}
                               </div>
                             </div>
                           </div>
+                          )}
 
                           {/* Contact details */}
                           <div className="flex items-center gap-4 text-xs text-muted-foreground">
@@ -2264,11 +2347,17 @@ export default function DialerPage() {
                                 <Phone className="h-3 w-3 text-muted-foreground" />
                                 <span className="text-xs font-mono text-muted-foreground">{nextProspect.phone}</span>
                               </div>
-                              {nextProspect.aiNotes && (
+                              {(nextProspect.pov || nextProspect.accountInfo?.pov || nextProspect.aiNotes) && (
                                 <div className="mt-2 p-2 rounded bg-primary/5 border border-primary/10">
                                   <div className="flex items-start gap-1.5">
                                     <Sparkles className="h-3 w-3 text-primary mt-0.5 flex-shrink-0" />
-                                    <p className="text-xs text-foreground leading-relaxed">{nextProspect.aiNotes}</p>
+                                    {(nextProspect.pov || nextProspect.accountInfo?.pov) ? (
+                                      <p className="text-xs text-foreground leading-relaxed">
+                                        <span className="font-medium text-muted-foreground">Opportunity:</span> {nextProspect.pov?.opportunity || nextProspect.accountInfo?.pov?.opportunity}
+                                      </p>
+                                    ) : (
+                                      <p className="text-xs text-foreground leading-relaxed">{nextProspect.aiNotes}</p>
+                                    )}
                                   </div>
                                 </div>
                               )}
@@ -2348,7 +2437,18 @@ export default function DialerPage() {
                         <>
                           <div className="flex items-start justify-between">
                             <div className="flex-1">
-                              <CardTitle className="text-base">{slot.contact.name}</CardTitle>
+                              <div className="flex items-center gap-2">
+                                <CardTitle className="text-base">{slot.contact.name}</CardTitle>
+                                {slot.contact.linkedin && (
+                                  <button
+                                    onClick={() => window.open(slot.contact!.linkedin!, "_blank")}
+                                    className="p-0.5 rounded hover:bg-[#0A66C2]/10 transition-colors"
+                                    title="Open LinkedIn"
+                                  >
+                                    <Linkedin className="h-3.5 w-3.5 text-[#0A66C2]" />
+                                  </button>
+                                )}
+                              </div>
                               <div className="flex items-center gap-2 mt-1">
                                 <Building2 className="h-3 w-3 text-muted-foreground" />
                                 <span className="text-xs text-muted-foreground">{slot.contact.company}</span>

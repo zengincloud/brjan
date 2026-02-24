@@ -24,9 +24,11 @@ import {
   MoreHorizontal,
   Loader2,
   GripVertical,
+  Plus,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
+import { CreateTaskDialog } from "@/components/create-task-dialog"
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd"
 import { toast } from "sonner"
 import {
@@ -139,6 +141,7 @@ function TasksContent() {
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false)
   const [bulkActioning, setBulkActioning] = useState(false)
   const [updatingTasks, setUpdatingTasks] = useState<Set<string>>(new Set())
+  const [createDialogOpen, setCreateDialogOpen] = useState(false)
 
   useEffect(() => {
     loadTasks()
@@ -555,6 +558,10 @@ function TasksContent() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Tasks</h1>
+        <Button onClick={() => setCreateDialogOpen(true)} className="gap-2">
+          <Plus className="h-4 w-4" />
+          Create Task
+        </Button>
       </div>
 
       <Card>
@@ -663,9 +670,13 @@ function TasksContent() {
                 <>
                   <CalendarClock className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
                   <p className="text-lg font-medium mb-1">No tasks</p>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-muted-foreground mb-4">
                     Your tasks will appear here
                   </p>
+                  <Button onClick={() => setCreateDialogOpen(true)} className="gap-2">
+                    <Plus className="h-4 w-4" />
+                    Create Task
+                  </Button>
                 </>
               )}
             </div>
@@ -820,6 +831,12 @@ function TasksContent() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <CreateTaskDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+        onTaskCreated={loadTasks}
+      />
     </div>
   )
 }

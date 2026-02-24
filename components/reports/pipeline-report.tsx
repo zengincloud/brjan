@@ -16,49 +16,68 @@ import {
   CartesianGrid,
 } from "recharts"
 import { ChartContainer } from "@/components/ui/chart"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { DateRange } from "react-day-picker"
-import { useUserRole } from "@/hooks/use-user-role"
+import { Loader2 } from "lucide-react"
+import type { ReportStats } from "@/hooks/use-report-stats"
 
 interface PipelineReportProps {
   date?: DateRange | undefined
   fullWidth?: boolean
+  isLoading?: boolean
+  data?: ReportStats["pipeline"]
 }
 
-// Sample data for pipeline stages
-const pipelineData = [
-  { name: "Prospecting", value: 125, amount: 1250000 },
-  { name: "Qualification", value: 80, amount: 960000 },
-  { name: "Proposal", value: 45, amount: 675000 },
-  { name: "Negotiation", value: 30, amount: 525000 },
-  { name: "Closed Won", value: 25, amount: 375000 },
-]
+const COLORS = ["#6366f1", "#8b5cf6", "#a855f7", "#d946ef", "#22c55e", "#ef4444"]
 
-const COLORS = ["#8B5CF6", "#10B981", "#F59E0B", "#EF4444", "#6B7280"]
-
-// Sample data for pipeline by month
-const pipelineByMonth = [
-  { month: "Jan", prospecting: 150000, qualification: 120000, proposal: 90000, negotiation: 60000, closed: 45000 },
-  { month: "Feb", prospecting: 180000, qualification: 140000, proposal: 100000, negotiation: 70000, closed: 50000 },
-  { month: "Mar", prospecting: 200000, qualification: 160000, proposal: 120000, negotiation: 80000, closed: 60000 },
-  { month: "Apr", prospecting: 220000, qualification: 180000, proposal: 130000, negotiation: 90000, closed: 65000 },
-  { month: "May", prospecting: 240000, qualification: 200000, proposal: 150000, negotiation: 100000, closed: 70000 },
-  { month: "Jun", prospecting: 260000, qualification: 220000, proposal: 170000, negotiation: 110000, closed: 75000 },
-]
-
-export function PipelineReport({ date, fullWidth = false }: PipelineReportProps) {
-  const { isSuperAdmin } = useUserRole()
-
-  if (!isSuperAdmin) {
+export function PipelineReport({ date, fullWidth = false, isLoading, data }: PipelineReportProps) {
+  if (isLoading) {
     return (
       <Card className={fullWidth ? "w-full" : ""}>
         <CardHeader>
-          <CardTitle>Pipeline Analysis</CardTitle>
-          <CardDescription>Deal stages, conversion rates, and forecasting</CardDescription>
+          <CardTitle>Pipeline</CardTitle>
+          <CardDescription>Prospect stages and pipeline trend</CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    )
+  }
+
+  const prospectsByStatus = data?.prospectsByStatus || []
+  const prospectCreationTimeline = data?.prospectCreationTimeline || []
+  const accountsByStatus = data?.accountsByStatus || []
+
+  const totalProspects = prospectsByStatus.reduce((sum, s) => sum + s.count, 0)
+  const totalAccounts = accountsByStatus.reduce((sum, s) => sum + s.count, 0)
+  const hasData = totalProspects > 0
+
+  // Filter out zero-count statuses for the pie chart
+  const pieData = prospectsByStatus
+    .filter(s => s.count > 0)
+    .map((s, i) => ({ name: s.label, value: s.count, fill: COLORS[i % COLORS.length] }))
+
+  // Conversion rates between sequential statuses
+  const conversionPairs = [
+    { from: "new_lead", to: "in_sequence", label: "New Lead → In Sequence" },
+    { from: "in_sequence", to: "contacted", label: "In Sequence → Contacted" },
+    { from: "contacted", to: "meeting_scheduled", label: "Contacted → Meeting" },
+    { from: "meeting_scheduled", to: "qualified", label: "Meeting → Qualified" },
+  ]
+
+  const getStatusCount = (status: string) =>
+    prospectsByStatus.find(s => s.status === status)?.count || 0
+
+  if (!hasData) {
+    return (
+      <Card className={fullWidth ? "w-full" : ""}>
+        <CardHeader>
+          <CardTitle>Pipeline</CardTitle>
+          <CardDescription>Prospect stages and pipeline trend</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-            <p>No pipeline data yet. Add deals to see pipeline analysis here.</p>
+            <p>No prospects yet. Add prospects to see your pipeline here.</p>
           </div>
         </CardContent>
       </Card>
@@ -70,25 +89,16 @@ export function PipelineReport({ date, fullWidth = false }: PipelineReportProps)
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>Pipeline Analysis</CardTitle>
-            <CardDescription>Deal stages, conversion rates, and forecasting</CardDescription>
+            <CardTitle>Pipeline</CardTitle>
+            <CardDescription>Prospect stages and pipeline trend</CardDescription>
           </div>
-          <Select defaultValue="deals">
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="View" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="deals">Deal Count</SelectItem>
-              <SelectItem value="value">Deal Value</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="current">
           <TabsList className="mb-4">
             <TabsTrigger value="current">Current Pipeline</TabsTrigger>
-            <TabsTrigger value="trend">Pipeline Trend</TabsTrigger>
+            <TabsTrigger value="trend">New Prospects</TabsTrigger>
           </TabsList>
 
           <TabsContent value="current">
@@ -97,7 +107,7 @@ export function PipelineReport({ date, fullWidth = false }: PipelineReportProps)
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={pipelineData}
+                      data={pieData}
                       cx="50%"
                       cy="50%"
                       labelLine={false}
@@ -106,8 +116,8 @@ export function PipelineReport({ date, fullWidth = false }: PipelineReportProps)
                       dataKey="value"
                       label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                     >
-                      {pipelineData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      {pieData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.fill} />
                       ))}
                     </Pie>
                     <Tooltip contentStyle={{ backgroundColor: "#1F2937", border: "none" }} />
@@ -122,58 +132,50 @@ export function PipelineReport({ date, fullWidth = false }: PipelineReportProps)
                   <thead>
                     <tr className="border-b">
                       <th className="text-left py-2">Stage</th>
-                      <th className="text-right py-2">Deals</th>
-                      <th className="text-right py-2">Value</th>
+                      <th className="text-right py-2">Prospects</th>
+                      <th className="text-right py-2">% of Total</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {pipelineData.map((stage) => (
-                      <tr key={stage.name} className="border-b">
-                        <td className="py-2">{stage.name}</td>
-                        <td className="text-right py-2">{stage.value}</td>
-                        <td className="text-right py-2">${stage.amount.toLocaleString()}</td>
+                    {prospectsByStatus.filter(s => s.count > 0).map((stage) => (
+                      <tr key={stage.status} className="border-b">
+                        <td className="py-2">{stage.label}</td>
+                        <td className="text-right py-2">{stage.count}</td>
+                        <td className="text-right py-2">
+                          {Math.round((stage.count / totalProspects) * 100)}%
+                        </td>
                       </tr>
                     ))}
                     <tr className="font-medium">
                       <td className="py-2">Total</td>
-                      <td className="text-right py-2">{pipelineData.reduce((sum, item) => sum + item.value, 0)}</td>
-                      <td className="text-right py-2">
-                        ${pipelineData.reduce((sum, item) => sum + item.amount, 0).toLocaleString()}
-                      </td>
+                      <td className="text-right py-2">{totalProspects}</td>
+                      <td className="text-right py-2">100%</td>
                     </tr>
                   </tbody>
                 </table>
 
                 <div className="mt-4">
-                  <h4 className="text-sm font-medium mb-2">Conversion Rates</h4>
+                  <h4 className="text-sm font-medium mb-2">Stage Conversion</h4>
                   <div className="space-y-2">
-                    <div>
-                      <div className="flex justify-between text-xs mb-1">
-                        <span>Qualification → Proposal</span>
-                        <span>56%</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-1.5">
-                        <div className="bg-primary h-1.5 rounded-full" style={{ width: "56%" }}></div>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex justify-between text-xs mb-1">
-                        <span>Proposal → Negotiation</span>
-                        <span>67%</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-1.5">
-                        <div className="bg-primary h-1.5 rounded-full" style={{ width: "67%" }}></div>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex justify-between text-xs mb-1">
-                        <span>Negotiation → Closed Won</span>
-                        <span>83%</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-1.5">
-                        <div className="bg-primary h-1.5 rounded-full" style={{ width: "83%" }}></div>
-                      </div>
-                    </div>
+                    {conversionPairs.map((pair) => {
+                      const fromCount = getStatusCount(pair.from)
+                      const toCount = getStatusCount(pair.to)
+                      const rate = fromCount > 0 ? Math.round((toCount / fromCount) * 100) : 0
+                      return (
+                        <div key={pair.label}>
+                          <div className="flex justify-between text-xs mb-1">
+                            <span>{pair.label}</span>
+                            <span>{rate}%</span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-1.5 dark:bg-gray-700">
+                            <div
+                              className="bg-primary h-1.5 rounded-full"
+                              style={{ width: `${Math.min(rate, 100)}%` }}
+                            />
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               </div>
@@ -184,69 +186,35 @@ export function PipelineReport({ date, fullWidth = false }: PipelineReportProps)
             <div className="h-[350px]">
               <ChartContainer
                 config={{
-                  prospecting: {
-                    label: "Prospecting",
-                    color: "#8B5CF6",
-                  },
-                  qualification: {
-                    label: "Qualification",
-                    color: "#10B981",
-                  },
-                  proposal: {
-                    label: "Proposal",
-                    color: "#F59E0B",
-                  },
-                  negotiation: {
-                    label: "Negotiation",
-                    color: "#EF4444",
-                  },
-                  closed: {
-                    label: "Closed Won",
-                    color: "#6B7280",
-                  },
+                  newProspects: { label: "New Prospects", color: "#6366f1" },
                 }}
               >
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={pipelineByMonth} stackOffset="sign">
+                  <BarChart data={prospectCreationTimeline}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                    <XAxis dataKey="month" stroke="#9CA3AF" />
-                    <YAxis stroke="#9CA3AF" tickFormatter={(value) => `$${value / 1000}k`} />
+                    <XAxis dataKey="label" stroke="#9CA3AF" />
+                    <YAxis stroke="#9CA3AF" />
                     <Tooltip contentStyle={{ backgroundColor: "#1F2937", border: "none" }} />
                     <Legend />
-                    <Bar dataKey="prospecting" stackId="a" fill="#8B5CF6" />
-                    <Bar dataKey="qualification" stackId="a" fill="#10B981" />
-                    <Bar dataKey="proposal" stackId="a" fill="#F59E0B" />
-                    <Bar dataKey="negotiation" stackId="a" fill="#EF4444" />
-                    <Bar dataKey="closed" stackId="a" fill="#6B7280" />
+                    <Bar dataKey="newProspects" fill="#6366f1" name="New Prospects" />
                   </BarChart>
                 </ResponsiveContainer>
               </ChartContainer>
             </div>
 
-            <div className="mt-4">
-              <h3 className="text-lg font-medium mb-2">Pipeline Forecast</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Based on current conversion rates and pipeline velocity
-              </p>
-
-              <div className="grid grid-cols-3 gap-4">
-                <div className="p-4 border rounded-lg">
-                  <div className="text-sm text-muted-foreground">30-Day Forecast</div>
-                  <div className="text-2xl font-bold">$425,000</div>
-                  <div className="text-xs text-green-500">+12% vs. last period</div>
-                </div>
-                <div className="p-4 border rounded-lg">
-                  <div className="text-sm text-muted-foreground">60-Day Forecast</div>
-                  <div className="text-2xl font-bold">$875,000</div>
-                  <div className="text-xs text-green-500">+8% vs. last period</div>
-                </div>
-                <div className="p-4 border rounded-lg">
-                  <div className="text-sm text-muted-foreground">90-Day Forecast</div>
-                  <div className="text-2xl font-bold">$1,250,000</div>
-                  <div className="text-xs text-green-500">+15% vs. last period</div>
+            {totalAccounts > 0 && (
+              <div className="mt-4">
+                <h3 className="text-lg font-medium mb-2">Account Pipeline</h3>
+                <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+                  {accountsByStatus.filter(s => s.count > 0).map((s) => (
+                    <div key={s.status} className="p-3 border rounded-lg text-center">
+                      <div className="text-xs text-muted-foreground">{s.label}</div>
+                      <div className="text-xl font-bold">{s.count}</div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            </div>
+            )}
           </TabsContent>
         </Tabs>
       </CardContent>

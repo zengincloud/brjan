@@ -8,26 +8,26 @@ import { BarChart3, LineChart, PieChart, ArrowRight } from "lucide-react"
 const reportTemplates = [
   {
     id: 1,
-    name: "Sales Performance",
-    description: "Revenue, deals closed, and targets by rep and time period",
+    name: "Call Performance",
+    description: "Call volume, outcomes, connect rates, and duration trends",
     icon: BarChart3,
   },
   {
     id: 2,
     name: "Pipeline Analysis",
-    description: "Deal stages, conversion rates, and forecasting",
+    description: "Prospect stages, conversion rates, and new prospect trends",
     icon: PieChart,
   },
   {
     id: 3,
     name: "Activity Metrics",
-    description: "Calls, emails, meetings, and notes over time",
+    description: "Calls, emails, open rates, and engagement over time",
     icon: LineChart,
   },
   {
     id: 4,
     name: "Conversion Analysis",
-    description: "Conversion rates and sales funnel",
+    description: "Prospect funnel and connect rate trends",
     icon: BarChart3,
   },
 ]

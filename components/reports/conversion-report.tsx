@@ -16,43 +16,43 @@ import {
   LabelList,
 } from "recharts"
 import { ChartContainer } from "@/components/ui/chart"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { DateRange } from "react-day-picker"
-import { useUserRole } from "@/hooks/use-user-role"
+import { Loader2 } from "lucide-react"
+import type { ReportStats } from "@/hooks/use-report-stats"
 
 interface ConversionReportProps {
   date?: DateRange | undefined
   fullWidth?: boolean
+  isLoading?: boolean
+  data?: ReportStats["conversion"]
 }
 
-// Sample data for conversion rates over time
-const conversionData = [
-  { month: "Jan", lead_to_opp: 25, opp_to_demo: 60, demo_to_proposal: 75, proposal_to_close: 40 },
-  { month: "Feb", lead_to_opp: 28, opp_to_demo: 62, demo_to_proposal: 70, proposal_to_close: 42 },
-  { month: "Mar", lead_to_opp: 30, opp_to_demo: 65, demo_to_proposal: 72, proposal_to_close: 45 },
-  { month: "Apr", lead_to_opp: 32, opp_to_demo: 68, demo_to_proposal: 74, proposal_to_close: 48 },
-  { month: "May", lead_to_opp: 35, opp_to_demo: 70, demo_to_proposal: 76, proposal_to_close: 50 },
-  { month: "Jun", lead_to_opp: 33, opp_to_demo: 67, demo_to_proposal: 73, proposal_to_close: 47 },
-]
-
-// Sample data for sales funnel
-const funnelData = [
-  { name: "Leads", value: 1250, fill: "#8B5CF6" },
-  { name: "Opportunities", value: 375, fill: "#10B981" },
-  { name: "Demos", value: 250, fill: "#F59E0B" },
-  { name: "Proposals", value: 180, fill: "#EF4444" },
-  { name: "Closed Won", value: 85, fill: "#6B7280" },
-]
-
-export function ConversionReport({ date, fullWidth = false }: ConversionReportProps) {
-  const { isSuperAdmin } = useUserRole()
-
-  if (!isSuperAdmin) {
+export function ConversionReport({ date, fullWidth = false, isLoading, data }: ConversionReportProps) {
+  if (isLoading) {
     return (
       <Card className={fullWidth ? "w-full" : ""}>
         <CardHeader>
           <CardTitle>Conversion Analysis</CardTitle>
-          <CardDescription>Conversion rates and sales funnel</CardDescription>
+          <CardDescription>Pipeline funnel and connect rate trends</CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    )
+  }
+
+  const funnel = data?.funnel || []
+  const connectRateTrend = data?.connectRateTrend || []
+  const totalFunnel = funnel.reduce((sum, s) => sum + s.count, 0)
+  const hasData = totalFunnel > 0 || connectRateTrend.some(d => d.connectRate > 0)
+
+  if (!hasData) {
+    return (
+      <Card className={fullWidth ? "w-full" : ""}>
+        <CardHeader>
+          <CardTitle>Conversion Analysis</CardTitle>
+          <CardDescription>Pipeline funnel and connect rate trends</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
@@ -62,179 +62,123 @@ export function ConversionReport({ date, fullWidth = false }: ConversionReportPr
       </Card>
     )
   }
+
   return (
     <Card className={fullWidth ? "w-full" : ""}>
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
             <CardTitle>Conversion Analysis</CardTitle>
-            <CardDescription>Conversion rates and sales funnel</CardDescription>
+            <CardDescription>Pipeline funnel and connect rate trends</CardDescription>
           </div>
-          <Select defaultValue="all">
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="View" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Deals</SelectItem>
-              <SelectItem value="enterprise">Enterprise</SelectItem>
-              <SelectItem value="mid-market">Mid-Market</SelectItem>
-              <SelectItem value="smb">SMB</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="rates">
           <TabsList className="mb-4">
-            <TabsTrigger value="rates">Conversion Rates</TabsTrigger>
-            <TabsTrigger value="funnel">Sales Funnel</TabsTrigger>
+            <TabsTrigger value="rates">Connect Rates</TabsTrigger>
+            <TabsTrigger value="funnel">Prospect Funnel</TabsTrigger>
           </TabsList>
 
           <TabsContent value="rates">
             <div className="h-[300px]">
               <ChartContainer
                 config={{
-                  lead_to_opp: {
-                    label: "Lead → Opportunity",
-                    color: "#8B5CF6",
-                  },
-                  opp_to_demo: {
-                    label: "Opportunity → Demo",
-                    color: "#10B981",
-                  },
-                  demo_to_proposal: {
-                    label: "Demo → Proposal",
-                    color: "#F59E0B",
-                  },
-                  proposal_to_close: {
-                    label: "Proposal → Close",
-                    color: "#EF4444",
-                  },
+                  connectRate: { label: "Connect Rate", color: "#22c55e" },
+                  meetingRate: { label: "Meeting Rate", color: "#6366f1" },
                 }}
               >
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={conversionData}>
+                  <LineChart data={connectRateTrend}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                    <XAxis dataKey="month" stroke="#9CA3AF" />
+                    <XAxis dataKey="label" stroke="#9CA3AF" />
                     <YAxis stroke="#9CA3AF" tickFormatter={(value) => `${value}%`} />
                     <Tooltip contentStyle={{ backgroundColor: "#1F2937", border: "none" }} />
                     <Legend />
-                    <Line type="monotone" dataKey="lead_to_opp" stroke="#8B5CF6" strokeWidth={2} />
-                    <Line type="monotone" dataKey="opp_to_demo" stroke="#10B981" strokeWidth={2} />
-                    <Line type="monotone" dataKey="demo_to_proposal" stroke="#F59E0B" strokeWidth={2} />
-                    <Line type="monotone" dataKey="proposal_to_close" stroke="#EF4444" strokeWidth={2} />
+                    <Line type="monotone" dataKey="connectRate" stroke="#22c55e" strokeWidth={2} name="Connect Rate %" />
+                    <Line type="monotone" dataKey="meetingRate" stroke="#6366f1" strokeWidth={2} name="Meeting Rate %" />
                   </LineChart>
                 </ResponsiveContainer>
               </ChartContainer>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 mt-4">
-              <div className="space-y-4">
-                <h3 className="text-sm font-medium">Current Conversion Rates</h3>
-                <div className="space-y-2">
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span>Lead → Opportunity</span>
-                      <span>33%</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-1.5">
-                      <div className="bg-purple-500 h-1.5 rounded-full" style={{ width: "33%" }}></div>
-                    </div>
+            <div className="mt-4">
+              <h3 className="text-sm font-medium mb-3">Period Averages</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-3 border rounded-lg text-center">
+                  <div className="text-sm text-muted-foreground">Avg. Connect Rate</div>
+                  <div className="text-2xl font-bold text-green-500">
+                    {connectRateTrend.length > 0
+                      ? Math.round(connectRateTrend.reduce((sum, d) => sum + d.connectRate, 0) / connectRateTrend.length)
+                      : 0}%
                   </div>
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span>Opportunity → Demo</span>
-                      <span>67%</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-1.5">
-                      <div className="bg-green-500 h-1.5 rounded-full" style={{ width: "67%" }}></div>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span>Demo → Proposal</span>
-                      <span>73%</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-1.5">
-                      <div className="bg-yellow-500 h-1.5 rounded-full" style={{ width: "73%" }}></div>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span>Proposal → Close</span>
-                      <span>47%</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-1.5">
-                      <div className="bg-red-500 h-1.5 rounded-full" style={{ width: "47%" }}></div>
-                    </div>
-                  </div>
+                  <div className="text-xs text-muted-foreground">Calls that connected</div>
                 </div>
-              </div>
-
-              <div className="space-y-4">
-                <h3 className="text-sm font-medium">Conversion Insights</h3>
-                <div className="space-y-2 text-sm">
-                  <div className="p-3 border rounded-lg">
-                    <div className="font-medium">Opportunity → Demo</div>
-                    <div className="text-green-500 text-xs">+5% vs. last quarter</div>
-                    <div className="text-muted-foreground mt-1">
-                      Improved demo scheduling process is showing results.
-                    </div>
+                <div className="p-3 border rounded-lg text-center">
+                  <div className="text-sm text-muted-foreground">Avg. Meeting Rate</div>
+                  <div className="text-2xl font-bold text-indigo-500">
+                    {connectRateTrend.length > 0
+                      ? Math.round(connectRateTrend.reduce((sum, d) => sum + d.meetingRate, 0) / connectRateTrend.length)
+                      : 0}%
                   </div>
-                  <div className="p-3 border rounded-lg">
-                    <div className="font-medium">Proposal → Close</div>
-                    <div className="text-red-500 text-xs">-3% vs. last quarter</div>
-                    <div className="text-muted-foreground mt-1">
-                      Consider reviewing pricing strategy and negotiation training.
-                    </div>
-                  </div>
+                  <div className="text-xs text-muted-foreground">Calls that booked intros</div>
                 </div>
               </div>
             </div>
           </TabsContent>
 
           <TabsContent value="funnel">
-            <div className="h-[400px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <FunnelChart>
-                  <Tooltip contentStyle={{ backgroundColor: "#1F2937", border: "none" }} />
-                  <Funnel dataKey="value" data={funnelData} isAnimationActive>
-                    <LabelList position="right" fill="#fff" stroke="none" dataKey="name" />
-                    <LabelList position="right" fill="#fff" stroke="none" dataKey="value" />
-                  </Funnel>
-                </FunnelChart>
-              </ResponsiveContainer>
-            </div>
+            {totalFunnel > 0 ? (
+              <>
+                <div className="h-[400px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <FunnelChart>
+                      <Tooltip contentStyle={{ backgroundColor: "#1F2937", border: "none" }} />
+                      <Funnel dataKey="count" data={funnel.filter(f => f.count > 0)} isAnimationActive>
+                        <LabelList position="right" fill="#fff" stroke="none" dataKey="label" />
+                        <LabelList position="right" fill="#fff" stroke="none" dataKey="count" />
+                      </Funnel>
+                    </FunnelChart>
+                  </ResponsiveContainer>
+                </div>
 
-            <div className="mt-4">
-              <h3 className="text-lg font-medium mb-2">Funnel Analysis</h3>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-2">Stage</th>
-                    <th className="text-right py-2">Count</th>
-                    <th className="text-right py-2">Conversion</th>
-                    <th className="text-right py-2">Drop-off</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {funnelData.map((stage, index) => {
-                    const prevStage = index > 0 ? funnelData[index - 1] : null
-                    const conversion = prevStage ? Math.round((stage.value / prevStage.value) * 100) : 100
-                    const dropoff = prevStage ? prevStage.value - stage.value : 0
-
-                    return (
-                      <tr key={stage.name} className="border-b">
-                        <td className="py-2">{stage.name}</td>
-                        <td className="text-right py-2">{stage.value}</td>
-                        <td className="text-right py-2">{index === 0 ? "-" : `${conversion}%`}</td>
-                        <td className="text-right py-2">{index === 0 ? "-" : dropoff}</td>
+                <div className="mt-4">
+                  <h3 className="text-lg font-medium mb-2">Funnel Breakdown</h3>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left py-2">Stage</th>
+                        <th className="text-right py-2">Count</th>
+                        <th className="text-right py-2">Conversion</th>
+                        <th className="text-right py-2">Drop-off</th>
                       </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
+                    </thead>
+                    <tbody>
+                      {funnel.map((stage, index) => {
+                        const prevStage = index > 0 ? funnel[index - 1] : null
+                        const conversion = prevStage && prevStage.count > 0
+                          ? Math.round((stage.count / prevStage.count) * 100)
+                          : 100
+                        const dropoff = prevStage ? prevStage.count - stage.count : 0
+
+                        return (
+                          <tr key={stage.stage} className="border-b">
+                            <td className="py-2">{stage.label}</td>
+                            <td className="text-right py-2">{stage.count}</td>
+                            <td className="text-right py-2">{index === 0 ? "-" : `${conversion}%`}</td>
+                            <td className="text-right py-2">{index === 0 ? "-" : dropoff}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                <p>No prospects in the pipeline yet.</p>
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </CardContent>

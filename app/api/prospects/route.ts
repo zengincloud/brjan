@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { withAuth } from "@/lib/auth/api-middleware"
 import { checkCredits, deductCredits } from "@/lib/credits"
 import { findOrCreateAccount } from "@/lib/account-linking"
+import { pushContact, isConfigured as hubspotConfigured } from "@/lib/hubspot/client"
 
 export const dynamic = 'force-dynamic'
 
@@ -130,8 +131,13 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       buyerIntent: wizaData?.buyerIntent,
     })
 
-    // Auto-link or create account for company
-    const accountId = company ? await findOrCreateAccount(userId, company) : null
+    // Auto-link or create account for company, with enrichment from Wiza data
+    const accountId = company ? await findOrCreateAccount(userId, company, {
+      industry: wizaData?.industry || wizaData?.companyIndustry || null,
+      location: location || null,
+      website: wizaData?.companyDomain ? `https://${wizaData.companyDomain}` : null,
+      employees: wizaData?.companySize || null,
+    }) : null
 
     const prospect = await prisma.prospect.create({
       data: {
@@ -154,6 +160,27 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
 
     // Deduct credit after successful creation
     await deductCredits(userId)
+
+    // Push to HubSpot in background (non-blocking)
+    if (hubspotConfigured()) {
+      (async () => {
+        try {
+          const result = await pushContact({ name, email, phone, title, company, linkedin })
+          await prisma.prospect.update({
+            where: { id: prospect.id },
+            data: {
+              wizaData: {
+                ...(typeof prospect.wizaData === "object" && prospect.wizaData !== null ? prospect.wizaData : {}),
+                hubspotContactId: result.hubspotContactId,
+              } as any,
+            },
+          })
+          console.log(`HubSpot: synced new prospect ${prospect.id} → contact ${result.hubspotContactId}`)
+        } catch (err) {
+          console.error("HubSpot sync error (non-blocking):", err)
+        }
+      })()
+    }
 
     return NextResponse.json({ prospect }, { status: 201 })
   } catch (error: any) {

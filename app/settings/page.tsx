@@ -30,6 +30,7 @@ import {
 import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
 import { GmailIntegration } from "@/components/settings/gmail-integration"
+import { HubspotIntegration } from "@/components/settings/hubspot-integration"
 import { OrganizationSettings } from "@/components/settings/organization-settings"
 import { TeamSettings } from "@/components/settings/team-settings"
 
@@ -622,11 +623,12 @@ export default function SettingsPage() {
         {/* Integrations Tab */}
         <TabsContent value="integrations" className="space-y-4">
           <GmailIntegration />
+          <HubspotIntegration />
 
           <Card>
             <CardHeader>
               <CardTitle>CRM Integration</CardTitle>
-              <CardDescription>Connect your CRM for seamless data sync</CardDescription>
+              <CardDescription>Other CRM integrations coming soon</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-4">
@@ -640,7 +642,7 @@ export default function SettingsPage() {
                       <p className="text-xs text-muted-foreground">Sync contacts, leads, and activities</p>
                     </div>
                   </div>
-                  <Button variant="outline">Connect</Button>
+                  <Button variant="outline" disabled>Coming Soon</Button>
                 </div>
                 <div className="flex items-center justify-between p-4 border border-border rounded-lg">
                   <div className="flex items-center gap-3">
@@ -648,23 +650,11 @@ export default function SettingsPage() {
                       <Zap className="h-5 w-5" />
                     </div>
                     <div>
-                      <p className="font-medium">HubSpot</p>
-                      <p className="text-xs text-muted-foreground">Two-way sync with HubSpot CRM</p>
-                    </div>
-                  </div>
-                  <Button variant="outline">Connect</Button>
-                </div>
-                <div className="flex items-center justify-between p-4 border border-primary/30 bg-primary/5 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded bg-secondary flex items-center justify-center">
-                      <Zap className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
                       <p className="font-medium">Pipedrive</p>
-                      <p className="text-xs text-muted-foreground">Connected • Syncing daily</p>
+                      <p className="text-xs text-muted-foreground">Sync deals and contacts</p>
                     </div>
                   </div>
-                  <Button variant="outline">Disconnect</Button>
+                  <Button variant="outline" disabled>Coming Soon</Button>
                 </div>
               </div>
             </CardContent>

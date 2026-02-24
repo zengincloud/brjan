@@ -65,7 +65,7 @@ export async function findMatchingAccount(userId: string, companyName: string) {
   // Get all accounts for the user and compare normalized names
   const accounts = await prisma.account.findMany({
     where: { userId },
-    select: { id: true, name: true },
+    select: { id: true, name: true, industry: true, location: true, website: true, employees: true, linkedin: true },
   })
 
   for (const account of accounts) {
@@ -78,26 +78,67 @@ export async function findMatchingAccount(userId: string, companyName: string) {
 }
 
 /**
+ * Optional enrichment data to populate on the account when creating or backfilling.
+ */
+export type AccountEnrichment = {
+  industry?: string | null
+  location?: string | null
+  website?: string | null
+  employees?: number | string | null
+  linkedin?: string | null
+}
+
+/**
  * Find or create an account for a company name.
- * If a matching account exists (exact or fuzzy), link to it.
- * If not, create a new account.
+ * If a matching account exists (exact or fuzzy), link to it and backfill empty fields.
+ * If not, create a new account with enrichment data.
  * Returns the account ID.
  */
-export async function findOrCreateAccount(userId: string, companyName: string): Promise<string | null> {
+export async function findOrCreateAccount(
+  userId: string,
+  companyName: string,
+  enrichment?: AccountEnrichment
+): Promise<string | null> {
   if (!companyName?.trim()) return null
 
   // Try to find existing account
   const existing = await findMatchingAccount(userId, companyName)
-  if (existing) return existing.id
+  if (existing) {
+    // Backfill empty fields on the existing account
+    if (enrichment) {
+      const updates: Record<string, any> = {}
+      if (enrichment.industry && !existing.industry) updates.industry = enrichment.industry
+      if (enrichment.location && !existing.location) updates.location = enrichment.location
+      if (enrichment.website && !existing.website) updates.website = enrichment.website
+      if (enrichment.linkedin && !existing.linkedin) updates.linkedin = enrichment.linkedin
+      if (enrichment.employees && !existing.employees) {
+        const parsed = typeof enrichment.employees === "number" ? enrichment.employees : parseInt(String(enrichment.employees), 10)
+        if (!isNaN(parsed)) updates.employees = parsed
+      }
+      if (Object.keys(updates).length > 0) {
+        await prisma.account.update({ where: { id: existing.id }, data: updates }).catch(() => {})
+      }
+    }
+    return existing.id
+  }
+
+  // Build create data with enrichment
+  const createData: Record<string, any> = {
+    name: companyName.trim(),
+    userId,
+  }
+  if (enrichment?.industry) createData.industry = enrichment.industry
+  if (enrichment?.location) createData.location = enrichment.location
+  if (enrichment?.website) createData.website = enrichment.website
+  if (enrichment?.linkedin) createData.linkedin = enrichment.linkedin
+  if (enrichment?.employees) {
+    const parsed = typeof enrichment.employees === "number" ? enrichment.employees : parseInt(String(enrichment.employees), 10)
+    if (!isNaN(parsed)) createData.employees = parsed
+  }
 
   // Create a new account
   try {
-    const account = await prisma.account.create({
-      data: {
-        name: companyName.trim(),
-        userId,
-      },
-    })
+    const account = await prisma.account.create({ data: createData })
     return account.id
   } catch (error: any) {
     // Handle race condition where account was created between our check and create

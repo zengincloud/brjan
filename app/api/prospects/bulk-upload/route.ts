@@ -161,7 +161,12 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
         if (accountCache.has(cacheKey)) {
           accountId = accountCache.get(cacheKey)!
         } else {
-          accountId = await findOrCreateAccount(userId, prospect.company)
+          accountId = await findOrCreateAccount(userId, prospect.company, {
+            industry: prospect.wizaData?.companyIndustry || null,
+            location: prospect.location || null,
+            website: prospect.wizaData?.companyWebsite || null,
+            employees: prospect.wizaData?.companySize || null,
+          })
           accountCache.set(cacheKey, accountId)
         }
       }

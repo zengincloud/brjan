@@ -33,8 +33,14 @@ export const POST = withExtensionAuth(async (request: NextRequest, userId: strin
       return NextResponse.json({ error: creditCheck.error }, { status: 403 })
     }
 
-    // Auto-link or create account for company
-    const accountId = company ? await findOrCreateAccount(userId, company) : null
+    // Auto-link or create account for company, with enrichment from Wiza data
+    const accountId = company ? await findOrCreateAccount(userId, company, {
+      industry: wizaData?.companyIndustry || null,
+      location: wizaData?.location || location || null,
+      website: wizaData?.companyDomain ? `https://${wizaData.companyDomain}` : null,
+      employees: wizaData?.companySize || null,
+      linkedin: wizaData?.companyLinkedinUrl || null,
+    }) : null
 
     // If linked to an existing account, use its exact name
     let resolvedCompany = company

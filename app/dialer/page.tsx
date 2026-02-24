@@ -63,6 +63,7 @@ import {
 import { SendEmailDialog } from "@/components/send-email-dialog"
 import { Calendar } from "lucide-react"
 import { Device, Call as TwilioCall } from "@twilio/voice-sdk"
+import { formatDistanceToNow } from "date-fns"
 import { useUserRole } from "@/hooks/use-user-role"
 import { useSessionState } from "@/hooks/use-session-state"
 
@@ -2273,6 +2274,17 @@ export default function DialerPage() {
                           <span className="font-mono">{prospect.phone}</span>
                         </div>
                       </div>
+                      {prospect.dueDate && (
+                        <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                          {(() => {
+                            try {
+                              const d = new Date(prospect.dueDate)
+                              if (isNaN(d.getTime())) return ""
+                              return formatDistanceToNow(d, { addSuffix: true })
+                            } catch { return "" }
+                          })()}
+                        </span>
+                      )}
                     </div>
                   ))}
                 </div>

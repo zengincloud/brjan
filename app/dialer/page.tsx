@@ -1577,9 +1577,17 @@ export default function DialerPage() {
                             {prospect.phone}
                           </button>
                         </div>
-                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                          <Mail className="h-3 w-3" />
-                          <span>{prospect.email}</span>
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                          <div className="flex items-center gap-1.5">
+                            <Mail className="h-3 w-3" />
+                            <span>{prospect.email}</span>
+                          </div>
+                          {prospect.accountInfo?.website && (
+                            <a href={prospect.accountInfo.website.startsWith("http") ? prospect.accountInfo.website : `https://${prospect.accountInfo.website}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-primary">
+                              <Globe className="h-3 w-3" />
+                              <span>Website</span>
+                            </a>
+                          )}
                         </div>
                         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                           <Badge variant="outline" className="text-xs h-5">
@@ -1590,50 +1598,23 @@ export default function DialerPage() {
                       </div>
 
                       {/* Insights */}
-                      {(prospect.pov || prospect.accountInfo?.pov || (prospect as any).businessDescription) && (
+                      {(prospect.title || prospect.pov || prospect.accountInfo?.pov) && (
                       <div className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
                         <div className="flex items-start gap-2">
                           <Sparkles className="h-3.5 w-3.5 text-primary mt-0.5 flex-shrink-0" />
-                          <div className="flex-1 space-y-2">
-                            <p className="text-xs font-medium text-primary">Insights</p>
-                            <div className="space-y-1.5">
-                              {(prospect.pov || prospect.accountInfo?.pov) ? (
-                                <>
-                                  {(prospect.pov?.opportunity || prospect.accountInfo?.pov?.opportunity) && (
-                                    <p className="text-xs text-foreground leading-relaxed">
-                                      <span className="font-medium text-muted-foreground">Opportunity:</span> {prospect.pov?.opportunity || prospect.accountInfo?.pov?.opportunity}
-                                    </p>
-                                  )}
-                                  {(prospect.pov?.industryContext || prospect.accountInfo?.pov?.industryContext) && (
-                                    <p className="text-xs text-foreground leading-relaxed">
-                                      <span className="font-medium text-muted-foreground">Industry context:</span> {prospect.pov?.industryContext || prospect.accountInfo?.pov?.industryContext}
-                                    </p>
-                                  )}
-                                  {(prospect.pov?.howToHelp || prospect.accountInfo?.pov?.howToHelp) && (
-                                    <p className="text-xs text-foreground leading-relaxed">
-                                      <span className="font-medium text-muted-foreground">How to help:</span> {prospect.pov?.howToHelp || prospect.accountInfo?.pov?.howToHelp}
-                                    </p>
-                                  )}
-                                  {(prospect.pov?.angle || prospect.accountInfo?.pov?.angle) && (
-                                    <p className="text-xs text-foreground leading-relaxed">
-                                      <span className="font-medium text-muted-foreground">Angle:</span> {prospect.pov?.angle || prospect.accountInfo?.pov?.angle}
-                                    </p>
-                                  )}
-                                </>
-                              ) : (
-                                <>
-                                  <p className="text-xs text-foreground leading-relaxed">
-                                    <span className="font-medium text-muted-foreground">What they do:</span> {(prospect as any).businessDescription}
-                                  </p>
-                                  <p className="text-xs text-foreground leading-relaxed">
-                                    <span className="font-medium text-muted-foreground">What they sell:</span> {(prospect as any).whatTheySell}
-                                  </p>
-                                  <p className="text-xs text-foreground leading-relaxed">
-                                    <span className="font-medium text-muted-foreground">Key intel:</span> {prospect.aiNotes}
-                                  </p>
-                                </>
+                          <div className="flex-1">
+                            <p className="text-xs font-medium text-primary mb-1.5">Insights</p>
+                            <ul className="space-y-1 text-xs text-foreground leading-relaxed list-disc list-inside">
+                              {prospect.title && prospect.company && (
+                                <li>{prospect.name} is {prospect.title} at {prospect.company}</li>
                               )}
-                            </div>
+                              {(prospect.pov?.industryContext || prospect.accountInfo?.pov?.industryContext || prospect.accountInfo?.industry) && (
+                                <li>
+                                  {prospect.company}{prospect.accountInfo?.industry ? ` is in ${prospect.accountInfo.industry}` : ""}{prospect.accountInfo?.employees ? `, ${prospect.accountInfo.employees.toLocaleString()} employees` : ""}
+                                  {(prospect.pov?.industryContext || prospect.accountInfo?.pov?.industryContext) ? ` — ${prospect.pov?.industryContext || prospect.accountInfo?.pov?.industryContext}` : ""}
+                                </li>
+                              )}
+                            </ul>
                           </div>
                         </div>
                       </div>
@@ -2046,33 +2027,23 @@ export default function DialerPage() {
                     {expandedSlots.has(slot.id) && (
                         <div className="mt-3 space-y-3 pl-4 border-l-2 border-border">
                           {/* AI Notes / POV */}
-                          {(slot.contact.pov || slot.contact.accountInfo?.pov || slot.contact.aiNotes) && (
+                          {(slot.contact.pov || slot.contact.accountInfo?.pov || slot.contact.title) && (
                           <div className="p-2 rounded-lg bg-primary/5 border border-primary/20">
                             <div className="flex items-start gap-2">
                               <Sparkles className="h-3.5 w-3.5 text-primary mt-0.5 flex-shrink-0" />
                               <div className="flex-1">
                                 <p className="text-xs font-medium text-primary mb-1">Insights</p>
-                                {(slot.contact.pov || slot.contact.accountInfo?.pov) ? (
-                                  <div className="space-y-1.5">
-                                    {(slot.contact.pov?.opportunity || slot.contact.accountInfo?.pov?.opportunity) && (
-                                      <p className="text-xs text-foreground leading-relaxed">
-                                        <span className="font-medium text-muted-foreground">Opportunity:</span> {slot.contact.pov?.opportunity || slot.contact.accountInfo?.pov?.opportunity}
-                                      </p>
-                                    )}
-                                    {(slot.contact.pov?.howToHelp || slot.contact.accountInfo?.pov?.howToHelp) && (
-                                      <p className="text-xs text-foreground leading-relaxed">
-                                        <span className="font-medium text-muted-foreground">How to help:</span> {slot.contact.pov?.howToHelp || slot.contact.accountInfo?.pov?.howToHelp}
-                                      </p>
-                                    )}
-                                    {(slot.contact.pov?.angle || slot.contact.accountInfo?.pov?.angle) && (
-                                      <p className="text-xs text-foreground leading-relaxed">
-                                        <span className="font-medium text-muted-foreground">Angle:</span> {slot.contact.pov?.angle || slot.contact.accountInfo?.pov?.angle}
-                                      </p>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <p className="text-xs text-foreground leading-relaxed">{slot.contact.aiNotes}</p>
-                                )}
+                                <ul className="space-y-1 text-xs text-foreground leading-relaxed list-disc list-inside">
+                                  {slot.contact.title && slot.contact.company && (
+                                    <li>{slot.contact.name} is {slot.contact.title} at {slot.contact.company}</li>
+                                  )}
+                                  {(slot.contact.pov?.industryContext || slot.contact.accountInfo?.pov?.industryContext || (slot.contact.accountInfo as any)?.industry) && (
+                                    <li>
+                                      {slot.contact.company}{(slot.contact.accountInfo as any)?.industry ? ` is in ${(slot.contact.accountInfo as any).industry}` : ""}{(slot.contact.accountInfo as any)?.employees ? `, ${(slot.contact.accountInfo as any).employees.toLocaleString()} employees` : ""}
+                                      {(slot.contact.pov?.industryContext || slot.contact.accountInfo?.pov?.industryContext) ? ` — ${slot.contact.pov?.industryContext || slot.contact.accountInfo?.pov?.industryContext}` : ""}
+                                    </li>
+                                  )}
+                                </ul>
                               </div>
                             </div>
                           </div>
@@ -2084,6 +2055,12 @@ export default function DialerPage() {
                               <Mail className="h-3 w-3" />
                               <span>{slot.contact.email}</span>
                             </div>
+                            {(slot.contact.accountInfo as any)?.website && (
+                              <a href={(slot.contact.accountInfo as any).website.startsWith("http") ? (slot.contact.accountInfo as any).website : `https://${(slot.contact.accountInfo as any).website}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-primary">
+                                <Globe className="h-3 w-3" />
+                                <span>Website</span>
+                              </a>
+                            )}
                             <Badge variant="outline" className="text-xs h-5">
                               {slot.contact.sequenceStage}
                             </Badge>
@@ -2180,26 +2157,23 @@ export default function DialerPage() {
                           )}
 
                           {/* Point of View */}
-                          {(slot.contact as any).pov && (
+                          {((slot.contact as any).pov || slot.contact.title) && (
                             <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
                               <div className="flex items-start gap-2 mb-2">
                                 <Lightbulb className="h-3.5 w-3.5 text-primary mt-0.5 flex-shrink-0" />
-                                <p className="text-xs font-medium text-primary">Point of View</p>
+                                <p className="text-xs font-medium text-primary">Insights</p>
                               </div>
-                              <div className="space-y-2 text-xs text-foreground leading-relaxed">
-                                <p>
-                                  <strong className="text-primary">Opportunity:</strong> {(slot.contact as any).pov.opportunity}
-                                </p>
-                                <p>
-                                  <strong className="text-primary">Industry Context:</strong> {(slot.contact as any).pov.industryContext}
-                                </p>
-                                <p>
-                                  <strong className="text-primary">How to Help:</strong> {(slot.contact as any).pov.howToHelp}
-                                </p>
-                                <p>
-                                  <strong className="text-primary">Angle:</strong> {(slot.contact as any).pov.angle}
-                                </p>
-                              </div>
+                              <ul className="space-y-1 text-xs text-foreground leading-relaxed list-disc list-inside">
+                                {slot.contact.title && slot.contact.company && (
+                                  <li>{slot.contact.name} is {slot.contact.title} at {slot.contact.company}</li>
+                                )}
+                                {((slot.contact as any).pov?.industryContext || (slot.contact.accountInfo as any)?.industry) && (
+                                  <li>
+                                    {slot.contact.company}{(slot.contact.accountInfo as any)?.industry ? ` is in ${(slot.contact.accountInfo as any).industry}` : ""}{(slot.contact.accountInfo as any)?.employees ? `, ${(slot.contact.accountInfo as any).employees.toLocaleString()} employees` : ""}
+                                    {(slot.contact as any).pov?.industryContext ? ` — ${(slot.contact as any).pov.industryContext}` : ""}
+                                  </li>
+                                )}
+                              </ul>
                             </div>
                           )}
 
@@ -2363,17 +2337,13 @@ export default function DialerPage() {
                                 <Phone className="h-3 w-3 text-muted-foreground" />
                                 <span className="text-xs font-mono text-muted-foreground">{nextProspect.phone}</span>
                               </div>
-                              {(nextProspect.pov || nextProspect.accountInfo?.pov || nextProspect.aiNotes) && (
+                              {nextProspect.title && (
                                 <div className="mt-2 p-2 rounded bg-primary/5 border border-primary/10">
                                   <div className="flex items-start gap-1.5">
                                     <Sparkles className="h-3 w-3 text-primary mt-0.5 flex-shrink-0" />
-                                    {(nextProspect.pov || nextProspect.accountInfo?.pov) ? (
-                                      <p className="text-xs text-foreground leading-relaxed">
-                                        <span className="font-medium text-muted-foreground">Opportunity:</span> {nextProspect.pov?.opportunity || nextProspect.accountInfo?.pov?.opportunity}
-                                      </p>
-                                    ) : (
-                                      <p className="text-xs text-foreground leading-relaxed">{nextProspect.aiNotes}</p>
-                                    )}
+                                    <p className="text-xs text-foreground leading-relaxed">
+                                      {nextProspect.name} is {nextProspect.title} at {nextProspect.company}
+                                    </p>
                                   </div>
                                 </div>
                               )}
@@ -2519,9 +2489,17 @@ export default function DialerPage() {
                                 </>
                               )}
                             </div>
-                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                              <Mail className="h-3 w-3" />
-                              <span>{slot.contact.email}</span>
+                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                              <div className="flex items-center gap-1.5">
+                                <Mail className="h-3 w-3" />
+                                <span>{slot.contact.email}</span>
+                              </div>
+                              {(slot.contact.accountInfo as any)?.website && (
+                                <a href={(slot.contact.accountInfo as any).website.startsWith("http") ? (slot.contact.accountInfo as any).website : `https://${(slot.contact.accountInfo as any).website}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-primary">
+                                  <Globe className="h-3 w-3" />
+                                  <span>Website</span>
+                                </a>
+                              )}
                             </div>
                             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                               <Badge variant="outline" className="text-xs h-5">

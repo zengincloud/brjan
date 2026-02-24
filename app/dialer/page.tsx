@@ -102,6 +102,8 @@ type CallSlot = {
   twilioSid?: string
   taskId?: string | null
   queueItemId?: string
+  prospectId?: string | null
+  sequenceId?: string | null
   pendingOutcome?: string
   pendingPipelineStage?: string
 }
@@ -672,7 +674,7 @@ export default function DialerPage() {
       setExpandedSlots(prev => new Set(prev).add(slotId))
       setCallSlots(prev => prev.map((slot, idx) =>
         idx === slotIndex
-          ? { ...slot, contact: prospect, status: "ringing" as CallStatus, startTime: Date.now(), callId: data.callId, taskId: prospect.taskId, queueItemId: prospect.id }
+          ? { ...slot, contact: prospect, status: "ringing" as CallStatus, startTime: Date.now(), callId: data.callId, taskId: prospect.taskId, queueItemId: prospect.id, prospectId: prospect.prospectId || null, sequenceId: prospect.sequenceId || null }
           : slot
       ))
 
@@ -952,6 +954,8 @@ export default function DialerPage() {
         notes: "",
         taskId: firstProspect.taskId,
         queueItemId: firstProspect.id,
+        prospectId: firstProspect.prospectId || null,
+        sequenceId: firstProspect.sequenceId || null,
       }])
       setQueueSize(mockProspects.length - 1)
     }
@@ -1108,7 +1112,21 @@ export default function DialerPage() {
       )
     }
 
-    // Fire both in parallel — don't block UI advancement
+    // Advance the sequence step so this prospect doesn't reappear in queue
+    if (slot.prospectId && slot.sequenceId) {
+      savePromises.push(
+        fetch("/api/dialer/complete-step", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prospectId: slot.prospectId,
+            sequenceId: slot.sequenceId,
+          }),
+        }).catch(err => console.error("Error advancing sequence step:", err))
+      )
+    }
+
+    // Fire all in parallel — don't block UI advancement
     Promise.all(savePromises)
 
     // Remove this prospect from the local queue so it doesn't reappear

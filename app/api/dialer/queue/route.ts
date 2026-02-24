@@ -137,10 +137,15 @@ export const GET = withAuth(async (
       })
     }
 
-    // Also get prospects with active call steps (include all active, not just due)
+    // Also get prospects with active call steps that are DUE (nextActionAt <= now or null)
+    const now = new Date()
     const prospectsWithCallSteps = await prisma.prospectSequence.findMany({
       where: {
         status: 'active',
+        OR: [
+          { nextActionAt: { lte: now } },
+          { nextActionAt: null },
+        ],
         sequence: {
           userId,
           status: 'active',

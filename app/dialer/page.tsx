@@ -1556,6 +1556,43 @@ export default function DialerPage() {
                             <Badge variant="outline" className="text-xs">
                               #{idx + 1} in queue
                             </Badge>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <button className="p-1 rounded hover:bg-muted transition-colors ml-auto">
+                                  <MoreVertical className="h-3.5 w-3.5 text-muted-foreground" />
+                                </button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => {
+                                  setApiProspects(prev => prev.filter(p => p.id !== prospect.id))
+                                  toast({ title: "Skipped", description: `${prospect.name} removed from this session's queue` })
+                                }}>
+                                  <SkipForward className="h-4 w-4 mr-2" />
+                                  Skip
+                                </DropdownMenuItem>
+                                {prospect.sequenceId && prospect.prospectId && (
+                                  <DropdownMenuItem
+                                    className="text-destructive focus:text-destructive"
+                                    onClick={async () => {
+                                      try {
+                                        const res = await fetch(`/api/sequences/${prospect.sequenceId}/prospects/${prospect.prospectId}`, { method: "DELETE" })
+                                        if (res.ok) {
+                                          setApiProspects(prev => prev.filter(p => p.id !== prospect.id))
+                                          toast({ title: "Removed", description: `${prospect.name} removed from sequence` })
+                                        } else {
+                                          toast({ title: "Error", description: "Failed to remove from sequence", variant: "destructive" })
+                                        }
+                                      } catch {
+                                        toast({ title: "Error", description: "Failed to remove from sequence", variant: "destructive" })
+                                      }
+                                    }}
+                                  >
+                                    <X className="h-4 w-4 mr-2" />
+                                    Remove from Sequence
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
                           <div className="flex items-center gap-2 mt-1">
                             <Building2 className="h-3 w-3 text-muted-foreground" />

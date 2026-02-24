@@ -13,6 +13,8 @@ const SCOPES = [
   "crm.objects.companies.write",
   "crm.schemas.companies.read",
   "crm.schemas.companies.write",
+  "crm.objects.calls.read",
+  "crm.objects.calls.write",
 ]
 
 function getClientId(): string {

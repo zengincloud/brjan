@@ -187,6 +187,7 @@ export default function DialerPage() {
   const [editingNoteType, setEditingNoteType] = useState<"prospect" | "account" | null>(null)
   const [apiProspects, setApiProspects] = useState<DialerProspect[]>([])
   const [loadingProspects, setLoadingProspects] = useState(true)
+  const [fetchedSequences, setFetchedSequences] = useState<{ id: string; name: string }[]>([])
 
   // Twilio state
   const [deviceReady, setDeviceReady] = useState(false)
@@ -328,13 +329,28 @@ export default function DialerPage() {
     }
   }, [stopRingingSound])
 
-  // Available sequences
+  // Fetch real sequences from API
+  useEffect(() => {
+    const fetchSequences = async () => {
+      try {
+        const response = await fetch("/api/sequences")
+        if (response.ok) {
+          const data = await response.json()
+          setFetchedSequences(
+            (data.sequences || []).map((s: any) => ({ id: s.id, name: s.name }))
+          )
+        }
+      } catch (error) {
+        console.error("Error fetching sequences:", error)
+      }
+    }
+    fetchSequences()
+  }, [])
+
+  // Available sequences — "All Sequences" + real sequences from DB
   const sequences = [
     { id: "all", name: "All Sequences" },
-    { id: "enterprise", name: "Enterprise Cold Outreach" },
-    { id: "sales-leaders", name: "Sales Leaders" },
-    { id: "smb", name: "SMB Prospecting" },
-    { id: "referral", name: "Referral Follow-up" },
+    ...fetchedSequences,
   ]
 
   // Available phone numbers (including Twilio-provided number)
@@ -1480,7 +1496,7 @@ export default function DialerPage() {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  {mockProspects.length} prospects available
+                  {loadingProspects ? "Loading..." : `${mockProspects.length} prospects available`}
                 </p>
               </div>
 

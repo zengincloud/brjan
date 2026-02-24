@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { withAuth } from "@/lib/auth/api-middleware"
-import { pushContact } from "@/lib/hubspot/client"
+import { pushContact, pushCompany } from "@/lib/hubspot/client"
 import { getValidAccessToken } from "@/lib/hubspot/oauth"
 
 export const dynamic = "force-dynamic"
 
-// POST /api/integrations/hubspot/sync - Push prospect(s) to HubSpot
-// Pass { syncAll: true } to sync all prospects, or { prospectIds: [...] } for specific ones
+// POST /api/integrations/hubspot/sync - Push contacts and/or companies to HubSpot
+// Pass { syncAll: true } to sync everything, or { prospectIds: [...] } for specific contacts
 export const POST = withAuth(async (request: NextRequest, userId: string) => {
   try {
     const accessToken = await getValidAccessToken(userId)
@@ -21,11 +21,12 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       return NextResponse.json({ error: "prospectIds or syncAll required" }, { status: 400 })
     }
 
+    // Sync contacts
     const prospects = await prisma.prospect.findMany({
       where: syncAll ? { userId } : { id: { in: prospectIds }, userId },
     })
 
-    const results = await Promise.allSettled(
+    const contactResults = await Promise.allSettled(
       prospects.map(async (prospect) => {
         const result = await pushContact(accessToken, {
           name: prospect.name,
@@ -36,7 +37,6 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
           linkedin: prospect.linkedin,
         })
 
-        // Store the HubSpot contact ID on the prospect for future syncs
         await prisma.prospect.update({
           where: { id: prospect.id },
           data: {
@@ -51,10 +51,39 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       })
     )
 
-    const synced = results.filter((r) => r.status === "fulfilled").length
-    const failed = results.filter((r) => r.status === "rejected").length
+    const contactsSynced = contactResults.filter((r) => r.status === "fulfilled").length
+    const contactsFailed = contactResults.filter((r) => r.status === "rejected").length
 
-    return NextResponse.json({ synced, failed, total: prospects.length })
+    // Sync companies (only on syncAll)
+    let companiesSynced = 0
+    let companiesFailed = 0
+
+    if (syncAll) {
+      const accounts = await prisma.account.findMany({
+        where: { userId },
+      })
+
+      const companyResults = await Promise.allSettled(
+        accounts.map(async (account) => {
+          return pushCompany(accessToken, {
+            name: account.name,
+            industry: account.industry,
+            location: account.location,
+            website: account.website,
+            employees: account.employees,
+            linkedin: account.linkedin,
+          })
+        })
+      )
+
+      companiesSynced = companyResults.filter((r) => r.status === "fulfilled").length
+      companiesFailed = companyResults.filter((r) => r.status === "rejected").length
+    }
+
+    return NextResponse.json({
+      contacts: { synced: contactsSynced, failed: contactsFailed, total: prospects.length },
+      companies: { synced: companiesSynced, failed: companiesFailed },
+    })
   } catch (error: any) {
     console.error("HubSpot sync error:", error)
     return NextResponse.json({ error: error.message || "Sync failed" }, { status: 500 })

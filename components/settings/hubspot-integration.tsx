@@ -145,7 +145,7 @@ export function HubspotIntegration() {
     }
   }
 
-  const syncAllProspects = async () => {
+  const syncAll = async () => {
     try {
       setSyncing(true)
       const res = await fetch("/api/integrations/hubspot/sync", {
@@ -155,7 +155,11 @@ export function HubspotIntegration() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      toast.success(`Synced ${data.synced} prospect${data.synced !== 1 ? "s" : ""} to HubSpot${data.failed > 0 ? ` (${data.failed} failed)` : ""}`)
+      const parts = []
+      if (data.contacts?.synced) parts.push(`${data.contacts.synced} contact${data.contacts.synced !== 1 ? "s" : ""}`)
+      if (data.companies?.synced) parts.push(`${data.companies.synced} compan${data.companies.synced !== 1 ? "ies" : "y"}`)
+      const failedTotal = (data.contacts?.failed || 0) + (data.companies?.failed || 0)
+      toast.success(`Synced ${parts.join(" and ")} to HubSpot${failedTotal > 0 ? ` (${failedTotal} failed)` : ""}`)
     } catch (err: any) {
       toast.error(err.message || "Sync failed")
     } finally {
@@ -240,7 +244,7 @@ export function HubspotIntegration() {
               </Button>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={syncAllProspects} disabled={syncing}>
+              <Button variant="outline" size="sm" onClick={syncAll} disabled={syncing}>
                 {syncing ? (
                   <>
                     <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
@@ -249,7 +253,7 @@ export function HubspotIntegration() {
                 ) : (
                   <>
                     <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-                    Sync All Prospects
+                    Sync All
                   </>
                 )}
               </Button>

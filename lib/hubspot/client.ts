@@ -94,6 +94,61 @@ export async function pushContact(accessToken: string, prospect: {
   return { hubspotContactId: data.id, created: true }
 }
 
+// Search for an existing HubSpot company by name
+export async function findCompanyByName(accessToken: string, name: string): Promise<string | null> {
+  try {
+    const data = await hubspotFetch(accessToken, "/crm/v3/objects/companies/search", {
+      method: "POST",
+      body: JSON.stringify({
+        filterGroups: [{
+          filters: [{ propertyName: "name", operator: "EQ", value: name }],
+        }],
+        limit: 1,
+      }),
+    })
+    return data.results?.[0]?.id || null
+  } catch {
+    return null
+  }
+}
+
+// Create or update a HubSpot company from a Boilerroom account
+export async function pushCompany(accessToken: string, account: {
+  name: string
+  industry?: string | null
+  location?: string | null
+  website?: string | null
+  employees?: number | null
+  linkedin?: string | null
+}): Promise<{ hubspotCompanyId: string; created: boolean }> {
+  const properties: Record<string, string> = {
+    name: account.name,
+  }
+  if (account.industry) properties.industry = account.industry
+  if (account.location) properties.city = account.location
+  if (account.website) properties.website = account.website
+  if (account.employees) properties.numberofemployees = String(account.employees)
+  if (account.linkedin) properties.linkedin_company_page = account.linkedin
+
+  // Try to find existing company by name first
+  const existingId = await findCompanyByName(accessToken, account.name)
+  if (existingId) {
+    await hubspotFetch(accessToken, `/crm/v3/objects/companies/${existingId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ properties }),
+    })
+    return { hubspotCompanyId: existingId, created: false }
+  }
+
+  // Create new company
+  const data = await hubspotFetch(accessToken, "/crm/v3/objects/companies", {
+    method: "POST",
+    body: JSON.stringify({ properties }),
+  })
+
+  return { hubspotCompanyId: data.id, created: true }
+}
+
 // Log a call activity to HubSpot and associate it with a contact
 export async function logCall(accessToken: string, params: {
   hubspotContactId: string

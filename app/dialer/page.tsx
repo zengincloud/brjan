@@ -719,17 +719,21 @@ export default function DialerPage() {
         console.log("Call disconnected")
         activeCallRef.current = null
         setIsMuted(false)
-        setShowOutcomeButtons(true)
 
         // Play hangup sound
         playHangupSound()
 
-        // Update slot to completed
-        setCallSlots(prev => prev.map((slot, idx) =>
-          idx === slotIndex
-            ? { ...slot, status: "completed" as CallStatus }
-            : slot
-        ))
+        // Update slot to completed — but only if it's still the same call
+        // (saveAndAdvance may have already reset the slot to idle with a new contact)
+        setCallSlots(prev => prev.map((slot, idx) => {
+          if (idx !== slotIndex) return slot
+          // Only mark completed if the slot is still ringing/connected (not already reset)
+          if (slot.status === "ringing" || slot.status === "connected") {
+            setShowOutcomeButtons(true)
+            return { ...slot, status: "completed" as CallStatus }
+          }
+          return slot
+        }))
       })
 
       call.on("cancel", () => {
@@ -971,16 +975,30 @@ export default function DialerPage() {
     // Play hangup sound
     playHangupSound()
 
-    // End any active call
+    // End any active call — force disconnect even if ref is stale
     if (activeCallRef.current) {
-      activeCallRef.current.disconnect()
+      try {
+        activeCallRef.current.disconnect()
+      } catch (e) {
+        console.error("Error disconnecting call on session end:", e)
+      }
       activeCallRef.current = null
+    }
+
+    // Also try to disconnect via device to catch any orphaned calls
+    if (deviceRef.current) {
+      try {
+        deviceRef.current.disconnectAll()
+      } catch (e) {
+        // disconnectAll may not exist on older SDK versions, ignore
+      }
     }
 
     setSessionActive(false)
     setSessionPaused(false)
     setShowOutcomeButtons(false)
     setCallDuration(0)
+    setIsMuted(false)
     callStartTimeRef.current = null
     setCurrentProspectIndex(0)
     setCallSlots([{
@@ -1052,6 +1070,16 @@ export default function DialerPage() {
     const pipelineStage = slot.pendingPipelineStage as PipelineStage | undefined
     const contact = slot.contact
 
+    // CRITICAL: Disconnect any active Twilio call FIRST
+    if (activeCallRef.current) {
+      try {
+        activeCallRef.current.disconnect()
+      } catch (e) {
+        console.error("Error disconnecting call:", e)
+      }
+      activeCallRef.current = null
+    }
+
     // Save call outcome + mark task done in parallel (fire-and-forget for speed)
     const savePromises: Promise<any>[] = []
 
@@ -1119,6 +1147,7 @@ export default function DialerPage() {
     ))
     setShowOutcomeButtons(false)
     setCallDuration(0)
+    setIsMuted(false)
     callStartTimeRef.current = null
 
     // Auto-dial next

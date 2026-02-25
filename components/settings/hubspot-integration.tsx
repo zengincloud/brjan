@@ -158,8 +158,9 @@ export function HubspotIntegration() {
       const parts = []
       if (data.contacts?.synced) parts.push(`${data.contacts.synced} contact${data.contacts.synced !== 1 ? "s" : ""}`)
       if (data.companies?.synced) parts.push(`${data.companies.synced} compan${data.companies.synced !== 1 ? "ies" : "y"}`)
-      const failedTotal = (data.contacts?.failed || 0) + (data.companies?.failed || 0)
-      toast.success(`Synced ${parts.join(" and ")} to HubSpot${failedTotal > 0 ? ` (${failedTotal} failed)` : ""}`)
+      if (data.calls?.synced) parts.push(`${data.calls.synced} call${data.calls.synced !== 1 ? "s" : ""}`)
+      const failedTotal = (data.contacts?.failed || 0) + (data.companies?.failed || 0) + (data.calls?.failed || 0)
+      toast.success(`Synced ${parts.join(", ")} to HubSpot${failedTotal > 0 ? ` (${failedTotal} failed)` : ""}`)
     } catch (err: any) {
       toast.error(err.message || "Sync failed")
     } finally {

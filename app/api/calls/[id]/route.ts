@@ -139,12 +139,23 @@ export const PATCH = withAuth<{ params: { id: string } }>(async (
             }
 
             // Log the call activity
-            await hubspotLogCall(hsToken, {
+            const callResult = await hubspotLogCall(hsToken, {
               hubspotContactId: hubspotData.hubspotContactId,
               outcome,
               notes,
               durationMs: duration ? duration * 1000 : undefined,
               timestamp: updatedCall.startedAt?.toISOString(),
+            })
+
+            // Store engagement ID so bulk sync doesn't duplicate it
+            await prisma.call.update({
+              where: { id: params.id },
+              data: {
+                metadata: {
+                  ...(typeof updatedCall.metadata === "object" && updatedCall.metadata !== null ? updatedCall.metadata : {}),
+                  hubspotEngagementId: callResult.engagementId,
+                } as any,
+              },
             })
 
             console.log(`HubSpot: logged call for prospect ${call.prospectId}`)

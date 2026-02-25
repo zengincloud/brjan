@@ -139,6 +139,7 @@ export const GET = withAuth(async (
         // Task info
         priority: task.priority,
         dueDate: task.dueDate,
+        addedAt: task.createdAt,
         status: task.status,
       })
     }
@@ -210,6 +211,7 @@ export const GET = withAuth(async (
         // Task info
         priority: 'high',
         dueDate: ps.nextActionAt,
+        addedAt: ps.startedAt || ps.createdAt,
         status: 'to_do',
       })
     }

@@ -160,6 +160,7 @@ type DialerProspect = {
   } | null
   priority?: string
   dueDate?: Date | string | null
+  addedAt?: Date | string | null
   status?: string
 }
 
@@ -169,6 +170,7 @@ export default function DialerPage() {
   const [sessionActive, setSessionActive] = useSessionState("dialer_session_active", false)
   const [sessionPaused, setSessionPaused] = useSessionState("dialer_session_paused", false)
   const [selectedSequence, setSelectedSequence] = useSessionState<string>("dialer_sequence", "all")
+  const [sortBy, setSortBy] = useSessionState<string>("dialer_sort", "due_date")
   const [selectedPhone, setSelectedPhone] = useSessionState<string>("dialer_phone", "+16282253832")
   const [callSlots, setCallSlots] = useSessionState<CallSlot[]>("dialer_call_slots", [
     { id: "1", status: "idle", contact: null, startTime: null, notes: "", pendingOutcome: undefined, pendingPipelineStage: undefined },
@@ -463,8 +465,28 @@ export default function DialerPage() {
     return () => clearInterval(interval)
   }, [callSlots])
 
-  // Use API prospects only (filtered to those with phone numbers)
-  const mockProspects: DialerProspect[] = apiProspects.filter(p => p.phone)
+  // Use API prospects only (filtered to those with phone numbers), then sort
+  const mockProspects: DialerProspect[] = apiProspects.filter(p => p.phone).sort((a, b) => {
+    const toTime = (val: Date | string | null | undefined) => {
+      if (!val) return 0
+      const d = new Date(val)
+      return isNaN(d.getTime()) ? 0 : d.getTime()
+    }
+    switch (sortBy) {
+      case "due_date":
+        return toTime(a.dueDate) - toTime(b.dueDate)
+      case "added_newest":
+        return toTime(b.addedAt) - toTime(a.addedAt)
+      case "added_oldest":
+        return toTime(a.addedAt) - toTime(b.addedAt)
+      case "name":
+        return (a.name || "").localeCompare(b.name || "")
+      case "company":
+        return (a.company || "").localeCompare(b.company || "")
+      default:
+        return 0
+    }
+  })
 
   // Update queue size when prospects change
   useEffect(() => {
@@ -1377,7 +1399,7 @@ export default function DialerPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-3">
               <div className="space-y-2">
                 <Label htmlFor="sequence-select" className="text-sm">Sequence</Label>
                 <Select value={selectedSequence} onValueChange={setSelectedSequence}>
@@ -1394,6 +1416,25 @@ export default function DialerPage() {
                 </Select>
                 <p className="text-xs text-muted-foreground">
                   {loadingProspects ? "Loading..." : `${mockProspects.length} prospects available`}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="sort-select" className="text-sm">Sort By</Label>
+                <Select value={sortBy} onValueChange={setSortBy}>
+                  <SelectTrigger id="sort-select">
+                    <SelectValue placeholder="Sort by" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="due_date">Due Date</SelectItem>
+                    <SelectItem value="added_newest">Date Added (Newest)</SelectItem>
+                    <SelectItem value="added_oldest">Date Added (Oldest)</SelectItem>
+                    <SelectItem value="name">Name (A-Z)</SelectItem>
+                    <SelectItem value="company">Company (A-Z)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Order of prospects in queue
                 </p>
               </div>
 
@@ -1530,11 +1571,25 @@ export default function DialerPage() {
                             </a>
                           )}
                         </div>
-                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground flex-wrap">
                           <Badge variant="outline" className="text-xs h-5">
                             {prospect.sequenceStage}
                           </Badge>
-                          <span>• Last email: {prospect.lastEmailSent}</span>
+                          {prospect.dueDate && (() => {
+                            try {
+                              const d = new Date(prospect.dueDate)
+                              if (isNaN(d.getTime())) return null
+                              return <span>• Due: {formatDistanceToNow(d, { addSuffix: true })}</span>
+                            } catch { return null }
+                          })()}
+                          {prospect.addedAt && (() => {
+                            try {
+                              const d = new Date(prospect.addedAt)
+                              if (isNaN(d.getTime())) return null
+                              return <span>• Added: {formatDistanceToNow(d, { addSuffix: true })}</span>
+                            } catch { return null }
+                          })()}
+                          {prospect.lastEmailSent && <span>• Last email: {prospect.lastEmailSent}</span>}
                         </div>
                       </div>
 
@@ -2603,17 +2658,23 @@ export default function DialerPage() {
                           <span className="font-mono">{prospect.phone}</span>
                         </div>
                       </div>
-                      {prospect.dueDate && (
-                        <span className="text-[10px] text-muted-foreground whitespace-nowrap hidden sm:inline">
-                          {(() => {
-                            try {
+                      <span className="text-[10px] text-muted-foreground whitespace-nowrap hidden sm:inline">
+                        {(() => {
+                          try {
+                            if (sortBy.startsWith("added") && prospect.addedAt) {
+                              const d = new Date(prospect.addedAt)
+                              if (isNaN(d.getTime())) return ""
+                              return `Added ${formatDistanceToNow(d, { addSuffix: true })}`
+                            }
+                            if (prospect.dueDate) {
                               const d = new Date(prospect.dueDate)
                               if (isNaN(d.getTime())) return ""
-                              return formatDistanceToNow(d, { addSuffix: true })
-                            } catch { return "" }
-                          })()}
-                        </span>
-                      )}
+                              return `Due ${formatDistanceToNow(d, { addSuffix: true })}`
+                            }
+                            return ""
+                          } catch { return "" }
+                        })()}
+                      </span>
                       <Button
                         size="sm"
                         variant="ghost"

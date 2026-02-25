@@ -19,57 +19,107 @@ import './linkedin.css'
 // ——— DOM Scraping ———
 
 function scrapeProfileData(): LinkedInScrapedData {
-  // Name: primary heading on profile
-  const nameEl =
-    document.querySelector('h1.text-heading-xlarge') ||
-    document.querySelector('h1.inline.t-24') ||
-    document.querySelector('.pv-top-card--list li') ||
-    document.querySelector('h1')
-  const name = nameEl?.textContent?.trim() || ''
+  const onSalesNav = isSalesNav()
 
-  // Headline / Title
-  const headlineEl =
-    document.querySelector('div.text-body-medium.break-words') ||
-    document.querySelector('.pv-top-card--list + .mt1 .text-body-medium') ||
-    document.querySelector('.ph5 .text-body-medium')
-  const title = headlineEl?.textContent?.trim() || ''
+  // Name
+  let name = ''
+  if (onSalesNav) {
+    const nameEl =
+      document.querySelector('[data-x--lead--name]') ||
+      document.querySelector('.profile-topcard-person-entity__name') ||
+      document.querySelector('.artdeco-entity-lockup__title') ||
+      document.querySelector('h1')
+    name = nameEl?.textContent?.trim() || ''
+  } else {
+    const nameEl =
+      document.querySelector('h1.text-heading-xlarge') ||
+      document.querySelector('h1.inline.t-24') ||
+      document.querySelector('.pv-top-card--list li') ||
+      document.querySelector('h1')
+    name = nameEl?.textContent?.trim() || ''
+  }
 
-  // Company — from the experience section's first entry, or from the top card
+  // Title / Headline
+  let title = ''
+  if (onSalesNav) {
+    const titleEl =
+      document.querySelector('.profile-topcard__summary-position') ||
+      document.querySelector('.profile-topcard-person-entity__headline') ||
+      document.querySelector('.artdeco-entity-lockup__subtitle')
+    title = titleEl?.textContent?.trim() || ''
+  } else {
+    const headlineEl =
+      document.querySelector('div.text-body-medium.break-words') ||
+      document.querySelector('.pv-top-card--list + .mt1 .text-body-medium') ||
+      document.querySelector('.ph5 .text-body-medium')
+    title = headlineEl?.textContent?.trim() || ''
+  }
+
+  // Company
   let company = ''
-  const topCardCompany = document.querySelector(
-    '.pv-top-card--experience-list-item .pv-entity__secondary-title'
-  )
-  if (topCardCompany) {
-    company = topCardCompany.textContent?.trim() || ''
-  }
-  if (!company) {
-    const companyButton = document.querySelector(
-      'button[aria-label*="Current company"] span'
+  if (onSalesNav) {
+    const companyEl =
+      document.querySelector('.profile-topcard__summary-position a') ||
+      document.querySelector('.profile-topcard-person-entity__content a[data-anonymize="company-name"]') ||
+      document.querySelector('.artdeco-entity-lockup__caption a')
+    company = companyEl?.textContent?.trim() || ''
+    // Fallback: parse from the title/headline (e.g., "VP Sales at Acme Corp")
+    if (!company && title.includes(' at ')) {
+      company = title.split(' at ').pop()?.trim() || ''
+    }
+  } else {
+    const topCardCompany = document.querySelector(
+      '.pv-top-card--experience-list-item .pv-entity__secondary-title'
     )
-    company = companyButton?.textContent?.trim() || ''
-  }
-  if (!company) {
-    const expCompany = document.querySelector(
-      '#experience ~ .pvs-list__outer-container .t-bold span[aria-hidden="true"]'
-    ) || document.querySelector(
-      'section.experience .pv-entity__company-summary-info h3 span:nth-child(2)'
-    )
-    company = expCompany?.textContent?.trim() || ''
+    if (topCardCompany) {
+      company = topCardCompany.textContent?.trim() || ''
+    }
+    if (!company) {
+      const companyButton = document.querySelector(
+        'button[aria-label*="Current company"] span'
+      )
+      company = companyButton?.textContent?.trim() || ''
+    }
+    if (!company) {
+      const expCompany = document.querySelector(
+        '#experience ~ .pvs-list__outer-container .t-bold span[aria-hidden="true"]'
+      ) || document.querySelector(
+        'section.experience .pv-entity__company-summary-info h3 span:nth-child(2)'
+      )
+      company = expCompany?.textContent?.trim() || ''
+    }
   }
 
-  // LinkedIn URL
-  const linkedinUrl = window.location.href.split('?')[0]
+  // LinkedIn URL — for Sales Nav, try to extract the regular profile URL
+  let linkedinUrl = window.location.href.split('?')[0]
+  if (onSalesNav) {
+    // Sales Nav profile links sometimes contain a link back to the regular profile
+    const regularProfileLink = document.querySelector('a[href*="/in/"]') as HTMLAnchorElement | null
+    if (regularProfileLink?.href) {
+      const parsed = new URL(regularProfileLink.href)
+      if (parsed.pathname.startsWith('/in/')) {
+        linkedinUrl = `https://www.linkedin.com${parsed.pathname}`.split('?')[0]
+      }
+    }
+  }
 
   // Profile picture
   let profilePictureUrl: string | undefined
-  const profileImgSelectors = [
-    'img.pv-top-card-profile-picture__image--show',
-    '.pv-top-card--photo img',
-    'button[aria-label*="photo"] img',
-    '.pv-top-card__photo-wrapper img',
-    'img.presence-entity__image',
-    '.pv-top-card-profile-picture img',
-  ]
+  const profileImgSelectors = onSalesNav
+    ? [
+        '.profile-topcard-person-entity__image img',
+        '.profile-topcard__photo-wrapper img',
+        '.artdeco-entity-lockup__image img',
+        'img.profile-photo',
+      ]
+    : [
+        'img.pv-top-card-profile-picture__image--show',
+        '.pv-top-card--photo img',
+        'button[aria-label*="photo"] img',
+        '.pv-top-card__photo-wrapper img',
+        'img.presence-entity__image',
+        '.pv-top-card-profile-picture img',
+      ]
   for (const selector of profileImgSelectors) {
     const img = document.querySelector(selector) as HTMLImageElement | null
     if (img?.src && !img.src.includes('ghost') && !img.src.includes('default')) {
@@ -573,13 +623,24 @@ function escHtml(str: string): string {
 
 // ——— Initialization ———
 
+function isProfilePage(): boolean {
+  const path = window.location.pathname
+  return path.startsWith('/in/') || path.startsWith('/sales/lead/') || path.startsWith('/sales/people/')
+}
+
+function isSalesNav(): boolean {
+  return window.location.pathname.startsWith('/sales/')
+}
+
 function init() {
-  // Only inject on profile pages
-  if (!window.location.pathname.startsWith('/in/')) return
+  // Only inject on profile pages (regular LinkedIn + Sales Navigator)
+  if (!isProfilePage()) return
 
   // Wait for profile to load, then show panel
   const observer = new MutationObserver(() => {
-    const nameEl = document.querySelector('h1.text-heading-xlarge') || document.querySelector('h1')
+    const nameEl = isSalesNav()
+      ? document.querySelector('[data-x--lead--name]') || document.querySelector('.profile-topcard-person-entity__name') || document.querySelector('h1')
+      : document.querySelector('h1.text-heading-xlarge') || document.querySelector('h1')
     if (nameEl?.textContent?.trim()) {
       observer.disconnect()
       getOrCreatePanel()
@@ -605,7 +666,7 @@ const urlObserver = new MutationObserver(() => {
       panelRoot.remove()
       panelRoot = null
     }
-    if (window.location.pathname.startsWith('/in/')) {
+    if (isProfilePage()) {
       init()
     }
   }

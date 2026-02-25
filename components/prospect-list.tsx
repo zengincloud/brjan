@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
-import { Mail, Pencil, Phone, Filter, ChevronDown, Upload, Plus, Check, X, Zap } from "lucide-react"
+import { Mail, Pencil, Phone, Filter, ChevronDown, Upload, Plus, Check, X, Zap, Linkedin } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
@@ -27,6 +27,7 @@ type Prospect = {
   company?: string | null
   phone?: string | null
   status: string
+  linkedin?: string | null
   sequence?: string | null
   sequenceStep?: string | null
   lastActivity: string
@@ -403,6 +404,16 @@ export function ProspectList() {
               <TableCell>{formatLastActivity(prospect.lastActivity)}</TableCell>
               <TableCell onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center gap-2">
+                  {prospect.linkedin && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => window.open(prospect.linkedin!, '_blank')}
+                      title="View LinkedIn"
+                    >
+                      <Linkedin className="h-4 w-4" />
+                    </Button>
+                  )}
                   <Button variant="ghost" size="icon" onClick={() => handleCallProspect(prospect)} title="Call prospect">
                     <Phone className="h-4 w-4" />
                   </Button>

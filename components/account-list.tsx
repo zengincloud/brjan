@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
-import { MoreHorizontal, Filter, ChevronDown, ChevronUp, Users, Globe, Upload, Plus, Sparkles, TrendingUp, DollarSign, Wrench, Briefcase, RefreshCw, Pencil, Trash2, FolderInput, ExternalLink } from "lucide-react"
+import { MoreHorizontal, Filter, ChevronDown, ChevronUp, Users, Globe, Upload, Plus, Sparkles, TrendingUp, DollarSign, Wrench, Briefcase, RefreshCw, Pencil, Trash2, FolderInput, ExternalLink, Linkedin } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -38,6 +38,7 @@ type Account = {
   industry?: string | null
   location?: string | null
   website?: string | null
+  linkedin?: string | null
   employees?: number | null
   status: string
   sequence?: string | null
@@ -335,7 +336,19 @@ export function AccountList() {
                     </Avatar>
                     <div className="flex flex-col">
                       <span className="font-medium hover:text-primary">{account.name}</span>
-                      <span className="text-sm text-muted-foreground">{account.website}</span>
+                      {account.website ? (
+                        <a
+                          href={account.website.startsWith('http') ? account.website : `https://${account.website}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-muted-foreground hover:text-primary hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {account.website}
+                        </a>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">—</span>
+                      )}
                     </div>
                   </div>
                 </TableCell>
@@ -381,6 +394,16 @@ export function AccountList() {
                 <TableCell>{formatLastActivity(account.lastActivity)}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
+                    {account.linkedin && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => window.open(account.linkedin!, '_blank')}
+                        title="View LinkedIn"
+                      >
+                        <Linkedin className="h-4 w-4" />
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="icon"
@@ -389,16 +412,6 @@ export function AccountList() {
                     >
                       <ExternalLink className="h-4 w-4" />
                     </Button>
-                    {account.website && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => window.open(account.website!, '_blank')}
-                        title="Visit Website"
-                      >
-                        <Globe className="h-4 w-4" />
-                      </Button>
-                    )}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon">

@@ -1677,7 +1677,6 @@ export default function DialerPage() {
                     const localTime = getLocalTime(loc)
                     const tzAbbr = getTimezoneAbbr(loc)
                     const insightBullets: string[] = []
-                    if (prospect.title) insightBullets.push(prospect.title)
                     if (prospect.companyDescription) {
                       insightBullets.push(prospect.companyDescription.length > 80 ? prospect.companyDescription.slice(0, 80) + "..." : prospect.companyDescription)
                     } else if (prospect.accountInfo?.industry) {

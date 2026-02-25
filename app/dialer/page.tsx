@@ -1278,6 +1278,72 @@ export default function DialerPage() {
     ).join(" | ")
   }
 
+  // Map common city/state/country strings to IANA timezone
+  const getTimezoneFromLocation = (location: string | null | undefined): string | null => {
+    if (!location) return null
+    const loc = location.toLowerCase()
+    // US cities/states
+    if (/new york|nyc|manhattan|brooklyn|new jersey|new brunswick|newark|nj|ny\b|connecticut|ct\b|boston|massachusetts|ma\b|philadelphia|pennsylvania|pa\b|washington.*d\.?c|virginia|va\b|maryland|md\b|maine|me\b|vermont|vt\b|new hampshire|nh\b|rhode island|ri\b|delaware|de\b|east coast/i.test(loc)) return "America/New_York"
+    if (/chicago|illinois|il\b|wisconsin|wi\b|minnesota|mn\b|iowa|ia\b|missouri|mo\b|indiana|in\b|michigan|mi\b|ohio|oh\b|central time|midwest|nashville|tennessee|tn\b|memphis|milwaukee|detroit|cleveland|columbus|kansas city|omaha|nebraska|ne\b|north dakota|nd\b|south dakota|sd\b/i.test(loc)) return "America/Chicago"
+    if (/denver|colorado|co\b|utah|ut\b|arizona|az\b|phoenix|mountain time|albuquerque|new mexico|nm\b|montana|mt\b|wyoming|wy\b|idaho|id\b|boise|salt lake/i.test(loc)) return "America/Denver"
+    if (/los angeles|san francisco|california|ca\b|seattle|washington state|wa\b|portland|oregon|or\b|pacific time|west coast|san diego|san jose|silicon valley|las vegas|nevada|nv\b/i.test(loc)) return "America/Los_Angeles"
+    if (/hawaii|hi\b|honolulu/i.test(loc)) return "Pacific/Honolulu"
+    if (/alaska|ak\b|anchorage/i.test(loc)) return "America/Anchorage"
+    if (/texas|tx\b|dallas|houston|austin|san antonio/i.test(loc)) return "America/Chicago"
+    if (/atlanta|georgia|ga\b|florida|fl\b|miami|tampa|orlando|carolina|nc\b|sc\b|charlotte|raleigh|jacksonville/i.test(loc)) return "America/New_York"
+    // Canada
+    if (/toronto|ontario|ottawa|montreal|quebec/i.test(loc)) return "America/Toronto"
+    if (/vancouver|british columbia/i.test(loc)) return "America/Vancouver"
+    if (/calgary|edmonton|alberta/i.test(loc)) return "America/Edmonton"
+    // UK/Europe
+    if (/london|united kingdom|uk\b|england|britain/i.test(loc)) return "Europe/London"
+    if (/paris|france/i.test(loc)) return "Europe/Paris"
+    if (/berlin|germany|munich|frankfurt/i.test(loc)) return "Europe/Berlin"
+    if (/amsterdam|netherlands|dutch/i.test(loc)) return "Europe/Amsterdam"
+    if (/dublin|ireland/i.test(loc)) return "Europe/Dublin"
+    if (/stockholm|sweden/i.test(loc)) return "Europe/Stockholm"
+    if (/madrid|spain|barcelona/i.test(loc)) return "Europe/Madrid"
+    if (/rome|italy|milan/i.test(loc)) return "Europe/Rome"
+    // Asia/Pacific
+    if (/sydney|melbourne|australia|brisbane/i.test(loc)) return "Australia/Sydney"
+    if (/tokyo|japan/i.test(loc)) return "Asia/Tokyo"
+    if (/singapore/i.test(loc)) return "Asia/Singapore"
+    if (/hong kong/i.test(loc)) return "Asia/Hong_Kong"
+    if (/mumbai|delhi|india|bangalore|hyderabad/i.test(loc)) return "Asia/Kolkata"
+    if (/dubai|uae|abu dhabi/i.test(loc)) return "Asia/Dubai"
+    if (/tel aviv|israel|jerusalem/i.test(loc)) return "Asia/Jerusalem"
+    return null
+  }
+
+  const getLocalTime = (location: string | null | undefined): string | null => {
+    const tz = getTimezoneFromLocation(location)
+    if (!tz) return null
+    try {
+      return new Intl.DateTimeFormat("en-US", {
+        timeZone: tz,
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      }).format(new Date())
+    } catch {
+      return null
+    }
+  }
+
+  const getTimezoneAbbr = (location: string | null | undefined): string | null => {
+    const tz = getTimezoneFromLocation(location)
+    if (!tz) return null
+    try {
+      const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: tz,
+        timeZoneName: "short",
+      }).formatToParts(new Date())
+      return parts.find(p => p.type === "timeZoneName")?.value || null
+    } catch {
+      return null
+    }
+  }
+
   const CallTimer = ({ startTime }: { startTime: number | null }) => {
     const [elapsed, setElapsed] = useState(0)
 
@@ -1389,6 +1455,64 @@ export default function DialerPage() {
         </div>
       </div>
 
+      {/* Stats Bar */}
+      <div className="grid gap-4 md:grid-cols-6">
+        <Card className="border-border bg-card">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Calls</CardTitle>
+            <Phone className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.totalCalls}</div>
+          </CardContent>
+        </Card>
+        <Card className="border-primary/20 bg-primary/5">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Connected</CardTitle>
+            <UserCheck className="h-4 w-4 text-primary" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-primary">{stats.connected}</div>
+          </CardContent>
+        </Card>
+        <Card className="border-border bg-card">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Voicemail</CardTitle>
+            <Voicemail className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.voicemail}</div>
+          </CardContent>
+        </Card>
+        <Card className="border-border bg-card">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">No Answer</CardTitle>
+            <UserX className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.noAnswer}</div>
+          </CardContent>
+        </Card>
+        <Card className="border-border bg-card border-green-500/30">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pipeline</CardTitle>
+            <Rocket className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-500">{stats.pipeline}</div>
+          </CardContent>
+        </Card>
+        <Card className="border-border bg-card">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Calls/Hour</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.callsPerHour}</div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Session Configuration */}
       {!sessionActive && (
         <Card className="border-border bg-card">
@@ -1461,259 +1585,177 @@ export default function DialerPage() {
         </Card>
       )}
 
-      {/* Prospect Preview - Only show when session is not active */}
+      {/* Prospect Queue - Row-based layout, only show when session is not active */}
       {!sessionActive && mockProspects.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-lg font-semibold">Upcoming Prospects</h2>
+              <h2 className="text-lg font-semibold">Call Queue</h2>
               <p className="text-xs text-muted-foreground mt-1">
-                Preview of next {Math.min(10, mockProspects.length)} prospects in queue
+                {mockProspects.length} prospect{mockProspects.length !== 1 ? "s" : ""} to call
               </p>
             </div>
           </div>
-          <div className="space-y-4">
-            {mockProspects.slice(0, 10).map((prospect, idx) => (
-              <Card key={idx} className="border-border bg-card">
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
+          <div className="border rounded-lg overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="text-left py-2.5 px-4 font-medium text-muted-foreground text-xs">#</th>
+                    <th className="text-left py-2.5 px-4 font-medium text-muted-foreground text-xs">Name</th>
+                    <th className="text-left py-2.5 px-4 font-medium text-muted-foreground text-xs">Company</th>
+                    <th className="text-left py-2.5 px-4 font-medium text-muted-foreground text-xs">Call Step</th>
+                    <th className="text-left py-2.5 px-4 font-medium text-muted-foreground text-xs">Local Time</th>
+                    <th className="text-left py-2.5 px-4 font-medium text-muted-foreground text-xs">Insights</th>
+                    <th className="text-right py-2.5 px-4 font-medium text-muted-foreground text-xs w-10"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {mockProspects.map((prospect, idx) => {
+                    const loc = prospect.location || prospect.accountInfo?.location || null
+                    const localTime = getLocalTime(loc)
+                    const tzAbbr = getTimezoneAbbr(loc)
+                    const insightBullets: string[] = []
+                    if (prospect.title) insightBullets.push(prospect.title)
+                    if (prospect.companyDescription) {
+                      insightBullets.push(prospect.companyDescription.length > 80 ? prospect.companyDescription.slice(0, 80) + "..." : prospect.companyDescription)
+                    } else if (prospect.accountInfo?.industry) {
+                      insightBullets.push(prospect.accountInfo.industry + (prospect.accountInfo?.employees ? `, ${prospect.accountInfo.employees.toLocaleString()} employees` : ""))
+                    }
+                    if (prospect.priorCalls && prospect.priorCalls.length > 0) {
+                      insightBullets.push(`${prospect.priorCalls.length} prior call${prospect.priorCalls.length !== 1 ? "s" : ""} — last: ${prospect.priorCalls[0].outcome}`)
+                    }
+
+                    return (
+                      <tr key={prospect.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors group">
+                        <td className="py-3 px-4 text-xs text-muted-foreground font-mono">{idx + 1}</td>
+                        <td className="py-3 px-4">
                           <div className="flex items-center gap-2">
-                            <CardTitle className="text-base">{prospect.name}</CardTitle>
+                            <span className="font-medium">{prospect.name}</span>
                             {prospect.linkedin && (
                               <button
-                                onClick={(e) => { e.stopPropagation(); window.open(prospect.linkedin!, "_blank") }}
+                                onClick={() => window.open(prospect.linkedin!, "_blank")}
                                 className="p-0.5 rounded hover:bg-[#0A66C2]/10 transition-colors"
                                 title="Open LinkedIn"
                               >
                                 <Linkedin className="h-3.5 w-3.5 text-[#0A66C2]" />
                               </button>
                             )}
-                            <Badge variant="outline" className="text-xs">
-                              #{idx + 1} in queue
-                            </Badge>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <button className="p-1 rounded hover:bg-muted transition-colors ml-auto">
-                                  <MoreVertical className="h-3.5 w-3.5 text-muted-foreground" />
-                                </button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => {
-                                  setApiProspects(prev => prev.filter(p => p.id !== prospect.id))
-                                  toast({ title: "Skipped", description: `${prospect.name} removed from this session's queue` })
-                                }}>
-                                  <SkipForward className="h-4 w-4 mr-2" />
-                                  Skip
-                                </DropdownMenuItem>
-                                {prospect.sequenceId && prospect.prospectId && (
-                                  <DropdownMenuItem
-                                    className="text-destructive focus:text-destructive"
-                                    onClick={async () => {
-                                      try {
-                                        const res = await fetch(`/api/sequences/${prospect.sequenceId}/prospects/${prospect.prospectId}`, { method: "DELETE" })
-                                        if (res.ok) {
-                                          setApiProspects(prev => prev.filter(p => p.id !== prospect.id))
-                                          toast({ title: "Removed", description: `${prospect.name} removed from sequence` })
-                                        } else {
-                                          toast({ title: "Error", description: "Failed to remove from sequence", variant: "destructive" })
-                                        }
-                                      } catch {
-                                        toast({ title: "Error", description: "Failed to remove from sequence", variant: "destructive" })
-                                      }
-                                    }}
-                                  >
-                                    <X className="h-4 w-4 mr-2" />
-                                    Remove from Sequence
-                                  </DropdownMenuItem>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
                           </div>
-                          <div className="flex items-center gap-2 mt-1">
-                            <Building2 className="h-3 w-3 text-muted-foreground" />
-                            <span className="text-xs text-muted-foreground">{prospect.company}</span>
-                            {(prospect.location || prospect.accountInfo?.location) && (
-                              <>
-                                <span className="text-xs text-muted-foreground">•</span>
-                                <MapPin className="h-3 w-3 text-muted-foreground" />
-                                <span className="text-xs text-muted-foreground">{prospect.location || prospect.accountInfo?.location}</span>
-                              </>
-                            )}
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <button
+                              onClick={() => dialOneOff(prospect)}
+                              className="text-xs font-mono text-primary hover:underline cursor-pointer"
+                            >
+                              {prospect.phone}
+                            </button>
                           </div>
-                          <p className="text-xs text-muted-foreground mt-0.5">{prospect.title}</p>
-                        </div>
-                      </div>
-                      <div className="mt-2 space-y-1.5">
-                        <div className="flex items-center gap-1.5 text-xs">
-                          <Phone className="h-3 w-3 text-muted-foreground" />
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              dialOneOff(prospect)
-                            }}
-                            className="font-mono text-primary hover:underline cursor-pointer"
-                          >
-                            {prospect.phone}
-                          </button>
-                        </div>
-                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                          <div className="flex items-center gap-1.5">
-                            <Mail className="h-3 w-3" />
-                            <span>{prospect.email}</span>
-                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="text-sm">{prospect.company || "—"}</div>
                           {prospect.accountInfo?.website && (
-                            <a href={prospect.accountInfo.website.startsWith("http") ? prospect.accountInfo.website : `https://${prospect.accountInfo.website}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-primary">
-                              <Globe className="h-3 w-3" />
-                              <span>Website</span>
+                            <a
+                              href={prospect.accountInfo.website.startsWith("http") ? prospect.accountInfo.website : `https://${prospect.accountInfo.website}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-muted-foreground hover:text-primary hover:underline"
+                            >
+                              {prospect.accountInfo.website.replace(/^https?:\/\//, "")}
                             </a>
                           )}
-                        </div>
-                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground flex-wrap">
-                          <Badge variant="outline" className="text-xs h-5">
-                            {prospect.sequenceStage}
+                        </td>
+                        <td className="py-3 px-4">
+                          <Badge variant="outline" className="text-xs">
+                            {prospect.sequenceStage || "—"}
                           </Badge>
-                          {prospect.dueDate && (() => {
-                            try {
-                              const d = new Date(prospect.dueDate)
-                              if (isNaN(d.getTime())) return null
-                              return <span>• Due: {formatDistanceToNow(d, { addSuffix: true })}</span>
-                            } catch { return null }
-                          })()}
-                          {prospect.addedAt && (() => {
-                            try {
-                              const d = new Date(prospect.addedAt)
-                              if (isNaN(d.getTime())) return null
-                              return <span>• Added: {formatDistanceToNow(d, { addSuffix: true })}</span>
-                            } catch { return null }
-                          })()}
-                          {prospect.lastEmailSent && <span>• Last email: {prospect.lastEmailSent}</span>}
-                        </div>
-                      </div>
-
-                      {/* Insights */}
-                      {(prospect.title || prospect.companyDescription || prospect.accountInfo?.industry || prospect.accountInfo?.employees) && (
-                      <div className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
-                        <div className="flex items-start gap-2">
-                          <Sparkles className="h-3.5 w-3.5 text-primary mt-0.5 flex-shrink-0" />
-                          <div className="flex-1">
-                            <p className="text-xs font-medium text-primary mb-1.5">Insights</p>
-                            <ul className="space-y-1 text-xs text-foreground leading-relaxed list-disc list-inside">
-                              {prospect.title && prospect.company && (
-                                <li>{prospect.name} is {prospect.title} at {prospect.company}</li>
-                              )}
-                              {(prospect.companyDescription || prospect.accountInfo?.industry || prospect.accountInfo?.employees) && (
-                                <li>
-                                  {prospect.company}{prospect.accountInfo?.employees ? `, ${prospect.accountInfo.employees.toLocaleString()} employees` : ""}
-                                  {prospect.companyDescription ? ` — ${prospect.companyDescription}` : prospect.accountInfo?.industry ? ` — ${prospect.accountInfo.industry}` : ""}
-                                </li>
-                              )}
-                            </ul>
-                          </div>
-                        </div>
-                      </div>
-                      )}
-
-                      {/* Prior Call History */}
-                      {prospect.priorCalls.length > 0 && (
-                        <div className="mt-3">
-                          <button
-                            onClick={() => toggleExpanded(`preview-${idx}`)}
-                            className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors w-full"
-                          >
-                            <History className="h-3 w-3" />
-                            <span>Call History ({prospect.priorCalls.length})</span>
-                            {expandedSlots.has(`preview-${idx}`) ? (
-                              <ChevronUp className="h-3 w-3 ml-auto" />
-                            ) : (
-                              <ChevronDown className="h-3 w-3 ml-auto" />
-                            )}
-                          </button>
-                          {expandedSlots.has(`preview-${idx}`) && (
-                            <div className="mt-2 space-y-2">
-                              {prospect.priorCalls.map((call, callIdx) => (
-                                <div key={callIdx} className="p-2 rounded bg-secondary/30 border border-border">
-                                  <div className="flex items-center justify-between mb-1">
-                                    <span className="text-xs font-medium">{call.date}</span>
-                                    <Badge variant="outline" className="text-xs h-5">
-                                      {call.outcome}
-                                    </Badge>
-                                  </div>
-                                  <p className="text-xs text-muted-foreground">{call.notes}</p>
-                                </div>
-                              ))}
-                            </div>
+                          {prospect.sequence && (
+                            <div className="text-[10px] text-muted-foreground mt-0.5 truncate max-w-[140px]">{prospect.sequence}</div>
                           )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </CardHeader>
-              </Card>
-            ))}
+                        </td>
+                        <td className="py-3 px-4">
+                          {localTime ? (
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <Clock className="h-3 w-3 text-muted-foreground" />
+                                <span className="text-sm font-medium">{localTime}</span>
+                                <span className="text-[10px] text-muted-foreground">{tzAbbr}</span>
+                              </div>
+                              <div className="flex items-center gap-1 mt-0.5">
+                                <MapPin className="h-3 w-3 text-muted-foreground" />
+                                <span className="text-xs text-muted-foreground truncate max-w-[120px]">{loc}</span>
+                              </div>
+                            </div>
+                          ) : loc ? (
+                            <div className="flex items-center gap-1">
+                              <MapPin className="h-3 w-3 text-muted-foreground" />
+                              <span className="text-xs text-muted-foreground">{loc}</span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4">
+                          {insightBullets.length > 0 ? (
+                            <ul className="space-y-0.5 text-xs text-muted-foreground">
+                              {insightBullets.map((b, i) => (
+                                <li key={i} className="flex items-start gap-1.5">
+                                  <span className="text-primary mt-1 flex-shrink-0">•</span>
+                                  <span>{b}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button className="p-1 rounded hover:bg-muted transition-colors opacity-0 group-hover:opacity-100">
+                                <MoreVertical className="h-3.5 w-3.5 text-muted-foreground" />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => {
+                                setApiProspects(prev => prev.filter(p => p.id !== prospect.id))
+                                toast({ title: "Skipped", description: `${prospect.name} removed from this session's queue` })
+                              }}>
+                                <SkipForward className="h-4 w-4 mr-2" />
+                                Skip
+                              </DropdownMenuItem>
+                              {prospect.sequenceId && prospect.prospectId && (
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={async () => {
+                                    try {
+                                      const res = await fetch(`/api/sequences/${prospect.sequenceId}/prospects/${prospect.prospectId}`, { method: "DELETE" })
+                                      if (res.ok) {
+                                        setApiProspects(prev => prev.filter(p => p.id !== prospect.id))
+                                        toast({ title: "Removed", description: `${prospect.name} removed from sequence` })
+                                      } else {
+                                        toast({ title: "Error", description: "Failed to remove from sequence", variant: "destructive" })
+                                      }
+                                    } catch {
+                                      toast({ title: "Error", description: "Failed to remove from sequence", variant: "destructive" })
+                                    }
+                                  }}
+                                >
+                                  <X className="h-4 w-4 mr-2" />
+                                  Remove from Sequence
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
-
-      {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-6">
-        <Card className="border-border bg-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Calls</CardTitle>
-            <Phone className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalCalls}</div>
-          </CardContent>
-        </Card>
-        <Card className="border-primary/20 bg-primary/5">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Connected</CardTitle>
-            <UserCheck className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-primary">{stats.connected}</div>
-          </CardContent>
-        </Card>
-        <Card className="border-border bg-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Voicemail</CardTitle>
-            <Voicemail className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.voicemail}</div>
-          </CardContent>
-        </Card>
-        <Card className="border-border bg-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">No Answer</CardTitle>
-            <UserX className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.noAnswer}</div>
-          </CardContent>
-        </Card>
-        <Card className="border-border bg-card border-green-500/30">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pipeline</CardTitle>
-            <Rocket className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-500">{stats.pipeline}</div>
-          </CardContent>
-        </Card>
-        <Card className="border-border bg-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Calls/Hour</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.callsPerHour}</div>
-          </CardContent>
-        </Card>
-      </div>
 
       {/* Active Calls Grid */}
       <div>

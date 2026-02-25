@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma"
 import { withExtensionAuth } from "@/lib/auth/extension-middleware"
 import { checkCredits, deductCredits } from "@/lib/credits"
 import { findOrCreateAccount } from "@/lib/account-linking"
+import { pushContact, pushCompany, associateContactToCompany } from "@/lib/hubspot/client"
+import { getValidAccessToken } from "@/lib/hubspot/oauth"
 
 export const dynamic = 'force-dynamic'
 
@@ -81,6 +83,63 @@ export const POST = withExtensionAuth(async (request: NextRequest, userId: strin
     })
 
     await deductCredits(userId)
+
+    // Push to HubSpot in background (non-blocking)
+    getValidAccessToken(userId).then(async (hsToken) => {
+      if (!hsToken) return
+      try {
+        // Push company first if we have an account without a HubSpot ID
+        let hsCompanyId: string | null = null
+        if (accountId) {
+          const account = await prisma.account.findUnique({
+            where: { id: accountId },
+            select: { name: true, industry: true, location: true, website: true, employees: true, linkedin: true, insights: true },
+          })
+          if (account) {
+            hsCompanyId = (account.insights as any)?.hubspotCompanyId || null
+            if (!hsCompanyId) {
+              const companyResult = await pushCompany(hsToken, {
+                name: account.name,
+                industry: account.industry,
+                location: account.location,
+                website: account.website,
+                employees: account.employees,
+                linkedin: account.linkedin,
+              })
+              hsCompanyId = companyResult.hubspotCompanyId
+              await prisma.account.update({
+                where: { id: accountId },
+                data: {
+                  insights: {
+                    ...(typeof account.insights === "object" && account.insights !== null ? account.insights : {}),
+                    hubspotCompanyId: hsCompanyId,
+                  } as any,
+                },
+              })
+            }
+          }
+        }
+
+        // Push contact
+        const result = await pushContact(hsToken, { name, email, phone, title, company: resolvedCompany, linkedin })
+        await prisma.prospect.update({
+          where: { id: prospect.id },
+          data: {
+            wizaData: {
+              ...(typeof prospect.wizaData === "object" && prospect.wizaData !== null ? prospect.wizaData : {}),
+              hubspotContactId: result.hubspotContactId,
+            } as any,
+          },
+        })
+        // Associate contact with company
+        if (hsCompanyId) {
+          await associateContactToCompany(hsToken, result.hubspotContactId, hsCompanyId)
+        }
+        console.log(`HubSpot: synced new prospect ${prospect.id} → contact ${result.hubspotContactId}`)
+      } catch (err) {
+        console.error("HubSpot sync error (non-blocking):", err)
+      }
+    })
 
     return NextResponse.json({ prospect }, { status: 201 })
   } catch (error: any) {

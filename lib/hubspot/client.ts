@@ -190,6 +190,7 @@ export async function pushCompany(accessToken: string, account: {
 // Log a call activity to HubSpot using the Engagements API (no special call scopes needed)
 export async function logCall(accessToken: string, params: {
   hubspotContactId: string
+  hubspotCompanyId?: string | null
   outcome: string
   notes?: string | null
   durationMs?: number
@@ -224,7 +225,7 @@ export async function logCall(accessToken: string, params: {
       },
       associations: {
         contactIds: [Number(params.hubspotContactId)],
-        companyIds: [],
+        companyIds: params.hubspotCompanyId ? [Number(params.hubspotCompanyId)] : [],
         dealIds: [],
       },
       metadata: {
@@ -238,6 +239,24 @@ export async function logCall(accessToken: string, params: {
   })
 
   return { engagementId: String(data.engagement?.id || data.id) }
+}
+
+// Associate a contact with a company in HubSpot
+export async function associateContactToCompany(
+  accessToken: string,
+  hubspotContactId: string,
+  hubspotCompanyId: string
+): Promise<void> {
+  try {
+    await hubspotFetch(
+      accessToken,
+      `/crm/v3/objects/contacts/${hubspotContactId}/associations/companies/${hubspotCompanyId}/contact_to_company`,
+      { method: "PUT" }
+    )
+  } catch (err: any) {
+    // Don't throw — association might already exist
+    console.log(`HubSpot: association contact ${hubspotContactId} -> company ${hubspotCompanyId}: ${err?.message}`)
+  }
 }
 
 // Check if a user has HubSpot connected

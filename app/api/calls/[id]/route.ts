@@ -138,9 +138,20 @@ export const PATCH = withAuth<{ params: { id: string } }>(async (
               })
             }
 
+            // Look up the company's HubSpot ID if prospect is linked to an account
+            let hsCompanyId: string | null = null
+            if (call.prospect!.accountId) {
+              const account = await prisma.account.findUnique({
+                where: { id: call.prospect!.accountId },
+                select: { insights: true },
+              })
+              hsCompanyId = (account?.insights as any)?.hubspotCompanyId || null
+            }
+
             // Log the call activity
             const callResult = await hubspotLogCall(hsToken, {
               hubspotContactId: hubspotData.hubspotContactId,
+              hubspotCompanyId: hsCompanyId,
               outcome,
               notes,
               durationMs: duration ? duration * 1000 : undefined,

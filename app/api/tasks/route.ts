@@ -100,5 +100,11 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
     orderBy,
   })
 
-  return NextResponse.json({ tasks: tasks.map(serializeTask) })
+  // Filter out sequence-generated tasks (they belong in the dialer, not the task board)
+  const nonSequenceTasks = tasks.filter((task) => {
+    const contact = task.contact as any
+    return !(contact?.sequenceId && contact?.prospectId)
+  })
+
+  return NextResponse.json({ tasks: nonSequenceTasks.map(serializeTask) })
 })

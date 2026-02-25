@@ -196,6 +196,7 @@ export default function DialerPage() {
   const [apiProspects, setApiProspects] = useState<DialerProspect[]>([])
   const [loadingProspects, setLoadingProspects] = useState(true)
   const [fetchedSequences, setFetchedSequences] = useState<{ id: string; name: string }[]>([])
+  const [selectedTimezones, setSelectedTimezones] = useState<string[]>([])
 
   // Twilio state
   const [deviceReady, setDeviceReady] = useState(false)
@@ -465,8 +466,17 @@ export default function DialerPage() {
     return () => clearInterval(interval)
   }, [callSlots])
 
-  // Use API prospects only (filtered to those with phone numbers), then sort
-  const mockProspects: DialerProspect[] = apiProspects.filter(p => p.phone).sort((a, b) => {
+  // Use API prospects only (filtered to those with phone numbers + timezone filter), then sort
+  const mockProspects: DialerProspect[] = apiProspects.filter(p => {
+    if (!p.phone) return false
+    // Timezone filter
+    if (selectedTimezones.length > 0) {
+      const loc = p.location || (p.accountInfo as any)?.location || null
+      const abbr = getTimezoneAbbr(loc)
+      if (!abbr || !selectedTimezones.some(tz => abbr.includes(tz) || abbr === tz)) return false
+    }
+    return true
+  }).sort((a, b) => {
     const toTime = (val: Date | string | null | undefined) => {
       if (!val) return 0
       const d = new Date(val)
@@ -1201,6 +1211,25 @@ export default function DialerPage() {
     })
   }
 
+  // Load a prospect into the call card without auto-dialing
+  const loadProspectCard = (prospect: DialerProspect) => {
+    setCallSlots([{
+      id: "1",
+      status: "idle" as CallStatus,
+      contact: prospect,
+      startTime: null,
+      notes: "",
+      pendingOutcome: undefined,
+      pendingPipelineStage: undefined,
+      taskId: prospect.taskId,
+      queueItemId: prospect.id,
+      prospectId: prospect.prospectId || null,
+      sequenceId: prospect.sequenceId || null,
+    }])
+    // Auto-expand the card
+    setExpandedSlots(prev => new Set(prev).add("1"))
+  }
+
   const dialOneOff = async (prospect: DialerProspect) => {
     // Find first available idle slot
     const slotIndex = callSlots.findIndex(s => s.status === "idle")
@@ -1523,7 +1552,7 @@ export default function DialerPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-4">
               <div className="space-y-2">
                 <Label htmlFor="sequence-select" className="text-sm">Sequence</Label>
                 <Select value={selectedSequence} onValueChange={setSelectedSequence}>
@@ -1578,6 +1607,38 @@ export default function DialerPage() {
                 </Select>
                 <p className="text-xs text-muted-foreground">
                   Outbound caller ID
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm">Time Zones</Label>
+                <div className="flex flex-wrap gap-2">
+                  {["EST", "CST", "MST", "PST"].map(tz => (
+                    <button
+                      key={tz}
+                      onClick={() => setSelectedTimezones(prev =>
+                        prev.includes(tz) ? prev.filter(t => t !== tz) : [...prev, tz]
+                      )}
+                      className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${
+                        selectedTimezones.includes(tz)
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-background text-muted-foreground border-border hover:bg-muted"
+                      }`}
+                    >
+                      {tz}
+                    </button>
+                  ))}
+                  {selectedTimezones.length > 0 && (
+                    <button
+                      onClick={() => setSelectedTimezones([])}
+                      className="px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {selectedTimezones.length > 0 ? `Showing ${selectedTimezones.join(", ")} only` : "All time zones"}
                 </p>
               </div>
             </div>
@@ -1642,9 +1703,12 @@ export default function DialerPage() {
                               </button>
                             )}
                           </div>
+                          {prospect.title && (
+                            <div className="text-xs text-muted-foreground mt-0.5">{prospect.title}</div>
+                          )}
                           <div className="flex items-center gap-2 mt-0.5">
                             <button
-                              onClick={() => dialOneOff(prospect)}
+                              onClick={() => loadProspectCard(prospect)}
                               className="text-xs font-mono text-primary hover:underline cursor-pointer"
                             >
                               {prospect.phone}
@@ -2055,7 +2119,7 @@ export default function DialerPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => slot.contact && openEmailDialog(slot.contact)}
+                          onClick={() => slot.contact && openEmailDialog(slot.contact as any)}
                           className="h-7"
                         >
                           <Mail className="h-3 w-3 mr-1" />
@@ -2064,7 +2128,7 @@ export default function DialerPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => slot.contact && openCalendarInvite(slot.contact)}
+                          onClick={() => slot.contact && openCalendarInvite(slot.contact as any)}
                           className="h-7"
                         >
                           <Calendar className="h-3 w-3 mr-1" />
@@ -2452,286 +2516,373 @@ export default function DialerPage() {
             )}
           </div>
         ) : (
-          /* Card-based layout when session is not active */
-          <div className="grid gap-4 md:grid-cols-1 max-w-2xl">
+          /* Rich card layout when session is not active — same format as during session */
+          <div className="space-y-3">
             {callSlots.slice(0, 1).map((slot) => (
-              <Card
+              <div
                 key={slot.id}
-                className={`border-border ${
+                className={`rounded-lg border p-4 ${
                   slot.status === "ringing"
                     ? "border-primary/50 bg-primary/5"
                     : slot.status === "connected"
                     ? "border-primary bg-primary/10"
-                    : "bg-card"
+                    : "border-border bg-card"
                 }`}
               >
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      {slot.contact ? (
-                        <>
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <CardTitle className="text-base">{slot.contact.name}</CardTitle>
-                                {slot.contact.linkedin && (
-                                  <button
-                                    onClick={() => window.open(slot.contact!.linkedin!, "_blank")}
-                                    className="p-0.5 rounded hover:bg-[#0A66C2]/10 transition-colors"
-                                    title="Open LinkedIn"
-                                  >
-                                    <Linkedin className="h-3.5 w-3.5 text-[#0A66C2]" />
-                                  </button>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2 mt-1">
-                                <Building2 className="h-3 w-3 text-muted-foreground" />
-                                <span className="text-xs text-muted-foreground">{slot.contact.company}</span>
-                                {((slot.contact as any).location || (slot.contact.accountInfo as any)?.location) && (
-                                  <>
-                                    <span className="text-xs text-muted-foreground">•</span>
-                                    <MapPin className="h-3 w-3 text-muted-foreground" />
-                                    <span className="text-xs text-muted-foreground">{(slot.contact as any).location || (slot.contact.accountInfo as any)?.location}</span>
-                                  </>
-                                )}
-                              </div>
-                              <p className="text-xs text-muted-foreground mt-0.5">{slot.contact.title}</p>
-                            </div>
-                            <div className="flex flex-col items-end gap-1">
-                              {slot.status === "ringing" && (
-                                <Badge className="bg-primary/20 text-primary border-0">Ringing</Badge>
-                              )}
-                              {slot.status === "connected" && (
-                                <Badge className="bg-primary text-primary-foreground border-0">Connected</Badge>
-                              )}
-                              {slot.startTime && <CallTimer startTime={slot.startTime} />}
-                            </div>
+                {slot.contact ? (
+                  <div className="space-y-3">
+                    {/* Header row */}
+                    <div
+                      className="flex items-center gap-4 flex-wrap cursor-pointer"
+                      onClick={() => toggleExpanded(slot.id)}
+                    >
+                      {/* Status */}
+                      <div className="flex items-center gap-2 min-w-[180px]" onClick={(e) => e.stopPropagation()}>
+                        {slot.status === "idle" && (
+                          <Button
+                            size="sm"
+                            className="bg-primary hover:bg-primary/90 text-primary-foreground h-7"
+                            onClick={() => slot.contact && dialOneOff(slot.contact as DialerProspect)}
+                            disabled={!deviceReady}
+                          >
+                            <Phone className="h-3 w-3 mr-1" />
+                            Call
+                          </Button>
+                        )}
+                        {slot.status === "ringing" && (
+                          <>
+                            <Badge className="bg-primary/20 text-primary border-0 animate-pulse">
+                              <PhoneCall className="h-3 w-3 mr-1" />
+                              Ringing
+                            </Badge>
+                            <Button size="sm" variant="destructive" onClick={endCall} className="h-7 px-2">
+                              <PhoneOff className="h-3 w-3" />
+                            </Button>
+                          </>
+                        )}
+                        {slot.status === "connected" && (
+                          <>
+                            <Badge className="bg-primary text-primary-foreground border-0">
+                              <PhoneCall className="h-3 w-3 mr-1" />
+                              Connected
+                            </Badge>
+                            <Button size="sm" variant={isMuted ? "secondary" : "outline"} onClick={toggleMute} className="h-7 px-2" title={isMuted ? "Unmute" : "Mute"}>
+                              {isMuted ? <MicOff className="h-3 w-3" /> : <Mic className="h-3 w-3" />}
+                            </Button>
+                            <Button size="sm" variant="destructive" onClick={endCall} className="h-7 px-2">
+                              <PhoneOff className="h-3 w-3" />
+                            </Button>
+                          </>
+                        )}
+                        {slot.status === "completed" && (
+                          <Badge variant="outline" className="border-muted-foreground/50">
+                            Completed • {String(Math.floor(callDuration / 60)).padStart(2, '0')}:{String(callDuration % 60).padStart(2, '0')}
+                          </Badge>
+                        )}
+                        {(slot.status === "ringing" || slot.status === "connected") && slot.startTime && <CallTimer startTime={slot.startTime} />}
+                      </div>
+
+                      {/* Contact Info */}
+                      <div className="flex-1 min-w-[200px]">
+                        <div className="flex items-center gap-3">
+                          <span className="font-semibold text-sm">{slot.contact.name}</span>
+                          {slot.contact.linkedin && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); window.open(slot.contact!.linkedin!, "_blank") }}
+                              className="p-0.5 rounded hover:bg-[#0A66C2]/10 transition-colors"
+                              title="Open LinkedIn"
+                            >
+                              <Linkedin className="h-3.5 w-3.5 text-[#0A66C2]" />
+                            </button>
+                          )}
+                          <span className="text-xs text-muted-foreground">•</span>
+                          <span className="text-xs text-muted-foreground">{slot.contact.title}</span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <Building2 className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">{slot.contact.company}</span>
+                          {((slot.contact as any).location || (slot.contact.accountInfo as any)?.location) && (
+                            <>
+                              <span className="text-xs text-muted-foreground">•</span>
+                              <MapPin className="h-3 w-3 text-muted-foreground" />
+                              <span className="text-xs text-muted-foreground">{(slot.contact as any).location || (slot.contact.accountInfo as any)?.location}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Phone */}
+                      <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                        <Phone className="h-3 w-3 text-muted-foreground" />
+                        {editingPhoneId === slot.id ? (
+                          <div className="flex items-center gap-1">
+                            <Input type="tel" value={editedPhone} onChange={(e) => setEditedPhone(e.target.value)} className="font-mono text-xs h-6 px-2 w-32" autoFocus />
+                            <button onClick={() => saveEditedPhone(slot.id)} className="p-0.5 hover:bg-primary/10 rounded"><Check className="h-3 w-3 text-primary" /></button>
+                            <button onClick={cancelEditingPhone} className="p-0.5 hover:bg-destructive/10 rounded"><X className="h-3 w-3 text-destructive" /></button>
                           </div>
-                          <div className="mt-2 space-y-1.5">
-                            <div className="flex items-center gap-1.5 text-xs">
-                              <Phone className="h-3 w-3 text-muted-foreground" />
-                              {editingPhoneId === slot.id ? (
-                                <div className="flex items-center gap-1">
-                                  <Input
-                                    type="tel"
-                                    value={editedPhone}
-                                    onChange={(e) => setEditedPhone(e.target.value)}
-                                    className="font-mono text-xs h-6 px-2 w-32"
-                                    autoFocus
-                                  />
-                                  <button
-                                    onClick={() => saveEditedPhone(slot.id)}
-                                    className="p-0.5 hover:bg-primary/10 rounded"
-                                  >
-                                    <Check className="h-3 w-3 text-primary" />
-                                  </button>
-                                  <button
-                                    onClick={cancelEditingPhone}
-                                    className="p-0.5 hover:bg-destructive/10 rounded"
-                                  >
-                                    <X className="h-3 w-3 text-destructive" />
-                                  </button>
-                                </div>
-                              ) : (
-                                <>
-                                  <span className="font-mono">{slot.contact.phone}</span>
-                                  <button
-                                    onClick={() => slot.contact && startEditingPhone(slot.id, slot.contact.phone)}
-                                    className="p-0.5 hover:bg-muted rounded"
-                                    title="Edit phone number"
-                                  >
-                                    <Edit2 className="h-3 w-3 text-muted-foreground" />
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                              <div className="flex items-center gap-1.5">
-                                <Mail className="h-3 w-3" />
-                                <span>{slot.contact.email}</span>
-                              </div>
-                              {(slot.contact.accountInfo as any)?.website && (
-                                <a href={(slot.contact.accountInfo as any).website.startsWith("http") ? (slot.contact.accountInfo as any).website : `https://${(slot.contact.accountInfo as any).website}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-primary">
-                                  <Globe className="h-3 w-3" />
-                                  <span>Website</span>
-                                </a>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                              <Badge variant="outline" className="text-xs h-5">
-                                {slot.contact.sequenceStage}
-                              </Badge>
-                              <span>• Last email: {slot.contact.lastEmailSent}</span>
-                            </div>
-                          </div>
-                        </>
-                      ) : (
-                        <div className="text-sm text-muted-foreground">Ready to start session</div>
-                      )}
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {slot.contact && (
-                    <>
-                      <Textarea
-                        placeholder="Call notes..."
-                        value={slot.notes}
-                        onChange={(e) => updateNotes(slot.id, e.target.value)}
-                        className="min-h-[60px] text-sm"
-                      />
-                      <div className="flex items-center gap-2 flex-wrap">
+                        ) : (
+                          <>
+                            <span className="font-mono text-xs">{slot.contact.phone}</span>
+                            <button onClick={() => slot.contact && startEditingPhone(slot.id, slot.contact.phone)} className="p-0.5 hover:bg-muted rounded" title="Edit phone number">
+                              <Edit2 className="h-3 w-3 text-muted-foreground" />
+                            </button>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Expand/collapse */}
+                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button
-                              size="sm"
-                              variant={slot.pendingOutcome ? "default" : "outline"}
-                              className={slot.pendingOutcome ? "bg-primary hover:bg-primary/90 text-primary-foreground" : ""}
-                            >
-                              <UserCheck className="h-3 w-3 mr-1" />
-                              {slot.pendingOutcome ? outcomeLabels[slot.pendingOutcome] || slot.pendingOutcome : "Outcome"}
-                              <ChevronDown className="h-3 w-3 ml-1" />
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                              <MoreVertical className="h-4 w-4 text-muted-foreground" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="center" className="w-48">
-                            <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "connected_intro_booked")}>
-                              <CalendarCheck className="h-4 w-4 mr-2 text-green-500" />
-                              Intro Booked
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "connected_referral")}>
-                              <UserCheck className="h-4 w-4 mr-2 text-blue-500" />
-                              Referral
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "connected_not_interested")}>
-                              <UserX className="h-4 w-4 mr-2 text-orange-500" />
-                              Not Interested
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "connected_info_gathered")}>
-                              <FileText className="h-4 w-4 mr-2 text-purple-500" />
-                              Informational
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "callback")}>
-                              <Phone className="h-4 w-4 mr-2 text-amber-500" />
-                              Call Back Later
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "voicemail")}>
-                              <Voicemail className="h-4 w-4 mr-2" />
-                              Voicemail
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "no_answer")}>
-                              <UserX className="h-4 w-4 mr-2" />
-                              No Answer
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "no_answer")}>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => skipProspect(slot.id)}>
                               <SkipForward className="h-4 w-4 mr-2" />
                               Skip
                             </DropdownMenuItem>
+                            {slot.contact?.email && (
+                              <DropdownMenuItem onClick={() => openEmailDialog(slot.contact as any)}>
+                                <Mail className="h-4 w-4 mr-2" />
+                                Send Email
+                              </DropdownMenuItem>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              size="sm"
-                              variant={slot.pendingPipelineStage ? "default" : "outline"}
-                              className={slot.pendingPipelineStage ? "bg-green-600 hover:bg-green-700 text-white" : ""}
-                            >
-                              <Rocket className="h-3 w-3 mr-1" />
-                              {slot.pendingPipelineStage ? pipelineStageLabels[slot.pendingPipelineStage as PipelineStage] || slot.pendingPipelineStage : "Pipeline"}
-                              <ChevronDown className="h-3 w-3 ml-1" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="center" className="w-48">
-                            <DropdownMenuItem onClick={() => handlePipelineOutcome(slot.id, "interested")}>
-                              <Star className="h-4 w-4 mr-2 text-yellow-500" />
-                              Interested
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handlePipelineOutcome(slot.id, "intro_booked")}>
-                              <CalendarCheck className="h-4 w-4 mr-2 text-blue-500" />
-                              Intro Booked
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handlePipelineOutcome(slot.id, "opportunity")}>
-                              <Target className="h-4 w-4 mr-2 text-purple-500" />
-                              Opportunity
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handlePipelineOutcome(slot.id, "demo_booked")}>
-                              <Handshake className="h-4 w-4 mr-2 text-green-500" />
-                              Demo Booked
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                        <Button
-                          size="sm"
-                          className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-                          onClick={() => saveAndAdvance(slot.id)}
-                        >
-                          <Save className="h-3 w-3 mr-1" />
-                          {sessionActive ? "Save & Next" : "Save & Done"}
-                        </Button>
+                        <div className="cursor-pointer" onClick={() => toggleExpanded(slot.id)}>
+                          {expandedSlots.has(slot.id) ? (
+                            <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </div>
                       </div>
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
+                    </div>
 
-            {/* Quick-dial queue — pick a specific prospect to call */}
-            {mockProspects.length > 0 && (
-              <div className="mt-6 max-w-2xl">
-                <h3 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
-                  <Users className="h-3.5 w-3.5" />
-                  Call Queue ({mockProspects.length} prospect{mockProspects.length !== 1 ? "s" : ""})
-                </h3>
-                <div className="space-y-1.5">
-                  {mockProspects.map((prospect) => (
-                    <div
-                      key={prospect.id}
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border bg-card hover:bg-muted/30 transition-colors group"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium truncate">{prospect.name}</span>
-                          <span className="text-xs text-muted-foreground truncate">{prospect.title}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <Building2 className="h-3 w-3 flex-shrink-0" />
-                          <span className="truncate">{prospect.company}</span>
-                          <span>•</span>
-                          <Phone className="h-3 w-3 flex-shrink-0" />
-                          <span className="font-mono">{prospect.phone}</span>
-                        </div>
-                      </div>
-                      <span className="text-[10px] text-muted-foreground whitespace-nowrap hidden sm:inline">
-                        {(() => {
-                          try {
-                            if (sortBy.startsWith("added") && prospect.addedAt) {
-                              const d = new Date(prospect.addedAt)
-                              if (isNaN(d.getTime())) return ""
-                              return `Added ${formatDistanceToNow(d, { addSuffix: true })}`
-                            }
-                            if (prospect.dueDate) {
-                              const d = new Date(prospect.dueDate)
-                              if (isNaN(d.getTime())) return ""
-                              return `Due ${formatDistanceToNow(d, { addSuffix: true })}`
-                            }
-                            return ""
-                          } catch { return "" }
-                        })()}
-                      </span>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="opacity-0 group-hover:opacity-100 transition-opacity h-8 px-3"
-                        onClick={() => quickDial(prospect)}
-                        disabled={!deviceReady || callSlots[0]?.status !== "idle"}
-                      >
-                        <Phone className="h-3.5 w-3.5 mr-1.5" />
-                        Call
+                    {/* Outcome, Pipeline, and Save - always visible when call active or completed */}
+                    {(slot.status === "ringing" || slot.status === "connected" || slot.status === "completed") && (
+                    <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-border/50">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button size="sm" variant={slot.pendingOutcome ? "default" : "outline"} className={slot.pendingOutcome ? "bg-primary hover:bg-primary/90 text-primary-foreground h-7" : "h-7"}>
+                            <UserCheck className="h-3 w-3 mr-1" />
+                            {slot.pendingOutcome ? outcomeLabels[slot.pendingOutcome] || slot.pendingOutcome : "Outcome"}
+                            <ChevronDown className="h-3 w-3 ml-1" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start">
+                          <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "connected_intro_booked")}><CalendarCheck className="h-4 w-4 mr-2 text-green-500" />Intro Booked</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "connected_referral")}><UserCheck className="h-4 w-4 mr-2 text-blue-500" />Referral</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "connected_not_interested")}><UserX className="h-4 w-4 mr-2 text-orange-500" />Not Interested</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "connected_info_gathered")}><FileText className="h-4 w-4 mr-2 text-purple-500" />Informational</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "callback")}><Phone className="h-4 w-4 mr-2 text-amber-500" />Call Back Later</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "voicemail")}><Voicemail className="h-4 w-4 mr-2" />Voicemail</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "no_answer")}><UserX className="h-4 w-4 mr-2" />No Answer</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "no_answer")}><SkipForward className="h-4 w-4 mr-2" />Skip</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button size="sm" variant={slot.pendingPipelineStage ? "default" : "outline"} className={slot.pendingPipelineStage ? "bg-green-600 hover:bg-green-700 text-white h-7" : "h-7"}>
+                            <Rocket className="h-3 w-3 mr-1" />
+                            {slot.pendingPipelineStage ? pipelineStageLabels[slot.pendingPipelineStage as PipelineStage] || slot.pendingPipelineStage : "Pipeline"}
+                            <ChevronDown className="h-3 w-3 ml-1" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start">
+                          <DropdownMenuItem onClick={() => handlePipelineOutcome(slot.id, "interested")}><Star className="h-4 w-4 mr-2 text-yellow-500" />Interested</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handlePipelineOutcome(slot.id, "intro_booked")}><CalendarCheck className="h-4 w-4 mr-2 text-blue-500" />Intro Booked</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handlePipelineOutcome(slot.id, "opportunity")}><Target className="h-4 w-4 mr-2 text-purple-500" />Opportunity</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handlePipelineOutcome(slot.id, "demo_booked")}><Handshake className="h-4 w-4 mr-2 text-green-500" />Demo Booked</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                      <div className="border-l border-border h-5 mx-1" />
+                      <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white h-7" onClick={() => saveAndAdvance(slot.id)}>
+                        <Save className="h-3 w-3 mr-1" />
+                        Save & Done
+                      </Button>
+                      <div className="border-l border-border h-5 mx-1" />
+                      <Button size="sm" variant="outline" onClick={() => slot.contact && openEmailDialog(slot.contact as any)} className="h-7">
+                        <Mail className="h-3 w-3 mr-1" />
+                        Email
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => slot.contact && openCalendarInvite(slot.contact as any)} className="h-7">
+                        <Calendar className="h-3 w-3 mr-1" />
+                        Calendar
                       </Button>
                     </div>
-                  ))}
-                </div>
+                    )}
+
+                    {/* Expandable details — same as session card */}
+                    {expandedSlots.has(slot.id) && (
+                      <div className="mt-3 space-y-3 pl-4 border-l-2 border-border">
+                        {/* Insights */}
+                        {(slot.contact.title || (slot.contact as any).companyDescription || (slot.contact.accountInfo as any)?.industry || (slot.contact.accountInfo as any)?.employees) && (
+                        <div className="p-2 rounded-lg bg-primary/5 border border-primary/20">
+                          <div className="flex items-start gap-2">
+                            <Sparkles className="h-3.5 w-3.5 text-primary mt-0.5 flex-shrink-0" />
+                            <div className="flex-1">
+                              <p className="text-xs font-medium text-primary mb-1">Insights</p>
+                              <ul className="space-y-1 text-xs text-foreground leading-relaxed list-disc list-inside">
+                                {slot.contact.title && slot.contact.company && (
+                                  <li>{slot.contact.name} is {slot.contact.title} at {slot.contact.company}</li>
+                                )}
+                                {((slot.contact as any).companyDescription || (slot.contact.accountInfo as any)?.industry || (slot.contact.accountInfo as any)?.employees) && (
+                                  <li>
+                                    {slot.contact.company}{(slot.contact.accountInfo as any)?.employees ? `, ${(slot.contact.accountInfo as any).employees.toLocaleString()} employees` : ""}
+                                    {(slot.contact as any).companyDescription ? ` — ${(slot.contact as any).companyDescription}` : (slot.contact.accountInfo as any)?.industry ? ` — ${(slot.contact.accountInfo as any).industry}` : ""}
+                                  </li>
+                                )}
+                              </ul>
+                            </div>
+                          </div>
+                        </div>
+                        )}
+
+                        {/* Contact details */}
+                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                          <div className="flex items-center gap-1.5">
+                            <Mail className="h-3 w-3" />
+                            <span>{slot.contact.email}</span>
+                          </div>
+                          {(slot.contact.accountInfo as any)?.website && (
+                            <a href={(slot.contact.accountInfo as any).website.startsWith("http") ? (slot.contact.accountInfo as any).website : `https://${(slot.contact.accountInfo as any).website}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-primary">
+                              <Globe className="h-3 w-3" />
+                              <span>Website</span>
+                            </a>
+                          )}
+                          <Badge variant="outline" className="text-xs h-5">
+                            {slot.contact.sequenceStage}
+                          </Badge>
+                          {slot.contact.lastEmailSent && <span>Last email: {slot.contact.lastEmailSent}</span>}
+                        </div>
+
+                        {/* Prior Call History */}
+                        {slot.contact.priorCalls.length > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                              <History className="h-3 w-3" />
+                              Call History
+                            </p>
+                            {slot.contact.priorCalls.map((call, idx) => (
+                              <div key={idx} className="p-2 rounded bg-secondary/30 border border-border">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-xs font-medium">{call.date}</span>
+                                  <Badge variant="outline" className="text-xs h-5">{call.outcome}</Badge>
+                                </div>
+                                <p className="text-xs text-muted-foreground">{call.notes}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Correspondence History Summary */}
+                        <div className="p-2 rounded-lg bg-muted/30 border border-border">
+                          <div className="flex items-start gap-2">
+                            <MessageSquare className="h-3.5 w-3.5 text-muted-foreground mt-0.5 flex-shrink-0" />
+                            <div className="flex-1">
+                              <p className="text-xs font-medium text-foreground mb-1">Correspondence History</p>
+                              <p className="text-xs text-muted-foreground leading-relaxed">
+                                {getHistorySummary((slot.contact as any).correspondenceHistory)}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Account / Company Info */}
+                        {(slot.contact as any).accountInfo && (
+                          <div className="p-2 rounded-lg bg-blue-500/5 border border-blue-500/20">
+                            <div className="flex items-start gap-2">
+                              <Building2 className="h-3.5 w-3.5 text-blue-500 mt-0.5 flex-shrink-0" />
+                              <div className="flex-1">
+                                <p className="text-xs font-medium text-foreground mb-1.5">Company Info — {slot.contact.company}</p>
+                                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                                  {(slot.contact as any).accountInfo.industry && <span>{(slot.contact as any).accountInfo.industry}</span>}
+                                  {(slot.contact as any).accountInfo.employees && <span>{(slot.contact as any).accountInfo.employees.toLocaleString()} employees</span>}
+                                  {(slot.contact as any).accountInfo.location && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{(slot.contact as any).accountInfo.location}</span>}
+                                  {(slot.contact as any).accountInfo.website && (
+                                    <a href={(slot.contact as any).accountInfo.website.startsWith('http') ? (slot.contact as any).accountInfo.website : `https://${(slot.contact as any).accountInfo.website}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-blue-500 hover:underline" onClick={(e) => e.stopPropagation()}>
+                                      <Globe className="h-3 w-3" />Website
+                                    </a>
+                                  )}
+                                </div>
+                                {(slot.contact as any).accountInfo.insights && (
+                                  <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                                    {(slot.contact as any).accountInfo.insights.growth && <p><strong className="text-foreground">Growth:</strong> {(slot.contact as any).accountInfo.insights.growth}</p>}
+                                    {(slot.contact as any).accountInfo.insights.funding && <p><strong className="text-foreground">Funding:</strong> {(slot.contact as any).accountInfo.insights.funding}</p>}
+                                    {(slot.contact as any).accountInfo.insights.hiring && <p><strong className="text-foreground">Hiring:</strong> {(slot.contact as any).accountInfo.insights.hiring}</p>}
+                                    {(slot.contact as any).accountInfo.insights.techStack && <p><strong className="text-foreground">Tech:</strong> {(slot.contact as any).accountInfo.insights.techStack}</p>}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Notes row */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="flex items-center gap-1.5">
+                                <FileText className="h-3 w-3 text-muted-foreground" />
+                                <p className="text-xs font-medium text-foreground">Prospect Notes</p>
+                              </div>
+                              {editingNoteId !== `${slot.id}-prospect` && (
+                                <button onClick={() => { setEditingNoteId(`${slot.id}-prospect`); setEditingNoteType("prospect") }} className="text-xs text-primary hover:underline">
+                                  {prospectNotes[slot.contact.email] ? "Edit" : "Add"}
+                                </button>
+                              )}
+                            </div>
+                            {editingNoteId === `${slot.id}-prospect` ? (
+                              <div className="space-y-2">
+                                <Textarea placeholder="Add notes about this prospect..." defaultValue={prospectNotes[slot.contact.email] || ""} className="min-h-[60px] text-xs" id={`prospect-note-${slot.id}`} />
+                                <div className="flex gap-2">
+                                  <Button size="sm" onClick={() => { if (slot.contact) { const textarea = document.getElementById(`prospect-note-${slot.id}`) as HTMLTextAreaElement; saveNote(slot.contact.email, "prospect", textarea.value) } }} className="h-7 text-xs"><Save className="h-3 w-3 mr-1" />Save</Button>
+                                  <Button size="sm" variant="outline" onClick={() => { setEditingNoteId(null); setEditingNoteType(null) }} className="h-7 text-xs">Cancel</Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="text-xs text-muted-foreground p-2 bg-muted/30 rounded border border-border">{prospectNotes[slot.contact.email] || "No notes yet"}</div>
+                            )}
+                          </div>
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="flex items-center gap-1.5">
+                                <Users className="h-3 w-3 text-muted-foreground" />
+                                <p className="text-xs font-medium text-foreground">Account Notes ({slot.contact.company})</p>
+                              </div>
+                              {editingNoteId !== `${slot.id}-account` && (
+                                <button onClick={() => { setEditingNoteId(`${slot.id}-account`); setEditingNoteType("account") }} className="text-xs text-primary hover:underline">
+                                  {accountNotes[slot.contact.company] ? "Edit" : "Add"}
+                                </button>
+                              )}
+                            </div>
+                            {editingNoteId === `${slot.id}-account` ? (
+                              <div className="space-y-2">
+                                <Textarea placeholder="Add notes about this account..." defaultValue={accountNotes[slot.contact.company] || ""} className="min-h-[60px] text-xs" id={`account-note-${slot.id}`} />
+                                <div className="flex gap-2">
+                                  <Button size="sm" onClick={() => { if (slot.contact) { const textarea = document.getElementById(`account-note-${slot.id}`) as HTMLTextAreaElement; saveNote(slot.contact.company, "account", textarea.value) } }} className="h-7 text-xs"><Save className="h-3 w-3 mr-1" />Save</Button>
+                                  <Button size="sm" variant="outline" onClick={() => { setEditingNoteId(null); setEditingNoteType(null) }} className="h-7 text-xs">Cancel</Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="text-xs text-muted-foreground p-2 bg-muted/30 rounded border border-border">{accountNotes[slot.contact.company] || "No notes yet"}</div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Call notes */}
+                        <Textarea placeholder="Call notes..." value={slot.notes} onChange={(e) => updateNotes(slot.id, e.target.value)} className="min-h-[60px] text-sm" />
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-sm text-muted-foreground py-2">Click a prospect&apos;s phone number in the queue to load their details here</div>
+                )}
               </div>
-            )}
+            ))}
           </div>
         )}
       </div>

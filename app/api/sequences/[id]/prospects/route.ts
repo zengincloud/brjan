@@ -219,9 +219,25 @@ export const POST = withAuth<{ params: { id: string } }>(async (
       },
     })
 
-    // If first step has no delay, immediately create tasks for it
+    // Create tasks immediately for:
+    // - Any step with no delay
+    // - Call steps (always, so they appear in the dialer right away)
     let tasksCreated = 0
-    if (hasNoDelay && firstStep.type !== 'wait') {
+    const shouldCreateImmediately = firstStep.type !== 'wait' && (hasNoDelay || firstStep.type === 'call')
+    if (shouldCreateImmediately) {
+      // For call steps with a delay, override nextActionAt to now so they show in dialer queue
+      if (firstStep.type === 'call' && !hasNoDelay) {
+        await prisma.prospectSequence.updateMany({
+          where: {
+            sequenceId: params.id,
+            prospectId: { in: prospectIds },
+          },
+          data: {
+            nextActionAt: new Date(),
+          },
+        })
+      }
+
       for (const prospect of prospects) {
         try {
           await createTaskForStep(firstStep, prospect, sequence, userId)

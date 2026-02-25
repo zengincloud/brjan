@@ -187,7 +187,7 @@ export async function pushCompany(accessToken: string, account: {
   return { hubspotCompanyId: data.id, created: true }
 }
 
-// Log a call activity to HubSpot and associate it with a contact
+// Log a call activity to HubSpot using the Engagements API (no special call scopes needed)
 export async function logCall(accessToken: string, params: {
   hubspotContactId: string
   outcome: string
@@ -210,31 +210,34 @@ export async function logCall(accessToken: string, params: {
     callback: "CONNECTED",
   }
 
-  const properties: Record<string, string> = {
-    hs_call_title: `Call - ${params.outcome.replace(/_/g, " ")}`,
-    hs_call_body: params.notes || "",
-    hs_call_status: "COMPLETED",
-    hs_call_disposition: dispositionMap[params.outcome] || "CONNECTED",
-    hs_timestamp: params.timestamp || new Date().toISOString(),
-  }
+  const timestamp = params.timestamp
+    ? new Date(params.timestamp).getTime()
+    : Date.now()
 
-  if (params.durationMs) {
-    properties.hs_call_duration = String(params.durationMs)
-  }
-
-  const data = await hubspotFetch(accessToken, "/crm/v3/objects/calls", {
+  const data = await hubspotFetch(accessToken, "/engagements/v1/engagements", {
     method: "POST",
-    body: JSON.stringify({ properties }),
+    body: JSON.stringify({
+      engagement: {
+        active: true,
+        type: "CALL",
+        timestamp,
+      },
+      associations: {
+        contactIds: [Number(params.hubspotContactId)],
+        companyIds: [],
+        dealIds: [],
+      },
+      metadata: {
+        status: "COMPLETED",
+        body: params.notes || "",
+        disposition: dispositionMap[params.outcome] || "CONNECTED",
+        durationMilliseconds: params.durationMs || 0,
+        title: `Call - ${params.outcome.replace(/_/g, " ")}`,
+      },
+    }),
   })
 
-  // Associate call with contact
-  await hubspotFetch(
-    accessToken,
-    `/crm/v3/objects/calls/${data.id}/associations/contacts/${params.hubspotContactId}/call_to_contact`,
-    { method: "PUT" }
-  )
-
-  return { engagementId: data.id }
+  return { engagementId: String(data.engagement?.id || data.id) }
 }
 
 // Check if a user has HubSpot connected

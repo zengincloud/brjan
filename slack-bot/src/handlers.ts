@@ -1,9 +1,9 @@
-import { getDayLook, getDayRecap, getQuickStats, getUserByEmail, type BoileroomUser } from "./db"
+import { getDayLook, getDayRecap, getQuickStats, getUserByEmail, getAccounts, getProspects, getRecentCalls, getPipelineSummary, type BoileroomUser } from "./db"
 import * as grok from "./grok"
 
 // ─── Intent detection ──────────────────────────────────────────
 
-type Intent = "day_look" | "day_recap" | "quick_stats" | "general"
+type Intent = "day_look" | "day_recap" | "quick_stats" | "accounts" | "prospects" | "calls" | "pipeline" | "general"
 
 function detectIntent(text: string): Intent {
   const lower = text.toLowerCase()
@@ -36,7 +36,6 @@ function detectIntent(text: string): Intent {
     lower.includes("end of day") ||
     lower.includes("eod") ||
     lower.includes("wrap up") ||
-    lower.includes("summary") ||
     lower.includes("results") ||
     lower.includes("my numbers") ||
     lower.includes("how i do")
@@ -44,12 +43,59 @@ function detectIntent(text: string): Intent {
     return "day_recap"
   }
 
-  // "stats" / "numbers" / "metrics"
+  // Accounts: "my accounts" / "companies" / "who am i working"
+  if (
+    lower.includes("account") ||
+    lower.includes("companies") ||
+    lower.includes("company") ||
+    lower.includes("who am i working") ||
+    lower.includes("what companies") ||
+    lower.includes("my book")
+  ) {
+    return "accounts"
+  }
+
+  // Prospects: "my prospects" / "who are my leads" / "prospects"
+  if (
+    lower.includes("prospect") ||
+    lower.includes("leads") ||
+    lower.includes("contacts") ||
+    lower.includes("who am i calling") ||
+    lower.includes("who do i have")
+  ) {
+    return "prospects"
+  }
+
+  // Calls: "who did i call" / "my calls" / "call history" / "who i talked to"
+  if (
+    lower.includes("call") ||
+    lower.includes("talked to") ||
+    lower.includes("spoke to") ||
+    lower.includes("dialed") ||
+    lower.includes("rang") ||
+    lower.includes("who did i")
+  ) {
+    return "calls"
+  }
+
+  // Pipeline: "pipeline" / "funnel" / "where do i stand"
+  if (
+    lower.includes("pipeline") ||
+    lower.includes("funnel") ||
+    lower.includes("where do i stand") ||
+    lower.includes("overview") ||
+    lower.includes("big picture")
+  ) {
+    return "pipeline"
+  }
+
+  // "stats" / "numbers" / "metrics" / "summary"
   if (
     lower.includes("stats") ||
     lower.includes("metrics") ||
     lower.includes("numbers") ||
-    lower.includes("score")
+    lower.includes("score") ||
+    lower.includes("summary")
   ) {
     return "quick_stats"
   }
@@ -124,6 +170,67 @@ function formatQuickStatsContext(data: Awaited<ReturnType<typeof getQuickStats>>
   ].join("\n")
 }
 
+function formatAccountsContext(accounts: Awaited<ReturnType<typeof getAccounts>>): string {
+  if (accounts.length === 0) return "No accounts found."
+
+  const lines: string[] = [`Total accounts shown: ${accounts.length}\n`]
+  for (const a of accounts) {
+    const details = [
+      a.industry || null,
+      a.employees ? `${a.employees.toLocaleString()} employees` : null,
+      a.location || null,
+    ].filter(Boolean).join(", ")
+
+    lines.push(`• ${a.name} [${a.status.replace(/_/g, " ")}] — ${a.prospects} prospects, ${a.calls} calls${details ? ` (${details})` : ""}`)
+  }
+  return lines.join("\n")
+}
+
+function formatProspectsContext(prospects: Awaited<ReturnType<typeof getProspects>>): string {
+  if (prospects.length === 0) return "No prospects found."
+
+  const lines: string[] = [`Total prospects shown: ${prospects.length}\n`]
+  for (const p of prospects) {
+    const details = [
+      p.title || null,
+      p.company || null,
+    ].filter(Boolean).join(" @ ")
+
+    const seqInfo = p.sequence ? ` — in "${p.sequence}" (${p.sequenceStep || "?"})` : ""
+    lines.push(`• ${p.name} [${p.status.replace(/_/g, " ")}] ${details ? `(${details})` : ""} — ${p.totalCalls} calls${seqInfo}`)
+  }
+  return lines.join("\n")
+}
+
+function formatRecentCallsContext(calls: Awaited<ReturnType<typeof getRecentCalls>>): string {
+  if (calls.length === 0) return "No recent calls found."
+
+  const lines: string[] = [`Recent calls (${calls.length}):\n`]
+  for (const c of calls) {
+    const who = c.prospectName + (c.prospectCompany ? ` @ ${c.prospectCompany}` : "")
+    const dur = c.duration ? ` ${Math.floor(c.duration / 60)}m${c.duration % 60}s` : ""
+    const date = c.date.toLocaleDateString()
+    const notes = c.notes ? ` — "${c.notes.length > 60 ? c.notes.slice(0, 60) + "..." : c.notes}"` : ""
+    lines.push(`• ${date}: ${who} → ${(c.outcome || "unknown").replace(/_/g, " ")}${dur}${notes}`)
+  }
+  return lines.join("\n")
+}
+
+function formatPipelineContext(pipeline: Awaited<ReturnType<typeof getPipelineSummary>>): string {
+  const lines: string[] = [
+    `Total prospects: ${pipeline.totalProspects}`,
+    `Total accounts: ${pipeline.totalAccounts}`,
+    `Active in sequences: ${pipeline.activeSequences}`,
+    `\nProspect breakdown by status:`,
+  ]
+
+  for (const [status, count] of Object.entries(pipeline.statusCounts)) {
+    lines.push(`  • ${status.replace(/_/g, " ")}: ${count}`)
+  }
+
+  return lines.join("\n")
+}
+
 // ─── Main handler ──────────────────────────────────────────────
 
 export async function handleMessage(
@@ -156,10 +263,33 @@ export async function handleMessage(
       const context = formatQuickStatsContext(data)
       return grok.chat(text, context)
     }
+    case "accounts": {
+      const data = await getAccounts(user.id)
+      const context = formatAccountsContext(data)
+      return grok.chat(text, context)
+    }
+    case "prospects": {
+      const data = await getProspects(user.id)
+      const context = formatProspectsContext(data)
+      return grok.chat(text, context)
+    }
+    case "calls": {
+      const data = await getRecentCalls(user.id)
+      const context = formatRecentCallsContext(data)
+      return grok.chat(text, context)
+    }
+    case "pipeline": {
+      const data = await getPipelineSummary(user.id)
+      const context = formatPipelineContext(data)
+      return grok.chat(text, context)
+    }
     case "general": {
-      // For general messages, still pull quick stats so Grok has context
-      const data = await getQuickStats(user.id)
-      const context = formatQuickStatsContext(data)
+      // For general messages, pull quick stats + pipeline counts so Grok has context
+      const [stats, pipeline] = await Promise.all([
+        getQuickStats(user.id),
+        getPipelineSummary(user.id),
+      ])
+      const context = formatQuickStatsContext(stats) + "\n\n" + formatPipelineContext(pipeline)
       return grok.chat(text, context)
     }
   }

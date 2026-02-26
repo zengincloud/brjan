@@ -270,6 +270,143 @@ export async function getQuickStats(userId: string) {
   return { callsToday, emailsToday, callsThisWeek, emailsThisWeek, openTasks }
 }
 
+// ─── Accounts overview ────────────────────────────────────────
+
+export async function getAccounts(userId: string) {
+  const accounts = await prisma.account.findMany({
+    where: { userId },
+    select: {
+      id: true,
+      name: true,
+      industry: true,
+      location: true,
+      website: true,
+      employees: true,
+      status: true,
+      lastActivity: true,
+      _count: {
+        select: { prospects: true, calls: true },
+      },
+    },
+    orderBy: { lastActivity: "desc" },
+    take: 25,
+  })
+
+  return accounts.map((a) => ({
+    name: a.name,
+    industry: a.industry,
+    location: a.location,
+    website: a.website,
+    employees: a.employees,
+    status: a.status,
+    prospects: a._count.prospects,
+    calls: a._count.calls,
+    lastActivity: a.lastActivity,
+  }))
+}
+
+// ─── Prospects overview ───────────────────────────────────────
+
+export async function getProspects(userId: string) {
+  const prospects = await prisma.prospect.findMany({
+    where: { userId },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      title: true,
+      company: true,
+      phone: true,
+      status: true,
+      sequence: true,
+      sequenceStep: true,
+      lastActivity: true,
+      _count: {
+        select: { calls: true },
+      },
+    },
+    orderBy: { lastActivity: "desc" },
+    take: 30,
+  })
+
+  return prospects.map((p) => ({
+    name: p.name,
+    email: p.email,
+    title: p.title,
+    company: p.company,
+    phone: p.phone,
+    status: p.status,
+    sequence: p.sequence,
+    sequenceStep: p.sequenceStep,
+    totalCalls: p._count.calls,
+    lastActivity: p.lastActivity,
+  }))
+}
+
+// ─── Recent call history ──────────────────────────────────────
+
+export async function getRecentCalls(userId: string, limit: number = 20) {
+  const calls = await prisma.call.findMany({
+    where: { userId, outcome: { not: null } },
+    select: {
+      id: true,
+      outcome: true,
+      notes: true,
+      duration: true,
+      createdAt: true,
+      prospect: {
+        select: { name: true, company: true, title: true },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+  })
+
+  return calls.map((c) => ({
+    prospectName: c.prospect?.name || "Unknown",
+    prospectCompany: c.prospect?.company || "",
+    prospectTitle: c.prospect?.title || "",
+    outcome: c.outcome,
+    notes: c.notes,
+    duration: c.duration,
+    date: c.createdAt,
+  }))
+}
+
+// ─── Pipeline summary ─────────────────────────────────────────
+
+export async function getPipelineSummary(userId: string) {
+  const [
+    totalProspects,
+    byStatus,
+    activeSequences,
+    totalAccounts,
+  ] = await Promise.all([
+    prisma.prospect.count({ where: { userId } }),
+    prisma.prospect.groupBy({
+      by: ["status"],
+      where: { userId },
+      _count: { id: true },
+    }),
+    prisma.prospectSequence.count({
+      where: { prospect: { userId }, status: "active" },
+    }),
+    prisma.account.count({ where: { userId } }),
+  ])
+
+  const statusCounts: Record<string, number> = {}
+  for (const row of byStatus) {
+    statusCounts[row.status] = row._count.id
+  }
+
+  return {
+    totalProspects,
+    totalAccounts,
+    activeSequences,
+    statusCounts,
+  }
+}
+
 // ─── Get all active users (for scheduled broadcasts) ──────────
 
 export async function getAllActiveUsers() {

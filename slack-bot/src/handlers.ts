@@ -218,14 +218,40 @@ function formatProspectsContext(prospects: Awaited<ReturnType<typeof getProspect
 function formatRecentCallsContext(calls: Awaited<ReturnType<typeof getRecentCalls>>): string {
   if (calls.length === 0) return "No recent calls found."
 
-  const lines: string[] = [`Recent calls (${calls.length}):\n`]
-  for (const c of calls) {
-    const who = c.prospectName + (c.prospectCompany ? ` @ ${c.prospectCompany}` : "")
-    const dur = c.duration ? ` ${Math.floor(c.duration / 60)}m${c.duration % 60}s` : ""
-    const date = c.date.toLocaleDateString()
-    const notes = c.notes ? ` — "${c.notes.length > 60 ? c.notes.slice(0, 60) + "..." : c.notes}"` : ""
-    lines.push(`• ${date}: ${who} → ${(c.outcome || "unknown").replace(/_/g, " ")}${dur}${notes}`)
+  const connected = calls.filter((c) =>
+    c.outcome?.startsWith("connected")
+  )
+  const other = calls.filter((c) =>
+    !c.outcome?.startsWith("connected")
+  )
+
+  const lines: string[] = []
+
+  if (connected.length > 0) {
+    lines.push(`Connected calls (${connected.length}):\n`)
+    for (const c of connected) {
+      const who = c.prospectName + (c.prospectCompany ? ` @ ${c.prospectCompany}` : "")
+      const title = c.prospectTitle ? ` (${c.prospectTitle})` : ""
+      const dur = c.duration ? ` ${Math.floor(c.duration / 60)}m${c.duration % 60}s` : ""
+      const date = c.date.toLocaleDateString()
+      const notes = c.notes ? ` — "${c.notes.length > 80 ? c.notes.slice(0, 80) + "..." : c.notes}"` : ""
+      lines.push(`• ${date}: ${who}${title} → ${(c.outcome || "unknown").replace(/_/g, " ")}${dur}${notes}`)
+    }
   }
+
+  if (other.length > 0) {
+    if (connected.length > 0) lines.push("")
+    lines.push(`Other calls (${other.length}):\n`)
+    for (const c of other) {
+      const who = c.prospectName + (c.prospectCompany ? ` @ ${c.prospectCompany}` : "")
+      const dur = c.duration ? ` ${Math.floor(c.duration / 60)}m${c.duration % 60}s` : ""
+      const date = c.date.toLocaleDateString()
+      const notes = c.notes ? ` — "${c.notes.length > 60 ? c.notes.slice(0, 60) + "..." : c.notes}"` : ""
+      lines.push(`• ${date}: ${who} → ${(c.outcome || "unknown").replace(/_/g, " ")}${dur}${notes}`)
+    }
+  }
+
+  lines.push(`\nTotal: ${calls.length} calls, ${connected.length} connections`)
   return lines.join("\n")
 }
 

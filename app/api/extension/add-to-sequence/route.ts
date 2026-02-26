@@ -1,19 +1,41 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { withExtensionAuth } from "@/lib/auth/extension-middleware"
+import { checkCredits, deductCredits } from "@/lib/credits"
+import { findOrCreateAccount } from "@/lib/account-linking"
+import { pushContact, pushCompany, associateContactToCompany } from "@/lib/hubspot/client"
+import { getValidAccessToken } from "@/lib/hubspot/oauth"
 
 export const dynamic = 'force-dynamic'
 
+function toTitleCase(str: string | null | undefined): string {
+  if (!str) return ""
+  return str
+    .toLowerCase()
+    .split(" ")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ")
+}
+
 // POST /api/extension/add-to-sequence
 // Adds a prospect to a sequence. Accepts prospectId and sequenceId.
+// If prospectId is not provided but prospect data is included, creates the prospect first.
 export const POST = withExtensionAuth(async (request: NextRequest, userId: string) => {
   try {
     const body = await request.json()
-    const { prospectId, sequenceId } = body
+    let { prospectId, sequenceId } = body
+    const { prospectData } = body
 
-    if (!prospectId || !sequenceId) {
+    if (!sequenceId) {
       return NextResponse.json(
-        { error: "prospectId and sequenceId are required" },
+        { error: "sequenceId is required" },
+        { status: 400 }
+      )
+    }
+
+    if (!prospectId && !prospectData) {
+      return NextResponse.json(
+        { error: "prospectId or prospectData is required" },
         { status: 400 }
       )
     }
@@ -37,13 +59,146 @@ export const POST = withExtensionAuth(async (request: NextRequest, userId: strin
       )
     }
 
-    // Verify prospect belongs to user
-    const prospect = await prisma.prospect.findUnique({
-      where: { id: prospectId, userId },
-    })
+    // If no prospectId, create the prospect first
+    let prospect
+    let prospectCreated = false
 
-    if (!prospect) {
-      return NextResponse.json({ error: "Prospect not found" }, { status: 404 })
+    if (!prospectId && prospectData) {
+      const { name, email, title, company, phone, location, linkedin, wizaData } = prospectData
+
+      if (!name) {
+        return NextResponse.json({ error: "Prospect name is required" }, { status: 400 })
+      }
+
+      // Check credits
+      const creditCheck = await checkCredits(userId)
+      if (!creditCheck.allowed) {
+        return NextResponse.json({ error: creditCheck.error }, { status: 403 })
+      }
+
+      // Check for existing prospect by email
+      if (email) {
+        const existing = await prisma.prospect.findFirst({
+          where: { email, userId },
+        })
+        if (existing) {
+          prospect = existing
+          prospectId = existing.id
+        }
+      }
+
+      if (!prospect) {
+        // Auto-link or create account
+        const accountId = company ? await findOrCreateAccount(userId, company, {
+          industry: wizaData?.companyIndustry || null,
+          location: wizaData?.location || location || null,
+          website: wizaData?.companyDomain ? `https://${wizaData.companyDomain}` : null,
+          employees: wizaData?.companySize || null,
+          linkedin: wizaData?.companyLinkedinUrl || null,
+        }) : null
+
+        let resolvedCompany = company
+        if (accountId) {
+          const account = await prisma.account.findUnique({
+            where: { id: accountId },
+            select: { name: true },
+          })
+          if (account) resolvedCompany = account.name
+        }
+
+        // Generate POV data
+        const industry = wizaData?.companyIndustry || null
+        const povData = name ? {
+          opportunity: `${toTitleCase(name)} is a ${toTitleCase(title) || "professional"} at ${toTitleCase(resolvedCompany) || "their company"}${industry ? ` in the ${industry} space` : ""}. ${title ? `As a ${toTitleCase(title)}, their job entails overseeing team performance, driving strategic initiatives, and managing key stakeholder relationships.` : ""} They may be actively evaluating solutions.`,
+          industryContext: industry
+            ? `In the ${industry} space, companies like ${toTitleCase(resolvedCompany) || "theirs"} are currently facing challenges around digital transformation and operational efficiency.`
+            : `Companies like ${toTitleCase(resolvedCompany) || "theirs"} are currently facing challenges around digital transformation and operational efficiency.`,
+          howToHelp: `Your platform can help ${toTitleCase(name)} address operational efficiency, team productivity, and scalable processes while delivering measurable ROI.`,
+          angle: `Lead with ROI metrics and case studies from similar ${industry ? `companies in the ${industry} space` : "companies"}. Emphasize quick time-to-value and ease of implementation.`,
+        } : null
+
+        prospect = await prisma.prospect.create({
+          data: {
+            name,
+            email,
+            title,
+            company: resolvedCompany,
+            phone,
+            location,
+            linkedin,
+            status: "new_lead",
+            wizaData,
+            ...(povData && { povData }),
+            ...(accountId && { accountId }),
+            userId,
+          },
+        })
+        prospectId = prospect.id
+        prospectCreated = true
+
+        await deductCredits(userId)
+
+        // Push to HubSpot in background (non-blocking)
+        getValidAccessToken(userId).then(async (hsToken) => {
+          if (!hsToken) return
+          try {
+            let hsCompanyId: string | null = null
+            if (accountId) {
+              const account = await prisma.account.findUnique({
+                where: { id: accountId },
+                select: { name: true, industry: true, location: true, website: true, employees: true, linkedin: true, insights: true },
+              })
+              if (account) {
+                hsCompanyId = (account.insights as any)?.hubspotCompanyId || null
+                if (!hsCompanyId) {
+                  const companyResult = await pushCompany(hsToken, {
+                    name: account.name,
+                    industry: account.industry,
+                    location: account.location,
+                    website: account.website,
+                    employees: account.employees,
+                    linkedin: account.linkedin,
+                  })
+                  hsCompanyId = companyResult.hubspotCompanyId
+                  await prisma.account.update({
+                    where: { id: accountId },
+                    data: {
+                      insights: {
+                        ...(typeof account.insights === "object" && account.insights !== null ? account.insights : {}),
+                        hubspotCompanyId: hsCompanyId,
+                      } as any,
+                    },
+                  })
+                }
+              }
+            }
+            const result = await pushContact(hsToken, { name, email, phone, title, company: resolvedCompany, linkedin })
+            await prisma.prospect.update({
+              where: { id: prospect!.id },
+              data: {
+                wizaData: {
+                  ...(typeof prospect!.wizaData === "object" && prospect!.wizaData !== null ? prospect!.wizaData : {}),
+                  hubspotContactId: result.hubspotContactId,
+                } as any,
+              },
+            })
+            if (hsCompanyId) {
+              await associateContactToCompany(hsToken, result.hubspotContactId, hsCompanyId)
+            }
+          } catch (err) {
+            console.error("HubSpot sync error (non-blocking):", err)
+          }
+        })
+      }
+    } else {
+      // Verify existing prospect belongs to user
+      prospect = await prisma.prospect.findUnique({
+        where: { id: prospectId, userId },
+      })
+
+      if (!prospect) {
+        return NextResponse.json({ error: "Prospect not found" }, { status: 404 })
+      }
     }
 
     // Calculate next action time based on first step delay
@@ -208,6 +363,8 @@ export const POST = withExtensionAuth(async (request: NextRequest, userId: strin
     return NextResponse.json({
       success: true,
       prospectSequence,
+      prospectId,
+      prospectCreated,
       sequenceName: sequence.name,
       taskCreated,
     })

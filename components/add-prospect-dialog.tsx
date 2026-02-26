@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
+import { CompanyAutocomplete } from "@/components/company-autocomplete"
 import { Plus } from "lucide-react"
 
 type AddProspectDialogProps = {
@@ -142,11 +143,10 @@ export function AddProspectDialog({ open, onOpenChange, onProspectAdded }: AddPr
             </div>
             <div className="grid gap-2">
               <Label htmlFor="company">Company</Label>
-              <Input
+              <CompanyAutocomplete
                 id="company"
                 value={formData.company}
-                onChange={(e) => handleChange("company", e.target.value)}
-                placeholder="Acme Corp"
+                onChange={(value) => handleChange("company", value)}
                 disabled={submitting}
               />
             </div>

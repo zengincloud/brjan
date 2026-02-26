@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
+import { CompanyAutocomplete } from "@/components/company-autocomplete"
 
 type Prospect = {
   id: string
@@ -163,11 +164,10 @@ export function EditProspectDialog({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="company">Company</Label>
-              <Input
+              <CompanyAutocomplete
                 id="company"
-                placeholder="Acme Corp"
                 value={formData.company}
-                onChange={(e) => updateField("company", e.target.value)}
+                onChange={(value) => updateField("company", value)}
               />
             </div>
 

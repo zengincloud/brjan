@@ -69,9 +69,10 @@ app.message(async ({ message, say }) => {
   try {
     const response = await handleMessage(cleanText, email)
     await say(response)
-  } catch (err) {
+  } catch (err: any) {
     console.error(`[bot] Error handling message:`, err)
-    await say("oof, something broke on my end. try again in a sec?")
+    const hint = err?.message ? ` (${err.message.slice(0, 120)})` : ""
+    await say(`oof, something broke on my end${hint}. try again in a sec?`)
   }
 })
 
@@ -100,9 +101,10 @@ app.event("app_mention", async ({ event, say }) => {
   try {
     const response = await handleMessage(text, email)
     await say(response)
-  } catch (err) {
+  } catch (err: any) {
     console.error(`[bot] Error handling mention:`, err)
-    await say("something went sideways, give me another shot?")
+    const hint = err?.message ? ` (${err.message.slice(0, 120)})` : ""
+    await say(`something went sideways${hint}. give me another shot?`)
   }
 })
 

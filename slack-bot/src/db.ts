@@ -354,7 +354,6 @@ export async function getRecentCalls(userId: string, limit: number = 20) {
       notes: true,
       duration: true,
       createdAt: true,
-      transcription: true,
       prospect: {
         select: { name: true, company: true, title: true },
       },
@@ -371,7 +370,6 @@ export async function getRecentCalls(userId: string, limit: number = 20) {
     notes: c.notes,
     duration: c.duration,
     date: c.createdAt,
-    transcription: c.transcription,
   }))
 }
 

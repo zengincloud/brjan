@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useRef, useCallback } from "react"
+import React, { useEffect, useState, useRef, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -184,6 +184,7 @@ export default function DialerPage() {
     callsPerHour: 0,
   })
   const [expandedSlots, setExpandedSlots] = useState<Set<string>>(new Set())
+  const [expandedQueueRows, setExpandedQueueRows] = useState<Set<string>>(new Set())
   const [queueSize, setQueueSize] = useSessionState("dialer_queue_size", 0)
   const [editingPhoneId, setEditingPhoneId] = useState<string | null>(null)
   const [editedPhone, setEditedPhone] = useState<string>("")
@@ -678,11 +679,19 @@ export default function DialerPage() {
       return { callId: data.callId, twilioSid: null }
     } catch (error: any) {
       console.error("Error making call:", error)
+      activeCallRef.current = null
+
       toast({
         title: "Call failed",
         description: error.message || "Failed to initiate call",
         variant: "destructive",
       })
+
+      // Auto-advance to next prospect after a brief delay
+      setTimeout(() => {
+        handleCallOutcomeAndAdvance(slotIndex, "failed")
+      }, 800)
+
       return null
     }
   }, [deviceReady, selectedPhone, toast])
@@ -992,7 +1001,8 @@ export default function DialerPage() {
     }
 
     // Advance the sequence step so this prospect doesn't reappear in queue
-    if (slot.prospectId && slot.sequenceId) {
+    // (skip if not interested — the calls API already removes them from all sequences)
+    if (slot.prospectId && slot.sequenceId && outcome !== "connected_not_interested") {
       savePromises.push(
         fetch("/api/dialer/complete-step", {
           method: "POST",
@@ -1666,7 +1676,48 @@ export default function DialerPage() {
                     <th className="text-left py-2.5 px-4 font-medium text-muted-foreground text-xs">Name</th>
                     <th className="text-left py-2.5 px-4 font-medium text-muted-foreground text-xs">Company</th>
                     <th className="text-left py-2.5 px-4 font-medium text-muted-foreground text-xs">Call Step</th>
-                    <th className="text-left py-2.5 px-4 font-medium text-muted-foreground text-xs">Local Time</th>
+                    <th className="text-left py-2.5 px-4 font-medium text-muted-foreground text-xs">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button className="flex items-center gap-1 hover:text-foreground transition-colors">
+                            Local Time
+                            {selectedTimezones.length > 0 && (
+                              <Badge variant="secondary" className="text-[9px] px-1 py-0 h-3.5 ml-1">{selectedTimezones.length}</Badge>
+                            )}
+                            <ChevronDown className="h-3 w-3" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="min-w-[120px]">
+                          {["EST", "CST", "MST", "PST"].map(tz => (
+                            <DropdownMenuItem
+                              key={tz}
+                              onClick={(e) => {
+                                e.preventDefault()
+                                setSelectedTimezones(prev =>
+                                  prev.includes(tz) ? prev.filter(t => t !== tz) : [...prev, tz]
+                                )
+                              }}
+                              className="flex items-center gap-2"
+                            >
+                              <div className={`h-3.5 w-3.5 rounded-sm border flex items-center justify-center ${
+                                selectedTimezones.includes(tz) ? "bg-primary border-primary" : "border-muted-foreground/30"
+                              }`}>
+                                {selectedTimezones.includes(tz) && <Check className="h-2.5 w-2.5 text-primary-foreground" />}
+                              </div>
+                              {tz}
+                            </DropdownMenuItem>
+                          ))}
+                          {selectedTimezones.length > 0 && (
+                            <>
+                              <DropdownMenuItem onClick={() => setSelectedTimezones([])}>
+                                <X className="h-3.5 w-3.5 mr-2" />
+                                Clear filters
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </th>
                     <th className="text-left py-2.5 px-4 font-medium text-muted-foreground text-xs">Insights</th>
                     <th className="text-right py-2.5 px-4 font-medium text-muted-foreground text-xs w-10"></th>
                   </tr>
@@ -1686,131 +1737,263 @@ export default function DialerPage() {
                       insightBullets.push(`${prospect.priorCalls.length} prior call${prospect.priorCalls.length !== 1 ? "s" : ""} — last: ${prospect.priorCalls[0].outcome}`)
                     }
 
+                    const isExpanded = expandedQueueRows.has(prospect.id)
+
                     return (
-                      <tr key={prospect.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors group">
-                        <td className="py-3 px-4 text-xs text-muted-foreground font-mono">{idx + 1}</td>
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{prospect.name}</span>
-                            {prospect.linkedin && (
-                              <button
-                                onClick={() => window.open(prospect.linkedin!, "_blank")}
-                                className="p-0.5 rounded hover:bg-[#0A66C2]/10 transition-colors"
-                                title="Open LinkedIn"
-                              >
-                                <Linkedin className="h-3.5 w-3.5 text-[#0A66C2]" />
-                              </button>
-                            )}
-                          </div>
-                          {prospect.title && (
-                            <div className="text-xs text-muted-foreground mt-0.5">{prospect.title}</div>
-                          )}
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <button
-                              onClick={() => loadProspectCard(prospect)}
-                              className="text-xs font-mono text-primary hover:underline cursor-pointer"
-                            >
-                              {prospect.phone}
-                            </button>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="text-sm">{prospect.company || "—"}</div>
-                          {prospect.accountInfo?.website && (
-                            <a
-                              href={prospect.accountInfo.website.startsWith("http") ? prospect.accountInfo.website : `https://${prospect.accountInfo.website}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-muted-foreground hover:text-primary hover:underline"
-                            >
-                              {prospect.accountInfo.website.replace(/^https?:\/\//, "")}
-                            </a>
-                          )}
-                        </td>
-                        <td className="py-3 px-4">
-                          <Badge variant="outline" className="text-xs">
-                            {prospect.sequenceStage || "—"}
-                          </Badge>
-                          {prospect.sequence && (
-                            <div className="text-[10px] text-muted-foreground mt-0.5 truncate max-w-[140px]">{prospect.sequence}</div>
-                          )}
-                        </td>
-                        <td className="py-3 px-4">
-                          {localTime ? (
-                            <div>
-                              <div className="flex items-center gap-1.5">
-                                <Clock className="h-3 w-3 text-muted-foreground" />
-                                <span className="text-sm font-medium">{localTime}</span>
-                                <span className="text-[10px] text-muted-foreground">{tzAbbr}</span>
-                              </div>
-                              <div className="flex items-center gap-1 mt-0.5">
-                                <MapPin className="h-3 w-3 text-muted-foreground" />
-                                <span className="text-xs text-muted-foreground truncate max-w-[120px]">{loc}</span>
-                              </div>
-                            </div>
-                          ) : loc ? (
+                      <React.Fragment key={prospect.id}>
+                        <tr
+                          className="border-b last:border-0 hover:bg-muted/30 transition-colors group cursor-pointer"
+                          onClick={() => {
+                            setExpandedQueueRows(prev => {
+                              const next = new Set(prev)
+                              if (next.has(prospect.id)) {
+                                next.delete(prospect.id)
+                              } else {
+                                next.add(prospect.id)
+                              }
+                              return next
+                            })
+                          }}
+                        >
+                          <td className="py-3 px-4 text-xs text-muted-foreground font-mono">
                             <div className="flex items-center gap-1">
-                              <MapPin className="h-3 w-3 text-muted-foreground" />
-                              <span className="text-xs text-muted-foreground">{loc}</span>
+                              {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                              {idx + 1}
                             </div>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">—</span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4">
-                          {insightBullets.length > 0 ? (
-                            <ul className="space-y-0.5 text-xs text-muted-foreground">
-                              {insightBullets.map((b, i) => (
-                                <li key={i} className="flex items-start gap-1.5">
-                                  <span className="text-primary mt-1 flex-shrink-0">•</span>
-                                  <span>{b}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">—</span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <button className="p-1 rounded hover:bg-muted transition-colors opacity-0 group-hover:opacity-100">
-                                <MoreVertical className="h-3.5 w-3.5 text-muted-foreground" />
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{prospect.name}</span>
+                              {prospect.linkedin && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); window.open(prospect.linkedin!, "_blank") }}
+                                  className="p-0.5 rounded hover:bg-[#0A66C2]/10 transition-colors"
+                                  title="Open LinkedIn"
+                                >
+                                  <Linkedin className="h-3.5 w-3.5 text-[#0A66C2]" />
+                                </button>
+                              )}
+                            </div>
+                            {prospect.title && (
+                              <div className="text-xs text-muted-foreground mt-0.5">{prospect.title}</div>
+                            )}
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); loadProspectCard(prospect) }}
+                                className="text-xs font-mono text-primary hover:underline cursor-pointer"
+                              >
+                                {prospect.phone}
                               </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => {
-                                setApiProspects(prev => prev.filter(p => p.id !== prospect.id))
-                                toast({ title: "Skipped", description: `${prospect.name} removed from this session's queue` })
-                              }}>
-                                <SkipForward className="h-4 w-4 mr-2" />
-                                Skip
-                              </DropdownMenuItem>
-                              {prospect.sequenceId && prospect.prospectId && (
-                                <DropdownMenuItem
-                                  className="text-destructive focus:text-destructive"
-                                  onClick={async () => {
-                                    try {
-                                      const res = await fetch(`/api/sequences/${prospect.sequenceId}/prospects/${prospect.prospectId}`, { method: "DELETE" })
-                                      if (res.ok) {
-                                        setApiProspects(prev => prev.filter(p => p.id !== prospect.id))
-                                        toast({ title: "Removed", description: `${prospect.name} removed from sequence` })
-                                      } else {
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="text-sm">{prospect.company || "—"}</div>
+                            {prospect.accountInfo?.website && (
+                              <a
+                                href={prospect.accountInfo.website.startsWith("http") ? prospect.accountInfo.website : `https://${prospect.accountInfo.website}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-muted-foreground hover:text-primary hover:underline"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {prospect.accountInfo.website.replace(/^https?:\/\//, "")}
+                              </a>
+                            )}
+                          </td>
+                          <td className="py-3 px-4">
+                            <Badge variant="outline" className="text-xs">
+                              {prospect.sequenceStage || "—"}
+                            </Badge>
+                            {prospect.sequence && (
+                              <div className="text-[10px] text-muted-foreground mt-0.5 truncate max-w-[140px]">{prospect.sequence}</div>
+                            )}
+                          </td>
+                          <td className="py-3 px-4">
+                            {localTime ? (
+                              <div>
+                                <div className="flex items-center gap-1.5">
+                                  <Clock className="h-3 w-3 text-muted-foreground" />
+                                  <span className="text-sm font-medium">{localTime}</span>
+                                  <span className="text-[10px] text-muted-foreground">{tzAbbr}</span>
+                                </div>
+                                <div className="flex items-center gap-1 mt-0.5">
+                                  <MapPin className="h-3 w-3 text-muted-foreground" />
+                                  <span className="text-xs text-muted-foreground truncate max-w-[120px]">{loc}</span>
+                                </div>
+                              </div>
+                            ) : loc ? (
+                              <div className="flex items-center gap-1">
+                                <MapPin className="h-3 w-3 text-muted-foreground" />
+                                <span className="text-xs text-muted-foreground">{loc}</span>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4">
+                            {insightBullets.length > 0 ? (
+                              <ul className="space-y-0.5 text-xs text-muted-foreground">
+                                {insightBullets.map((b, i) => (
+                                  <li key={i} className="flex items-start gap-1.5">
+                                    <span className="text-primary mt-1 flex-shrink-0">•</span>
+                                    <span>{b}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <button className="p-1 rounded hover:bg-muted transition-colors opacity-0 group-hover:opacity-100">
+                                  <MoreVertical className="h-3.5 w-3.5 text-muted-foreground" />
+                                </button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => {
+                                  setApiProspects(prev => prev.filter(p => p.id !== prospect.id))
+                                  toast({ title: "Skipped", description: `${prospect.name} removed from this session's queue` })
+                                }}>
+                                  <SkipForward className="h-4 w-4 mr-2" />
+                                  Skip
+                                </DropdownMenuItem>
+                                {prospect.sequenceId && prospect.prospectId && (
+                                  <DropdownMenuItem
+                                    className="text-destructive focus:text-destructive"
+                                    onClick={async () => {
+                                      try {
+                                        const res = await fetch(`/api/sequences/${prospect.sequenceId}/prospects/${prospect.prospectId}`, { method: "DELETE" })
+                                        if (res.ok) {
+                                          setApiProspects(prev => prev.filter(p => p.id !== prospect.id))
+                                          toast({ title: "Removed", description: `${prospect.name} removed from sequence` })
+                                        } else {
+                                          toast({ title: "Error", description: "Failed to remove from sequence", variant: "destructive" })
+                                        }
+                                      } catch {
                                         toast({ title: "Error", description: "Failed to remove from sequence", variant: "destructive" })
                                       }
-                                    } catch {
-                                      toast({ title: "Error", description: "Failed to remove from sequence", variant: "destructive" })
-                                    }
-                                  }}
-                                >
-                                  <X className="h-4 w-4 mr-2" />
-                                  Remove from Sequence
-                                </DropdownMenuItem>
+                                    }}
+                                  >
+                                    <X className="h-4 w-4 mr-2" />
+                                    Remove from Sequence
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </td>
+                        </tr>
+                        {isExpanded && (
+                          <tr className="border-b last:border-0 bg-muted/20">
+                            <td colSpan={7} className="px-4 py-4">
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                {/* Contact Info */}
+                                <div className="space-y-2">
+                                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Contact</h4>
+                                  <div className="space-y-1 text-sm">
+                                    <div className="flex items-center gap-2">
+                                      <Mail className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                                      <span className="truncate">{prospect.email}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <Phone className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                                      <span>{prospect.phone}</span>
+                                    </div>
+                                    {prospect.location && (
+                                      <div className="flex items-center gap-2">
+                                        <MapPin className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                                        <span>{prospect.location}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* POV / Strategy */}
+                                {prospect.pov && (
+                                  <div className="space-y-2">
+                                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">POV</h4>
+                                    <div className="space-y-1.5 text-xs">
+                                      {prospect.pov.angle && (
+                                        <div><span className="font-medium">Angle:</span> {prospect.pov.angle}</div>
+                                      )}
+                                      {prospect.pov.opportunity && (
+                                        <div><span className="font-medium">Opportunity:</span> {prospect.pov.opportunity}</div>
+                                      )}
+                                      {prospect.pov.howToHelp && (
+                                        <div><span className="font-medium">How to help:</span> {prospect.pov.howToHelp}</div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Call Script */}
+                                {prospect.callScript && (
+                                  <div className="space-y-2">
+                                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Call Script</h4>
+                                    <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">{prospect.callScript}</p>
+                                  </div>
+                                )}
+
+                                {/* AI Notes */}
+                                {prospect.aiNotes && !prospect.pov && !prospect.callScript && (
+                                  <div className="space-y-2">
+                                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                                      <Sparkles className="h-3 w-3" /> AI Notes
+                                    </h4>
+                                    <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">{prospect.aiNotes}</p>
+                                  </div>
+                                )}
+
+                                {/* Company Description */}
+                                {prospect.companyDescription && !prospect.pov && (
+                                  <div className="space-y-2">
+                                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Company</h4>
+                                    <p className="text-xs text-muted-foreground">{prospect.companyDescription}</p>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Prior Calls */}
+                              {prospect.priorCalls && prospect.priorCalls.length > 0 && (
+                                <div className="mt-3 pt-3 border-t">
+                                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                                    <History className="h-3 w-3" /> Prior Calls
+                                  </h4>
+                                  <div className="flex flex-wrap gap-2">
+                                    {prospect.priorCalls.map((call, i) => (
+                                      <div key={i} className="text-xs bg-background border rounded px-2 py-1">
+                                        <span className="text-muted-foreground">{new Date(call.date).toLocaleDateString()}</span>
+                                        <span className="mx-1.5">·</span>
+                                        <span className="font-medium">{call.outcome.replace(/_/g, " ")}</span>
+                                        {call.notes && <span className="text-muted-foreground ml-1.5">— {call.notes.length > 60 ? call.notes.slice(0, 60) + "..." : call.notes}</span>}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
                               )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </td>
-                      </tr>
+
+                              {/* Correspondence History */}
+                              {prospect.correspondenceHistory && prospect.correspondenceHistory.length > 0 && (
+                                <div className="mt-3 pt-3 border-t">
+                                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                                    <MessageSquare className="h-3 w-3" /> Recent Correspondence
+                                  </h4>
+                                  <div className="flex flex-wrap gap-2">
+                                    {prospect.correspondenceHistory.slice(0, 5).map((item, i) => (
+                                      <div key={i} className="text-xs bg-background border rounded px-2 py-1">
+                                        <Badge variant="outline" className="text-[10px] mr-1.5">{item.type}</Badge>
+                                        <span className="text-muted-foreground">{new Date(item.date).toLocaleDateString()}</span>
+                                        <span className="ml-1.5">{item.summary.length > 60 ? item.summary.slice(0, 60) + "..." : item.summary}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     )
                   })}
                 </tbody>

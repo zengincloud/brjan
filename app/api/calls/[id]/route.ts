@@ -72,9 +72,33 @@ export const PATCH = withAuth<{ params: { id: string } }>(async (
       data: updateData,
     })
 
-    // If call completed with an outcome and prospect is in a sequence, advance the sequence
+    // If marked not interested, remove from ALL active sequences and mark unqualified
     let sequenceAdvanced = null
-    if (outcome && call.prospectId && call.prospect?.prospectSequences?.length) {
+    if (outcome === "connected_not_interested" && call.prospectId) {
+      console.log(`Prospect ${call.prospectId} marked not interested — removing from all sequences`)
+
+      await prisma.prospectSequence.updateMany({
+        where: {
+          prospectId: call.prospectId,
+          status: "active",
+        },
+        data: {
+          status: "completed",
+          completedAt: new Date(),
+        },
+      })
+
+      await prisma.prospect.update({
+        where: { id: call.prospectId },
+        data: {
+          status: "unqualified",
+          sequence: null,
+          sequenceStep: null,
+        },
+      })
+    }
+    // Otherwise if call completed with an outcome and prospect is in a sequence, advance the sequence
+    else if (outcome && call.prospectId && call.prospect?.prospectSequences?.length) {
       const activeSequence = call.prospect.prospectSequences[0]
       const currentStep = activeSequence.sequence.steps[activeSequence.currentStep]
 

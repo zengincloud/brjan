@@ -1,9 +1,9 @@
-import { getDayLook, getDayRecap, getQuickStats, getUserByEmail, getAccounts, getProspects, getRecentCalls, getPipelineSummary, type BoileroomUser } from "./db"
+import { getDayLook, getDayRecap, getQuickStats, getUserByEmail, getAccounts, getProspects, getRecentCalls, getCallsWithTranscripts, getPipelineSummary, type BoileroomUser } from "./db"
 import * as grok from "./grok"
 
 // ─── Intent detection ──────────────────────────────────────────
 
-type Intent = "day_look" | "day_recap" | "quick_stats" | "accounts" | "prospects" | "calls" | "pipeline" | "general"
+type Intent = "day_look" | "day_recap" | "quick_stats" | "accounts" | "prospects" | "calls" | "transcripts" | "pipeline" | "general"
 
 function detectIntent(text: string): Intent {
   const lower = text.toLowerCase()
@@ -64,6 +64,19 @@ function detectIntent(text: string): Intent {
     lower.includes("who do i have")
   ) {
     return "prospects"
+  }
+
+  // Transcripts: "transcript" / "recording" / "what did i say" / "what did they say"
+  if (
+    lower.includes("transcript") ||
+    lower.includes("recording") ||
+    lower.includes("what did i say") ||
+    lower.includes("what did they say") ||
+    lower.includes("what was said") ||
+    lower.includes("conversation with") ||
+    lower.includes("call with")
+  ) {
+    return "transcripts"
   }
 
   // Calls: "who did i call" / "my calls" / "call history" / "who i talked to"
@@ -216,6 +229,27 @@ function formatRecentCallsContext(calls: Awaited<ReturnType<typeof getRecentCall
   return lines.join("\n")
 }
 
+function formatTranscriptsContext(calls: Awaited<ReturnType<typeof getCallsWithTranscripts>>): string {
+  if (calls.length === 0) return "No call transcripts found. Transcripts are generated after recorded calls."
+
+  const lines: string[] = [`Calls with transcripts (${calls.length}):\n`]
+  for (const c of calls) {
+    const who = c.prospectName + (c.prospectCompany ? ` @ ${c.prospectCompany}` : "")
+    const date = c.date.toLocaleDateString()
+    const outcome = (c.outcome || "unknown").replace(/_/g, " ")
+    // Truncate transcripts to keep context reasonable — include enough for Grok to reference
+    const transcript = c.transcription
+      ? c.transcription.length > 800
+        ? c.transcription.slice(0, 800) + "... [truncated]"
+        : c.transcription
+      : ""
+    lines.push(`--- ${date}: ${who} (${outcome}) ---`)
+    if (transcript) lines.push(transcript)
+    lines.push("")
+  }
+  return lines.join("\n")
+}
+
 function formatPipelineContext(pipeline: Awaited<ReturnType<typeof getPipelineSummary>>): string {
   const lines: string[] = [
     `Total prospects: ${pipeline.totalProspects}`,
@@ -276,6 +310,11 @@ export async function handleMessage(
     case "calls": {
       const data = await getRecentCalls(user.id)
       const context = formatRecentCallsContext(data)
+      return grok.chat(text, context)
+    }
+    case "transcripts": {
+      const data = await getCallsWithTranscripts(user.id, 5)
+      const context = formatTranscriptsContext(data)
       return grok.chat(text, context)
     }
     case "pipeline": {

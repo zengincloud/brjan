@@ -354,6 +354,7 @@ export async function getRecentCalls(userId: string, limit: number = 20) {
       notes: true,
       duration: true,
       createdAt: true,
+      transcription: true,
       prospect: {
         select: { name: true, company: true, title: true },
       },
@@ -370,6 +371,42 @@ export async function getRecentCalls(userId: string, limit: number = 20) {
     notes: c.notes,
     duration: c.duration,
     date: c.createdAt,
+    transcription: c.transcription,
+  }))
+}
+
+// ─── Calls with transcripts (for transcript-specific queries) ──
+
+export async function getCallsWithTranscripts(userId: string, limit: number = 10) {
+  const calls = await prisma.call.findMany({
+    where: {
+      userId,
+      transcription: { not: null },
+    },
+    select: {
+      id: true,
+      outcome: true,
+      notes: true,
+      duration: true,
+      createdAt: true,
+      transcription: true,
+      prospect: {
+        select: { name: true, company: true, title: true },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+  })
+
+  return calls.map((c) => ({
+    prospectName: c.prospect?.name || "Unknown",
+    prospectCompany: c.prospect?.company || "",
+    prospectTitle: c.prospect?.title || "",
+    outcome: c.outcome,
+    notes: c.notes,
+    duration: c.duration,
+    date: c.createdAt,
+    transcription: c.transcription,
   }))
 }
 

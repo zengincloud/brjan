@@ -1642,7 +1642,7 @@ export default function DialerPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-3">
               <div className="space-y-2">
                 <Label htmlFor="sequence-select" className="text-sm">Sequence</Label>
                 <Select value={selectedSequence} onValueChange={setSelectedSequence}>
@@ -1700,37 +1700,6 @@ export default function DialerPage() {
                 </p>
               </div>
 
-              <div className="space-y-2">
-                <Label className="text-sm">Time Zones</Label>
-                <div className="flex flex-wrap gap-2">
-                  {["EST", "CST", "MST", "PST"].map(tz => (
-                    <button
-                      key={tz}
-                      onClick={() => setSelectedTimezones(prev =>
-                        prev.includes(tz) ? prev.filter(t => t !== tz) : [...prev, tz]
-                      )}
-                      className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${
-                        selectedTimezones.includes(tz)
-                          ? "bg-primary text-primary-foreground border-primary"
-                          : "bg-background text-muted-foreground border-border hover:bg-muted"
-                      }`}
-                    >
-                      {tz}
-                    </button>
-                  ))}
-                  {selectedTimezones.length > 0 && (
-                    <button
-                      onClick={() => setSelectedTimezones([])}
-                      className="px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
-                    >
-                      Clear
-                    </button>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {selectedTimezones.length > 0 ? `Showing ${selectedTimezones.join(", ")} only` : "All time zones"}
-                </p>
-              </div>
             </div>
           </CardContent>
         </Card>

@@ -1740,7 +1740,7 @@ export default function DialerPage() {
                           {["EST", "CST", "MST", "PST"].map(tz => (
                             <DropdownMenuItem
                               key={tz}
-                              onClick={(e) => {
+                              onSelect={(e) => {
                                 e.preventDefault()
                                 setSelectedTimezones(prev =>
                                   prev.includes(tz) ? prev.filter(t => t !== tz) : [...prev, tz]
@@ -1758,7 +1758,7 @@ export default function DialerPage() {
                           ))}
                           {selectedTimezones.length > 0 && (
                             <>
-                              <DropdownMenuItem onClick={() => setSelectedTimezones([])}>
+                              <DropdownMenuItem onSelect={() => setSelectedTimezones([])}>
                                 <X className="h-3.5 w-3.5 mr-2" />
                                 Clear filters
                               </DropdownMenuItem>

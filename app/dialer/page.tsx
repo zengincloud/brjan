@@ -18,6 +18,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from "@/components/ui/dropdown-menu"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/use-toast"
@@ -62,7 +65,7 @@ import {
   Linkedin,
 } from "lucide-react"
 import { SendEmailDialog } from "@/components/send-email-dialog"
-import { Calendar } from "lucide-react"
+import { Calendar, CalendarClock } from "lucide-react"
 import { Device, Call as TwilioCall } from "@twilio/voice-sdk"
 import { formatDistanceToNow } from "date-fns"
 import { useUserRole } from "@/hooks/use-user-role"
@@ -107,6 +110,7 @@ type CallSlot = {
   sequenceId?: string | null
   pendingOutcome?: string
   pendingPipelineStage?: string
+  pendingCallbackDate?: Date
 }
 
 type SessionStats = {
@@ -932,6 +936,42 @@ export default function DialerPage() {
     ))
   }
 
+  const handleCallbackSchedule = (slotId: string, callbackDate: Date) => {
+    setCallSlots(prev => prev.map(slot =>
+      slot.id === slotId ? { ...slot, pendingOutcome: "callback", pendingCallbackDate: callbackDate } : slot
+    ))
+  }
+
+  const getCallbackDate = (option: string): Date => {
+    const now = new Date()
+    switch (option) {
+      case "1h":
+        return new Date(now.getTime() + 60 * 60 * 1000)
+      case "3h":
+        return new Date(now.getTime() + 3 * 60 * 60 * 1000)
+      case "tomorrow_morning": {
+        const d = new Date(now)
+        d.setDate(d.getDate() + 1)
+        d.setHours(9, 0, 0, 0)
+        return d
+      }
+      case "tomorrow_afternoon": {
+        const d = new Date(now)
+        d.setDate(d.getDate() + 1)
+        d.setHours(14, 0, 0, 0)
+        return d
+      }
+      case "next_week": {
+        const d = new Date(now)
+        d.setDate(d.getDate() + (8 - d.getDay())) // next Monday
+        d.setHours(9, 0, 0, 0)
+        return d
+      }
+      default:
+        return new Date(now.getTime() + 60 * 60 * 1000)
+    }
+  }
+
   const handlePipelineOutcome = async (slotId: string, pipelineStage: PipelineStage) => {
     // Store the pending pipeline stage on the slot (independent of outcome)
     setCallSlots(prev => prev.map(slot =>
@@ -1001,8 +1041,9 @@ export default function DialerPage() {
     }
 
     // Advance the sequence step so this prospect doesn't reappear in queue
-    // (skip if not interested — the calls API already removes them from all sequences)
-    if (slot.prospectId && slot.sequenceId && outcome !== "connected_not_interested") {
+    // (skip if not interested or referral — the calls API already removes them from all sequences)
+    const sequenceRemovalOutcomes = ["connected_not_interested", "connected_referral"]
+    if (slot.prospectId && slot.sequenceId && !sequenceRemovalOutcomes.includes(outcome)) {
       savePromises.push(
         fetch("/api/dialer/complete-step", {
           method: "POST",
@@ -1015,6 +1056,39 @@ export default function DialerPage() {
       )
     }
 
+    // If callback, create a follow-up task with the scheduled date and call summary
+    if (outcome === "callback" && contact) {
+      const callbackDate = slot.pendingCallbackDate || new Date(Date.now() + 60 * 60 * 1000) // default 1h
+      const notesSummary = slot.notes ? slot.notes.substring(0, 200) : ""
+      const taskDescription = [
+        `Follow-up call with ${contact.name}${contact.company ? ` at ${contact.company}` : ""}.`,
+        notesSummary ? `Notes from last call: ${notesSummary}` : "",
+        contact.sequenceStage ? `Sequence stage: ${contact.sequenceStage}` : "",
+      ].filter(Boolean).join("\n\n")
+
+      savePromises.push(
+        fetch("/api/tasks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: `Call back ${contact.name}${notesSummary ? ` — ${notesSummary.substring(0, 60)}` : ""}`,
+            description: taskDescription,
+            type: "follow_up",
+            priority: "high",
+            dueDate: callbackDate.toISOString(),
+            contact: {
+              prospectId: slot.prospectId,
+              name: contact.name,
+              email: contact.email,
+              phone: contact.phone,
+              company: contact.company,
+              title: contact.title,
+            },
+          }),
+        }).catch(err => console.error("Error creating callback task:", err))
+      )
+    }
+
     // Fire all in parallel — don't block UI advancement
     Promise.all(savePromises)
 
@@ -1024,7 +1098,13 @@ export default function DialerPage() {
     }
 
     // Show appropriate toast
-    if (pipelineStage) {
+    if (outcome === "callback" && contact) {
+      const cbDate = slot.pendingCallbackDate || new Date(Date.now() + 60 * 60 * 1000)
+      toast({
+        title: `Callback scheduled: ${contact.name}`,
+        description: `Task created for ${cbDate.toLocaleDateString()} at ${cbDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`,
+      })
+    } else if (pipelineStage) {
       toast({
         title: `Saved: ${outcomeLabels[outcome] || outcome} + ${pipelineStageLabels[pipelineStage]}`,
         description: contact ? `${contact.name} moved to ${pipelineStageLabels[pipelineStage]}` : "Saved",
@@ -2212,7 +2292,9 @@ export default function DialerPage() {
                               className={slot.pendingOutcome ? "bg-primary hover:bg-primary/90 text-primary-foreground h-7" : "h-7"}
                             >
                               <UserCheck className="h-3 w-3 mr-1" />
-                              {slot.pendingOutcome ? outcomeLabels[slot.pendingOutcome] || slot.pendingOutcome : "Outcome"}
+                              {slot.pendingOutcome === "callback" && slot.pendingCallbackDate
+                                ? `Callback ${slot.pendingCallbackDate.toLocaleDateString([], { month: "short", day: "numeric" })} ${slot.pendingCallbackDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                                : slot.pendingOutcome ? outcomeLabels[slot.pendingOutcome] || slot.pendingOutcome : "Outcome"}
                               <ChevronDown className="h-3 w-3 ml-1" />
                             </Button>
                           </DropdownMenuTrigger>
@@ -2233,10 +2315,29 @@ export default function DialerPage() {
                               <FileText className="h-4 w-4 mr-2 text-purple-500" />
                               Informational
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "callback")}>
-                              <Phone className="h-4 w-4 mr-2 text-amber-500" />
-                              Call Back Later
-                            </DropdownMenuItem>
+                            <DropdownMenuSub>
+                              <DropdownMenuSubTrigger>
+                                <CalendarClock className="h-4 w-4 mr-2 text-amber-500" />
+                                Call Back Later
+                              </DropdownMenuSubTrigger>
+                              <DropdownMenuSubContent>
+                                <DropdownMenuItem onClick={() => handleCallbackSchedule(slot.id, getCallbackDate("1h"))}>
+                                  <Clock className="h-4 w-4 mr-2" />In 1 Hour
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleCallbackSchedule(slot.id, getCallbackDate("3h"))}>
+                                  <Clock className="h-4 w-4 mr-2" />In 3 Hours
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleCallbackSchedule(slot.id, getCallbackDate("tomorrow_morning"))}>
+                                  <Calendar className="h-4 w-4 mr-2" />Tomorrow Morning
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleCallbackSchedule(slot.id, getCallbackDate("tomorrow_afternoon"))}>
+                                  <Calendar className="h-4 w-4 mr-2" />Tomorrow Afternoon
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleCallbackSchedule(slot.id, getCallbackDate("next_week"))}>
+                                  <Calendar className="h-4 w-4 mr-2" />Next Monday
+                                </DropdownMenuItem>
+                              </DropdownMenuSubContent>
+                            </DropdownMenuSub>
                             <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "voicemail")}>
                               <Voicemail className="h-4 w-4 mr-2" />
                               Voicemail
@@ -2850,7 +2951,9 @@ export default function DialerPage() {
                         <DropdownMenuTrigger asChild>
                           <Button size="sm" variant={slot.pendingOutcome ? "default" : "outline"} className={slot.pendingOutcome ? "bg-primary hover:bg-primary/90 text-primary-foreground h-7" : "h-7"}>
                             <UserCheck className="h-3 w-3 mr-1" />
-                            {slot.pendingOutcome ? outcomeLabels[slot.pendingOutcome] || slot.pendingOutcome : "Outcome"}
+                            {slot.pendingOutcome === "callback" && slot.pendingCallbackDate
+                                ? `Callback ${slot.pendingCallbackDate.toLocaleDateString([], { month: "short", day: "numeric" })} ${slot.pendingCallbackDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                                : slot.pendingOutcome ? outcomeLabels[slot.pendingOutcome] || slot.pendingOutcome : "Outcome"}
                             <ChevronDown className="h-3 w-3 ml-1" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -2859,7 +2962,16 @@ export default function DialerPage() {
                           <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "connected_referral")}><UserCheck className="h-4 w-4 mr-2 text-blue-500" />Referral</DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "connected_not_interested")}><UserX className="h-4 w-4 mr-2 text-orange-500" />Not Interested</DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "connected_info_gathered")}><FileText className="h-4 w-4 mr-2 text-purple-500" />Informational</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "callback")}><Phone className="h-4 w-4 mr-2 text-amber-500" />Call Back Later</DropdownMenuItem>
+                          <DropdownMenuSub>
+                            <DropdownMenuSubTrigger><CalendarClock className="h-4 w-4 mr-2 text-amber-500" />Call Back Later</DropdownMenuSubTrigger>
+                            <DropdownMenuSubContent>
+                              <DropdownMenuItem onClick={() => handleCallbackSchedule(slot.id, getCallbackDate("1h"))}><Clock className="h-4 w-4 mr-2" />In 1 Hour</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleCallbackSchedule(slot.id, getCallbackDate("3h"))}><Clock className="h-4 w-4 mr-2" />In 3 Hours</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleCallbackSchedule(slot.id, getCallbackDate("tomorrow_morning"))}><Calendar className="h-4 w-4 mr-2" />Tomorrow Morning</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleCallbackSchedule(slot.id, getCallbackDate("tomorrow_afternoon"))}><Calendar className="h-4 w-4 mr-2" />Tomorrow Afternoon</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleCallbackSchedule(slot.id, getCallbackDate("next_week"))}><Calendar className="h-4 w-4 mr-2" />Next Monday</DropdownMenuItem>
+                            </DropdownMenuSubContent>
+                          </DropdownMenuSub>
                           <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "voicemail")}><Voicemail className="h-4 w-4 mr-2" />Voicemail</DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "no_answer")}><UserX className="h-4 w-4 mr-2" />No Answer</DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "no_answer")}><SkipForward className="h-4 w-4 mr-2" />Skip</DropdownMenuItem>

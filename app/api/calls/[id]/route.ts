@@ -72,10 +72,11 @@ export const PATCH = withAuth<{ params: { id: string } }>(async (
       data: updateData,
     })
 
-    // If marked not interested, remove from ALL active sequences and mark unqualified
+    // If marked not interested or referral, remove from ALL active sequences
+    const sequenceRemovalOutcomes = ["connected_not_interested", "connected_referral"]
     let sequenceAdvanced = null
-    if (outcome === "connected_not_interested" && call.prospectId) {
-      console.log(`Prospect ${call.prospectId} marked not interested — removing from all sequences`)
+    if (outcome && sequenceRemovalOutcomes.includes(outcome) && call.prospectId) {
+      console.log(`Prospect ${call.prospectId} marked ${outcome} — removing from all sequences`)
 
       await prisma.prospectSequence.updateMany({
         where: {
@@ -91,7 +92,7 @@ export const PATCH = withAuth<{ params: { id: string } }>(async (
       await prisma.prospect.update({
         where: { id: call.prospectId },
         data: {
-          status: "unqualified",
+          status: outcome === "connected_not_interested" ? "unqualified" : "contacted",
           sequence: null,
           sequenceStep: null,
         },

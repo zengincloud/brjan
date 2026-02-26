@@ -1320,9 +1320,9 @@ export default function DialerPage() {
   // Map common city/state/country strings to IANA timezone
   const getTimezoneFromLocation = (location: string | null | undefined): string | null => {
     if (!location) return null
-    const loc = location.toLowerCase()
+    const loc = location.toLowerCase().replace(/\./g, "")
     // US cities/states
-    if (/new york|nyc|manhattan|brooklyn|new jersey|new brunswick|newark|nj|ny\b|connecticut|ct\b|boston|massachusetts|ma\b|philadelphia|pennsylvania|pa\b|washington.*d\.?c|virginia|va\b|maryland|md\b|maine|me\b|vermont|vt\b|new hampshire|nh\b|rhode island|ri\b|delaware|de\b|east coast/i.test(loc)) return "America/New_York"
+    if (/new york|nyc|manhattan|brooklyn|new jersey|new brunswick|newark|nj\b|ny\b|connecticut|ct\b|boston|massachusetts|ma\b|philadelphia|pennsylvania|pa\b|washington.*dc|dc\b|virginia|va\b|maryland|md\b|maine|me\b|vermont|vt\b|new hampshire|nh\b|rhode island|ri\b|delaware|de\b|east coast/i.test(loc)) return "America/New_York"
     if (/chicago|illinois|il\b|wisconsin|wi\b|minnesota|mn\b|iowa|ia\b|missouri|mo\b|indiana|in\b|michigan|mi\b|ohio|oh\b|central time|midwest|nashville|tennessee|tn\b|memphis|milwaukee|detroit|cleveland|columbus|kansas city|omaha|nebraska|ne\b|north dakota|nd\b|south dakota|sd\b/i.test(loc)) return "America/Chicago"
     if (/denver|colorado|co\b|utah|ut\b|arizona|az\b|phoenix|mountain time|albuquerque|new mexico|nm\b|montana|mt\b|wyoming|wy\b|idaho|id\b|boise|salt lake/i.test(loc)) return "America/Denver"
     if (/los angeles|san francisco|california|ca\b|seattle|washington state|wa\b|portland|oregon|or\b|pacific time|west coast|san diego|san jose|silicon valley|las vegas|nevada|nv\b/i.test(loc)) return "America/Los_Angeles"

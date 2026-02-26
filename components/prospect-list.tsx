@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
-import { Mail, Pencil, Phone, Filter, ChevronDown, Upload, Plus, Check, X, Zap, Linkedin } from "lucide-react"
+import { Mail, Pencil, Phone, Filter, ChevronDown, Upload, Plus, Check, X, Zap, Linkedin, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
@@ -17,6 +17,7 @@ import { EditProspectDialog } from "./edit-prospect-dialog"
 import { CallProspectDialog } from "./call-prospect-dialog"
 import { AddToSequenceDialog } from "./add-to-sequence-dialog"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Label } from "@/components/ui/label"
 
 type Prospect = {
@@ -57,6 +58,9 @@ export function ProspectList() {
   const [quickEditData, setQuickEditData] = useState({ email: "", phone: "" })
   const [quickEditSaving, setQuickEditSaving] = useState(false)
   const [sequences, setSequences] = useState<SequenceOption[]>([])
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<{ ids: string[]; label: string } | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     loadProspects()
@@ -205,6 +209,52 @@ export function ProspectList() {
     }
   }
 
+  const confirmDelete = (ids: string[], label: string) => {
+    setDeleteTarget({ ids, label })
+    setDeleteDialogOpen(true)
+  }
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return
+
+    try {
+      setDeleting(true)
+      const results = await Promise.all(
+        deleteTarget.ids.map((id) =>
+          fetch(`/api/prospects/${id}`, { method: "DELETE" })
+        )
+      )
+
+      const failed = results.filter((r) => !r.ok).length
+      if (failed > 0) {
+        toast({
+          title: "Error",
+          description: `Failed to delete ${failed} prospect${failed > 1 ? "s" : ""}`,
+          variant: "destructive",
+        })
+      } else {
+        toast({
+          title: "Deleted",
+          description: `${deleteTarget.ids.length === 1 ? deleteTarget.label : `${deleteTarget.ids.length} prospects`} deleted`,
+        })
+      }
+
+      setSelectedRows((prev) => prev.filter((id) => !deleteTarget.ids.includes(id)))
+      setProspects((prev) => prev.filter((p) => !deleteTarget.ids.includes(p.id)))
+    } catch (error) {
+      console.error("Error deleting prospects:", error)
+      toast({
+        title: "Error",
+        description: "Failed to delete prospects",
+        variant: "destructive",
+      })
+    } finally {
+      setDeleting(false)
+      setDeleteDialogOpen(false)
+      setDeleteTarget(null)
+    }
+  }
+
   if (loading) {
     return <div className="text-center py-8">Loading prospects...</div>
   }
@@ -239,6 +289,15 @@ export function ProspectList() {
               >
                 <Zap className="h-4 w-4 mr-2" />
                 Add to Sequence
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-destructive hover:text-destructive"
+                onClick={() => confirmDelete(selectedRows, `${selectedRows.length} prospects`)}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
               </Button>
               <Button
                 size="sm"
@@ -423,6 +482,15 @@ export function ProspectList() {
                   <Button variant="ghost" size="icon" onClick={() => handleEditProspect(prospect)} title="Edit all details">
                     <Pencil className="h-4 w-4" />
                   </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => confirmDelete([prospect.id], prospect.name)}
+                    title="Delete prospect"
+                    className="text-muted-foreground hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               </TableCell>
             </TableRow>
@@ -464,6 +532,26 @@ export function ProspectList() {
           loadProspects()
         }}
       />
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {deleteTarget?.ids.length === 1 ? "prospect" : "prospects"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {deleteTarget?.label}? This will also remove their calls, emails, and sequence data. This can't be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

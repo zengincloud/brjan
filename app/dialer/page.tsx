@@ -665,20 +665,37 @@ export default function DialerPage() {
         }, 800)
       })
 
-      // When prospect answers, update status to connected
-      call.on("sample", () => {
-        setCallSlots(prev => {
-          const current = prev[slotIndex]
-          if (current?.status === "ringing") {
-            return prev.map((slot, idx) =>
-              idx === slotIndex
-                ? { ...slot, status: "connected" as CallStatus }
-                : slot
-            )
+      // Poll server for call status to reliably detect when prospect answers
+      // Twilio's statusCallback fires "answered" on the child leg, which the server maps to "in_progress"
+      const pollInterval = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/calls/${data.callId}`)
+          if (!res.ok) return
+          const callData = await res.json()
+          if (callData.call?.status === "in_progress") {
+            clearInterval(pollInterval)
+            setCallSlots(prev => {
+              const current = prev[slotIndex]
+              if (current?.status === "ringing") {
+                return prev.map((slot, idx) =>
+                  idx === slotIndex
+                    ? { ...slot, status: "connected" as CallStatus }
+                    : slot
+                )
+              }
+              return prev
+            })
           }
-          return prev
-        })
-      })
+        } catch {
+          // ignore poll errors
+        }
+      }, 2000)
+
+      // Clean up polling when call ends
+      call.on("disconnect", () => clearInterval(pollInterval))
+      call.on("cancel", () => clearInterval(pollInterval))
+      call.on("reject", () => clearInterval(pollInterval))
+      call.on("error", () => clearInterval(pollInterval))
 
       return { callId: data.callId, twilioSid: null }
     } catch (error: any) {

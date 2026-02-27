@@ -50,7 +50,12 @@ export async function POST(request: NextRequest) {
         recordingStatusCallbackEvent: ['completed'],
       })
 
-      dial.number(to)
+      dial.number({
+        statusCallback: callId
+          ? `${baseUrl}/api/calls/status?callId=${callId}`
+          : undefined,
+        statusCallbackEvent: ['answered', 'completed'],
+      }, to)
     } else {
       console.log('No phone number provided, using fallback')
 

@@ -56,7 +56,30 @@ function scheduleMorningBrief(app: App) {
         console.error(`[scheduler] Failed morning brief for ${user.email}:`, err)
       }
     }
-  }, { timezone: "America/New_York" })
+  }, { timezone: "America/Los_Angeles" })
+}
+
+// ─── Morning hype ─────────────────────────────────────────────
+// Runs at 8:30 AM Mon-Fri PST — ALL CAPS encouragement
+
+function scheduleMorningHype(app: App) {
+  cron.schedule("30 8 * * 1-5", async () => {
+    console.log("[scheduler] Running morning hype...")
+    const users = await getAllActiveUsers()
+
+    for (const user of users) {
+      const slackId = await getSlackUserId(app, user.email)
+      if (!slackId) continue
+
+      try {
+        const message = await grok.formatHypeUp()
+        await sendDM(app, slackId, message)
+        console.log(`[scheduler] Sent hype to ${user.email}`)
+      } catch (err) {
+        console.error(`[scheduler] Failed hype for ${user.email}:`, err)
+      }
+    }
+  }, { timezone: "America/Los_Angeles" })
 }
 
 // ─── End of day recap ──────────────────────────────────────────
@@ -79,7 +102,7 @@ function scheduleEodRecap(app: App) {
         console.error(`[scheduler] Failed EOD recap for ${user.email}:`, err)
       }
     }
-  }, { timezone: "America/New_York" })
+  }, { timezone: "America/Los_Angeles" })
 }
 
 // ─── Task reminders ────────────────────────────────────────────
@@ -110,17 +133,19 @@ function scheduleTaskReminders(app: App) {
         // Silent — don't spam logs for reminder failures
       }
     }
-  }, { timezone: "America/New_York" })
+  }, { timezone: "America/Los_Angeles" })
 }
 
 // ─── Start all schedules ───────────────────────────────────────
 
 export function startScheduler(app: App) {
+  scheduleMorningHype(app)
   scheduleMorningBrief(app)
   scheduleEodRecap(app)
   scheduleTaskReminders(app)
   console.log("[scheduler] All cron jobs scheduled")
-  console.log("  • Morning brief: 9:00 AM Mon-Fri ET")
-  console.log("  • EOD recap: 5:30 PM Mon-Fri ET")
-  console.log("  • Task reminders: every 15 min during 9-5 Mon-Fri ET")
+  console.log("  • Morning hype: 8:30 AM Mon-Fri PT")
+  console.log("  • Morning brief: 9:00 AM Mon-Fri PT")
+  console.log("  • EOD recap: 5:30 PM Mon-Fri PT")
+  console.log("  • Task reminders: every 15 min during 9-5 Mon-Fri PT")
 }

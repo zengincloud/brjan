@@ -168,6 +168,68 @@ type DialerProspect = {
   status?: string
 }
 
+// Map common city/state/country strings to IANA timezone
+function getTimezoneFromLocation(location: string | null | undefined): string | null {
+  if (!location) return null
+  const loc = location.toLowerCase().replace(/\./g, "")
+  if (/new york|nyc|manhattan|brooklyn|new jersey|new brunswick|newark|nj\b|ny\b|connecticut|ct\b|boston|massachusetts|ma\b|philadelphia|pennsylvania|pa\b|washington.*dc|dc\b|virginia|va\b|maryland|md\b|maine|me\b|vermont|vt\b|new hampshire|nh\b|rhode island|ri\b|delaware|de\b|east coast/i.test(loc)) return "America/New_York"
+  if (/chicago|illinois|il\b|wisconsin|wi\b|minnesota|mn\b|iowa|ia\b|missouri|mo\b|indiana|in\b|michigan|mi\b|ohio|oh\b|central time|midwest|nashville|tennessee|tn\b|memphis|milwaukee|detroit|cleveland|columbus|kansas city|omaha|nebraska|ne\b|north dakota|nd\b|south dakota|sd\b/i.test(loc)) return "America/Chicago"
+  if (/denver|colorado|co\b|utah|ut\b|arizona|az\b|phoenix|mountain time|albuquerque|new mexico|nm\b|montana|mt\b|wyoming|wy\b|idaho|id\b|boise|salt lake/i.test(loc)) return "America/Denver"
+  if (/los angeles|san francisco|california|ca\b|seattle|washington state|wa\b|portland|oregon|or\b|pacific time|west coast|san diego|san jose|silicon valley|las vegas|nevada|nv\b/i.test(loc)) return "America/Los_Angeles"
+  if (/hawaii|hi\b|honolulu/i.test(loc)) return "Pacific/Honolulu"
+  if (/alaska|ak\b|anchorage/i.test(loc)) return "America/Anchorage"
+  if (/texas|tx\b|dallas|houston|austin|san antonio/i.test(loc)) return "America/Chicago"
+  if (/atlanta|georgia|ga\b|florida|fl\b|miami|tampa|orlando|carolina|nc\b|sc\b|charlotte|raleigh|jacksonville/i.test(loc)) return "America/New_York"
+  if (/toronto|ontario|ottawa|montreal|quebec/i.test(loc)) return "America/Toronto"
+  if (/vancouver|british columbia/i.test(loc)) return "America/Vancouver"
+  if (/calgary|edmonton|alberta/i.test(loc)) return "America/Edmonton"
+  if (/london|united kingdom|uk\b|england|britain/i.test(loc)) return "Europe/London"
+  if (/paris|france/i.test(loc)) return "Europe/Paris"
+  if (/berlin|germany|munich|frankfurt/i.test(loc)) return "Europe/Berlin"
+  if (/amsterdam|netherlands|dutch/i.test(loc)) return "Europe/Amsterdam"
+  if (/dublin|ireland/i.test(loc)) return "Europe/Dublin"
+  if (/stockholm|sweden/i.test(loc)) return "Europe/Stockholm"
+  if (/madrid|spain|barcelona/i.test(loc)) return "Europe/Madrid"
+  if (/rome|italy|milan/i.test(loc)) return "Europe/Rome"
+  if (/sydney|melbourne|australia|brisbane/i.test(loc)) return "Australia/Sydney"
+  if (/tokyo|japan/i.test(loc)) return "Asia/Tokyo"
+  if (/singapore/i.test(loc)) return "Asia/Singapore"
+  if (/hong kong/i.test(loc)) return "Asia/Hong_Kong"
+  if (/mumbai|delhi|india|bangalore|hyderabad/i.test(loc)) return "Asia/Kolkata"
+  if (/dubai|uae|abu dhabi/i.test(loc)) return "Asia/Dubai"
+  if (/tel aviv|israel|jerusalem/i.test(loc)) return "Asia/Jerusalem"
+  return null
+}
+
+function getLocalTime(location: string | null | undefined): string | null {
+  const tz = getTimezoneFromLocation(location)
+  if (!tz) return null
+  try {
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    }).format(new Date())
+  } catch {
+    return null
+  }
+}
+
+function getTimezoneAbbr(location: string | null | undefined): string | null {
+  const tz = getTimezoneFromLocation(location)
+  if (!tz) return null
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      timeZoneName: "short",
+    }).formatToParts(new Date())
+    return parts.find(p => p.type === "timeZoneName")?.value || null
+  } catch {
+    return null
+  }
+}
+
 export default function DialerPage() {
   const { toast } = useToast()
   useUserRole() // Keep hook for auth check
@@ -622,6 +684,7 @@ export default function DialerPage() {
 
       call.on("cancel", () => {
         console.log("Call cancelled")
+        try { deviceRef.current?.disconnectAll() } catch {}
         activeCallRef.current = null
 
         // Play hangup sound
@@ -633,6 +696,7 @@ export default function DialerPage() {
 
       call.on("reject", () => {
         console.log("Call rejected")
+        try { deviceRef.current?.disconnectAll() } catch {}
         activeCallRef.current = null
 
         // Play hangup sound
@@ -643,6 +707,10 @@ export default function DialerPage() {
 
       call.on("error", (error) => {
         console.error("Call error:", error)
+
+        // Force disconnect the call — don't just null the ref
+        try { call.disconnect() } catch {}
+        try { deviceRef.current?.disconnectAll() } catch {}
         activeCallRef.current = null
 
         // Play hangup sound
@@ -700,6 +768,10 @@ export default function DialerPage() {
       return { callId: data.callId, twilioSid: null }
     } catch (error: any) {
       console.error("Error making call:", error)
+
+      // Force disconnect any lingering call
+      try { activeCallRef.current?.disconnect() } catch {}
+      try { deviceRef.current?.disconnectAll() } catch {}
       activeCallRef.current = null
 
       toast({
@@ -719,6 +791,11 @@ export default function DialerPage() {
 
   // Handle call outcome and advance to next prospect
   const handleCallOutcomeAndAdvance = useCallback(async (slotIndex: number, outcome: string) => {
+    // Safety: make sure no call is lingering before we advance
+    try { activeCallRef.current?.disconnect() } catch {}
+    try { deviceRef.current?.disconnectAll() } catch {}
+    activeCallRef.current = null
+
     const slot = callSlotsRef.current[slotIndex]
 
     // Save outcome + mark task done in parallel (fire-and-forget)
@@ -732,6 +809,7 @@ export default function DialerPage() {
           body: JSON.stringify({
             outcome,
             notes: slot.notes,
+            duration: callDuration > 0 ? callDuration : undefined,
             endedAt: new Date().toISOString(),
           }),
         }).catch(err => console.error("Error saving call outcome:", err))
@@ -797,7 +875,7 @@ export default function DialerPage() {
         })
       }
     }
-  }, [sessionActive, sessionPaused, currentProspectIndex, mockProspects, connectCall, toast])
+  }, [sessionActive, sessionPaused, currentProspectIndex, mockProspects, connectCall, callDuration, toast])
 
   // End current call
   const endCall = useCallback(() => {
@@ -1041,6 +1119,7 @@ export default function DialerPage() {
             outcome,
             ...(pipelineStage && { pipelineStage }),
             notes: slot.notes,
+            duration: callDuration > 0 ? callDuration : undefined,
             endedAt: new Date().toISOString(),
           }),
         }).catch(err => console.error("Error saving call outcome:", err))
@@ -1414,71 +1493,6 @@ export default function DialerPage() {
     ).join(" | ")
   }
 
-  // Map common city/state/country strings to IANA timezone
-  const getTimezoneFromLocation = (location: string | null | undefined): string | null => {
-    if (!location) return null
-    const loc = location.toLowerCase().replace(/\./g, "")
-    // US cities/states
-    if (/new york|nyc|manhattan|brooklyn|new jersey|new brunswick|newark|nj\b|ny\b|connecticut|ct\b|boston|massachusetts|ma\b|philadelphia|pennsylvania|pa\b|washington.*dc|dc\b|virginia|va\b|maryland|md\b|maine|me\b|vermont|vt\b|new hampshire|nh\b|rhode island|ri\b|delaware|de\b|east coast/i.test(loc)) return "America/New_York"
-    if (/chicago|illinois|il\b|wisconsin|wi\b|minnesota|mn\b|iowa|ia\b|missouri|mo\b|indiana|in\b|michigan|mi\b|ohio|oh\b|central time|midwest|nashville|tennessee|tn\b|memphis|milwaukee|detroit|cleveland|columbus|kansas city|omaha|nebraska|ne\b|north dakota|nd\b|south dakota|sd\b/i.test(loc)) return "America/Chicago"
-    if (/denver|colorado|co\b|utah|ut\b|arizona|az\b|phoenix|mountain time|albuquerque|new mexico|nm\b|montana|mt\b|wyoming|wy\b|idaho|id\b|boise|salt lake/i.test(loc)) return "America/Denver"
-    if (/los angeles|san francisco|california|ca\b|seattle|washington state|wa\b|portland|oregon|or\b|pacific time|west coast|san diego|san jose|silicon valley|las vegas|nevada|nv\b/i.test(loc)) return "America/Los_Angeles"
-    if (/hawaii|hi\b|honolulu/i.test(loc)) return "Pacific/Honolulu"
-    if (/alaska|ak\b|anchorage/i.test(loc)) return "America/Anchorage"
-    if (/texas|tx\b|dallas|houston|austin|san antonio/i.test(loc)) return "America/Chicago"
-    if (/atlanta|georgia|ga\b|florida|fl\b|miami|tampa|orlando|carolina|nc\b|sc\b|charlotte|raleigh|jacksonville/i.test(loc)) return "America/New_York"
-    // Canada
-    if (/toronto|ontario|ottawa|montreal|quebec/i.test(loc)) return "America/Toronto"
-    if (/vancouver|british columbia/i.test(loc)) return "America/Vancouver"
-    if (/calgary|edmonton|alberta/i.test(loc)) return "America/Edmonton"
-    // UK/Europe
-    if (/london|united kingdom|uk\b|england|britain/i.test(loc)) return "Europe/London"
-    if (/paris|france/i.test(loc)) return "Europe/Paris"
-    if (/berlin|germany|munich|frankfurt/i.test(loc)) return "Europe/Berlin"
-    if (/amsterdam|netherlands|dutch/i.test(loc)) return "Europe/Amsterdam"
-    if (/dublin|ireland/i.test(loc)) return "Europe/Dublin"
-    if (/stockholm|sweden/i.test(loc)) return "Europe/Stockholm"
-    if (/madrid|spain|barcelona/i.test(loc)) return "Europe/Madrid"
-    if (/rome|italy|milan/i.test(loc)) return "Europe/Rome"
-    // Asia/Pacific
-    if (/sydney|melbourne|australia|brisbane/i.test(loc)) return "Australia/Sydney"
-    if (/tokyo|japan/i.test(loc)) return "Asia/Tokyo"
-    if (/singapore/i.test(loc)) return "Asia/Singapore"
-    if (/hong kong/i.test(loc)) return "Asia/Hong_Kong"
-    if (/mumbai|delhi|india|bangalore|hyderabad/i.test(loc)) return "Asia/Kolkata"
-    if (/dubai|uae|abu dhabi/i.test(loc)) return "Asia/Dubai"
-    if (/tel aviv|israel|jerusalem/i.test(loc)) return "Asia/Jerusalem"
-    return null
-  }
-
-  const getLocalTime = (location: string | null | undefined): string | null => {
-    const tz = getTimezoneFromLocation(location)
-    if (!tz) return null
-    try {
-      return new Intl.DateTimeFormat("en-US", {
-        timeZone: tz,
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true,
-      }).format(new Date())
-    } catch {
-      return null
-    }
-  }
-
-  const getTimezoneAbbr = (location: string | null | undefined): string | null => {
-    const tz = getTimezoneFromLocation(location)
-    if (!tz) return null
-    try {
-      const parts = new Intl.DateTimeFormat("en-US", {
-        timeZone: tz,
-        timeZoneName: "short",
-      }).formatToParts(new Date())
-      return parts.find(p => p.type === "timeZoneName")?.value || null
-    } catch {
-      return null
-    }
-  }
 
   const CallTimer = ({ startTime }: { startTime: number | null }) => {
     const [elapsed, setElapsed] = useState(0)

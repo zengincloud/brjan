@@ -1,6 +1,13 @@
 import { PrismaClient } from "@prisma/client"
 
-const prisma = new PrismaClient()
+const dbUrl = process.env.DATABASE_URL || ""
+const separator = dbUrl.includes("?") ? "&" : "?"
+
+const prisma = new PrismaClient({
+  datasources: {
+    db: { url: `${dbUrl}${separator}connection_limit=2` },
+  },
+})
 
 // ─── User lookup ───────────────────────────────────────────────
 

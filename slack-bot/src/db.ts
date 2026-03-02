@@ -410,35 +410,48 @@ export async function getCallsWithTranscripts(userId: string, limit: number = 10
 
 // ─── Pipeline summary ─────────────────────────────────────────
 
-export async function getPipelineSummary(userId: string) {
-  const [
-    totalProspects,
-    byStatus,
-    activeSequences,
-    totalAccounts,
-  ] = await Promise.all([
-    prisma.prospect.count({ where: { userId } }),
-    prisma.prospect.groupBy({
-      by: ["status"],
-      where: { userId },
-      _count: { id: true },
-    }),
-    prisma.prospectSequence.count({
-      where: { prospect: { userId }, status: "active" },
-    }),
-    prisma.account.count({ where: { userId } }),
-  ])
+export async function getPipelineSummary(userId: string, retries = 2): Promise<{
+  totalProspects: number
+  totalAccounts: number
+  activeSequences: number
+  statusCounts: Record<string, number>
+}> {
+  try {
+    const [
+      totalProspects,
+      byStatus,
+      activeSequences,
+      totalAccounts,
+    ] = await Promise.all([
+      prisma.prospect.count({ where: { userId } }),
+      prisma.prospect.groupBy({
+        by: ["status"],
+        where: { userId },
+        _count: { id: true },
+      }),
+      prisma.prospectSequence.count({
+        where: { prospect: { userId }, status: "active" },
+      }),
+      prisma.account.count({ where: { userId } }),
+    ])
 
-  const statusCounts: Record<string, number> = {}
-  for (const row of byStatus) {
-    statusCounts[row.status] = row._count.id
-  }
+    const statusCounts: Record<string, number> = {}
+    for (const row of byStatus) {
+      statusCounts[row.status] = row._count.id
+    }
 
-  return {
-    totalProspects,
-    totalAccounts,
-    activeSequences,
-    statusCounts,
+    return {
+      totalProspects,
+      totalAccounts,
+      activeSequences,
+      statusCounts,
+    }
+  } catch (err) {
+    if (retries > 0) {
+      await new Promise(r => setTimeout(r, 500))
+      return getPipelineSummary(userId, retries - 1)
+    }
+    throw err
   }
 }
 

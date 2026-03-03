@@ -195,7 +195,6 @@ export function Sidebar({ className }: { className?: string }) {
           <Link href="/dialer">
             <Phone className="h-4 w-4 mr-3" />
             Dialer
-            <Badge className="ml-auto bg-accent/20 text-accent border-0 text-[10px] px-1.5">New</Badge>
           </Link>
         </Button>
 

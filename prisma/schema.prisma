@@ -156,6 +156,7 @@ model Prospect {
   phone        String?
   location     String?
   linkedin     String?
+  notes        String?
   status       ProspectStatus @default(new_lead)
   sequence     String?
   sequenceStep String?

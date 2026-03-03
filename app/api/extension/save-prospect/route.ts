@@ -23,7 +23,7 @@ function toTitleCase(str: string | null | undefined): string {
 export const POST = withExtensionAuth(async (request: NextRequest, userId: string) => {
   try {
     const body = await request.json()
-    const { name, email, title, company, phone, location, linkedin, wizaData } = body
+    const { name, email, title, company, phone, location, linkedin, notes, wizaData } = body
 
     if (!name) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 })
@@ -74,6 +74,7 @@ export const POST = withExtensionAuth(async (request: NextRequest, userId: strin
         phone,
         location,
         linkedin,
+        ...(notes && { notes }),
         status: "new_lead",
         wizaData,
         ...(povData && { povData }),

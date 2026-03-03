@@ -131,6 +131,7 @@ export const GET = withAuth(async (
         linkedin: contact?.linkedin || prospect?.linkedin || null,
         location: prospect?.location || null,
         companyDescription: (prospect?.wizaData as any)?.companyDescription || null,
+        prospectNotes: prospect?.notes || null,
 
         // Sequence info
         sequence: sequence?.name || null,
@@ -203,6 +204,7 @@ export const GET = withAuth(async (
         linkedin: ps.prospect.linkedin || null,
         location: ps.prospect.location || null,
         companyDescription: (ps.prospect.wizaData as any)?.companyDescription || null,
+        prospectNotes: ps.prospect.notes || null,
 
         // Sequence info
         sequence: ps.sequence.name,

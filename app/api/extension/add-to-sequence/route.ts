@@ -64,7 +64,7 @@ export const POST = withExtensionAuth(async (request: NextRequest, userId: strin
     let prospectCreated = false
 
     if (!prospectId && prospectData) {
-      const { name, email, title, company, phone, location, linkedin, wizaData } = prospectData
+      const { name, email, title, company, phone, location, linkedin, notes, wizaData } = prospectData
 
       if (!name) {
         return NextResponse.json({ error: "Prospect name is required" }, { status: 400 })
@@ -126,6 +126,7 @@ export const POST = withExtensionAuth(async (request: NextRequest, userId: strin
             phone,
             location,
             linkedin,
+            ...(notes && { notes }),
             status: "new_lead",
             wizaData,
             ...(povData && { povData }),

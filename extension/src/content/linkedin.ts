@@ -440,6 +440,13 @@ function renderRevealResult(result: RevealResponse, fromCache: boolean) {
     </div>`
   }
 
+  // Note input
+  if (!existing) {
+    html += `<div class="br-note-input">
+      <input type="text" class="br-input" id="br-prospect-note" placeholder="Add a note..." maxlength="280" />
+    </div>`
+  }
+
   // Action buttons
   html += `<div class="br-actions">`
 
@@ -473,6 +480,7 @@ function renderRevealResult(result: RevealResponse, fromCache: boolean) {
 
   // Track prospectId — set if prospect already exists or was just saved
   let currentProspectId: string | null = existing?.id || null
+  const noteInput = document.getElementById('br-prospect-note') as HTMLInputElement | null
 
   // Refresh button
   const refreshBtn = document.getElementById('br-refresh-reveal')
@@ -495,6 +503,7 @@ function renderRevealResult(result: RevealResponse, fromCache: boolean) {
         phone: reveal?.phone || null,
         location: reveal?.location || null,
         linkedin: result.scrapedData.linkedinUrl,
+        notes: noteInput?.value?.trim() || null,
         wizaData: reveal ? {
           email: reveal.email,
           emailType: reveal.emailType,
@@ -558,6 +567,7 @@ function renderRevealResult(result: RevealResponse, fromCache: boolean) {
             phone: reveal?.phone || null,
             location: reveal?.location || null,
             linkedin: result.scrapedData.linkedinUrl,
+            notes: noteInput?.value?.trim() || null,
             wizaData: reveal ? {
               email: reveal.email,
               emailType: reveal.emailType,

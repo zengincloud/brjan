@@ -23,7 +23,7 @@ export const GET = withAuth(async (
     const email = searchParams.get("email")
     const company = searchParams.get("company")
 
-    const [calls, emails, account] = await Promise.all([
+    const [calls, emails, account, prospect] = await Promise.all([
       prospectId
         ? prisma.call.findMany({
             where: { prospectId, userId },
@@ -74,6 +74,13 @@ export const GET = withAuth(async (
             },
           })
         : Promise.resolve(null),
+
+      prospectId
+        ? prisma.prospect.findUnique({
+            where: { id: prospectId },
+            select: { notes: true },
+          })
+        : Promise.resolve(null),
     ])
 
     const priorCalls = calls.map((c) => ({
@@ -122,6 +129,7 @@ export const GET = withAuth(async (
       correspondenceHistory: correspondenceHistory.slice(0, 8),
       lastEmailSent,
       accountInfo,
+      prospectNotes: prospect?.notes || null,
     })
   } catch (error: any) {
     console.error("Error enriching prospect:", error)

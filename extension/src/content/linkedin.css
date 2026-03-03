@@ -351,6 +351,28 @@
   margin-top: 12px;
 }
 
+/* Note input */
+.br-note-input {
+  margin-top: 10px;
+}
+.br-input {
+  width: 100%;
+  padding: 7px 12px;
+  border-radius: 8px;
+  border: 1px solid #222833;
+  font-size: 12px;
+  background: #1e2330;
+  color: #f2f3f5;
+  outline: none;
+  box-sizing: border-box;
+}
+.br-input::placeholder {
+  color: #808590;
+}
+.br-input:focus {
+  border-color: #4f8df7;
+}
+
 /* Sequence picker */
 .br-sequence-picker {
   display: flex;

@@ -145,6 +145,7 @@ export interface SaveProspectPayload {
   phone?: string | null
   location?: string | null
   linkedin?: string | null
+  notes?: string | null
   wizaData?: Record<string, any> | null
 }
 

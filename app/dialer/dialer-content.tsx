@@ -434,7 +434,18 @@ export default function DialerPage() {
         ])
         if (queueRes.ok) {
           const data = await queueRes.json()
-          setApiProspects(data.queue || [])
+          const queue = data.queue || []
+          setApiProspects(queue)
+          // Pre-populate prospect notes from DB
+          const notes: { [key: string]: string } = {}
+          for (const p of queue) {
+            if (p.prospectNotes && p.email) {
+              notes[p.email] = p.prospectNotes
+            }
+          }
+          if (Object.keys(notes).length > 0) {
+            setProspectNotes(prev => ({ ...prev, ...notes }))
+          }
         }
         if (seqRes?.ok) {
           const data = await seqRes.json()
@@ -587,6 +598,11 @@ export default function DialerPage() {
       if (!res.ok) return
 
       const data = await res.json()
+
+      // Pre-populate prospect notes from enrichment if not already set
+      if (data.prospectNotes && prospect.email) {
+        setProspectNotes(prev => prev[prospect.email] ? prev : { ...prev, [prospect.email]: data.prospectNotes })
+      }
 
       setCallSlots(prev => prev.map((slot, idx) => {
         if (idx !== slotIndex || !slot.contact) return slot
@@ -1510,9 +1526,17 @@ export default function DialerPage() {
     setEditedPhone("")
   }
 
-  const saveNote = (contactId: string, noteType: "prospect" | "account", noteText: string) => {
+  const saveNote = (contactId: string, noteType: "prospect" | "account", noteText: string, prospectId?: string | null) => {
     if (noteType === "prospect") {
       setProspectNotes(prev => ({ ...prev, [contactId]: noteText }))
+      // Persist prospect notes to DB
+      if (prospectId) {
+        fetch(`/api/prospects/${prospectId}/notes`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ notes: noteText }),
+        }).catch(() => { /* silent fail — local state is already updated */ })
+      }
     } else {
       setAccountNotes(prev => ({ ...prev, [contactId]: noteText }))
     }
@@ -2662,7 +2686,7 @@ export default function DialerPage() {
                                       onClick={() => {
                                         if (slot.contact) {
                                           const textarea = document.getElementById(`prospect-note-${slot.id}`) as HTMLTextAreaElement
-                                          saveNote(slot.contact.email, "prospect", textarea.value)
+                                          saveNote(slot.contact.email, "prospect", textarea.value, slot.prospectId)
                                         }
                                       }}
                                       className="h-7 text-xs"

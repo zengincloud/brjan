@@ -575,6 +575,39 @@ export default function DialerPage() {
     setQueueSize(mockProspects.length)
   }, [mockProspects.length])
 
+  // Lazy-load enrichment data for a prospect and merge it into the call slot
+  const enrichProspect = useCallback(async (prospect: DialerProspect, slotIndex: number) => {
+    try {
+      const params = new URLSearchParams()
+      if (prospect.prospectId) params.set("prospectId", prospect.prospectId)
+      if (prospect.email) params.set("email", prospect.email)
+      if (prospect.company) params.set("company", prospect.company)
+
+      const res = await fetch(`/api/dialer/enrich?${params}`)
+      if (!res.ok) return
+
+      const data = await res.json()
+
+      setCallSlots(prev => prev.map((slot, idx) => {
+        if (idx !== slotIndex || !slot.contact) return slot
+        return {
+          ...slot,
+          contact: {
+            ...slot.contact,
+            priorCalls: data.priorCalls || slot.contact.priorCalls,
+            lastEmailSent: data.lastEmailSent || slot.contact.lastEmailSent,
+            correspondenceHistory: data.correspondenceHistory || (slot.contact as any).correspondenceHistory,
+            accountInfo: data.accountInfo || slot.contact.accountInfo,
+            // Use account POV if prospect has none
+            pov: slot.contact.pov || data.accountInfo?.pov || null,
+          },
+        }
+      }))
+    } catch (err) {
+      console.error("Error enriching prospect:", err)
+    }
+  }, [])
+
   // Actually connect a call via Twilio
   const connectCall = useCallback(async (prospect: DialerProspect, slotIndex: number) => {
     if (!deviceRef.current || !deviceReady) {
@@ -626,6 +659,9 @@ export default function DialerPage() {
           ? { ...slot, contact: prospect, status: "ringing" as CallStatus, startTime: Date.now(), callId: data.callId, taskId: prospect.taskId, queueItemId: prospect.id, prospectId: prospect.prospectId || null, sequenceId: prospect.sequenceId || null }
           : slot
       ))
+
+      // Lazy-load enrichment data in background (non-blocking)
+      enrichProspect(prospect, slotIndex)
 
       // Connect the call using Twilio Device
       const call = await deviceRef.current.connect({
@@ -1345,6 +1381,9 @@ export default function DialerPage() {
       pendingPipelineStage: undefined,
     }])
 
+    // Lazy-load enrichment data in background
+    enrichProspect(prospect, 0)
+
     // Small delay to let state settle, then connect
     setTimeout(() => {
       connectCall(prospect, 0)
@@ -1419,6 +1458,8 @@ export default function DialerPage() {
     }])
     // Auto-expand the card
     setExpandedSlots(prev => new Set(prev).add("1"))
+    // Lazy-load enrichment data in background
+    enrichProspect(prospect, 0)
   }
 
   const dialOneOff = async (prospect: DialerProspect) => {

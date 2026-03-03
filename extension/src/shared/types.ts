@@ -84,6 +84,8 @@ export interface AddToSequenceResponse {
     sequenceId: string
     status: string
   }
+  prospectId: string
+  prospectCreated: boolean
   sequenceName: string
 }
 
@@ -120,7 +122,7 @@ export interface AuthState {
 export type ExtensionMessage =
   | { type: 'REVEAL_CONTACT'; data: LinkedInScrapedData }
   | { type: 'SAVE_PROSPECT'; data: SaveProspectPayload }
-  | { type: 'ADD_TO_SEQUENCE'; data: { prospectId: string; sequenceId: string } }
+  | { type: 'ADD_TO_SEQUENCE'; data: { sequenceId: string; prospectId?: string; prospectData?: SaveProspectPayload } }
   | { type: 'GET_AUTH_STATE' }
   | { type: 'LOGIN'; data: { email: string; password: string } }
   | { type: 'LOGIN_GOOGLE' }

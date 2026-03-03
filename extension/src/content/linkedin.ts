@@ -471,6 +471,9 @@ function renderRevealResult(result: RevealResponse, fromCache: boolean) {
 
   // --- Wire up event handlers ---
 
+  // Track prospectId — set if prospect already exists or was just saved
+  let currentProspectId: string | null = existing?.id || null
+
   // Refresh button
   const refreshBtn = document.getElementById('br-refresh-reveal')
   if (refreshBtn) {
@@ -517,9 +520,7 @@ function renderRevealResult(result: RevealResponse, fromCache: boolean) {
         })
         saveBtn.textContent = 'Saved!'
         saveBtn.classList.add('br-btn-success')
-
-        // Enable sequence picker now that we have a prospect ID
-        enableSequencePicker(resp.prospect.id)
+        currentProspectId = resp.prospect.id
       } catch (err: any) {
         saveBtn.textContent = err.message?.includes('already exists') ? 'Already Exists' : 'Failed'
         saveBtn.classList.add('br-btn-error')
@@ -527,50 +528,87 @@ function renderRevealResult(result: RevealResponse, fromCache: boolean) {
     })
   }
 
-  // Sequence picker
+  // Sequence picker — always enabled, auto-saves prospect if needed
   const seqSelect = document.getElementById('br-sequence-select') as HTMLSelectElement | null
   const seqBtn = document.getElementById('br-add-sequence') as HTMLButtonElement | null
+
   if (seqSelect && seqBtn) {
     seqSelect.addEventListener('change', () => {
       seqBtn.disabled = !seqSelect.value
     })
 
-    // If prospect already exists, enable immediately
-    if (existing) {
-      enableSequencePicker(existing.id)
-    }
+    seqBtn.addEventListener('click', async () => {
+      const sequenceId = seqSelect.value
+      if (!sequenceId) return
+
+      seqBtn.textContent = currentProspectId ? 'Adding...' : 'Saving & Adding...'
+      seqBtn.disabled = true
+
+      try {
+        // Build the message — if no prospectId, send prospectData so the backend auto-creates
+        const messageData: any = { sequenceId }
+        if (currentProspectId) {
+          messageData.prospectId = currentProspectId
+        } else {
+          messageData.prospectData = {
+            name: reveal?.name || result.scrapedData.name,
+            email: reveal?.email || null,
+            title: reveal?.title || result.scrapedData.title || null,
+            company: reveal?.company || result.scrapedData.company || null,
+            phone: reveal?.phone || null,
+            location: reveal?.location || null,
+            linkedin: result.scrapedData.linkedinUrl,
+            wizaData: reveal ? {
+              email: reveal.email,
+              emailType: reveal.emailType,
+              emailStatus: reveal.emailStatus,
+              emails: reveal.emails,
+              phone: reveal.phone,
+              phoneStatus: reveal.phoneStatus,
+              phones: reveal.phones,
+              companySize: reveal.companySize,
+              companySizeRange: reveal.companySizeRange,
+              companyIndustry: reveal.companyIndustry,
+              companyDomain: reveal.companyDomain,
+              companyFounded: reveal.companyFounded,
+              companyRevenue: reveal.companyRevenue,
+              companyDescription: reveal.companyDescription,
+            } : null,
+          } as SaveProspectPayload
+        }
+
+        const resp = await sendMessage<{ sequenceName: string; prospectId: string; prospectCreated: boolean }>({
+          type: 'ADD_TO_SEQUENCE',
+          data: messageData,
+        })
+
+        seqBtn.textContent = `Added to ${resp.sequenceName}`
+        seqBtn.classList.add('br-btn-success')
+        seqSelect.disabled = true
+
+        // If prospect was auto-created, update the save button and track the ID
+        if (resp.prospectCreated) {
+          currentProspectId = resp.prospectId
+          const saveBtn = document.getElementById('br-save-prospect') as HTMLButtonElement | null
+          if (saveBtn) {
+            saveBtn.textContent = 'Saved!'
+            saveBtn.classList.add('br-btn-success')
+            saveBtn.disabled = true
+          }
+        }
+      } catch (err: any) {
+        seqBtn.textContent = 'Failed'
+        seqBtn.classList.add('br-btn-error')
+        // Re-enable so they can retry
+        setTimeout(() => {
+          seqBtn.textContent = 'Add'
+          seqBtn.classList.remove('br-btn-error')
+          seqBtn.disabled = !seqSelect.value
+        }, 2000)
+      }
+    })
   }
 
-}
-
-
-// ——— Sequence picker ———
-
-function enableSequencePicker(prospectId: string) {
-  const seqBtn = document.getElementById('br-add-sequence') as HTMLButtonElement | null
-  const seqSelect = document.getElementById('br-sequence-select') as HTMLSelectElement | null
-  if (!seqBtn || !seqSelect) return
-
-  seqBtn.addEventListener('click', async () => {
-    const sequenceId = seqSelect.value
-    if (!sequenceId) return
-
-    seqBtn.textContent = 'Adding...'
-    seqBtn.disabled = true
-
-    try {
-      const resp = await sendMessage<{ sequenceName: string }>({
-        type: 'ADD_TO_SEQUENCE',
-        data: { prospectId, sequenceId },
-      })
-      seqBtn.textContent = `Added to ${resp.sequenceName}`
-      seqBtn.classList.add('br-btn-success')
-      seqSelect.disabled = true
-    } catch (err: any) {
-      seqBtn.textContent = 'Failed'
-      seqBtn.classList.add('br-btn-error')
-    }
-  })
 }
 
 // ——— Hide / show other FABs ———

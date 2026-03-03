@@ -60,7 +60,7 @@ async function handleMessage(message: ExtensionMessage): Promise<any> {
     }
 
     case 'ADD_TO_SEQUENCE': {
-      return await addToSequence(message.data.prospectId, message.data.sequenceId)
+      return await addToSequence(message.data.sequenceId, message.data.prospectId, message.data.prospectData)
     }
 
     case 'GET_CACHED_REVEAL': {

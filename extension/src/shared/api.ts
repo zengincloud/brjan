@@ -57,10 +57,14 @@ export function saveProspect(data: SaveProspectPayload): Promise<SaveProspectRes
 }
 
 /** POST /api/extension/add-to-sequence — add prospect to a sequence */
-export function addToSequence(prospectId: string, sequenceId: string): Promise<AddToSequenceResponse> {
+export function addToSequence(
+  sequenceId: string,
+  prospectId?: string,
+  prospectData?: SaveProspectPayload,
+): Promise<AddToSequenceResponse> {
   return apiFetch<AddToSequenceResponse>('/api/extension/add-to-sequence', {
     method: 'POST',
-    body: JSON.stringify({ prospectId, sequenceId }),
+    body: JSON.stringify({ sequenceId, prospectId, prospectData }),
   })
 }
 

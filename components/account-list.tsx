@@ -68,6 +68,9 @@ export function AccountList() {
   const { toast } = useToast()
   const [accounts, setAccounts] = useState<Account[]>([])
   const [loading, setLoading] = useState(true)
+  const [totalCount, setTotalCount] = useState(0)
+  const [page, setPage] = useState(1)
+  const pageSize = 50
   const [selectedRows, setSelectedRows] = useState<string[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedSequence, setSelectedSequence] = useState<string>("")
@@ -83,15 +86,22 @@ export function AccountList() {
     loadAccounts()
   }, [])
 
-  const loadAccounts = async () => {
+  const loadAccounts = async (loadPage = 1, append = false) => {
     try {
-      setLoading(true)
-      const response = await fetch("/api/accounts")
+      if (!append) setLoading(true)
+      const params = new URLSearchParams({ page: String(loadPage), pageSize: String(pageSize) })
+      const response = await fetch(`/api/accounts?${params}`)
       if (!response.ok) {
         throw new Error("Failed to load accounts")
       }
       const data = await response.json()
-      setAccounts(data.accounts)
+      if (append) {
+        setAccounts((prev) => [...prev, ...data.accounts])
+      } else {
+        setAccounts(data.accounts)
+      }
+      setTotalCount(data.totalCount || 0)
+      setPage(loadPage)
     } catch (error) {
       console.error(error)
       toast({
@@ -549,6 +559,16 @@ export function AccountList() {
           ))}
         </TableBody>
       </Table>
+      {accounts.length < totalCount && (
+        <div className="flex justify-center py-4">
+          <button
+            onClick={() => loadAccounts(page + 1, true)}
+            className="text-sm text-muted-foreground hover:text-foreground underline"
+          >
+            Load more ({accounts.length} of {totalCount})
+          </button>
+        </div>
+      )}
       <UploadAccountsDialog
         open={uploadDialogOpen}
         onOpenChange={setUploadDialogOpen}

@@ -12,6 +12,8 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
     const search = searchParams.get("search")
     const sequence = searchParams.get("sequence")
     const status = searchParams.get("status")
+    const page = parseInt(searchParams.get("page") || "1")
+    const pageSize = parseInt(searchParams.get("pageSize") || "50")
 
     const where: any = {
       userId,
@@ -33,13 +35,18 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
       where.status = status
     }
 
-    const accounts = await prisma.account.findMany({
-      where,
-      orderBy: { lastActivity: "desc" },
-      include: {
-        _count: { select: { prospects: true } },
-      },
-    })
+    const [accounts, totalCount] = await Promise.all([
+      prisma.account.findMany({
+        where,
+        orderBy: { lastActivity: "desc" },
+        take: pageSize,
+        skip: (page - 1) * pageSize,
+        include: {
+          _count: { select: { prospects: true } },
+        },
+      }),
+      prisma.account.count({ where }),
+    ])
 
     // Map _count.prospects to the contacts field for backwards compatibility
     const accountsWithCounts = accounts.map((a) => ({
@@ -48,7 +55,7 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
       _count: undefined,
     }))
 
-    return NextResponse.json({ accounts: accountsWithCounts })
+    return NextResponse.json({ accounts: accountsWithCounts, totalCount, page, pageSize })
   } catch (error) {
     console.error("Error fetching accounts:", error)
     return NextResponse.json({ error: "Failed to fetch accounts" }, { status: 500 })

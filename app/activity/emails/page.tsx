@@ -7,61 +7,61 @@ import type { DateRange } from "react-day-picker"
 import { addDays, format } from "date-fns"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { useUserRole } from "@/hooks/use-user-role"
 import { Loader2 } from "lucide-react"
 
-// Demo data for super admin
-const demoEmailData = [
-  { date: "2023-05-01", sent: 100, opened: 65, clicked: 30 },
-  { date: "2023-05-02", sent: 120, opened: 80, clicked: 40 },
-  { date: "2023-05-03", sent: 90, opened: 60, clicked: 25 },
-  { date: "2023-05-04", sent: 110, opened: 75, clicked: 35 },
-  { date: "2023-05-05", sent: 130, opened: 85, clicked: 45 },
-  { date: "2023-05-06", sent: 95, opened: 70, clicked: 30 },
-  { date: "2023-05-07", sent: 105, opened: 72, clicked: 32 },
-]
-
-const demoRecentEmails = [
-  { id: "1", subject: "Follow-up on our conversation", recipient: "john@example.com", sent: "2023-05-07 14:30", opened: "2023-05-07 15:45", clicked: "2023-05-07 16:00" },
-  { id: "2", subject: "New product announcement", recipient: "sarah@example.com", sent: "2023-05-07 10:15", opened: "2023-05-07 11:30", clicked: "-" },
-  { id: "3", subject: "Meeting request", recipient: "mike@example.com", sent: "2023-05-06 16:45", opened: "-", clicked: "-" },
-  { id: "4", subject: "Quarterly report", recipient: "lisa@example.com", sent: "2023-05-06 09:00", opened: "2023-05-06 09:30", clicked: "2023-05-06 10:15" },
-  { id: "5", subject: "Partnership opportunity", recipient: "david@example.com", sent: "2023-05-05 13:20", opened: "2023-05-05 14:10", clicked: "2023-05-05 14:30" },
-]
-
-const demoStats = { emailsSent: "750", openRate: "68%", clickRate: "25%" }
-
 export default function EmailsDeliveredPage() {
-  const { isSuperAdmin } = useUserRole()
   const [date, setDate] = useState<DateRange | undefined>({
     from: addDays(new Date(), -7),
     to: new Date(),
   })
   const [emails, setEmails] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [totalCount, setTotalCount] = useState(0)
+  const [page, setPage] = useState(1)
+  const pageSize = 50
 
   useEffect(() => {
-    if (isSuperAdmin) {
-      setLoading(false)
-      return
-    }
-    fetch("/api/emails?status=sent")
-      .then((r) => (r.ok ? r.json() : { emails: [] }))
-      .then((data) => setEmails(data.emails || []))
+    setLoading(true)
+    setPage(1)
+    const params = new URLSearchParams({ status: "sent", page: "1", pageSize: String(pageSize) })
+    if (date?.from) params.set("from", date.from.toISOString())
+    if (date?.to) params.set("to", date.to.toISOString())
+    fetch(`/api/emails?${params}`)
+      .then((r) => (r.ok ? r.json() : { emails: [], totalCount: 0 }))
+      .then((data) => {
+        setEmails(data.emails || [])
+        setTotalCount(data.totalCount || 0)
+      })
       .catch(console.error)
       .finally(() => setLoading(false))
-  }, [isSuperAdmin])
+  }, [date])
+
+  const loadMore = () => {
+    const nextPage = page + 1
+    const params = new URLSearchParams({ status: "sent", page: String(nextPage), pageSize: String(pageSize) })
+    if (date?.from) params.set("from", date.from.toISOString())
+    if (date?.to) params.set("to", date.to.toISOString())
+    fetch(`/api/emails?${params}`)
+      .then((r) => (r.ok ? r.json() : { emails: [] }))
+      .then((data) => {
+        setEmails((prev) => [...prev, ...(data.emails || [])])
+        setPage(nextPage)
+      })
+      .catch(console.error)
+  }
+
+  const filteredEmails = emails
 
   // Compute real stats
-  const totalSent = emails.length
-  const opened = emails.filter((e: any) => e.openedAt).length
-  const clicked = emails.filter((e: any) => e.clickedAt).length
+  const totalSent = filteredEmails.length
+  const opened = filteredEmails.filter((e: any) => e.openedAt).length
+  const clicked = filteredEmails.filter((e: any) => e.clickedAt).length
   const openRate = totalSent > 0 ? Math.round((opened / totalSent) * 100) : 0
   const clickRate = totalSent > 0 ? Math.round((clicked / totalSent) * 100) : 0
 
   // Build chart data (group by date)
   const chartMap = new Map<string, { sent: number; opened: number; clicked: number }>()
-  for (const email of emails) {
+  for (const email of filteredEmails) {
     const d = format(new Date(email.sentAt || email.createdAt), "yyyy-MM-dd")
     const entry = chartMap.get(d) || { sent: 0, opened: 0, clicked: 0 }
     entry.sent++
@@ -69,13 +69,13 @@ export default function EmailsDeliveredPage() {
     if (email.clickedAt) entry.clicked++
     chartMap.set(d, entry)
   }
-  const realChartData = Array.from(chartMap.entries())
+  const chartData = Array.from(chartMap.entries())
     .map(([d, v]) => ({ date: d, ...v }))
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(-14)
 
   // Build recent emails table
-  const realRecentEmails = emails.slice(0, 10).map((e: any) => ({
+  const recentEmails = filteredEmails.slice(0, 10).map((e: any) => ({
     id: e.id,
     subject: e.subject,
     recipient: e.to,
@@ -83,12 +83,6 @@ export default function EmailsDeliveredPage() {
     opened: e.openedAt ? format(new Date(e.openedAt), "yyyy-MM-dd HH:mm") : "-",
     clicked: e.clickedAt ? format(new Date(e.clickedAt), "yyyy-MM-dd HH:mm") : "-",
   }))
-
-  const chartData = isSuperAdmin ? demoEmailData : realChartData
-  const recentEmails = isSuperAdmin ? demoRecentEmails : realRecentEmails
-  const stats = isSuperAdmin
-    ? demoStats
-    : { emailsSent: String(totalSent), openRate: `${openRate}%`, clickRate: `${clickRate}%` }
 
   if (loading) {
     return (
@@ -145,15 +139,15 @@ export default function EmailsDeliveredPage() {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="text-center">
-              <h3 className="text-2xl font-bold text-blue-600">{stats.emailsSent}</h3>
+              <h3 className="text-2xl font-bold text-blue-600">{totalSent}</h3>
               <p className="text-sm text-gray-600">Emails Sent</p>
             </div>
             <div className="text-center">
-              <h3 className="text-2xl font-bold text-green-600">{stats.openRate}</h3>
+              <h3 className="text-2xl font-bold text-green-600">{openRate}%</h3>
               <p className="text-sm text-gray-600">Open Rate</p>
             </div>
             <div className="text-center">
-              <h3 className="text-2xl font-bold text-yellow-600">{stats.clickRate}</h3>
+              <h3 className="text-2xl font-bold text-yellow-600">{clickRate}%</h3>
               <p className="text-sm text-gray-600">Click-through Rate</p>
             </div>
           </div>
@@ -192,6 +186,16 @@ export default function EmailsDeliveredPage() {
                 ))}
               </TableBody>
             </Table>
+          )}
+          {emails.length < totalCount && (
+            <div className="flex justify-center pt-4">
+              <button
+                onClick={loadMore}
+                className="text-sm text-muted-foreground hover:text-foreground underline"
+              >
+                Load more ({emails.length} of {totalCount})
+              </button>
+            </div>
           )}
         </CardContent>
       </Card>

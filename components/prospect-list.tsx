@@ -45,6 +45,9 @@ export function ProspectList() {
   const { toast } = useToast()
   const [prospects, setProspects] = useState<Prospect[]>([])
   const [loading, setLoading] = useState(true)
+  const [totalCount, setTotalCount] = useState(0)
+  const [page, setPage] = useState(1)
+  const pageSize = 50
   const [selectedRows, setSelectedRows] = useState<string[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedSequence, setSelectedSequence] = useState<string>("")
@@ -80,15 +83,22 @@ export function ProspectList() {
     }
   }
 
-  const loadProspects = async () => {
+  const loadProspects = async (loadPage = 1, append = false) => {
     try {
-      setLoading(true)
-      const response = await fetch("/api/prospects")
+      if (!append) setLoading(true)
+      const params = new URLSearchParams({ page: String(loadPage), pageSize: String(pageSize) })
+      const response = await fetch(`/api/prospects?${params}`)
       if (!response.ok) {
         throw new Error("Failed to load prospects")
       }
       const data = await response.json()
-      setProspects(data.prospects)
+      if (append) {
+        setProspects((prev) => [...prev, ...data.prospects])
+      } else {
+        setProspects(data.prospects)
+      }
+      setTotalCount(data.totalCount || 0)
+      setPage(loadPage)
     } catch (error) {
       console.error(error)
       toast({
@@ -507,6 +517,16 @@ export function ProspectList() {
           ))}
         </TableBody>
       </Table>
+      {prospects.length < totalCount && (
+        <div className="flex justify-center py-4">
+          <button
+            onClick={() => loadProspects(page + 1, true)}
+            className="text-sm text-muted-foreground hover:text-foreground underline"
+          >
+            Load more ({prospects.length} of {totalCount})
+          </button>
+        </div>
+      )}
       <UploadProspectsDialog
         open={uploadDialogOpen}
         onOpenChange={setUploadDialogOpen}

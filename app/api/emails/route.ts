@@ -12,6 +12,10 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
     const accountId = searchParams.get("accountId")
     const status = searchParams.get("status")
     const limit = searchParams.get("limit")
+    const page = parseInt(searchParams.get("page") || "1")
+    const pageSize = parseInt(searchParams.get("pageSize") || "50")
+    const from = searchParams.get("from")
+    const to = searchParams.get("to")
 
     const whereClause: any = { userId }
 
@@ -30,29 +34,48 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
       whereClause.status = status
     }
 
-    const emails = await prisma.email.findMany({
-      where: whereClause,
-      orderBy: { createdAt: "desc" },
-      take: limit ? parseInt(limit) : undefined,
-      select: {
-        id: true,
-        to: true,
-        from: true,
-        subject: true,
-        bodyText: true,
-        status: true,
-        emailType: true,
-        sentAt: true,
-        openedAt: true,
-        clickedAt: true,
-        createdAt: true,
-        prospectId: true,
-        accountId: true,
-        metadata: true,
-      },
-    })
+    // Server-side date filtering
+    if (from || to) {
+      const dateField = status === "sent" ? "sentAt" : "createdAt"
+      whereClause[dateField] = {}
+      if (from) whereClause[dateField].gte = new Date(from)
+      if (to) {
+        const endOfDay = new Date(to)
+        endOfDay.setHours(23, 59, 59, 999)
+        whereClause[dateField].lte = endOfDay
+      }
+    }
 
-    return NextResponse.json({ emails })
+    const take = limit ? parseInt(limit) : pageSize
+    const skip = limit ? undefined : (page - 1) * pageSize
+
+    const [emails, totalCount] = await Promise.all([
+      prisma.email.findMany({
+        where: whereClause,
+        orderBy: { createdAt: "desc" },
+        take,
+        skip,
+        select: {
+          id: true,
+          to: true,
+          from: true,
+          subject: true,
+          bodyText: true,
+          status: true,
+          emailType: true,
+          sentAt: true,
+          openedAt: true,
+          clickedAt: true,
+          createdAt: true,
+          prospectId: true,
+          accountId: true,
+          metadata: true,
+        },
+      }),
+      prisma.email.count({ where: whereClause }),
+    ])
+
+    return NextResponse.json({ emails, totalCount, page, pageSize })
   } catch (error: any) {
     console.error("Error fetching emails:", error)
     return NextResponse.json(

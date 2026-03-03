@@ -94,30 +94,35 @@ export const GET = withAuth(async (
       orderBy: { createdAt: 'desc' }
     })
 
-    // Calculate stats for each sequence
-    const sequencesWithStats = await Promise.all(
-      sequences.map(async (sequence) => {
-        const prospectSequences = await prisma.prospectSequence.findMany({
-          where: { sequenceId: sequence.id }
+    // Calculate stats for all sequences in a single query (avoids N+1)
+    const sequenceIds = sequences.map(s => s.id)
+    const statsRows = sequenceIds.length > 0
+      ? await prisma.prospectSequence.groupBy({
+          by: ['sequenceId', 'status'],
+          where: { sequenceId: { in: sequenceIds } },
+          _count: { id: true },
         })
+      : []
 
-        const activeCount = prospectSequences.filter(ps => ps.status === 'active').length
-        const completedCount = prospectSequences.filter(ps => ps.status === 'completed').length
-        const pausedCount = prospectSequences.filter(ps => ps.status === 'paused').length
-        const failedCount = prospectSequences.filter(ps => ps.status === 'failed').length
+    // Build a lookup map: sequenceId -> stats
+    const statsMap: Record<string, { active: number; completed: number; paused: number; failed: number; total: number }> = {}
+    for (const row of statsRows) {
+      if (!statsMap[row.sequenceId]) {
+        statsMap[row.sequenceId] = { active: 0, completed: 0, paused: 0, failed: 0, total: 0 }
+      }
+      const entry = statsMap[row.sequenceId]
+      const count = row._count.id
+      entry.total += count
+      if (row.status === 'active') entry.active = count
+      else if (row.status === 'completed') entry.completed = count
+      else if (row.status === 'paused') entry.paused = count
+      else if (row.status === 'failed') entry.failed = count
+    }
 
-        return {
-          ...sequence,
-          stats: {
-            active: activeCount,
-            completed: completedCount,
-            paused: pausedCount,
-            failed: failedCount,
-            total: prospectSequences.length,
-          }
-        }
-      })
-    )
+    const sequencesWithStats = sequences.map(sequence => ({
+      ...sequence,
+      stats: statsMap[sequence.id] || { active: 0, completed: 0, paused: 0, failed: 0, total: 0 },
+    }))
 
     return NextResponse.json({ sequences: sequencesWithStats })
   } catch (error: any) {

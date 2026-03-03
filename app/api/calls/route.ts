@@ -11,6 +11,10 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
     const prospectId = searchParams.get("prospectId")
     const limit = searchParams.get("limit")
     const hasRecording = searchParams.get("hasRecording")
+    const page = parseInt(searchParams.get("page") || "1")
+    const pageSize = parseInt(searchParams.get("pageSize") || "50")
+    const from = searchParams.get("from")
+    const to = searchParams.get("to")
 
     const whereClause: any = { userId }
 
@@ -26,38 +30,56 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
       }
     }
 
-    const calls = await prisma.call.findMany({
-      where: whereClause,
-      orderBy: { createdAt: "desc" },
-      take: limit ? parseInt(limit) : undefined,
-      select: {
-        id: true,
-        from: true,
-        to: true,
-        status: true,
-        outcome: true,
-        duration: true,
-        notes: true,
-        startedAt: true,
-        endedAt: true,
-        createdAt: true,
-        recordingUrl: true,
-        recordingDuration: true,
-        transcription: true,
-        transcriptionStatus: true,
-        prospect: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            company: true,
-            title: true,
+    // Server-side date filtering
+    if (from || to) {
+      whereClause.createdAt = {}
+      if (from) whereClause.createdAt.gte = new Date(from)
+      if (to) {
+        const endOfDay = new Date(to)
+        endOfDay.setHours(23, 59, 59, 999)
+        whereClause.createdAt.lte = endOfDay
+      }
+    }
+
+    const take = limit ? parseInt(limit) : pageSize
+    const skip = limit ? undefined : (page - 1) * pageSize
+
+    const [calls, totalCount] = await Promise.all([
+      prisma.call.findMany({
+        where: whereClause,
+        orderBy: { createdAt: "desc" },
+        take,
+        skip,
+        select: {
+          id: true,
+          from: true,
+          to: true,
+          status: true,
+          outcome: true,
+          duration: true,
+          notes: true,
+          startedAt: true,
+          endedAt: true,
+          createdAt: true,
+          recordingUrl: true,
+          recordingDuration: true,
+          transcription: true,
+          transcriptionStatus: true,
+          prospect: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              company: true,
+              title: true,
+            },
           },
         },
-      },
-    })
+      }),
+      prisma.call.count({ where: whereClause }),
+    ])
 
-    return NextResponse.json({ calls })
+    return NextResponse.json({ calls, totalCount, page, pageSize })
   } catch (error: any) {
     console.error("Error fetching calls:", error)
     return NextResponse.json(

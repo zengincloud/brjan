@@ -71,6 +71,8 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
     const search = searchParams.get("search")
     const sequence = searchParams.get("sequence")
     const status = searchParams.get("status")
+    const page = parseInt(searchParams.get("page") || "1")
+    const pageSize = parseInt(searchParams.get("pageSize") || "50")
 
     const where: any = {
       userId, // Filter by current user
@@ -92,12 +94,17 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
       where.status = status
     }
 
-    const prospects = await prisma.prospect.findMany({
-      where,
-      orderBy: { lastActivity: "desc" },
-    })
+    const [prospects, totalCount] = await Promise.all([
+      prisma.prospect.findMany({
+        where,
+        orderBy: { lastActivity: "desc" },
+        take: pageSize,
+        skip: (page - 1) * pageSize,
+      }),
+      prisma.prospect.count({ where }),
+    ])
 
-    return NextResponse.json({ prospects })
+    return NextResponse.json({ prospects, totalCount, page, pageSize })
   } catch (error) {
     console.error("Error fetching prospects:", error)
     return NextResponse.json({ error: "Failed to fetch prospects" }, { status: 500 })

@@ -4,7 +4,17 @@ import { prisma } from "@/lib/prisma"
 
 export const dynamic = 'force-dynamic'
 
+// In-memory cache: userId -> { data, timestamp }
+const statsCache = new Map<string, { data: any; timestamp: number }>()
+const CACHE_TTL_MS = 60_000 // 60 seconds
+
 export const GET = withAuth(async (request: NextRequest, userId: string) => {
+  // Return cached data if fresh
+  const cached = statsCache.get(userId)
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    return NextResponse.json(cached.data)
+  }
+
   const now = new Date()
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const startOfWeek = new Date(startOfToday)
@@ -149,7 +159,7 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
     .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
     .slice(0, 10)
 
-  return NextResponse.json({
+  const responseData = {
     quickStats: {
       activeProspects: totalProspects,
       callsToday,
@@ -187,5 +197,10 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
       leads: org?.targetLeads ?? 50,
       linkedin: org?.targetLinkedin ?? 20,
     },
-  })
+  }
+
+  // Cache the result
+  statsCache.set(userId, { data: responseData, timestamp: Date.now() })
+
+  return NextResponse.json(responseData)
 })

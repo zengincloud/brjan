@@ -13,10 +13,6 @@ import {
   MapPin,
   Users,
   Globe,
-  TrendingUp,
-  DollarSign,
-  Wrench,
-  Briefcase,
   Sparkles,
   RefreshCw,
   Phone,
@@ -51,13 +47,6 @@ type Account = {
   contacts: number
   createdAt: string
   updatedAt: string
-}
-
-type CompanyInsights = {
-  growth: string | null
-  funding: string | null
-  techStack: string | null
-  hiring: string | null
 }
 
 type POVData = {
@@ -108,12 +97,10 @@ export default function AccountDetailPage() {
   const accountId = params.id as string
 
   const [account, setAccount] = useState<Account | null>(null)
-  const [insights, setInsights] = useState<CompanyInsights | null>(null)
   const [pov, setPov] = useState<POVData | null>(null)
   const [contacts, setContacts] = useState<Contact[]>([])
   const [activity, setActivity] = useState<ActivityItem[]>([])
   const [loading, setLoading] = useState(true)
-  const [loadingInsights, setLoadingInsights] = useState(false)
   const [loadingPov, setLoadingPov] = useState(false)
   const [loadingContacts, setLoadingContacts] = useState(false)
   const [loadingActivity, setLoadingActivity] = useState(false)
@@ -121,7 +108,6 @@ export default function AccountDetailPage() {
   useEffect(() => {
     if (accountId) {
       loadAccount()
-      loadInsights()
       loadPov()
       loadContacts()
       loadActivity()
@@ -150,33 +136,6 @@ export default function AccountDetailPage() {
       })
     } finally {
       setLoading(false)
-    }
-  }
-
-  const loadInsights = async (force: boolean = false) => {
-    try {
-      setLoadingInsights(true)
-      const url = force
-        ? `/api/accounts/${accountId}/insights?force=true`
-        : `/api/accounts/${accountId}/insights`
-
-      const response = await fetch(url)
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch insights")
-      }
-
-      const data = await response.json()
-      setInsights(data.insights)
-    } catch (error) {
-      console.error("Error fetching insights:", error)
-      toast({
-        title: "Error",
-        description: "Failed to load company insights",
-        variant: "destructive",
-      })
-    } finally {
-      setLoadingInsights(false)
     }
   }
 
@@ -419,90 +378,6 @@ export default function AccountDetailPage() {
                 )}
               </div>
             </>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Company Insights */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" />
-              <CardTitle>Company Insights</CardTitle>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => loadInsights(true)}
-              disabled={loadingInsights}
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${loadingInsights ? "animate-spin" : ""}`} />
-              Refresh
-            </Button>
-          </div>
-          <CardDescription>AI-powered insights from recent news and data</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {loadingInsights ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <div className="flex items-center justify-center gap-2">
-                <RefreshCw className="h-4 w-4 animate-spin" />
-                <span>Fetching latest company insights...</span>
-              </div>
-            </div>
-          ) : insights ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {insights.growth && (
-                <div className="flex items-start gap-3 p-4 rounded-lg border bg-card">
-                  <TrendingUp className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
-                  <div>
-                    <div className="font-medium mb-1">Growth signals</div>
-                    <div className="text-sm text-muted-foreground">{insights.growth}</div>
-                  </div>
-                </div>
-              )}
-
-              {insights.funding && (
-                <div className="flex items-start gap-3 p-4 rounded-lg border bg-card">
-                  <DollarSign className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
-                  <div>
-                    <div className="font-medium mb-1">Funding</div>
-                    <div className="text-sm text-muted-foreground">{insights.funding}</div>
-                  </div>
-                </div>
-              )}
-
-              {insights.techStack && (
-                <div className="flex items-start gap-3 p-4 rounded-lg border bg-card">
-                  <Wrench className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
-                  <div>
-                    <div className="font-medium mb-1">Tech stack</div>
-                    <div className="text-sm text-muted-foreground">{insights.techStack}</div>
-                  </div>
-                </div>
-              )}
-
-              {insights.hiring && (
-                <div className="flex items-start gap-3 p-4 rounded-lg border bg-card">
-                  <Briefcase className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
-                  <div>
-                    <div className="font-medium mb-1">Hiring</div>
-                    <div className="text-sm text-muted-foreground">{insights.hiring}</div>
-                  </div>
-                </div>
-              )}
-
-              {!insights.growth && !insights.funding && !insights.techStack && !insights.hiring && (
-                <div className="col-span-2 text-center py-8 text-muted-foreground">
-                  No recent insights found for this company
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-muted-foreground">
-              Click refresh to load company insights
-            </div>
           )}
         </CardContent>
       </Card>

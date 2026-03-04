@@ -159,7 +159,6 @@ type DialerProspect = {
     employees?: number | null
     location?: string | null
     linkedin?: string | null
-    insights?: any
     pov?: any
   } | null
   priority?: string
@@ -2608,23 +2607,6 @@ export default function DialerPage() {
                                       </a>
                                     )}
                                   </div>
-                                  {/* Account Insights */}
-                                  {(slot.contact as any).accountInfo.insights && (
-                                    <div className="mt-2 space-y-1 text-xs text-muted-foreground">
-                                      {(slot.contact as any).accountInfo.insights.growth && (
-                                        <p><strong className="text-foreground">Growth:</strong> {(slot.contact as any).accountInfo.insights.growth}</p>
-                                      )}
-                                      {(slot.contact as any).accountInfo.insights.funding && (
-                                        <p><strong className="text-foreground">Funding:</strong> {(slot.contact as any).accountInfo.insights.funding}</p>
-                                      )}
-                                      {(slot.contact as any).accountInfo.insights.hiring && (
-                                        <p><strong className="text-foreground">Hiring:</strong> {(slot.contact as any).accountInfo.insights.hiring}</p>
-                                      )}
-                                      {(slot.contact as any).accountInfo.insights.techStack && (
-                                        <p><strong className="text-foreground">Tech:</strong> {(slot.contact as any).accountInfo.insights.techStack}</p>
-                                      )}
-                                    </div>
-                                  )}
                                 </div>
                               </div>
                             </div>

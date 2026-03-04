@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
-import { MoreHorizontal, Filter, ChevronDown, ChevronUp, Users, Globe, Upload, Plus, Sparkles, TrendingUp, DollarSign, Wrench, Briefcase, RefreshCw, Pencil, Trash2, FolderInput, ExternalLink, Linkedin } from "lucide-react"
+import { MoreHorizontal, Filter, Users, Globe, Upload, Plus, Pencil, Trash2, FolderInput, ExternalLink, Linkedin } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -47,13 +47,6 @@ type Account = {
   contacts: number
 }
 
-type CompanyInsights = {
-  growth: string | null
-  funding: string | null
-  techStack: string | null
-  hiring: string | null
-}
-
 // Available sequences
 const sequences = [
   { id: "enterprise-outreach", name: "Enterprise Outreach" },
@@ -76,9 +69,6 @@ export function AccountList() {
   const [selectedSequence, setSelectedSequence] = useState<string>("")
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
-  const [insights, setInsights] = useState<Record<string, CompanyInsights>>({})
-  const [loadingInsights, setLoadingInsights] = useState<Set<string>>(new Set())
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [accountToDelete, setAccountToDelete] = useState<Account | null>(null)
 
@@ -142,58 +132,6 @@ export function AccountList() {
       return formatDistanceToNow(new Date(dateString), { addSuffix: true })
     } catch {
       return "Recently"
-    }
-  }
-
-  const toggleExpanded = async (accountId: string) => {
-    const newExpandedRows = new Set(expandedRows)
-
-    if (newExpandedRows.has(accountId)) {
-      newExpandedRows.delete(accountId)
-    } else {
-      newExpandedRows.add(accountId)
-      // Fetch insights if not already loaded
-      if (!insights[accountId]) {
-        await fetchInsights(accountId)
-      }
-    }
-
-    setExpandedRows(newExpandedRows)
-  }
-
-  const fetchInsights = async (accountId: string, force: boolean = false) => {
-    try {
-      setLoadingInsights(prev => new Set(prev).add(accountId))
-
-      const url = force
-        ? `/api/accounts/${accountId}/insights?force=true`
-        : `/api/accounts/${accountId}/insights`
-
-      const response = await fetch(url)
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch insights')
-      }
-
-      const data = await response.json()
-
-      setInsights(prev => ({
-        ...prev,
-        [accountId]: data.insights,
-      }))
-    } catch (error) {
-      console.error('Error fetching insights:', error)
-      toast({
-        title: "Error",
-        description: "Failed to load company insights",
-        variant: "destructive",
-      })
-    } finally {
-      setLoadingInsights(prev => {
-        const newSet = new Set(prev)
-        newSet.delete(accountId)
-        return newSet
-      })
     }
   }
 
@@ -428,102 +366,6 @@ export function AccountList() {
                 </TableCell>
               </TableRow>
 
-              {/* Expanded Insights Row */}
-              {expandedRows.has(account.id) && (
-                <TableRow key={`${account.id}-insights`}>
-                  <TableCell colSpan={8} className="bg-muted/30 p-6">
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Sparkles className="h-5 w-5 text-primary" />
-                          <h3 className="text-lg font-semibold">Company Insights</h3>
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => fetchInsights(account.id, true)}
-                          disabled={loadingInsights.has(account.id)}
-                        >
-                          <RefreshCw className={`h-4 w-4 mr-2 ${loadingInsights.has(account.id) ? 'animate-spin' : ''}`} />
-                          Refresh
-                        </Button>
-                      </div>
-
-                      {loadingInsights.has(account.id) ? (
-                        <div className="text-center py-8 text-muted-foreground">
-                          <div className="flex items-center justify-center gap-2">
-                            <RefreshCw className="h-4 w-4 animate-spin" />
-                            <span>Fetching latest company insights...</span>
-                          </div>
-                        </div>
-                      ) : insights[account.id] ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {insights[account.id].growth && (
-                            <div className="flex items-start gap-3 p-4 rounded-lg bg-background border">
-                              <TrendingUp className="h-5 w-5 text-primary mt-0.5" />
-                              <div>
-                                <div className="font-medium mb-1">Growth signals</div>
-                                <div className="text-sm text-muted-foreground">
-                                  {insights[account.id].growth}
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
-                          {insights[account.id].funding && (
-                            <div className="flex items-start gap-3 p-4 rounded-lg bg-background border">
-                              <DollarSign className="h-5 w-5 text-primary mt-0.5" />
-                              <div>
-                                <div className="font-medium mb-1">Funding</div>
-                                <div className="text-sm text-muted-foreground">
-                                  {insights[account.id].funding}
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
-                          {insights[account.id].techStack && (
-                            <div className="flex items-start gap-3 p-4 rounded-lg bg-background border">
-                              <Wrench className="h-5 w-5 text-primary mt-0.5" />
-                              <div>
-                                <div className="font-medium mb-1">Tech stack</div>
-                                <div className="text-sm text-muted-foreground">
-                                  {insights[account.id].techStack}
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
-                          {insights[account.id].hiring && (
-                            <div className="flex items-start gap-3 p-4 rounded-lg bg-background border">
-                              <Briefcase className="h-5 w-5 text-primary mt-0.5" />
-                              <div>
-                                <div className="font-medium mb-1">Hiring</div>
-                                <div className="text-sm text-muted-foreground">
-                                  {insights[account.id].hiring}
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
-                          {!insights[account.id].growth &&
-                            !insights[account.id].funding &&
-                            !insights[account.id].techStack &&
-                            !insights[account.id].hiring && (
-                              <div className="col-span-2 text-center py-8 text-muted-foreground">
-                                No recent insights found for this company
-                              </div>
-                            )}
-                        </div>
-                      ) : (
-                        <div className="text-center py-8 text-muted-foreground">
-                          Click to load company insights
-                        </div>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              )}
             </>
           ))}
         </TableBody>

@@ -7,6 +7,7 @@ export interface ReportStats {
   overview: {
     totalCalls: number
     totalEmailsSent: number
+    totalLeadsAdded: number
     connectRate: number
     meetingsBooked: number
     prevTotalCalls: number
@@ -19,6 +20,7 @@ export interface ReportStats {
     label: string
     calls: number
     emailsSent: number
+    leadsAdded: number
   }[]
   activityByType: {
     calls: { total: number; byOutcome: Record<string, number> }

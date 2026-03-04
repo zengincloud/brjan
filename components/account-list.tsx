@@ -321,8 +321,6 @@ export function AccountList() {
             <TableHead>Location</TableHead>
             <TableHead>Employees</TableHead>
             <TableHead>Status</TableHead>
-            <TableHead>Sequence</TableHead>
-            <TableHead>Sequence Step</TableHead>
             <TableHead>Last Activity</TableHead>
             <TableHead className="w-[100px]">Actions</TableHead>
           </TableRow>
@@ -367,39 +365,6 @@ export function AccountList() {
                 <TableCell>{account.employees?.toLocaleString() || "—"}</TableCell>
                 <TableCell>
                   <Badge variant="outline">{account.status.replace(/_/g, " ")}</Badge>
-                </TableCell>
-                <TableCell>
-                  <Select defaultValue={account.sequence || ""}>
-                    <SelectTrigger className="h-8 w-[180px]">
-                      <SelectValue>{account.sequence || "No sequence"}</SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {sequences.map((sequence) => (
-                        <SelectItem key={sequence.id} value={sequence.name}>
-                          {sequence.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="secondary" className="whitespace-nowrap">
-                      {account.sequenceStep || "Not started"}
-                    </Badge>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6"
-                      onClick={() => toggleExpanded(account.id)}
-                    >
-                      {expandedRows.has(account.id) ? (
-                        <ChevronUp className="h-3 w-3" />
-                      ) : (
-                        <ChevronDown className="h-3 w-3" />
-                      )}
-                    </Button>
-                  </div>
                 </TableCell>
                 <TableCell>{formatLastActivity(account.lastActivity)}</TableCell>
                 <TableCell>
@@ -462,7 +427,7 @@ export function AccountList() {
               {/* Expanded Insights Row */}
               {expandedRows.has(account.id) && (
                 <TableRow key={`${account.id}-insights`}>
-                  <TableCell colSpan={10} className="bg-muted/30 p-6">
+                  <TableCell colSpan={8} className="bg-muted/30 p-6">
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">

@@ -223,6 +223,7 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
     const overview = {
       totalCalls,
       totalEmailsSent: emailsSent.length,
+      totalLeadsAdded: newProspects.length,
       connectRate,
       meetingsBooked,
       prevTotalCalls: prevCallCount,
@@ -235,12 +236,14 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
     const periods = buildPeriodLabels(from, to, rangeDays)
     const callsByPeriod = groupBy(calls, c => getTimePeriod(c.createdAt, rangeDays).key)
     const emailsByPeriod = groupBy(emailsSent, e => getTimePeriod(e.sentAt!, rangeDays).key)
+    const leadsByPeriod = groupBy(newProspects, p => getTimePeriod(p.createdAt, rangeDays).key)
 
     const activityByDay = periods.map(p => ({
       date: p.key,
       label: p.label,
       calls: callsByPeriod[p.key]?.length || 0,
       emailsSent: emailsByPeriod[p.key]?.length || 0,
+      leadsAdded: leadsByPeriod[p.key]?.length || 0,
     }))
 
     // ========== ACTIVITY BY TYPE ==========

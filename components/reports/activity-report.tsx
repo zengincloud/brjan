@@ -6,7 +6,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import { ChartContainer } from "@/components/ui/chart"
 import type { DateRange } from "react-day-picker"
 import { Badge } from "@/components/ui/badge"
-import { Mail, Phone, Loader2 } from "lucide-react"
+import { Mail, Phone, Loader2, UserPlus } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import type { ReportStats } from "@/hooks/use-report-stats"
 
@@ -68,7 +68,7 @@ export function ActivityReport({ date, fullWidth = false, isLoading, data }: Act
   const recentActivity = data?.recentActivity || []
   const emailEngagement = data?.emailEngagement
 
-  const hasData = activityByDay.some(d => d.calls > 0 || d.emailsSent > 0)
+  const hasData = activityByDay.some(d => d.calls > 0 || d.emailsSent > 0 || d.leadsAdded > 0)
 
   if (!hasData && recentActivity.length === 0) {
     return (
@@ -119,6 +119,7 @@ export function ActivityReport({ date, fullWidth = false, isLoading, data }: Act
                 config={{
                   calls: { label: "Calls", color: "#10B981" },
                   emailsSent: { label: "Emails", color: "#8B5CF6" },
+                  leadsAdded: { label: "Leads Added", color: "#f59e0b" },
                 }}
               >
                 <ResponsiveContainer width="100%" height="100%">
@@ -130,12 +131,13 @@ export function ActivityReport({ date, fullWidth = false, isLoading, data }: Act
                     <Legend />
                     <Bar dataKey="calls" fill="#10B981" name="Calls" />
                     <Bar dataKey="emailsSent" fill="#8B5CF6" name="Emails" />
+                    <Bar dataKey="leadsAdded" fill="#f59e0b" name="Leads Added" />
                   </BarChart>
                 </ResponsiveContainer>
               </ChartContainer>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-4">
               <div className="text-center">
                 <div className="flex items-center justify-center gap-2 mb-1">
                   <Phone className="h-4 w-4 text-green-500" />
@@ -149,6 +151,13 @@ export function ActivityReport({ date, fullWidth = false, isLoading, data }: Act
                   <div className="text-sm text-muted-foreground">Emails Sent</div>
                 </div>
                 <div className="text-2xl font-bold">{activityByType?.emails.total ?? 0}</div>
+              </div>
+              <div className="text-center">
+                <div className="flex items-center justify-center gap-2 mb-1">
+                  <UserPlus className="h-4 w-4 text-amber-500" />
+                  <div className="text-sm text-muted-foreground">Leads Added</div>
+                </div>
+                <div className="text-2xl font-bold">{activityByDay.reduce((sum, d) => sum + (d.leadsAdded || 0), 0)}</div>
               </div>
               <div className="text-center">
                 <div className="text-sm text-muted-foreground mb-1">Open Rate</div>

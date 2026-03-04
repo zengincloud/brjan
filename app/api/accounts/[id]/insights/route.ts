@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { withAuth } from '@/lib/auth/api-middleware'
 import { prisma } from '@/lib/prisma'
+import { fetchNewsArticles } from '@/lib/pov/generate'
+import Anthropic from '@anthropic-ai/sdk'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,296 +13,59 @@ interface CompanyInsights {
   hiring: string | null
 }
 
-async function fetchNewsAPI(query: string, companyName: string): Promise<any> {
-  const apiKey = process.env.NEWSAPI_AI_KEY
-  if (!apiKey) {
-    throw new Error('NewsAPI.ai API key not configured')
-  }
-
-  // Get company concept URI first
-  const conceptUri = await getCompanyConceptUri(companyName, apiKey)
-
-  // If we can't find the company, try a direct keyword search instead
-  if (!conceptUri) {
-    console.log(`No concept URI found for ${companyName}, trying keyword search`)
-
-    const response = await fetch(
-      `https://newsapi.ai/api/v1/article/getArticles`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          apiKey,
-          query: {
-            $query: {
-              $and: [
-                { keyword: companyName },
-                { keyword: query },
-              ],
-            },
-            $filter: {
-              forceMaxDataTimeWindow: '90',
-            },
-          },
-          resultType: 'articles',
-          articlesSortBy: 'date',
-          articlesCount: 5,
-          includeArticleSocialScore: false,
-          includeArticleSentiment: false,
-          includeArticleCategories: false,
-          includeArticleLocation: false,
-          includeArticleImage: false,
-          includeArticleVideos: false,
-          includeArticleExtractedDates: false,
-          includeArticleDuplicateList: false,
-          includeArticleOriginalArticle: false,
-        }),
-      }
-    )
-
-    if (!response.ok) {
-      console.error('NewsAPI.ai error:', await response.text())
-      return null
-    }
-
-    return response.json()
-  }
-
-  // Use concept URI for more precise results
-  const response = await fetch(
-    `https://newsapi.ai/api/v1/article/getArticles`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        apiKey,
-        query: {
-          $query: {
-            $and: [
-              {
-                conceptUri: conceptUri,
-              },
-              {
-                $or: [
-                  { keyword: query },
-                  { keywordLoc: 'title' },
-                ],
-              },
-            ],
-          },
-          $filter: {
-            forceMaxDataTimeWindow: '90',
-          },
-        },
-        resultType: 'articles',
-        articlesSortBy: 'date',
-        articlesCount: 5,
-        includeArticleSocialScore: false,
-        includeArticleSentiment: false,
-        includeArticleCategories: false,
-        includeArticleLocation: false,
-        includeArticleImage: false,
-        includeArticleVideos: false,
-        includeArticleExtractedDates: false,
-        includeArticleDuplicateList: false,
-        includeArticleOriginalArticle: false,
-      }),
-    }
-  )
-
-  if (!response.ok) {
-    console.error('NewsAPI.ai error:', await response.text())
-    return null
-  }
-
-  return response.json()
-}
-
-async function getCompanyConceptUri(companyName: string, apiKey: string): Promise<string | null> {
-  try {
-    const response = await fetch(
-      `https://newsapi.ai/api/v1/suggestConcepts?prefix=${encodeURIComponent(companyName)}&lang=eng&conceptLang=eng&type=org&apiKey=${apiKey}`
-    )
-
-    if (!response.ok) return null
-
-    const data = await response.json()
-    if (data && data.length > 0) {
-      return data[0].uri
-    }
-  } catch (error) {
-    console.error('Error getting concept URI:', error)
-  }
-
-  return null
-}
-
-async function extractGrowthSignals(companyName: string, currentEmployees: number | null): Promise<string | null> {
-  try {
-    const data = await fetchNewsAPI('hiring OR headcount OR employees OR growth', companyName)
-
-    if (!data?.articles?.results?.length) return null
-
-    // Simple heuristic: if we have employee count and recent hiring news
-    if (currentEmployees && data.articles.results.length > 0) {
-      const recentArticles = data.articles.results.slice(0, 3)
-      const hasGrowthKeywords = recentArticles.some((article: any) =>
-        article.title?.toLowerCase().includes('hiring') ||
-        article.title?.toLowerCase().includes('expan') ||
-        article.body?.toLowerCase().includes('new hires')
-      )
-
-      if (hasGrowthKeywords) {
-        // Estimate growth (this is simplified - in production you'd want actual data)
-        const estimatedGrowth = Math.floor(Math.random() * 20) + 10 // 10-30%
-        const estimatedNewHires = Math.floor(currentEmployees * (estimatedGrowth / 100))
-        return `Added ~${estimatedNewHires} employees (↑${estimatedGrowth}%) in last 90 days`
-      }
-    }
-  } catch (error) {
-    console.error('Error extracting growth signals:', error)
-  }
-
-  return null
-}
-
-async function extractFundingInfo(companyName: string): Promise<string | null> {
-  try {
-    const data = await fetchNewsAPI('funding OR investment OR series OR raised', companyName)
-
-    if (!data?.articles?.results?.length) return null
-
-    const fundingArticle = data.articles.results[0]
-    if (fundingArticle) {
-      // Extract funding info from title/body
-      const text = `${fundingArticle.title} ${fundingArticle.body}`.toLowerCase()
-
-      // Look for series/round mentions
-      const seriesMatch = text.match(/(series [a-e]|seed|pre-seed)/i)
-      const amountMatch = text.match(/\$(\d+(?:\.\d+)?)\s*(million|billion|m|b)/i)
-
-      if (seriesMatch || amountMatch) {
-        const series = seriesMatch ? seriesMatch[0] : 'Recent funding'
-        const amount = amountMatch ? `$${amountMatch[1]}${amountMatch[2].charAt(0).toUpperCase()}` : ''
-
-        // Calculate time ago
-        const articleDate = new Date(fundingArticle.date)
-        const monthsAgo = Math.floor((Date.now() - articleDate.getTime()) / (1000 * 60 * 60 * 24 * 30))
-
-        return `${series}${amount ? ` (${amount})` : ''} - ${monthsAgo} month${monthsAgo !== 1 ? 's' : ''} ago`
-      }
-    }
-  } catch (error) {
-    console.error('Error extracting funding info:', error)
-  }
-
-  return null
-}
-
-async function extractTechStack(companyName: string): Promise<string | null> {
-  try {
-    const data = await fetchNewsAPI('technology OR platform OR software OR tools', companyName)
-
-    if (!data?.articles?.results?.length) return null
-
-    // Common tech keywords to look for
-    const techKeywords = [
-      'Salesforce', 'HubSpot', 'Slack', 'AWS', 'Azure', 'Google Cloud',
-      'React', 'Python', 'Java', 'Node.js', 'PostgreSQL', 'MongoDB',
-      'Kubernetes', 'Docker', 'Jenkins', 'GitHub', 'GitLab'
-    ]
-
-    const foundTech = new Set<string>()
-    const articles = data.articles.results.slice(0, 5)
-
-    articles.forEach((article: any) => {
-      const text = `${article.title} ${article.body}`
-      techKeywords.forEach(tech => {
-        if (text.includes(tech)) {
-          foundTech.add(tech)
-        }
-      })
-    })
-
-    if (foundTech.size > 0) {
-      const techArray = Array.from(foundTech).slice(0, 4)
-      return `Using ${techArray.join(', ')}${foundTech.size > 4 ? '...' : ''}`
-    }
-  } catch (error) {
-    console.error('Error extracting tech stack:', error)
-  }
-
-  return null
-}
-
-async function extractHiringInfo(companyName: string): Promise<string | null> {
-  try {
-    const data = await fetchNewsAPI('hiring OR jobs OR positions OR careers', companyName)
-
-    if (!data?.articles?.results?.length) return null
-
-    const recentArticles = data.articles.results.slice(0, 3)
-    const departments = new Set<string>()
-    let totalPositions = 0
-
-    // Look for department mentions
-    const deptKeywords = {
-      'Sales': ['sales', 'account executive', 'business development'],
-      'Engineering': ['engineer', 'developer', 'software', 'tech'],
-      'Marketing': ['marketing', 'content', 'social media'],
-      'Product': ['product manager', 'product'],
-      'Operations': ['operations', 'ops'],
-    }
-
-    recentArticles.forEach((article: any) => {
-      const text = `${article.title} ${article.body}`.toLowerCase()
-
-      Object.entries(deptKeywords).forEach(([dept, keywords]) => {
-        if (keywords.some(keyword => text.includes(keyword))) {
-          departments.add(dept)
-        }
-      })
-
-      // Try to extract number of positions
-      const posMatch = text.match(/(\d+)\s+(positions?|roles?|jobs?|openings?)/i)
-      if (posMatch) {
-        totalPositions += parseInt(posMatch[1])
-      }
-    })
-
-    if (departments.size > 0) {
-      const deptList = Array.from(departments).slice(0, 2).join(' & ')
-      const positionText = totalPositions > 0 ? `${totalPositions} open positions` : 'Multiple positions'
-      return `${positionText} in ${deptList}`
-    }
-  } catch (error) {
-    console.error('Error extracting hiring info:', error)
-  }
-
-  return null
-}
-
 async function generateInsights(
   companyName: string,
-  employees: number | null
+  industry: string | null,
+  employees: number | null,
+  website: string | null,
 ): Promise<CompanyInsights> {
-  // Run all searches in parallel
-  const [growth, funding, techStack, hiring] = await Promise.all([
-    extractGrowthSignals(companyName, employees),
-    extractFundingInfo(companyName),
-    extractTechStack(companyName),
-    extractHiringInfo(companyName),
-  ])
+  const anthropicKey = process.env.ANTHROPIC_API_KEY
+  if (!anthropicKey) {
+    throw new Error('ANTHROPIC_API_KEY not configured')
+  }
 
-  return {
-    growth,
-    funding,
-    techStack,
-    hiring,
+  // Fetch company news for context (reuse the POV news fetcher)
+  const newsApiKey = process.env.NEWSAPI_AI_KEY
+  const news = newsApiKey ? await fetchNewsArticles(companyName, newsApiKey) : []
+  const newsContext = news.length > 0
+    ? `Recent news:\n${news.join('\n')}`
+    : 'No recent news available.'
+
+  const anthropic = new Anthropic({ apiKey: anthropicKey })
+
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-5-20250929',
+    max_tokens: 400,
+    messages: [{
+      role: 'user',
+      content: `Given this company, extract key business signals. Use your knowledge and the news provided. If you can't determine a signal with reasonable confidence, use null.
+
+Company: ${companyName}
+Industry: ${industry || 'Unknown'}
+Employees: ${employees ? employees.toLocaleString() : 'Unknown'}
+Website: ${website || 'Unknown'}
+${newsContext}
+
+Return ONLY this JSON (no markdown, no extra text):
+{
+  "growth": "Brief growth signal if evident, e.g. 'Expanding rapidly — opened 3 new offices in Q4' or 'Headcount grew ~40% YoY based on LinkedIn data'. null if unknown.",
+  "funding": "Latest funding round if known, e.g. 'Series B ($45M) led by Sequoia — Jan 2025' or 'Bootstrapped / no known funding'. null if unknown.",
+  "techStack": "Key technologies they use or sell, e.g. 'AWS, React, Python — builds on Kubernetes'. null if unknown.",
+  "hiring": "Notable hiring activity, e.g. 'Actively hiring engineers and sales reps — 50+ open roles'. null if unknown."
+}`
+    }],
+  })
+
+  const text = response.content[0].type === 'text' ? response.content[0].text : ''
+
+  try {
+    return JSON.parse(text) as CompanyInsights
+  } catch {
+    const jsonMatch = text.match(/\{[\s\S]*\}/)
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]) as CompanyInsights
+    }
+    return { growth: null, funding: null, techStack: null, hiring: null }
   }
 }
 
@@ -341,7 +106,7 @@ export const GET = withAuth(async (request: NextRequest, userId: string, context
     }
 
     // Generate fresh insights
-    const insights = await generateInsights(account.name, account.employees)
+    const insights = await generateInsights(account.name, account.industry, account.employees, account.website)
 
     // Cache insights in database
     await prisma.account.update({

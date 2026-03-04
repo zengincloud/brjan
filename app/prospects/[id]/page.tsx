@@ -70,6 +70,7 @@ type Prospect = {
   phone?: string | null
   location?: string | null
   linkedin?: string | null
+  notes?: string | null
   status: string
   sequence?: string | null
   sequenceStep?: string | null
@@ -105,6 +106,9 @@ export default function ProspectDetailPage() {
   const [accountSearch, setAccountSearch] = useState("")
   const [accountResults, setAccountResults] = useState<AccountLink[]>([])
   const [accountSearchLoading, setAccountSearchLoading] = useState(false)
+  const [editingNotes, setEditingNotes] = useState(false)
+  const [notesValue, setNotesValue] = useState("")
+  const [savingNotes, setSavingNotes] = useState(false)
 
   useEffect(() => {
     if (params.id) {
@@ -613,6 +617,89 @@ export default function ProspectDetailPage() {
                   <p className="text-sm font-medium">{prospect.location}</p>
                 </div>
               </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Notes */}
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle>Notes</CardTitle>
+              {!editingNotes && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => { setEditingNotes(true); setNotesValue(prospect.notes || "") }}
+                >
+                  <Pencil className="h-3 w-3 mr-1" />
+                  {prospect.notes ? "Edit" : "Add"}
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            {editingNotes ? (
+              <div className="space-y-2">
+                <Input
+                  value={notesValue}
+                  onChange={(e) => setNotesValue(e.target.value)}
+                  placeholder="Add a quick note about this prospect..."
+                  className="text-sm"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      setSavingNotes(true)
+                      fetch(`/api/prospects/${prospect.id}/notes`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ notes: notesValue.trim() }),
+                      })
+                        .then(() => {
+                          setProspect({ ...prospect, notes: notesValue.trim() || null })
+                          setEditingNotes(false)
+                          toast.success("Note saved")
+                        })
+                        .catch(() => toast.error("Failed to save note"))
+                        .finally(() => setSavingNotes(false))
+                    }
+                    if (e.key === "Escape") setEditingNotes(false)
+                  }}
+                />
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    className="h-7 text-xs"
+                    disabled={savingNotes}
+                    onClick={() => {
+                      setSavingNotes(true)
+                      fetch(`/api/prospects/${prospect.id}/notes`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ notes: notesValue.trim() }),
+                      })
+                        .then(() => {
+                          setProspect({ ...prospect, notes: notesValue.trim() || null })
+                          setEditingNotes(false)
+                          toast.success("Note saved")
+                        })
+                        .catch(() => toast.error("Failed to save note"))
+                        .finally(() => setSavingNotes(false))
+                    }}
+                  >
+                    {savingNotes ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                    Save
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setEditingNotes(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : prospect.notes ? (
+              <p className="text-sm">{prospect.notes}</p>
+            ) : (
+              <p className="text-sm text-muted-foreground italic">No notes yet</p>
             )}
           </CardContent>
         </Card>

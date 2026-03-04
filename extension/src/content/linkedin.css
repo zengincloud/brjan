@@ -380,7 +380,7 @@
   transition: border-color 0.15s, background 0.15s;
 }
 .br-input::placeholder {
-  color: #606878;
+  color: #9ba3b0;
   font-style: italic;
 }
 .br-input:focus {

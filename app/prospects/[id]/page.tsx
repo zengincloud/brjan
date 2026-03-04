@@ -487,7 +487,14 @@ export default function ProspectDetailPage() {
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
-          <h1 className="text-3xl font-bold">{prospect.name}</h1>
+          <h1 className="text-3xl font-bold flex items-center gap-2">
+            {prospect.name}
+            {prospect.linkedin && (
+              <a href={prospect.linkedin} target="_blank" rel="noopener noreferrer" title="View LinkedIn Profile">
+                <Linkedin className="h-5 w-5 text-[#0A66C2] hover:opacity-80 transition-opacity" />
+              </a>
+            )}
+          </h1>
           <p className="text-muted-foreground">
             {prospect.title && <span>{prospect.title}</span>}
             {prospect.title && prospect.company && <span> at </span>}
@@ -925,8 +932,8 @@ export default function ProspectDetailPage() {
         </Card>
       </div>
 
-      {/* Point of View - Simplified */}
-      {prospect.povData && (
+      {/* Company Overview */}
+      {(prospect.company || prospect.wizaData?.companyIndustry || prospect.wizaData?.companyDescription) && (
         <Card className="border-primary/20 bg-primary/5">
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
@@ -942,17 +949,11 @@ export default function ProspectDetailPage() {
                   <p className="text-sm font-medium">{prospect.company}</p>
                 </div>
               )}
-              {prospect.wizaData?.companyIndustry && (
-                <div>
-                  <p className="text-xs text-primary/70 font-medium mb-0.5">Industry</p>
-                  <p className="text-sm font-medium">{prospect.wizaData.companyIndustry}</p>
-                </div>
-              )}
-              {(prospect.povData.industryContext || prospect.wizaData?.companyDescription) && (
+              {prospect.wizaData?.companyDescription && (
                 <div className="basis-full">
                   <p className="text-xs text-primary/70 font-medium mb-0.5">What They Do</p>
                   <p className="text-sm text-foreground leading-relaxed">
-                    {prospect.wizaData?.companyDescription || prospect.povData.industryContext}
+                    {prospect.wizaData.companyDescription}
                   </p>
                 </div>
               )}

@@ -62,14 +62,6 @@ export function Sidebar({ className }: { className?: string }) {
         </div>
       </div>
 
-      {/* Status Indicator */}
-      <div className="px-2">
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-accent/10 border border-accent/20">
-          <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />
-          <span className="text-xs text-accent font-medium">Dialer Ready</span>
-        </div>
-      </div>
-
       {/* Navigation */}
       <div className="space-y-1">
         <Button

@@ -328,22 +328,23 @@ export function AccountList() {
         <TableBody>
           {filteredAccounts.map((account) => (
             <>
-              <TableRow key={account.id}>
-                <TableCell>
+              <TableRow
+                key={account.id}
+                className="cursor-pointer hover:bg-muted/50"
+                onClick={() => router.push(`/accounts/${account.id}`)}
+              >
+                <TableCell onClick={(e) => e.stopPropagation()}>
                   <Checkbox checked={selectedRows.includes(account.id)} onCheckedChange={() => toggleRow(account.id)} />
                 </TableCell>
                 <TableCell>
-                  <div
-                    className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
-                    onClick={() => router.push(`/accounts/${account.id}`)}
-                  >
+                  <div className="flex items-center gap-3">
                     <Avatar className="h-8 w-8 bg-primary/10">
                       <AvatarFallback className="text-primary">
                         {account.name.substring(0, 2).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col">
-                      <span className="font-medium hover:text-primary">{account.name}</span>
+                      <span className="font-medium">{account.name}</span>
                       {account.website ? (
                         <a
                           href={account.website.startsWith('http') ? account.website : `https://${account.website}`}
@@ -367,7 +368,7 @@ export function AccountList() {
                   <Badge variant="outline">{account.status.replace(/_/g, " ")}</Badge>
                 </TableCell>
                 <TableCell>{formatLastActivity(account.lastActivity)}</TableCell>
-                <TableCell>
+                <TableCell onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center gap-2">
                     {account.linkedin && (
                       <Button

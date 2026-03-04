@@ -368,25 +368,27 @@
   opacity: 0.6;
 }
 .br-input {
-  width: 100%;
-  padding: 9px 12px;
-  border-radius: 8px;
-  border: 1px dashed #3a4050;
-  font-size: 12px;
-  background: #181c26;
-  color: #f2f3f5;
-  outline: none;
-  box-sizing: border-box;
-  transition: border-color 0.15s, background 0.15s;
+  width: 100% !important;
+  padding: 9px 12px !important;
+  border-radius: 8px !important;
+  border: 1px dashed #3a4050 !important;
+  font-size: 12px !important;
+  background: #1e2330 !important;
+  color: #ffffff !important;
+  outline: none !important;
+  box-sizing: border-box !important;
+  transition: border-color 0.15s, background 0.15s !important;
+  -webkit-text-fill-color: #ffffff !important;
 }
 .br-input::placeholder {
-  color: #9ba3b0;
-  font-style: italic;
+  color: #9ba3b0 !important;
+  font-style: italic !important;
+  -webkit-text-fill-color: #9ba3b0 !important;
 }
 .br-input:focus {
-  border-style: solid;
-  border-color: #4f8df7;
-  background: #1e2330;
+  border-style: solid !important;
+  border-color: #4f8df7 !important;
+  background: #1e2330 !important;
 }
 
 /* Sequence picker */

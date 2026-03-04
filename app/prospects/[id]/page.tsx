@@ -6,9 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { ArrowLeft, Mail, Phone, Linkedin, MapPin, Building, Briefcase, Calendar, Globe, Pencil, Zap, X, ClipboardList, Clock, ExternalLink, UserMinus, Loader2, Star, Plus, Trash2, Check, Sparkles } from "lucide-react"
+import { ArrowLeft, Mail, Phone, Linkedin, MapPin, Building, Briefcase, Calendar, Globe, Pencil, Zap, X, ClipboardList, Clock, ExternalLink, UserMinus, Loader2, Star, Plus, Trash2, Check, Sparkles, StickyNote } from "lucide-react"
 import { Input } from "@/components/ui/input"
-import { formatDistanceToNow } from "date-fns"
+import { formatDistanceToNow, format } from "date-fns"
+import { useUser } from "@/hooks/use-user"
 
 function safeTimeAgo(dateStr: string | null | undefined): string {
   if (!dateStr) return "Unknown"
@@ -25,7 +26,7 @@ import { CallProspectDialog } from "@/components/call-prospect-dialog"
 import { EditProspectDialog } from "@/components/edit-prospect-dialog"
 import { SendEmailDialog } from "@/components/send-email-dialog"
 import { CorrespondenceSummary } from "@/components/correspondence-summary"
-import { ProspectPOV } from "@/components/prospect-pov"
+// ProspectPOV replaced with inline simplified view
 import { AddToSequenceDialog } from "@/components/add-to-sequence-dialog"
 import { CreateTaskDialog } from "@/components/create-task-dialog"
 import {
@@ -61,6 +62,14 @@ type AccountLink = {
   name: string
 }
 
+type NoteEntry = {
+  id: string
+  text: string
+  date: string
+  initials: string
+  userId: string
+}
+
 type Prospect = {
   id: string
   name: string
@@ -86,6 +95,7 @@ type Prospect = {
 export default function ProspectDetailPage() {
   const params = useParams()
   const router = useRouter()
+  const { user: currentUser } = useUser()
   const [prospect, setProspect] = useState<Prospect | null>(null)
   const [loading, setLoading] = useState(true)
   const [callDialogOpen, setCallDialogOpen] = useState(false)
@@ -106,13 +116,14 @@ export default function ProspectDetailPage() {
   const [accountSearch, setAccountSearch] = useState("")
   const [accountResults, setAccountResults] = useState<AccountLink[]>([])
   const [accountSearchLoading, setAccountSearchLoading] = useState(false)
-  const [editingNotes, setEditingNotes] = useState(false)
-  const [notesValue, setNotesValue] = useState("")
-  const [savingNotes, setSavingNotes] = useState(false)
+  const [noteEntries, setNoteEntries] = useState<NoteEntry[]>([])
+  const [newNoteText, setNewNoteText] = useState("")
+  const [addingNote, setAddingNote] = useState(false)
 
   useEffect(() => {
     if (params.id) {
       loadProspect(params.id as string)
+      loadNotes(params.id as string)
     }
   }, [params.id])
 
@@ -133,9 +144,61 @@ export default function ProspectDetailPage() {
     }
   }
 
+  const loadNotes = async (id: string) => {
+    try {
+      const response = await fetch(`/api/prospects/${id}/notes`)
+      if (response.ok) {
+        const data = await response.json()
+        setNoteEntries(data.notes || [])
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  const addNote = async () => {
+    if (!newNoteText.trim() || !params.id) return
+    setAddingNote(true)
+    try {
+      const response = await fetch(`/api/prospects/${params.id}/notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: newNoteText.trim() }),
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setNoteEntries(data.notes)
+        setNewNoteText("")
+        toast.success("Note added")
+      }
+    } catch {
+      toast.error("Failed to add note")
+    } finally {
+      setAddingNote(false)
+    }
+  }
+
+  const deleteNote = async (noteId: string) => {
+    try {
+      const response = await fetch(`/api/prospects/${params.id}/notes`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ noteId }),
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setNoteEntries(data.notes)
+        toast.success("Note removed")
+      }
+    } catch {
+      toast.error("Failed to delete note")
+    }
+  }
+
   const refreshData = () => {
     if (params.id) {
       loadProspect(params.id as string)
+      loadNotes(params.id as string)
       setRefreshKey((prev) => prev + 1)
     }
   }
@@ -621,88 +684,7 @@ export default function ProspectDetailPage() {
           </CardContent>
         </Card>
 
-        {/* Notes */}
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle>Notes</CardTitle>
-              {!editingNotes && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2 text-xs"
-                  onClick={() => { setEditingNotes(true); setNotesValue(prospect.notes || "") }}
-                >
-                  <Pencil className="h-3 w-3 mr-1" />
-                  {prospect.notes ? "Edit" : "Add"}
-                </Button>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent>
-            {editingNotes ? (
-              <div className="space-y-2">
-                <Input
-                  value={notesValue}
-                  onChange={(e) => setNotesValue(e.target.value)}
-                  placeholder="Add a quick note about this prospect..."
-                  className="text-sm"
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      setSavingNotes(true)
-                      fetch(`/api/prospects/${prospect.id}/notes`, {
-                        method: "PATCH",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ notes: notesValue.trim() }),
-                      })
-                        .then(() => {
-                          setProspect({ ...prospect, notes: notesValue.trim() || null })
-                          setEditingNotes(false)
-                          toast.success("Note saved")
-                        })
-                        .catch(() => toast.error("Failed to save note"))
-                        .finally(() => setSavingNotes(false))
-                    }
-                    if (e.key === "Escape") setEditingNotes(false)
-                  }}
-                />
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    className="h-7 text-xs"
-                    disabled={savingNotes}
-                    onClick={() => {
-                      setSavingNotes(true)
-                      fetch(`/api/prospects/${prospect.id}/notes`, {
-                        method: "PATCH",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ notes: notesValue.trim() }),
-                      })
-                        .then(() => {
-                          setProspect({ ...prospect, notes: notesValue.trim() || null })
-                          setEditingNotes(false)
-                          toast.success("Note saved")
-                        })
-                        .catch(() => toast.error("Failed to save note"))
-                        .finally(() => setSavingNotes(false))
-                    }}
-                  >
-                    {savingNotes ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
-                    Save
-                  </Button>
-                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setEditingNotes(false)}>
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            ) : prospect.notes ? (
-              <p className="text-sm">{prospect.notes}</p>
-            ) : (
-              <p className="text-sm text-muted-foreground italic">No notes yet</p>
-            )}
-          </CardContent>
-        </Card>
+
 
         {/* Quick Stats */}
         <Card>
@@ -943,8 +925,108 @@ export default function ProspectDetailPage() {
         </Card>
       </div>
 
-      {/* Point of View */}
-      <ProspectPOV povData={prospect.povData} />
+      {/* Point of View - Simplified */}
+      {prospect.povData && (
+        <Card className="border-primary/20 bg-primary/5">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <Building className="h-5 w-5 text-primary" />
+              <CardTitle className="text-primary">Company Overview</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-6">
+              {prospect.company && (
+                <div>
+                  <p className="text-xs text-primary/70 font-medium mb-0.5">Company</p>
+                  <p className="text-sm font-medium">{prospect.company}</p>
+                </div>
+              )}
+              {prospect.wizaData?.companyIndustry && (
+                <div>
+                  <p className="text-xs text-primary/70 font-medium mb-0.5">Industry</p>
+                  <p className="text-sm font-medium">{prospect.wizaData.companyIndustry}</p>
+                </div>
+              )}
+              {(prospect.povData.industryContext || prospect.wizaData?.companyDescription) && (
+                <div className="basis-full">
+                  <p className="text-xs text-primary/70 font-medium mb-0.5">What They Do</p>
+                  <p className="text-sm text-foreground leading-relaxed">
+                    {prospect.wizaData?.companyDescription || prospect.povData.industryContext}
+                  </p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Notes - Inline dated entries */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <StickyNote className="h-5 w-5 text-muted-foreground" />
+            <CardTitle>Notes</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {/* Add note input */}
+          <div className="flex items-center gap-2">
+            {currentUser && (
+              <div className="shrink-0 h-6 w-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-semibold">
+                {[currentUser.firstName, currentUser.lastName].filter(Boolean).map(n => n!.charAt(0).toUpperCase()).join('') || currentUser.email.substring(0, 2).toUpperCase()}
+              </div>
+            )}
+            <Input
+              value={newNoteText}
+              onChange={(e) => setNewNoteText(e.target.value)}
+              placeholder="Add a note..."
+              className="text-sm h-8 flex-1"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !addingNote) addNote()
+              }}
+            />
+            <Button
+              size="sm"
+              className="h-8 px-3 text-xs"
+              disabled={addingNote || !newNoteText.trim()}
+              onClick={addNote}
+            >
+              {addingNote ? <Loader2 className="h-3 w-3 animate-spin" /> : "Add"}
+            </Button>
+          </div>
+
+          {/* Note entries */}
+          {noteEntries.length > 0 ? (
+            <div className="space-y-1.5">
+              {noteEntries.map((note) => (
+                <div key={note.id} className="flex items-start gap-2 group py-1">
+                  <div className="shrink-0 h-5 w-5 rounded-full bg-muted flex items-center justify-center text-[9px] font-semibold text-muted-foreground mt-0.5">
+                    {note.initials}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-xs text-muted-foreground font-medium">
+                      {(() => {
+                        try { return format(new Date(note.date), 'MM/dd/yyyy') } catch { return 'Unknown' }
+                      })()}:
+                    </span>
+                    <span className="text-sm ml-1.5">{note.text}</span>
+                  </div>
+                  <button
+                    onClick={() => deleteNote(note.id)}
+                    className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5"
+                    title="Delete note"
+                  >
+                    <X className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground italic pl-8">No notes yet</p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* AI Correspondence Summary */}
       <CorrespondenceSummary key={refreshKey} prospectId={prospect.id} prospectName={prospect.name} />

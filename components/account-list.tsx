@@ -344,7 +344,20 @@ export function AccountList() {
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col">
-                      <span className="font-medium">{account.name}</span>
+                      <span className="font-medium flex items-center gap-1.5">
+                        {account.name}
+                        {account.linkedin && (
+                          <a
+                            href={account.linkedin}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            title="View LinkedIn"
+                          >
+                            <Linkedin className="h-4 w-4 text-[#0A66C2] hover:opacity-80 transition-opacity" />
+                          </a>
+                        )}
+                      </span>
                       {account.website ? (
                         <a
                           href={account.website.startsWith('http') ? account.website : `https://${account.website}`}
@@ -370,16 +383,6 @@ export function AccountList() {
                 <TableCell>{formatLastActivity(account.lastActivity)}</TableCell>
                 <TableCell onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center gap-2">
-                    {account.linkedin && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => window.open(account.linkedin!, '_blank')}
-                        title="View LinkedIn"
-                      >
-                        <Linkedin className="h-4 w-4" />
-                      </Button>
-                    )}
                     <Button
                       variant="ghost"
                       size="icon"

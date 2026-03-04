@@ -45,13 +45,10 @@ export const GET = withAuth(async (request: NextRequest, userId: string, context
       )
     }
 
-    // Fetch news in parallel: company-specific + industry-level
-    const [companyNews, industryNews] = await Promise.all([
-      newsApiKey ? fetchNewsArticles(account.name, newsApiKey) : Promise.resolve([]),
-      newsApiKey && account.industry
-        ? fetchNewsArticles(`${account.industry} industry trends`, newsApiKey)
-        : Promise.resolve([]),
-    ])
+    // Fetch company news for context
+    const companyNews = newsApiKey
+      ? await fetchNewsArticles(account.name, newsApiKey)
+      : []
 
     // Generate POV using Claude
     const pov = await generatePOV(
@@ -61,7 +58,7 @@ export const GET = withAuth(async (request: NextRequest, userId: string, context
       account.location,
       account.website,
       companyNews,
-      industryNews,
+      [],
     )
 
     // Cache in database

@@ -1,20 +1,20 @@
 import Anthropic from '@anthropic-ai/sdk'
 
 export interface POVData {
-  industryLandscape: string
-  companyIntel: string
-  swot: {
+  whatTheyDo: string
+  specificIndustry: string
+  exampleUseCase: string
+  // Legacy fields (kept for backward compat with cached data)
+  industryLandscape?: string
+  companyIntel?: string
+  swot?: {
     strengths: string[]
     weaknesses: string[]
     opportunities: string[]
     threats: string[]
   }
-  keyPlayers: string[]
-  engagementStrategy: string
-  // Simplified fields
-  whatTheyDo?: string
-  specificIndustry?: string
-  exampleUseCase?: string
+  keyPlayers?: string[]
+  engagementStrategy?: string
 }
 
 export async function fetchNewsArticles(query: string, apiKey: string): Promise<string[]> {
@@ -42,7 +42,7 @@ export async function fetchNewsArticles(query: string, apiKey: string): Promise<
             },
             resultType: 'articles',
             articlesSortBy: 'date',
-            articlesCount: 10,
+            articlesCount: 5,
             includeArticleSocialScore: false,
             includeArticleSentiment: false,
             includeArticleCategories: false,
@@ -119,49 +119,25 @@ export async function generatePOV(
     ? `Recent ${industry || 'industry'} news and trends:\n${industryNews.join('\n')}`
     : `No recent industry news available.`
 
-  const prompt = `You are a senior Deloitte strategy consultant preparing a comprehensive briefing on ${companyName} for a sales team. Your goal is to make the sales rep sound like a knowledgeable industry insider — someone who understands the company's world, not just their product.
+  const prompt = `You are a sales intelligence analyst. Given this company, return a concise JSON briefing.
 
-Company details:
-- Name: ${companyName}
-- Industry: ${industry || 'Unknown'}
-- Employees: ${employees ? employees.toLocaleString() : 'Unknown'}
-- Location: ${location || 'Unknown'}
-- Website: ${website || 'Unknown'}
-
+Company: ${companyName}
+Industry: ${industry || 'Unknown'}
+Employees: ${employees ? employees.toLocaleString() : 'Unknown'}
+Location: ${location || 'Unknown'}
+Website: ${website || 'Unknown'}
 ${companyContext}
 
-${industryContext}
-
-Generate a JSON response with the following structure. Be specific, data-driven, and insightful. Reference real trends, real companies, real regulations, and real market dynamics. If you don't have enough data on something, use your knowledge of the industry to provide relevant, accurate context. Never make up specific financial figures or dates you're not sure about.
-
+Return ONLY this JSON (no markdown, no extra text):
 {
-  "industryLandscape": "A 3-4 paragraph macro analysis of what's happening in their industry RIGHT NOW. Include: major trends reshaping the space, regulatory changes, technology shifts, market pressures, consolidation/M&A activity, and what keeps executives in this space up at night. Be specific — name real trends, frameworks, and market dynamics. For example, if they're in cybersecurity, discuss zero-trust adoption rates, AI-powered threats, SEC disclosure rules, the talent gap, etc.",
-
-  "companyIntel": "A 2-3 paragraph analysis of what THIS specific company is doing, working on, and facing. Use the news data to identify their strategic priorities, recent moves, challenges, and positioning within their market. If limited company data, infer from their size, location, and industry what they're likely dealing with.",
-
-  "swot": {
-    "strengths": ["3-4 specific strengths based on their profile and industry position"],
-    "weaknesses": ["3-4 likely weaknesses or vulnerabilities given their size/industry"],
-    "opportunities": ["3-4 market opportunities they could capitalize on"],
-    "threats": ["3-4 external threats or competitive pressures they face"]
-  },
-
-  "keyPlayers": ["List 6-8 major companies, competitors, or key players in their industry space that a consultant would name-drop in conversation. Include a brief note on each, e.g. 'CrowdStrike — leader in endpoint detection, recently expanded into cloud security'"],
-
-  "engagementStrategy": "A 2-3 paragraph strategy for how to engage this company. What pain points to lead with, what language/frameworks resonate in their industry, which stakeholders to target, and how to position yourself as a trusted advisor rather than a vendor. Include specific conversation starters and the business case angle most likely to resonate.",
-
-  "whatTheyDo": "A concise 1-2 sentence description of what this company actually does. Be specific about their product/service, not generic. For example: 'Builds route optimization software that helps last-mile delivery companies reduce fuel costs and missed deliveries' NOT 'A software company in the logistics space'.",
-
-  "specificIndustry": "The specific industry vertical, not just the broad category. For example: 'SaaS for Healthcare Revenue Cycle Management' or 'Cybersecurity for Financial Services' or 'AI-Powered Logistics for E-Commerce Fulfillment'. Be as specific as possible about what niche they serve.",
-
-  "exampleUseCase": "A concrete example of who uses this company or what problem they solve. For example: 'A regional hospital chain uses their platform to automate insurance claim submissions, reducing denials by 30%' or 'Mid-market e-commerce brands use them to cut shipping costs by optimizing carrier selection in real-time'. Make it feel real and specific."
-}
-
-Return ONLY the JSON, no markdown fences or other text.`
+  "whatTheyDo": "1-2 sentences on what this company specifically does. Be precise about their product/service. Example: 'Builds route optimization software that helps last-mile delivery companies reduce fuel costs and missed deliveries' NOT 'A software company in the logistics space'.",
+  "specificIndustry": "Their specific industry niche, not just the broad category. Example: 'SaaS for Healthcare Revenue Cycle Management' or 'AI-Powered Logistics for E-Commerce Fulfillment'.",
+  "exampleUseCase": "A concrete example of who uses them or what problem they solve. Example: 'Mid-market e-commerce brands use them to cut shipping costs by optimizing carrier selection in real-time'. Make it feel real and specific."
+}`
 
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-5-20250929',
-    max_tokens: 4000,
+    max_tokens: 500,
     messages: [{ role: 'user', content: prompt }],
   })
 

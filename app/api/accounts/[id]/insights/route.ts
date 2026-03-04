@@ -35,10 +35,10 @@ async function generateInsights(
 
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-5-20250929',
-    max_tokens: 400,
+    max_tokens: 600,
     messages: [{
       role: 'user',
-      content: `Given this company, extract key business signals. Use your knowledge and the news provided. If you can't determine a signal with reasonable confidence, use null.
+      content: `You are a sales intelligence analyst. Given this company, provide brief business signals for sales outreach prep. Use your knowledge AND the news.
 
 Company: ${companyName}
 Industry: ${industry || 'Unknown'}
@@ -46,13 +46,15 @@ Employees: ${employees ? employees.toLocaleString() : 'Unknown'}
 Website: ${website || 'Unknown'}
 ${newsContext}
 
-Return ONLY this JSON (no markdown, no extra text):
+Return ONLY raw JSON — no markdown, no \`\`\`, no extra text. Keep each value to 1-2 sentences max.
 {
-  "growth": "Brief growth signal if evident, e.g. 'Expanding rapidly — opened 3 new offices in Q4' or 'Headcount grew ~40% YoY based on LinkedIn data'. null if unknown.",
-  "funding": "Latest funding round if known, e.g. 'Series B ($45M) led by Sequoia — Jan 2025' or 'Bootstrapped / no known funding'. null if unknown.",
-  "techStack": "Key technologies they use or sell, e.g. 'AWS, React, Python — builds on Kubernetes'. null if unknown.",
-  "hiring": "Notable hiring activity, e.g. 'Actively hiring engineers and sales reps — 50+ open roles'. null if unknown."
-}`
+  "growth": "e.g. 'Expanding rapidly — opened 3 new offices in Q4' or 'Stable enterprise player, ~70K employees'",
+  "funding": "e.g. 'Public (NYSE: CRM), ~$250B market cap' or 'Series B ($45M) led by Sequoia — Jan 2025'",
+  "techStack": "e.g. 'Cloud CRM platform, Slack, MuleSoft — built on AWS'",
+  "hiring": "e.g. 'Actively hiring engineers and sales — 200+ open roles' or 'Stable headcount, selective hiring'"
+}
+
+Provide your best assessment for EVERY field. Only use null if you truly know nothing about the company.`
     }],
   })
 
@@ -93,9 +95,11 @@ export const GET = withAuth(async (request: NextRequest, userId: string, context
 
     // Check if we have cached insights less than 24 hours old
     const cacheExpiry = 24 * 60 * 60 * 1000 // 24 hours
+    const cached = account.insights as CompanyInsights | null
+    const hasContent = cached && (cached.growth || cached.funding || cached.techStack || cached.hiring)
     if (
       !force &&
-      account.insights &&
+      hasContent &&
       account.insightsFetchedAt &&
       Date.now() - account.insightsFetchedAt.getTime() < cacheExpiry
     ) {

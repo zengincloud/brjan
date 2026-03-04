@@ -71,6 +71,9 @@ type POVData = {
   }
   keyPlayers: string[]
   engagementStrategy: string
+  whatTheyDo?: string
+  specificIndustry?: string
+  exampleUseCase?: string
 }
 
 type Contact = {
@@ -119,6 +122,7 @@ export default function AccountDetailPage() {
     if (accountId) {
       loadAccount()
       loadInsights()
+      loadPov()
       loadContacts()
       loadActivity()
     }

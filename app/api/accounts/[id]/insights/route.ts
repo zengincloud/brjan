@@ -311,6 +311,8 @@ export const GET = withAuth(async (request: NextRequest, userId: string, context
     }
 
     const accountId = context.params.id
+    const { searchParams } = new URL(request.url)
+    const force = searchParams.get('force') === 'true'
 
     // Fetch account with userId check for security
     const account = await prisma.account.findFirst({
@@ -327,6 +329,7 @@ export const GET = withAuth(async (request: NextRequest, userId: string, context
     // Check if we have cached insights less than 24 hours old
     const cacheExpiry = 24 * 60 * 60 * 1000 // 24 hours
     if (
+      !force &&
       account.insights &&
       account.insightsFetchedAt &&
       Date.now() - account.insightsFetchedAt.getTime() < cacheExpiry

@@ -339,7 +339,14 @@ export default function AccountDetailPage() {
                 <Building2 className="h-8 w-8 text-primary" />
               </div>
               <div>
-                <CardTitle className="text-3xl">{account.name}</CardTitle>
+                <CardTitle className="text-3xl flex items-center gap-2">
+                  {account.name}
+                  {account.linkedin && (
+                    <a href={account.linkedin} target="_blank" rel="noopener noreferrer" title="View LinkedIn">
+                      <Linkedin className="h-5 w-5 text-[#0A66C2] hover:opacity-80 transition-opacity" />
+                    </a>
+                  )}
+                </CardTitle>
                 <CardDescription className="text-base mt-1">
                   {account.industry || "Industry not specified"}
                 </CardDescription>
@@ -496,7 +503,7 @@ export default function AccountDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Point of View - AI Generated */}
+      {/* Point of View */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -514,141 +521,47 @@ export default function AccountDetailPage() {
               {pov ? "Refresh" : "Generate"}
             </Button>
           </div>
-          <CardDescription>AI-powered strategic intelligence and engagement strategy</CardDescription>
         </CardHeader>
         <CardContent>
           {loadingPov ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <div className="flex flex-col items-center gap-3">
-                <RefreshCw className="h-6 w-6 animate-spin" />
-                <div>
-                  <p className="font-medium">Generating strategic briefing...</p>
-                  <p className="text-sm">Analyzing news, industry trends, and company data</p>
-                </div>
+            <div className="text-center py-8 text-muted-foreground">
+              <div className="flex items-center justify-center gap-2">
+                <RefreshCw className="h-4 w-4 animate-spin" />
+                <span>Generating point of view...</span>
               </div>
             </div>
           ) : pov ? (
-            <div className="space-y-6">
-              {/* Industry Landscape */}
-              <div className="space-y-3">
-                <h4 className="font-semibold flex items-center gap-2">
-                  <Globe className="h-4 w-4 text-primary" />
-                  Industry Landscape
-                </h4>
-                <div className="text-sm text-muted-foreground bg-muted/30 p-4 rounded-lg whitespace-pre-line leading-relaxed">
-                  {pov.industryLandscape || "No industry data available."}
+            <div className="space-y-4">
+              {pov.whatTheyDo && (
+                <div>
+                  <p className="text-xs text-muted-foreground font-medium mb-1">What They Do</p>
+                  <p className="text-sm leading-relaxed">{pov.whatTheyDo}</p>
                 </div>
-              </div>
-
-              {/* Company Intel */}
-              <div className="space-y-3">
-                <h4 className="font-semibold flex items-center gap-2">
-                  <Target className="h-4 w-4 text-primary" />
-                  Company Intelligence
-                </h4>
-                <div className="text-sm text-muted-foreground bg-muted/30 p-4 rounded-lg whitespace-pre-line leading-relaxed">
-                  {pov.companyIntel || "No company intel available."}
+              )}
+              {pov.specificIndustry && (
+                <div>
+                  <p className="text-xs text-muted-foreground font-medium mb-1">Industry</p>
+                  <p className="text-sm font-medium">{pov.specificIndustry}</p>
                 </div>
-              </div>
-
-              {/* SWOT Analysis */}
-              <div className="space-y-3">
-                <h4 className="font-semibold flex items-center gap-2">
-                  <BookOpen className="h-4 w-4 text-primary" />
-                  SWOT Analysis
-                </h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="p-4 rounded-lg border bg-card">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Shield className="h-4 w-4 text-green-500" />
-                      <span className="font-medium text-sm">Strengths</span>
-                    </div>
-                    <ul className="space-y-2 text-sm text-muted-foreground">
-                      {(pov.swot?.strengths || []).map((s, i) => (
-                        <li key={i} className="flex items-start gap-2">
-                          <span className="text-green-500 mt-0.5">+</span>
-                          <span>{s}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div className="p-4 rounded-lg border bg-card">
-                    <div className="flex items-center gap-2 mb-3">
-                      <AlertTriangle className="h-4 w-4 text-yellow-500" />
-                      <span className="font-medium text-sm">Weaknesses</span>
-                    </div>
-                    <ul className="space-y-2 text-sm text-muted-foreground">
-                      {(pov.swot?.weaknesses || []).map((w, i) => (
-                        <li key={i} className="flex items-start gap-2">
-                          <span className="text-yellow-500 mt-0.5">-</span>
-                          <span>{w}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div className="p-4 rounded-lg border bg-card">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Zap className="h-4 w-4 text-blue-500" />
-                      <span className="font-medium text-sm">Opportunities</span>
-                    </div>
-                    <ul className="space-y-2 text-sm text-muted-foreground">
-                      {(pov.swot?.opportunities || []).map((o, i) => (
-                        <li key={i} className="flex items-start gap-2">
-                          <span className="text-blue-500 mt-0.5">*</span>
-                          <span>{o}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div className="p-4 rounded-lg border bg-card">
-                    <div className="flex items-center gap-2 mb-3">
-                      <AlertTriangle className="h-4 w-4 text-red-500" />
-                      <span className="font-medium text-sm">Threats</span>
-                    </div>
-                    <ul className="space-y-2 text-sm text-muted-foreground">
-                      {(pov.swot?.threats || []).map((t, i) => (
-                        <li key={i} className="flex items-start gap-2">
-                          <span className="text-red-500 mt-0.5">!</span>
-                          <span>{t}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+              )}
+              {pov.exampleUseCase && (
+                <div>
+                  <p className="text-xs text-muted-foreground font-medium mb-1">Example Use Case</p>
+                  <p className="text-sm leading-relaxed text-muted-foreground">{pov.exampleUseCase}</p>
                 </div>
-              </div>
-
-              {/* Key Players */}
-              <div className="space-y-3">
-                <h4 className="font-semibold flex items-center gap-2">
-                  <Users className="h-4 w-4 text-primary" />
-                  Key Players in the Space
-                </h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {(pov.keyPlayers || []).map((player, i) => (
-                    <div key={i} className="flex items-start gap-2 p-3 rounded-lg border bg-card text-sm">
-                      <Building2 className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-                      <span className="text-muted-foreground">{player}</span>
-                    </div>
-                  ))}
+              )}
+              {/* Fallback for older POVs that don't have simplified fields */}
+              {!pov.whatTheyDo && !pov.specificIndustry && pov.companyIntel && (
+                <div>
+                  <p className="text-xs text-muted-foreground font-medium mb-1">Company Intel</p>
+                  <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-line">{pov.companyIntel}</p>
                 </div>
-              </div>
-
-              {/* Engagement Strategy */}
-              <div className="space-y-3">
-                <h4 className="font-semibold flex items-center gap-2">
-                  <MessageSquare className="h-4 w-4 text-primary" />
-                  Engagement Strategy
-                </h4>
-                <div className="text-sm text-muted-foreground bg-primary/5 border border-primary/20 p-4 rounded-lg whitespace-pre-line leading-relaxed">
-                  {pov.engagementStrategy || "No engagement strategy available."}
-                </div>
-              </div>
+              )}
             </div>
           ) : (
-            <div className="text-center py-12 text-muted-foreground">
-              <Lightbulb className="h-8 w-8 mx-auto mb-3 opacity-50" />
-              <p className="font-medium mb-1">No briefing generated yet</p>
-              <p className="text-sm mb-4">Click Generate to create an AI-powered strategic briefing for {account.name}</p>
+            <div className="text-center py-8 text-muted-foreground">
+              <Lightbulb className="h-6 w-6 mx-auto mb-2 opacity-50" />
+              <p className="text-sm mb-3">Generate an AI-powered point of view for {account.name}</p>
               <Button
                 variant="outline"
                 size="sm"
@@ -656,7 +569,7 @@ export default function AccountDetailPage() {
                 disabled={loadingPov}
               >
                 <Sparkles className="mr-2 h-4 w-4" />
-                Generate Briefing
+                Generate
               </Button>
             </div>
           )}
@@ -676,55 +589,41 @@ export default function AccountDetailPage() {
               Loading activity...
             </div>
           ) : activity.length > 0 ? (
-            <div className="space-y-2">
+            <div className="divide-y">
               {activity.map((item) => (
-                <div key={`${item.type}-${item.id}`} className="flex flex-col gap-1.5 p-3 rounded-lg border bg-muted/30">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      {item.type === "call" ? (
-                        <Phone className="h-4 w-4 text-primary" />
-                      ) : (
-                        <Mail className="h-4 w-4 text-blue-500" />
-                      )}
-                      {item.type === "call" && item.outcome && (
-                        <Badge variant={getOutcomeVariant(item.outcome)} className="text-xs">
-                          {item.detail.replace("Call — ", "")}
-                        </Badge>
-                      )}
-                      {item.type === "email" && (
-                        <span className="text-sm">{item.detail}</span>
-                      )}
-                      {item.type === "call" && item.duration != null && item.duration > 0 && (
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Clock className="h-3 w-3" />
-                          {formatDuration(item.duration)}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {item.contactName && (
-                        <span className="text-xs text-muted-foreground">{item.contactName}</span>
-                      )}
-                      <span className="text-xs text-muted-foreground">
-                        {formatLastActivity(item.time)}
-                      </span>
-                    </div>
+                <div key={`${item.type}-${item.id}`} className="flex items-center gap-4 py-2.5">
+                  <div className="flex items-center gap-2 w-40 shrink-0">
+                    {item.type === "call" ? (
+                      <Phone className="h-3.5 w-3.5 text-primary shrink-0" />
+                    ) : (
+                      <Mail className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                    )}
+                    <span className="text-sm font-medium truncate">
+                      {item.contactName || "Unknown"}
+                    </span>
                   </div>
-
-                  {/* Recording player for calls */}
-                  {item.type === "call" && item.recordingUrl && (
-                    <div className="flex items-center gap-2 mt-1">
-                      <Mic className="h-3 w-3 text-primary" />
-                      <span className="text-xs font-medium">Recording</span>
-                      <audio
-                        controls
-                        className="h-7 flex-1"
-                        src={`/api/calls/${item.id}/recording`}
-                      >
-                        Your browser does not support audio playback.
-                      </audio>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    {item.type === "call" && item.outcome && (
+                      <Badge variant={getOutcomeVariant(item.outcome)} className="text-xs shrink-0">
+                        {item.detail.replace("Call — ", "")}
+                      </Badge>
+                    )}
+                    {item.type === "email" && (
+                      <span className="text-sm text-muted-foreground truncate">{item.detail}</span>
+                    )}
+                    {item.type === "call" && item.duration != null && item.duration > 0 && (
+                      <span className="text-xs text-muted-foreground shrink-0">{formatDuration(item.duration)}</span>
+                    )}
+                    {item.type === "call" && item.recordingUrl && (
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Mic className="h-3 w-3 text-primary" />
+                        <audio controls className="h-6 w-32" src={`/api/calls/${item.id}/recording`} />
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-xs text-muted-foreground shrink-0">
+                    {formatLastActivity(item.time)}
+                  </span>
                 </div>
               ))}
             </div>

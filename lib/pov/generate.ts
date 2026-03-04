@@ -11,6 +11,10 @@ export interface POVData {
   }
   keyPlayers: string[]
   engagementStrategy: string
+  // Simplified fields
+  whatTheyDo?: string
+  specificIndustry?: string
+  exampleUseCase?: string
 }
 
 export async function fetchNewsArticles(query: string, apiKey: string): Promise<string[]> {
@@ -144,7 +148,13 @@ Generate a JSON response with the following structure. Be specific, data-driven,
 
   "keyPlayers": ["List 6-8 major companies, competitors, or key players in their industry space that a consultant would name-drop in conversation. Include a brief note on each, e.g. 'CrowdStrike — leader in endpoint detection, recently expanded into cloud security'"],
 
-  "engagementStrategy": "A 2-3 paragraph strategy for how to engage this company. What pain points to lead with, what language/frameworks resonate in their industry, which stakeholders to target, and how to position yourself as a trusted advisor rather than a vendor. Include specific conversation starters and the business case angle most likely to resonate."
+  "engagementStrategy": "A 2-3 paragraph strategy for how to engage this company. What pain points to lead with, what language/frameworks resonate in their industry, which stakeholders to target, and how to position yourself as a trusted advisor rather than a vendor. Include specific conversation starters and the business case angle most likely to resonate.",
+
+  "whatTheyDo": "A concise 1-2 sentence description of what this company actually does. Be specific about their product/service, not generic. For example: 'Builds route optimization software that helps last-mile delivery companies reduce fuel costs and missed deliveries' NOT 'A software company in the logistics space'.",
+
+  "specificIndustry": "The specific industry vertical, not just the broad category. For example: 'SaaS for Healthcare Revenue Cycle Management' or 'Cybersecurity for Financial Services' or 'AI-Powered Logistics for E-Commerce Fulfillment'. Be as specific as possible about what niche they serve.",
+
+  "exampleUseCase": "A concrete example of who uses this company or what problem they solve. For example: 'A regional hospital chain uses their platform to automate insurance claim submissions, reducing denials by 30%' or 'Mid-market e-commerce brands use them to cut shipping costs by optimizing carrier selection in real-time'. Make it feel real and specific."
 }
 
 Return ONLY the JSON, no markdown fences or other text.`

@@ -359,6 +359,7 @@ enum CallOutcome {
   busy
   failed
   gatekeeper
+  wrong_number
 }
 
 model Sequence {

@@ -884,6 +884,9 @@ export default function DialerPage() {
 
     Promise.all(savePromises)
 
+    // Capture next prospect BEFORE removing current from queue
+    const nextProspect = mockProspects[currentProspectIndex + 1]
+
     // Remove from local queue so it doesn't reappear
     if (slot?.queueItemId) {
       setApiProspects(prev => prev.filter(p => p.id !== slot.queueItemId))
@@ -909,18 +912,15 @@ export default function DialerPage() {
     callStartTimeRef.current = null
 
     // Auto-advance to next prospect if session is active
+    // Don't increment currentProspectIndex — removing the current item from
+    // apiProspects shifts the list so the next prospect slides into the same index
     if (sessionActive && !sessionPaused) {
-      const nextIndex = currentProspectIndex + 1
-      if (nextIndex < mockProspects.length) {
-        setCurrentProspectIndex(nextIndex)
+      if (nextProspect) {
         setQueueSize(prev => Math.max(0, prev - 1))
 
         // Small delay before next call
         setTimeout(() => {
-          const nextProspect = mockProspects[nextIndex]
-          if (nextProspect) {
-            connectCall(nextProspect, 0)
-          }
+          connectCall(nextProspect, 0)
         }, 1500)
       } else {
         // No more prospects
@@ -1078,6 +1078,7 @@ export default function DialerPage() {
     busy: "Busy",
     failed: "Failed",
     gatekeeper: "Gatekeeper",
+    wrong_number: "Wrong Number",
   }
 
   const handleCallOutcome = async (slotId: string, outcome: string) => {
@@ -1244,6 +1245,9 @@ export default function DialerPage() {
     // Fire all in parallel — don't block UI advancement
     Promise.all(savePromises)
 
+    // Capture next prospect BEFORE removing current from queue
+    const nextProspect = mockProspects[currentProspectIndex + 1]
+
     // Remove this prospect from the local queue so it doesn't reappear
     if (slot.queueItemId) {
       setApiProspects(prev => prev.filter(p => p.id !== slot.queueItemId))
@@ -1289,17 +1293,13 @@ export default function DialerPage() {
     setIsMuted(false)
     callStartTimeRef.current = null
 
-    // Auto-dial next
+    // Auto-dial next — don't increment currentProspectIndex since removing
+    // the current item from apiProspects shifts the list down by one
     if (sessionActive && !sessionPaused) {
-      const nextIndex = currentProspectIndex + 1
-      if (nextIndex < mockProspects.length) {
-        setCurrentProspectIndex(nextIndex)
+      if (nextProspect) {
         setQueueSize(prev => Math.max(0, prev - 1))
         setTimeout(() => {
-          const nextProspect = mockProspects[nextIndex]
-          if (nextProspect) {
-            connectCall(nextProspect, slotIndex)
-          }
+          connectCall(nextProspect, slotIndex)
         }, 1500)
       } else {
         setSessionActive(false)
@@ -1324,6 +1324,9 @@ export default function DialerPage() {
       activeCallRef.current = null
     }
 
+    // Capture next prospect BEFORE removing current from queue
+    const nextProspect = mockProspects[currentProspectIndex + 1]
+
     // Remove from local queue so it doesn't come back
     if (slot.queueItemId) {
       setApiProspects(prev => prev.filter(p => p.id !== slot.queueItemId))
@@ -1344,17 +1347,12 @@ export default function DialerPage() {
     setCallDuration(0)
     callStartTimeRef.current = null
 
-    // Auto-advance to next
+    // Auto-advance to next — don't increment index since removal shifts the list
     if (sessionActive && !sessionPaused) {
-      const nextIndex = currentProspectIndex + 1
-      if (nextIndex < mockProspects.length) {
-        setCurrentProspectIndex(nextIndex)
+      if (nextProspect) {
         setQueueSize(prev => Math.max(0, prev - 1))
         setTimeout(() => {
-          const nextProspect = mockProspects[nextIndex]
-          if (nextProspect) {
-            connectCall(nextProspect, slotIndex)
-          }
+          connectCall(nextProspect, slotIndex)
         }, 500)
       } else {
         setSessionActive(false)
@@ -2423,6 +2421,10 @@ export default function DialerPage() {
                               <UserX className="h-4 w-4 mr-2" />
                               No Answer
                             </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "wrong_number")}>
+                              <PhoneOff className="h-4 w-4 mr-2 text-red-500" />
+                              Wrong Number
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "no_answer")}>
                               <SkipForward className="h-4 w-4 mr-2" />
                               Skip
@@ -2499,7 +2501,45 @@ export default function DialerPage() {
                     {/* Expandable details section */}
                     {expandedSlots.has(slot.id) && (
                         <div className="mt-3 space-y-3 pl-4 border-l-2 border-border">
-                          {/* AI Notes / POV */}
+                          {/* Company Info */}
+                          {(slot.contact as any).accountInfo && (
+                            <div className="p-2 rounded-lg bg-blue-500/5 border border-blue-500/20">
+                              <div className="flex items-start gap-2">
+                                <Building2 className="h-3.5 w-3.5 text-blue-500 mt-0.5 flex-shrink-0" />
+                                <div className="flex-1">
+                                  <p className="text-xs font-medium text-foreground mb-1.5">Company Info — {slot.contact.company}</p>
+                                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                                    {(slot.contact as any).accountInfo.industry && (
+                                      <span>{(slot.contact as any).accountInfo.industry}</span>
+                                    )}
+                                    {(slot.contact as any).accountInfo.employees && (
+                                      <span>{(slot.contact as any).accountInfo.employees.toLocaleString()} employees</span>
+                                    )}
+                                    {(slot.contact as any).accountInfo.location && (
+                                      <span className="flex items-center gap-1">
+                                        <MapPin className="h-3 w-3" />
+                                        {(slot.contact as any).accountInfo.location}
+                                      </span>
+                                    )}
+                                    {(slot.contact as any).accountInfo.website && (
+                                      <a
+                                        href={(slot.contact as any).accountInfo.website.startsWith('http') ? (slot.contact as any).accountInfo.website : `https://${(slot.contact as any).accountInfo.website}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-1 text-blue-500 hover:underline"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        <Globe className="h-3 w-3" />
+                                        Website
+                                      </a>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Insights */}
                           {(slot.contact.title || (slot.contact as any).companyDescription || (slot.contact.accountInfo as any)?.industry || (slot.contact.accountInfo as any)?.employees) && (
                           <div className="p-2 rounded-lg bg-primary/5 border border-primary/20">
                             <div className="flex items-start gap-2">
@@ -2574,64 +2614,7 @@ export default function DialerPage() {
                             </div>
                           </div>
 
-                          {/* Account / Company Info */}
-                          {(slot.contact as any).accountInfo && (
-                            <div className="p-2 rounded-lg bg-blue-500/5 border border-blue-500/20">
-                              <div className="flex items-start gap-2">
-                                <Building2 className="h-3.5 w-3.5 text-blue-500 mt-0.5 flex-shrink-0" />
-                                <div className="flex-1">
-                                  <p className="text-xs font-medium text-foreground mb-1.5">Company Info — {slot.contact.company}</p>
-                                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                                    {(slot.contact as any).accountInfo.industry && (
-                                      <span>{(slot.contact as any).accountInfo.industry}</span>
-                                    )}
-                                    {(slot.contact as any).accountInfo.employees && (
-                                      <span>{(slot.contact as any).accountInfo.employees.toLocaleString()} employees</span>
-                                    )}
-                                    {(slot.contact as any).accountInfo.location && (
-                                      <span className="flex items-center gap-1">
-                                        <MapPin className="h-3 w-3" />
-                                        {(slot.contact as any).accountInfo.location}
-                                      </span>
-                                    )}
-                                    {(slot.contact as any).accountInfo.website && (
-                                      <a
-                                        href={(slot.contact as any).accountInfo.website.startsWith('http') ? (slot.contact as any).accountInfo.website : `https://${(slot.contact as any).accountInfo.website}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="flex items-center gap-1 text-blue-500 hover:underline"
-                                        onClick={(e) => e.stopPropagation()}
-                                      >
-                                        <Globe className="h-3 w-3" />
-                                        Website
-                                      </a>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          )}
 
-                          {/* Point of View */}
-                          {((slot.contact as any).pov || slot.contact.title) && (
-                            <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
-                              <div className="flex items-start gap-2 mb-2">
-                                <Lightbulb className="h-3.5 w-3.5 text-primary mt-0.5 flex-shrink-0" />
-                                <p className="text-xs font-medium text-primary">Insights</p>
-                              </div>
-                              <ul className="space-y-1 text-xs text-foreground leading-relaxed list-disc list-inside">
-                                {slot.contact.title && slot.contact.company && (
-                                  <li>{slot.contact.name} is {slot.contact.title} at {slot.contact.company}</li>
-                                )}
-                                {((slot.contact as any).companyDescription || (slot.contact.accountInfo as any)?.industry || (slot.contact.accountInfo as any)?.employees) && (
-                                  <li>
-                                    {slot.contact.company}{(slot.contact.accountInfo as any)?.employees ? `, ${(slot.contact.accountInfo as any).employees.toLocaleString()} employees` : ""}
-                                    {(slot.contact as any).companyDescription ? ` — ${(slot.contact as any).companyDescription}` : (slot.contact.accountInfo as any)?.industry ? ` — ${(slot.contact.accountInfo as any).industry}` : ""}
-                                  </li>
-                                )}
-                              </ul>
-                            </div>
-                          )}
 
                           {/* Notes row */}
                           <div className="grid grid-cols-2 gap-3">
@@ -2771,7 +2754,7 @@ export default function DialerPage() {
                 ) : (
                   <div className="py-2">
                     {(() => {
-                      const nextProspect = mockProspects[currentProspectIndex + 1] || mockProspects[currentProspectIndex]
+                      const nextProspect = mockProspects[currentProspectIndex]
                       if (nextProspect) {
                         return (
                           <div className="space-y-2">
@@ -2815,7 +2798,7 @@ export default function DialerPage() {
             ))}
 
             {/* Up Next queue preview — always visible during session */}
-            {mockProspects.length > currentProspectIndex + 1 && (
+            {mockProspects.length > currentProspectIndex + 1 && sessionActive && callSlots[0]?.contact && (
               <div className="mt-4">
                 <h3 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
                   <Users className="h-3.5 w-3.5" />

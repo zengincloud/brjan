@@ -682,6 +682,11 @@ export default function DialerPage() {
           : slot
       ))
 
+      // Auto-open prospect's LinkedIn in a new tab
+      if (prospect.linkedin) {
+        window.open(prospect.linkedin, "_blank")
+      }
+
       // Lazy-load enrichment data in background (non-blocking)
       enrichProspect(prospect, slotIndex)
 

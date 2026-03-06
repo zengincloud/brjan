@@ -309,17 +309,17 @@ export async function handleMessage(
   // 3. Fetch data + send to Grok
   switch (intent) {
     case "day_look": {
-      const data = await getDayLook(user.id)
+      const data = await getDayLook(user.id, user.timezone)
       const context = formatDayLookContext(data)
       return grok.formatDayLook(context)
     }
     case "day_recap": {
-      const data = await getDayRecap(user.id)
+      const data = await getDayRecap(user.id, user.timezone)
       const context = formatDayRecapContext(data)
       return grok.formatDayRecap(context)
     }
     case "quick_stats": {
-      const data = await getQuickStats(user.id)
+      const data = await getQuickStats(user.id, user.timezone)
       const context = formatQuickStatsContext(data)
       return grok.chat(text, context)
     }
@@ -351,7 +351,7 @@ export async function handleMessage(
     case "general": {
       // For general messages, pull quick stats + pipeline counts so Grok has context
       const [stats, pipeline] = await Promise.all([
-        getQuickStats(user.id),
+        getQuickStats(user.id, user.timezone),
         getPipelineSummary(user.id),
       ])
       const context = formatQuickStatsContext(stats) + "\n\n" + formatPipelineContext(pipeline)
@@ -362,14 +362,14 @@ export async function handleMessage(
 
 // ─── Proactive message builders (for scheduler) ────────────────
 
-export async function buildMorningBrief(userId: string): Promise<string> {
-  const data = await getDayLook(userId)
+export async function buildMorningBrief(userId: string, tz?: string): Promise<string> {
+  const data = await getDayLook(userId, tz)
   const context = formatDayLookContext(data)
   return grok.formatMorningBrief(context)
 }
 
-export async function buildEodRecap(userId: string): Promise<string> {
-  const data = await getDayRecap(userId)
+export async function buildEodRecap(userId: string, tz?: string): Promise<string> {
+  const data = await getDayRecap(userId, tz)
   const context = formatDayRecapContext(data)
   return grok.formatDayRecap(context)
 }

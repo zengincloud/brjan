@@ -9,6 +9,65 @@ const prisma = new PrismaClient({
   },
 })
 
+// ─── Timezone helpers ───────────────────────────────────────────
+
+const TZ_MAP: Record<string, string> = {
+  pst: "America/Los_Angeles",
+  mst: "America/Denver",
+  cst: "America/Chicago",
+  est: "America/New_York",
+}
+
+/** Get start-of-today and start-of-tomorrow in UTC, based on the user's timezone */
+function getUserDayBounds(tz: string = "est"): { startOfDay: Date; endOfDay: Date } {
+  const ianaZone = TZ_MAP[tz.toLowerCase()] || TZ_MAP.est
+
+  // Get current time formatted in the user's timezone to extract the date parts
+  const now = new Date()
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: ianaZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now)
+
+  const year = parseInt(parts.find((p) => p.type === "year")!.value)
+  const month = parseInt(parts.find((p) => p.type === "month")!.value) - 1
+  const day = parseInt(parts.find((p) => p.type === "day")!.value)
+
+  // Build "midnight in user's timezone" by computing the UTC offset
+  // Create a reference date at midnight UTC for that calendar date
+  const midnightUTC = new Date(Date.UTC(year, month, day, 0, 0, 0))
+  // Figure out the offset: format the reference date in the target zone
+  const refParts = new Intl.DateTimeFormat("en-US", {
+    timeZone: ianaZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(midnightUTC)
+
+  const refDay = parseInt(refParts.find((p) => p.type === "day")!.value)
+  const refHour = parseInt(refParts.find((p) => p.type === "hour")!.value)
+  const refMinute = parseInt(refParts.find((p) => p.type === "minute")!.value)
+
+  // Calculate offset in ms: if midnight UTC shows as e.g. 19:00 previous day in PT,
+  // then the zone is UTC-5 (EST) or UTC-8 (PST), etc.
+  let offsetMs = refHour * 60 * 60 * 1000 + refMinute * 60 * 1000
+  if (refDay !== day) {
+    // The zone is behind UTC (negative offset), so midnight UTC is the previous day in that zone
+    offsetMs = offsetMs - 24 * 60 * 60 * 1000
+  }
+
+  // startOfDay = midnight in user's tz, expressed as UTC
+  const startOfDay = new Date(midnightUTC.getTime() - offsetMs)
+  const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000)
+
+  return { startOfDay, endOfDay }
+}
+
 // ─── User lookup ───────────────────────────────────────────────
 
 export async function getUserByEmail(email: string) {
@@ -38,11 +97,8 @@ export type BoileroomUser = NonNullable<Awaited<ReturnType<typeof getUserByEmail
 
 // ─── Day Look (morning / "what does my day look like") ─────────
 
-export async function getDayLook(userId: string) {
-  const now = new Date()
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const endOfToday = new Date(startOfToday)
-  endOfToday.setDate(endOfToday.getDate() + 1)
+export async function getDayLook(userId: string, tz?: string) {
+  const { startOfDay: startOfToday, endOfDay: endOfToday } = getUserDayBounds(tz)
 
   const [
     tasksDueToday,
@@ -139,9 +195,8 @@ export async function getDayLook(userId: string) {
 
 // ─── Day Recap (EOD / "how'd my day go") ───────────────────────
 
-export async function getDayRecap(userId: string) {
-  const now = new Date()
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+export async function getDayRecap(userId: string, tz?: string) {
+  const { startOfDay: startOfToday } = getUserDayBounds(tz)
 
   const [
     callsMade,
@@ -260,9 +315,8 @@ export async function getUpcomingTasks(userId: string, withinMinutes: number = 3
 
 // ─── Quick stats snapshot ──────────────────────────────────────
 
-export async function getQuickStats(userId: string) {
-  const now = new Date()
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+export async function getQuickStats(userId: string, tz?: string) {
+  const { startOfDay: startOfToday } = getUserDayBounds(tz)
   const startOfWeek = new Date(startOfToday)
   startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay())
 

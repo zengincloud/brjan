@@ -49,7 +49,7 @@ function scheduleMorningBrief(app: App) {
       if (!slackId) continue
 
       try {
-        const message = await buildMorningBrief(user.id)
+        const message = await buildMorningBrief(user.id, user.timezone)
         await sendDM(app, slackId, message)
         console.log(`[scheduler] Sent morning brief to ${user.email}`)
       } catch (err) {
@@ -95,7 +95,7 @@ function scheduleEodRecap(app: App) {
       if (!slackId) continue
 
       try {
-        const message = await buildEodRecap(user.id)
+        const message = await buildEodRecap(user.id, user.timezone)
         await sendDM(app, slackId, message)
         console.log(`[scheduler] Sent EOD recap to ${user.email}`)
       } catch (err) {

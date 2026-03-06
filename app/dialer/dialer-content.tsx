@@ -264,6 +264,41 @@ export default function DialerPage() {
   const [fetchedSequences, setFetchedSequences] = useState<{ id: string; name: string }[]>([])
   const [selectedTimezones, setSelectedTimezones] = useState<string[]>([])
   const [selectedCallSteps, setSelectedCallSteps] = useState<string[]>([])
+  const [callSummary, setCallSummary] = useState<{
+    summary: string
+    emailSubject: string
+    emailBody: string
+    prospectEmail: string
+    prospectName: string
+  } | null>(null)
+  const [loadingSummary, setLoadingSummary] = useState(false)
+  const [summaryCallId, setSummaryCallId] = useState<string | null>(null)
+
+  const generateCallSummary = useCallback(async (callId: string, retries = 0) => {
+    setLoadingSummary(true)
+    setSummaryCallId(callId)
+    try {
+      const res = await fetch(`/api/calls/${callId}/summarize`, { method: "POST" })
+      if (!res.ok) {
+        const data = await res.json()
+        // If transcription not ready yet, retry after a delay
+        if (data.error?.includes("No transcription") && retries < 3) {
+          setTimeout(() => generateCallSummary(callId, retries + 1), 5000)
+          return
+        }
+        setLoadingSummary(false)
+        if (retries >= 3) {
+          toast({ title: "Summary", description: "Transcription not ready yet. Try again from recordings." })
+        }
+        return
+      }
+      const result = await res.json()
+      setCallSummary(result)
+      setLoadingSummary(false)
+    } catch {
+      setLoadingSummary(false)
+    }
+  }, [toast])
 
   // Twilio state
   const [deviceReady, setDeviceReady] = useState(false)
@@ -672,6 +707,10 @@ export default function DialerPage() {
       if (!response.ok) {
         throw new Error(data.error || "Failed to create call record")
       }
+
+      // Clear any previous call summary
+      setCallSummary(null)
+      setLoadingSummary(false)
 
       // Update slot to ringing state and auto-expand the card
       const slotId = callSlots[slotIndex]?.id || "1"
@@ -1257,6 +1296,12 @@ export default function DialerPage() {
     // Fire all in parallel — don't block UI advancement
     Promise.all(savePromises)
 
+    // Generate AI summary for connected calls (non-blocking)
+    if (slot.callId && outcome.startsWith("connected")) {
+      // Small delay to let the call record save first
+      setTimeout(() => generateCallSummary(slot.callId!), 2000)
+    }
+
     // Capture next prospect BEFORE removing current from queue
     const nextProspect = mockProspects[currentProspectIndex + 1]
 
@@ -1741,6 +1786,50 @@ export default function DialerPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Call Summary */}
+      {(loadingSummary || callSummary) && (
+        <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-2 flex-1">
+              <Sparkles className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-primary mb-1">Call Summary</p>
+                {loadingSummary && !callSummary ? (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Generating summary...
+                  </div>
+                ) : callSummary ? (
+                  <div className="space-y-2">
+                    <p className="text-sm text-foreground leading-relaxed">{callSummary.summary}</p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7"
+                      onClick={() => {
+                        const to = encodeURIComponent(callSummary.prospectEmail)
+                        const su = encodeURIComponent(callSummary.emailSubject)
+                        const body = encodeURIComponent(callSummary.emailBody)
+                        window.open(`https://mail.google.com/mail/?view=cm&to=${to}&su=${su}&body=${body}`, "_blank")
+                      }}
+                    >
+                      <Mail className="h-3 w-3 mr-1" />
+                      Draft in Gmail
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+            <button
+              onClick={() => { setCallSummary(null); setLoadingSummary(false) }}
+              className="p-1 rounded hover:bg-muted transition-colors"
+            >
+              <X className="h-3.5 w-3.5 text-muted-foreground" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Session Configuration */}
       {!sessionActive && (

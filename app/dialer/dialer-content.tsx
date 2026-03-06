@@ -223,15 +223,13 @@ export default function DialerPage() {
       const res = await fetch(`/api/calls/${callId}/summarize`, { method: "POST" })
       if (!res.ok) {
         const data = await res.json()
-        // If transcription not ready yet, retry after a delay
-        if (data.error?.includes("No transcription") && retries < 3) {
-          setTimeout(() => generateCallSummary(callId, retries + 1), 5000)
+        // If transcription not ready yet, retry with increasing delay (max ~2 min total)
+        if (data.error?.includes("No transcription") && retries < 8) {
+          const delay = retries < 3 ? 10000 : 15000 // 10s for first 3, then 15s
+          setTimeout(() => generateCallSummary(callId, retries + 1), delay)
           return
         }
         setLoadingSummary(false)
-        if (retries >= 3) {
-          toast({ title: "Summary", description: "Transcription not ready yet. Try again from recordings." })
-        }
         return
       }
       const result = await res.json()
@@ -240,7 +238,7 @@ export default function DialerPage() {
     } catch {
       setLoadingSummary(false)
     }
-  }, [toast])
+  }, [])
 
   // Twilio state
   const [deviceReady, setDeviceReady] = useState(false)
@@ -1186,21 +1184,9 @@ export default function DialerPage() {
       )
     }
 
-    // Advance the sequence step so this prospect doesn't reappear in queue
-    // (skip if not interested or referral — the calls API already removes them from all sequences)
-    const sequenceRemovalOutcomes = ["connected_not_interested", "connected_referral"]
-    if (slot.prospectId && slot.sequenceId && !sequenceRemovalOutcomes.includes(outcome)) {
-      savePromises.push(
-        fetch("/api/dialer/complete-step", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            prospectId: slot.prospectId,
-            sequenceId: slot.sequenceId,
-          }),
-        }).catch(err => console.error("Error advancing sequence step:", err))
-      )
-    }
+    // NOTE: Sequence step advancement is handled by PATCH /api/calls/[id] when
+    // the outcome is set — no need to call complete-step separately (was causing
+    // double advancement, making steps jump by 2).
 
     // If callback, create a follow-up task with the scheduled date and call summary
     if (outcome === "callback" && contact) {

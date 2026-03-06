@@ -112,6 +112,7 @@ type CallSlot = {
   pendingOutcome?: string
   pendingPipelineStage?: string
   pendingCallbackDate?: Date
+  finalDuration?: number
 }
 
 type SessionStats = {
@@ -193,6 +194,7 @@ export default function DialerPage() {
   const [expandedSlots, setExpandedSlots] = useState<Set<string>>(new Set())
   const [expandedQueueRows, setExpandedQueueRows] = useState<Set<string>>(new Set())
   const [queueSize, setQueueSize] = useSessionState("dialer_queue_size", 0)
+  const [calledProspects, setCalledProspects] = useSessionState<{ name: string; company: string; outcome: string }[]>("dialer_called_prospects", [])
   const [editingPhoneId, setEditingPhoneId] = useState<string | null>(null)
   const [editedPhone, setEditedPhone] = useState<string>("")
   const [prospectNotes, setProspectNotes] = useState<{ [key: string]: string }>({})
@@ -562,10 +564,10 @@ export default function DialerPage() {
 
   const uniqueCallSteps = [...new Set(apiProspects.map(p => p.sequenceStage).filter(Boolean))] as string[]
 
-  // Update queue size when prospects change
+  // Update queue size when prospects or position changes
   useEffect(() => {
-    setQueueSize(mockProspects.length)
-  }, [mockProspects.length])
+    setQueueSize(Math.max(0, mockProspects.length - currentProspectIndex))
+  }, [mockProspects.length, currentProspectIndex])
 
   // Lazy-load enrichment data for a prospect and merge it into the call slot
   const enrichProspect = useCallback(async (prospect: DialerProspect, slotIndex: number) => {
@@ -716,6 +718,11 @@ export default function DialerPage() {
         // Play hangup sound
         playHangupSound()
 
+        // Snapshot the final call duration so it persists in the "Completed" badge
+        const finalDuration = callStartTimeRef.current
+          ? Math.floor((Date.now() - callStartTimeRef.current) / 1000)
+          : 0
+
         // Update slot to completed — but only if it's still the same call
         // (saveAndAdvance may have already reset the slot to idle with a new contact)
         setCallSlots(prev => prev.map((slot, idx) => {
@@ -723,7 +730,7 @@ export default function DialerPage() {
           // Only mark completed if the slot is still ringing/connected (not already reset)
           if (slot.status === "ringing" || slot.status === "connected") {
             setShowOutcomeButtons(true)
-            return { ...slot, status: "completed" as CallStatus }
+            return { ...slot, status: "completed" as CallStatus, finalDuration }
           }
           return slot
         }))
@@ -875,12 +882,15 @@ export default function DialerPage() {
 
     Promise.all(savePromises)
 
-    // Capture next prospect BEFORE removing current from queue
+    // Capture next prospect BEFORE advancing the index
     const nextProspect = mockProspects[currentProspectIndex + 1]
 
-    // Remove from local queue so it doesn't reappear
-    if (slot?.queueItemId) {
-      setApiProspects(prev => prev.filter(p => p.id !== slot.queueItemId))
+    // Advance the index — keep all prospects in the list so the queue stays visible
+    setCurrentProspectIndex(prev => prev + 1)
+
+    // Track in archive
+    if (slot?.contact) {
+      setCalledProspects(prev => [...prev, { name: slot.contact!.name, company: slot.contact!.company, outcome }])
     }
 
     // Update stats
@@ -903,8 +913,6 @@ export default function DialerPage() {
     callStartTimeRef.current = null
 
     // Auto-advance to next prospect if session is active
-    // Don't increment currentProspectIndex — removing the current item from
-    // apiProspects shifts the list so the next prospect slides into the same index
     if (sessionActive && !sessionPaused) {
       if (nextProspect) {
         setQueueSize(prev => Math.max(0, prev - 1))
@@ -996,6 +1004,7 @@ export default function DialerPage() {
     setSessionActive(true)
     setSessionPaused(false)
     setCurrentProspectIndex(0)
+    setCalledProspects([])
     setShowOutcomeButtons(false)
 
     // Start calling the first prospect
@@ -1230,12 +1239,15 @@ export default function DialerPage() {
       setTimeout(() => generateCallSummary(slot.callId!), 2000)
     }
 
-    // Capture next prospect BEFORE removing current from queue
+    // Capture next prospect BEFORE advancing the index
     const nextProspect = mockProspects[currentProspectIndex + 1]
 
-    // Remove this prospect from the local queue so it doesn't reappear
-    if (slot.queueItemId) {
-      setApiProspects(prev => prev.filter(p => p.id !== slot.queueItemId))
+    // Advance the index — keep all prospects in the list so the queue stays visible
+    setCurrentProspectIndex(prev => prev + 1)
+
+    // Track in archive
+    if (contact) {
+      setCalledProspects(prev => [...prev, { name: contact.name, company: contact.company, outcome }])
     }
 
     // Show appropriate toast
@@ -1278,8 +1290,7 @@ export default function DialerPage() {
     setIsMuted(false)
     callStartTimeRef.current = null
 
-    // Auto-dial next — don't increment currentProspectIndex since removing
-    // the current item from apiProspects shifts the list down by one
+    // Auto-dial next
     if (sessionActive && !sessionPaused) {
       if (nextProspect) {
         setQueueSize(prev => Math.max(0, prev - 1))
@@ -1309,13 +1320,11 @@ export default function DialerPage() {
       activeCallRef.current = null
     }
 
-    // Capture next prospect BEFORE removing current from queue
+    // Capture next prospect BEFORE advancing the index
     const nextProspect = mockProspects[currentProspectIndex + 1]
 
-    // Remove from local queue so it doesn't come back
-    if (slot.queueItemId) {
-      setApiProspects(prev => prev.filter(p => p.id !== slot.queueItemId))
-    }
+    // Advance the index — keep all prospects in the list so the queue stays visible
+    setCurrentProspectIndex(prev => prev + 1)
 
     toast({
       title: "Skipped",
@@ -1332,7 +1341,7 @@ export default function DialerPage() {
     setCallDuration(0)
     callStartTimeRef.current = null
 
-    // Auto-advance to next — don't increment index since removal shifts the list
+    // Auto-advance to next
     if (sessionActive && !sessionPaused) {
       if (nextProspect) {
         setQueueSize(prev => Math.max(0, prev - 1))
@@ -2193,7 +2202,7 @@ export default function DialerPage() {
                                 )}
 
                                 {/* Insights */}
-                                {(prospect.title || prospect.companyDescription || prospect.accountInfo?.industry || prospect.accountInfo?.employees) && (
+                                {(prospect.title || prospect.companyDescription || prospect.accountInfo?.industry || prospect.accountInfo?.employees || prospect.accountInfo?.pov) && (
                                   <div className="p-2 rounded-lg bg-primary/5 border border-primary/20">
                                     <div className="flex items-start gap-2">
                                       <Sparkles className="h-3.5 w-3.5 text-primary mt-0.5 flex-shrink-0" />
@@ -2203,11 +2212,16 @@ export default function DialerPage() {
                                           {prospect.title && prospect.company && (
                                             <li>{prospect.name} is {prospect.title} at {prospect.company}</li>
                                           )}
-                                          {(prospect.companyDescription || prospect.accountInfo?.industry || prospect.accountInfo?.employees) && (
+                                          {prospect.accountInfo?.pov?.whatTheyDo ? (
+                                            <li>{prospect.accountInfo.pov.whatTheyDo}</li>
+                                          ) : (prospect.companyDescription || prospect.accountInfo?.industry || prospect.accountInfo?.employees) && (
                                             <li>
                                               {prospect.company}{prospect.accountInfo?.employees ? `, ${prospect.accountInfo.employees.toLocaleString()} employees` : ""}
                                               {prospect.companyDescription ? ` — ${prospect.companyDescription}` : prospect.accountInfo?.industry ? ` — ${prospect.accountInfo.industry}` : ""}
                                             </li>
+                                          )}
+                                          {prospect.accountInfo?.pov?.exampleUseCase && (
+                                            <li>{prospect.accountInfo.pov.exampleUseCase}</li>
                                           )}
                                         </ul>
                                       </div>
@@ -2415,7 +2429,7 @@ export default function DialerPage() {
                         )}
                         {slot.status === "completed" && (
                           <Badge variant="outline" className="border-muted-foreground/50">
-                            Completed • {String(Math.floor(callDuration / 60)).padStart(2, '0')}:{String(callDuration % 60).padStart(2, '0')}
+                            Completed • {String(Math.floor((slot.finalDuration || 0) / 60)).padStart(2, '0')}:{String((slot.finalDuration || 0) % 60).padStart(2, '0')}
                           </Badge>
                         )}
                         {slot.status === "idle" && !sessionActive && (
@@ -2721,7 +2735,7 @@ export default function DialerPage() {
                           )}
 
                           {/* Insights */}
-                          {(slot.contact.title || (slot.contact as any).companyDescription || (slot.contact.accountInfo as any)?.industry || (slot.contact.accountInfo as any)?.employees) && (
+                          {(slot.contact.title || (slot.contact as any).companyDescription || (slot.contact.accountInfo as any)?.industry || (slot.contact.accountInfo as any)?.employees || (slot.contact.accountInfo as any)?.pov) && (
                           <div className="p-2 rounded-lg bg-primary/5 border border-primary/20">
                             <div className="flex items-start gap-2">
                               <Sparkles className="h-3.5 w-3.5 text-primary mt-0.5 flex-shrink-0" />
@@ -2731,11 +2745,16 @@ export default function DialerPage() {
                                   {slot.contact.title && slot.contact.company && (
                                     <li>{slot.contact.name} is {slot.contact.title} at {slot.contact.company}</li>
                                   )}
-                                  {((slot.contact as any).companyDescription || (slot.contact.accountInfo as any)?.industry || (slot.contact.accountInfo as any)?.employees) && (
+                                  {(slot.contact.accountInfo as any)?.pov?.whatTheyDo ? (
+                                    <li>{(slot.contact.accountInfo as any).pov.whatTheyDo}</li>
+                                  ) : ((slot.contact as any).companyDescription || (slot.contact.accountInfo as any)?.industry || (slot.contact.accountInfo as any)?.employees) && (
                                     <li>
                                       {slot.contact.company}{(slot.contact.accountInfo as any)?.employees ? `, ${(slot.contact.accountInfo as any).employees.toLocaleString()} employees` : ""}
                                       {(slot.contact as any).companyDescription ? ` — ${(slot.contact as any).companyDescription}` : (slot.contact.accountInfo as any)?.industry ? ` — ${(slot.contact.accountInfo as any).industry}` : ""}
                                     </li>
+                                  )}
+                                  {(slot.contact.accountInfo as any)?.pov?.exampleUseCase && (
+                                    <li>{(slot.contact.accountInfo as any).pov.exampleUseCase}</li>
                                   )}
                                 </ul>
                               </div>
@@ -3018,6 +3037,45 @@ export default function DialerPage() {
                       )}
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+            {/* Called — archive of completed calls this session */}
+            {calledProspects.length > 0 && sessionActive && (
+              <div className="mt-4">
+                <h3 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
+                  <History className="h-3.5 w-3.5" />
+                  Called ({calledProspects.length})
+                </h3>
+                <div className="space-y-1">
+                  {[...calledProspects].reverse().map((cp, idx) => {
+                    const outcomeColors: Record<string, string> = {
+                      connected: "text-green-500",
+                      connected_intro_booked: "text-green-500",
+                      connected_referral: "text-green-500",
+                      connected_not_interested: "text-yellow-500",
+                      connected_info_gathered: "text-green-500",
+                      callback: "text-blue-500",
+                      voicemail: "text-orange-500",
+                      no_answer: "text-muted-foreground",
+                      busy: "text-muted-foreground",
+                      failed: "text-red-500",
+                      gatekeeper: "text-yellow-500",
+                      wrong_number: "text-red-500",
+                    }
+                    const label = (o: string) => (o || "unknown").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())
+                    return (
+                      <div key={idx} className="flex items-center gap-3 px-3 py-1.5 rounded-lg bg-muted/20 border border-border/50 opacity-70">
+                        <div className="flex-1 min-w-0">
+                          <span className="text-xs font-medium truncate">{cp.name}</span>
+                          {cp.company && <span className="text-xs text-muted-foreground ml-1.5">@ {cp.company}</span>}
+                        </div>
+                        <span className={`text-xs font-medium ${outcomeColors[cp.outcome] || "text-muted-foreground"}`}>
+                          {label(cp.outcome)}
+                        </span>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )}

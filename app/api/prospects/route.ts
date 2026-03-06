@@ -5,6 +5,7 @@ import { checkCredits, deductCredits } from "@/lib/credits"
 import { findOrCreateAccount } from "@/lib/account-linking"
 import { pushContact, pushCompany, associateContactToCompany } from "@/lib/hubspot/client"
 import { getValidAccessToken } from "@/lib/hubspot/oauth"
+import { getTimezoneFromLocation } from "@/lib/timezone"
 
 export const dynamic = 'force-dynamic'
 
@@ -147,6 +148,8 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       employees: wizaData?.companySize || null,
     }) : null
 
+    const timezone = getTimezoneFromLocation(location) || null
+
     const prospect = await prisma.prospect.create({
       data: {
         name,
@@ -155,6 +158,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
         company,
         phone,
         location,
+        timezone,
         linkedin,
         status,
         sequence,

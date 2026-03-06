@@ -70,6 +70,7 @@ import { Device, Call as TwilioCall } from "@twilio/voice-sdk"
 import { formatDistanceToNow } from "date-fns"
 import { useUserRole } from "@/hooks/use-user-role"
 import { useSessionState } from "@/hooks/use-session-state"
+import { getLocalTime, getTimezoneAbbr } from "@/lib/timezone"
 
 type CallStatus = "idle" | "ringing" | "connected" | "completed"
 
@@ -133,6 +134,7 @@ type DialerProspect = {
   email: string
   linkedin?: string | null
   location?: string | null
+  timezone?: string | null
   companyDescription?: string | null
   industry?: string
   companySize?: string
@@ -167,67 +169,7 @@ type DialerProspect = {
   status?: string
 }
 
-// Map common city/state/country strings to IANA timezone
-function getTimezoneFromLocation(location: string | null | undefined): string | null {
-  if (!location) return null
-  const loc = location.toLowerCase().replace(/\./g, "")
-  if (/new york|nyc|manhattan|brooklyn|new jersey|new brunswick|newark|nj\b|ny\b|connecticut|ct\b|boston|massachusetts|ma\b|philadelphia|pennsylvania|pa\b|washington.*dc|dc\b|virginia|va\b|maryland|md\b|maine|me\b|vermont|vt\b|new hampshire|nh\b|rhode island|ri\b|delaware|de\b|east coast/i.test(loc)) return "America/New_York"
-  if (/chicago|illinois|il\b|wisconsin|wi\b|minnesota|mn\b|iowa|ia\b|missouri|mo\b|indiana|in\b|michigan|mi\b|ohio|oh\b|central time|midwest|nashville|tennessee|tn\b|memphis|milwaukee|detroit|cleveland|columbus|kansas city|omaha|nebraska|ne\b|north dakota|nd\b|south dakota|sd\b/i.test(loc)) return "America/Chicago"
-  if (/denver|colorado|co\b|utah|ut\b|arizona|az\b|phoenix|mountain time|albuquerque|new mexico|nm\b|montana|mt\b|wyoming|wy\b|idaho|id\b|boise|salt lake/i.test(loc)) return "America/Denver"
-  if (/los angeles|san francisco|california|ca\b|seattle|washington state|wa\b|portland|oregon|or\b|pacific time|west coast|san diego|san jose|silicon valley|las vegas|nevada|nv\b/i.test(loc)) return "America/Los_Angeles"
-  if (/hawaii|hi\b|honolulu/i.test(loc)) return "Pacific/Honolulu"
-  if (/alaska|ak\b|anchorage/i.test(loc)) return "America/Anchorage"
-  if (/texas|tx\b|dallas|houston|austin|san antonio/i.test(loc)) return "America/Chicago"
-  if (/atlanta|georgia|ga\b|florida|fl\b|miami|tampa|orlando|carolina|nc\b|sc\b|charlotte|raleigh|jacksonville/i.test(loc)) return "America/New_York"
-  if (/toronto|ontario|ottawa|montreal|quebec/i.test(loc)) return "America/Toronto"
-  if (/vancouver|british columbia/i.test(loc)) return "America/Vancouver"
-  if (/calgary|edmonton|alberta/i.test(loc)) return "America/Edmonton"
-  if (/london|united kingdom|uk\b|england|britain/i.test(loc)) return "Europe/London"
-  if (/paris|france/i.test(loc)) return "Europe/Paris"
-  if (/berlin|germany|munich|frankfurt/i.test(loc)) return "Europe/Berlin"
-  if (/amsterdam|netherlands|dutch/i.test(loc)) return "Europe/Amsterdam"
-  if (/dublin|ireland/i.test(loc)) return "Europe/Dublin"
-  if (/stockholm|sweden/i.test(loc)) return "Europe/Stockholm"
-  if (/madrid|spain|barcelona/i.test(loc)) return "Europe/Madrid"
-  if (/rome|italy|milan/i.test(loc)) return "Europe/Rome"
-  if (/sydney|melbourne|australia|brisbane/i.test(loc)) return "Australia/Sydney"
-  if (/tokyo|japan/i.test(loc)) return "Asia/Tokyo"
-  if (/singapore/i.test(loc)) return "Asia/Singapore"
-  if (/hong kong/i.test(loc)) return "Asia/Hong_Kong"
-  if (/mumbai|delhi|india|bangalore|hyderabad/i.test(loc)) return "Asia/Kolkata"
-  if (/dubai|uae|abu dhabi/i.test(loc)) return "Asia/Dubai"
-  if (/tel aviv|israel|jerusalem/i.test(loc)) return "Asia/Jerusalem"
-  return null
-}
 
-function getLocalTime(location: string | null | undefined): string | null {
-  const tz = getTimezoneFromLocation(location)
-  if (!tz) return null
-  try {
-    return new Intl.DateTimeFormat("en-US", {
-      timeZone: tz,
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    }).format(new Date())
-  } catch {
-    return null
-  }
-}
-
-function getTimezoneAbbr(location: string | null | undefined): string | null {
-  const tz = getTimezoneFromLocation(location)
-  if (!tz) return null
-  try {
-    const parts = new Intl.DateTimeFormat("en-US", {
-      timeZone: tz,
-      timeZoneName: "short",
-    }).formatToParts(new Date())
-    return parts.find(p => p.type === "timeZoneName")?.value || null
-  } catch {
-    return null
-  }
-}
 
 export default function DialerPage() {
   const { toast } = useToast()
@@ -576,7 +518,7 @@ export default function DialerPage() {
     // Timezone filter — keep prospects with no location (only filter out mismatched ones)
     if (selectedTimezones.length > 0) {
       const loc = p.location || (p.accountInfo as any)?.location || null
-      const abbr = getTimezoneAbbr(loc)
+      const abbr = getTimezoneAbbr(p.timezone, loc)
       if (abbr) {
         // Match both standard and daylight: EST/EDT → "ET", CST/CDT → "CT", etc.
         const tzMap: Record<string, string[]> = {
@@ -2018,8 +1960,8 @@ export default function DialerPage() {
                 <tbody>
                   {mockProspects.map((prospect, idx) => {
                     const loc = prospect.location || prospect.accountInfo?.location || null
-                    const localTime = getLocalTime(loc)
-                    const tzAbbr = getTimezoneAbbr(loc)
+                    const localTime = getLocalTime(prospect.timezone, loc)
+                    const tzAbbr = getTimezoneAbbr(prospect.timezone, loc)
                     const insightBullets: string[] = []
                     if (prospect.companyDescription) {
                       insightBullets.push(prospect.companyDescription.length > 80 ? prospect.companyDescription.slice(0, 80) + "..." : prospect.companyDescription)

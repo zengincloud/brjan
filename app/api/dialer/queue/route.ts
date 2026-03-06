@@ -130,6 +130,7 @@ export const GET = withAuth(async (
         email: contact?.email || prospect?.email || '',
         linkedin: contact?.linkedin || prospect?.linkedin || null,
         location: prospect?.location || null,
+        timezone: prospect?.timezone || null,
         companyDescription: (prospect?.wizaData as any)?.companyDescription || null,
         prospectNotes: prospect?.notes || null,
 
@@ -203,6 +204,7 @@ export const GET = withAuth(async (
         email: ps.prospect.email,
         linkedin: ps.prospect.linkedin || null,
         location: ps.prospect.location || null,
+        timezone: ps.prospect.timezone || null,
         companyDescription: (ps.prospect.wizaData as any)?.companyDescription || null,
         prospectNotes: ps.prospect.notes || null,
 

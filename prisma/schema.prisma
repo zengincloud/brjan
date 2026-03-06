@@ -155,6 +155,7 @@ model Prospect {
   company      String?
   phone        String?
   location     String?
+  timezone     String?
   linkedin     String?
   notes        String?
   status       ProspectStatus @default(new_lead)

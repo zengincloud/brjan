@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { createClient } from "@/lib/supabase/server"
+import { getTimezoneFromLocation } from "@/lib/timezone"
 
 export const dynamic = "force-dynamic"
 
@@ -303,6 +304,15 @@ export async function POST(
     // Set location if prospect doesn't have one
     if (!prospect.location && enriched.location) {
       updateData.location = enriched.location
+    }
+
+    // Set timezone if prospect doesn't have one (derive from best available location)
+    if (!prospect.timezone) {
+      const locationForTz = updateData.location || prospect.location || enriched.location
+      const derivedTz = getTimezoneFromLocation(locationForTz)
+      if (derivedTz) {
+        updateData.timezone = derivedTz
+      }
     }
 
     const updated = await prisma.prospect.update({

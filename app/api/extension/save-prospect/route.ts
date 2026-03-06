@@ -5,6 +5,7 @@ import { checkCredits, deductCredits } from "@/lib/credits"
 import { findOrCreateAccount } from "@/lib/account-linking"
 import { pushContact, pushCompany, associateContactToCompany } from "@/lib/hubspot/client"
 import { getValidAccessToken } from "@/lib/hubspot/oauth"
+import { getTimezoneFromLocation } from "@/lib/timezone"
 
 export const dynamic = 'force-dynamic'
 
@@ -65,6 +66,8 @@ export const POST = withExtensionAuth(async (request: NextRequest, userId: strin
       angle: `Lead with ROI metrics and case studies from similar ${industry ? `companies in the ${industry} space` : "companies"}. Emphasize quick time-to-value and ease of implementation. Focus on how your solution addresses their key priorities: efficiency gains, cost reduction, and competitive advantage.`,
     } : null
 
+    const timezone = getTimezoneFromLocation(location) || null
+
     const prospect = await prisma.prospect.create({
       data: {
         name,
@@ -73,6 +76,7 @@ export const POST = withExtensionAuth(async (request: NextRequest, userId: strin
         company: resolvedCompany,
         phone,
         location,
+        timezone,
         linkedin,
         ...(notes && { notes }),
         status: "new_lead",

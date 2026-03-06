@@ -3,6 +3,7 @@ import { withAuth } from "@/lib/auth/api-middleware"
 import { prisma } from "@/lib/prisma"
 import { checkCredits, deductCredits } from "@/lib/credits"
 import { findOrCreateAccount } from "@/lib/account-linking"
+import { normalizeTimezone, getTimezoneFromLocation } from "@/lib/timezone"
 import Papa from "papaparse"
 
 export const dynamic = 'force-dynamic'
@@ -81,6 +82,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       const location = row.location || row.Location || row.LOCATION || row.city || row.City || row["Company HQ"] || row["company hq"] || row.headquarters || row.Headquarters || null
       const linkedin = row.linkedin || row.LinkedIn || row.LINKEDIN || row["LinkedIn URL"] || row["linkedin url"] || row["LinkedIn Profile"] || null
       const industry = row.industry || row.Industry || row.INDUSTRY || null
+      const timezoneRaw = row.timezone || row.Timezone || row.TIMEZONE || row["Time Zone"] || row["time zone"] || row.tz || row.TZ || null
 
       if (!name || !email) {
         errors.push(`Row ${index + 1}: Missing required fields (name, email)`)
@@ -111,6 +113,9 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
         companySize: employeesRaw || wizaData.companySize,
       })
 
+      // Resolve timezone: prefer explicit column, fall back to location-based derivation
+      const timezone = normalizeTimezone(timezoneRaw) || getTimezoneFromLocation(location) || null
+
       prospects.push({
         name,
         email,
@@ -118,6 +123,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
         company,
         phone,
         location,
+        timezone,
         linkedin,
         ...(povData && { povData }),
         ...(hasWizaData && { wizaData }),

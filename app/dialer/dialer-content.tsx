@@ -263,6 +263,7 @@ export default function DialerPage() {
   const [loadingProspects, setLoadingProspects] = useState(true)
   const [fetchedSequences, setFetchedSequences] = useState<{ id: string; name: string }[]>([])
   const [selectedTimezones, setSelectedTimezones] = useState<string[]>([])
+  const [selectedCallSteps, setSelectedCallSteps] = useState<string[]>([])
 
   // Twilio state
   const [deviceReady, setDeviceReady] = useState(false)
@@ -557,6 +558,10 @@ export default function DialerPage() {
       }
       // If no abbr (no location), keep the prospect — don't filter them out
     }
+    // Call step filter
+    if (selectedCallSteps.length > 0) {
+      if (!selectedCallSteps.includes(p.sequenceStage || "")) return false
+    }
     return true
   }).sort((a, b) => {
     const toTime = (val: Date | string | null | undefined) => {
@@ -579,6 +584,8 @@ export default function DialerPage() {
         return 0
     }
   })
+
+  const uniqueCallSteps = [...new Set(apiProspects.map(p => p.sequenceStage).filter(Boolean))] as string[]
 
   // Update queue size when prospects change
   useEffect(() => {
@@ -1812,8 +1819,8 @@ export default function DialerPage() {
               <p className="text-xs text-muted-foreground mt-1">
                 {mockProspects.length > 0
                   ? `${mockProspects.length} prospect${mockProspects.length !== 1 ? "s" : ""} to call`
-                  : selectedTimezones.length > 0
-                    ? "No prospects match the selected timezone filter"
+                  : selectedTimezones.length > 0 || selectedCallSteps.length > 0
+                    ? "No prospects match the selected filters"
                     : "No prospects in queue"
                 }
               </p>
@@ -1828,7 +1835,46 @@ export default function DialerPage() {
                     <th className="text-left py-2.5 px-4 font-medium text-muted-foreground text-xs">#</th>
                     <th className="text-left py-2.5 px-4 font-medium text-muted-foreground text-xs">Name</th>
                     <th className="text-left py-2.5 px-4 font-medium text-muted-foreground text-xs">Company</th>
-                    <th className="text-left py-2.5 px-4 font-medium text-muted-foreground text-xs">Call Step</th>
+                    <th className="text-left py-2.5 px-4 font-medium text-muted-foreground text-xs">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button className="flex items-center gap-1 hover:text-foreground transition-colors">
+                            Call Step
+                            {selectedCallSteps.length > 0 && (
+                              <Badge variant="secondary" className="text-[9px] px-1 py-0 h-3.5 ml-1">{selectedCallSteps.length}</Badge>
+                            )}
+                            <ChevronDown className="h-3 w-3" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="min-w-[120px]">
+                          {uniqueCallSteps.map(step => (
+                            <DropdownMenuItem
+                              key={step}
+                              onSelect={(e) => {
+                                e.preventDefault()
+                                setSelectedCallSteps(prev =>
+                                  prev.includes(step) ? prev.filter(s => s !== step) : [...prev, step]
+                                )
+                              }}
+                              className="flex items-center gap-2"
+                            >
+                              <div className={`h-3.5 w-3.5 rounded-sm border flex items-center justify-center ${
+                                selectedCallSteps.includes(step) ? "bg-primary border-primary" : "border-muted-foreground/30"
+                              }`}>
+                                {selectedCallSteps.includes(step) && <Check className="h-2.5 w-2.5 text-primary-foreground" />}
+                              </div>
+                              {step}
+                            </DropdownMenuItem>
+                          ))}
+                          {selectedCallSteps.length > 0 && (
+                            <DropdownMenuItem onSelect={() => setSelectedCallSteps([])}>
+                              <X className="h-3.5 w-3.5 mr-2" />
+                              Clear filters
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </th>
                     <th className="text-left py-2.5 px-4 font-medium text-muted-foreground text-xs">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -2040,109 +2086,184 @@ export default function DialerPage() {
                         {isExpanded && (
                           <tr className="border-b last:border-0 bg-muted/20">
                             <td colSpan={7} className="px-4 py-4">
-                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                {/* Contact Info */}
-                                <div className="space-y-2">
-                                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Contact</h4>
-                                  <div className="space-y-1 text-sm">
-                                    <div className="flex items-center gap-2">
-                                      <Mail className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                                      <span className="truncate">{prospect.email}</span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      <Phone className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                                      <span>{prospect.phone}</span>
-                                    </div>
-                                    {prospect.location && (
-                                      <div className="flex items-center gap-2">
-                                        <MapPin className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                                        <span>{prospect.location}</span>
-                                      </div>
-                                    )}
-                                  </div>
+                              <div className="space-y-3">
+                                {/* Call button */}
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    size="sm"
+                                    className="bg-primary hover:bg-primary/90 text-primary-foreground h-7"
+                                    disabled={!deviceReady}
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setExpandedQueueRows(prev => {
+                                        const next = new Set(prev)
+                                        next.delete(prospect.id)
+                                        return next
+                                      })
+                                      dialOneOff(prospect)
+                                    }}
+                                  >
+                                    <Phone className="h-3 w-3 mr-1" />
+                                    Call
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      openEmailDialog(prospect)
+                                    }}
+                                  >
+                                    <Mail className="h-3 w-3 mr-1" />
+                                    Email
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      openCalendarInvite(prospect as any)
+                                    }}
+                                  >
+                                    <Calendar className="h-3 w-3 mr-1" />
+                                    Calendar
+                                  </Button>
                                 </div>
 
-                                {/* POV / Strategy */}
-                                {prospect.pov && (
-                                  <div className="space-y-2">
-                                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">POV</h4>
-                                    <div className="space-y-1.5 text-xs">
-                                      {prospect.pov.angle && (
-                                        <div><span className="font-medium">Angle:</span> {prospect.pov.angle}</div>
-                                      )}
-                                      {prospect.pov.opportunity && (
-                                        <div><span className="font-medium">Opportunity:</span> {prospect.pov.opportunity}</div>
-                                      )}
-                                      {prospect.pov.howToHelp && (
-                                        <div><span className="font-medium">How to help:</span> {prospect.pov.howToHelp}</div>
-                                      )}
+                                {/* Company Info */}
+                                {prospect.accountInfo && (
+                                  <div className="p-2 rounded-lg bg-blue-500/5 border border-blue-500/20">
+                                    <div className="flex items-start gap-2">
+                                      <Building2 className="h-3.5 w-3.5 text-blue-500 mt-0.5 flex-shrink-0" />
+                                      <div className="flex-1">
+                                        <p className="text-xs font-medium text-foreground mb-1.5">Company Info — {prospect.company}</p>
+                                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                                          {prospect.accountInfo.industry && (
+                                            <span>{prospect.accountInfo.industry}</span>
+                                          )}
+                                          {prospect.accountInfo.employees && (
+                                            <span>{prospect.accountInfo.employees.toLocaleString()} employees</span>
+                                          )}
+                                          {prospect.accountInfo.location && (
+                                            <span className="flex items-center gap-1">
+                                              <MapPin className="h-3 w-3" />
+                                              {prospect.accountInfo.location}
+                                            </span>
+                                          )}
+                                          {prospect.accountInfo.website && (
+                                            <a
+                                              href={prospect.accountInfo.website.startsWith('http') ? prospect.accountInfo.website : `https://${prospect.accountInfo.website}`}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="flex items-center gap-1 text-blue-500 hover:underline"
+                                              onClick={(e) => e.stopPropagation()}
+                                            >
+                                              <Globe className="h-3 w-3" />
+                                              Website
+                                            </a>
+                                          )}
+                                        </div>
+                                      </div>
                                     </div>
                                   </div>
                                 )}
+
+                                {/* Insights */}
+                                {(prospect.title || prospect.companyDescription || prospect.accountInfo?.industry || prospect.accountInfo?.employees) && (
+                                  <div className="p-2 rounded-lg bg-primary/5 border border-primary/20">
+                                    <div className="flex items-start gap-2">
+                                      <Sparkles className="h-3.5 w-3.5 text-primary mt-0.5 flex-shrink-0" />
+                                      <div className="flex-1">
+                                        <p className="text-xs font-medium text-primary mb-1">Insights</p>
+                                        <ul className="space-y-1 text-xs text-foreground leading-relaxed list-disc list-inside">
+                                          {prospect.title && prospect.company && (
+                                            <li>{prospect.name} is {prospect.title} at {prospect.company}</li>
+                                          )}
+                                          {(prospect.companyDescription || prospect.accountInfo?.industry || prospect.accountInfo?.employees) && (
+                                            <li>
+                                              {prospect.company}{prospect.accountInfo?.employees ? `, ${prospect.accountInfo.employees.toLocaleString()} employees` : ""}
+                                              {prospect.companyDescription ? ` — ${prospect.companyDescription}` : prospect.accountInfo?.industry ? ` — ${prospect.accountInfo.industry}` : ""}
+                                            </li>
+                                          )}
+                                        </ul>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Contact details */}
+                                <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                                  <div className="flex items-center gap-1.5">
+                                    <Mail className="h-3 w-3" />
+                                    <span>{prospect.email}</span>
+                                  </div>
+                                  {prospect.accountInfo?.website && (
+                                    <a href={prospect.accountInfo.website.startsWith("http") ? prospect.accountInfo.website : `https://${prospect.accountInfo.website}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-primary" onClick={(e) => e.stopPropagation()}>
+                                      <Globe className="h-3 w-3" />
+                                      <span>Website</span>
+                                    </a>
+                                  )}
+                                  {prospect.sequenceStage && (
+                                    <Badge variant="outline" className="text-xs h-5">
+                                      {prospect.sequenceStage}
+                                    </Badge>
+                                  )}
+                                  {prospect.lastEmailSent && (
+                                    <span>Last email: {prospect.lastEmailSent}</span>
+                                  )}
+                                </div>
 
                                 {/* Call Script */}
                                 {prospect.callScript && (
-                                  <div className="space-y-2">
-                                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Call Script</h4>
-                                    <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">{prospect.callScript}</p>
+                                  <div className="p-2 rounded-lg bg-muted/30 border border-border">
+                                    <div className="flex items-start gap-2">
+                                      <FileText className="h-3.5 w-3.5 text-muted-foreground mt-0.5 flex-shrink-0" />
+                                      <div className="flex-1">
+                                        <p className="text-xs font-medium text-foreground mb-1">Call Script</p>
+                                        <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">{prospect.callScript}</p>
+                                      </div>
+                                    </div>
                                   </div>
                                 )}
 
-                                {/* AI Notes */}
-                                {prospect.aiNotes && !prospect.pov && !prospect.callScript && (
+                                {/* Prior Calls */}
+                                {prospect.priorCalls && prospect.priorCalls.length > 0 && (
                                   <div className="space-y-2">
-                                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
-                                      <Sparkles className="h-3 w-3" /> AI Notes
-                                    </h4>
-                                    <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">{prospect.aiNotes}</p>
+                                    <p className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                                      <History className="h-3 w-3" />
+                                      Call History
+                                    </p>
+                                    {prospect.priorCalls.map((call, i) => (
+                                      <div key={i} className="p-2 rounded bg-secondary/30 border border-border">
+                                        <div className="flex items-center justify-between mb-1">
+                                          <span className="text-xs font-medium">{new Date(call.date).toLocaleDateString()}</span>
+                                          <Badge variant="outline" className="text-xs h-5">
+                                            {call.outcome.replace(/_/g, " ")}
+                                          </Badge>
+                                        </div>
+                                        {call.notes && <p className="text-xs text-muted-foreground">{call.notes}</p>}
+                                      </div>
+                                    ))}
                                   </div>
                                 )}
 
-                                {/* Company Description */}
-                                {prospect.companyDescription && !prospect.pov && (
-                                  <div className="space-y-2">
-                                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Company</h4>
-                                    <p className="text-xs text-muted-foreground">{prospect.companyDescription}</p>
+                                {/* Correspondence History */}
+                                {prospect.correspondenceHistory && prospect.correspondenceHistory.length > 0 && (
+                                  <div className="p-2 rounded-lg bg-muted/30 border border-border">
+                                    <div className="flex items-start gap-2">
+                                      <MessageSquare className="h-3.5 w-3.5 text-muted-foreground mt-0.5 flex-shrink-0" />
+                                      <div className="flex-1">
+                                        <p className="text-xs font-medium text-foreground mb-1">Correspondence History</p>
+                                        <p className="text-xs text-muted-foreground leading-relaxed">
+                                          {getHistorySummary(prospect.correspondenceHistory)}
+                                        </p>
+                                      </div>
+                                    </div>
                                   </div>
                                 )}
                               </div>
-
-                              {/* Prior Calls */}
-                              {prospect.priorCalls && prospect.priorCalls.length > 0 && (
-                                <div className="mt-3 pt-3 border-t">
-                                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                                    <History className="h-3 w-3" /> Prior Calls
-                                  </h4>
-                                  <div className="flex flex-wrap gap-2">
-                                    {prospect.priorCalls.map((call, i) => (
-                                      <div key={i} className="text-xs bg-background border rounded px-2 py-1">
-                                        <span className="text-muted-foreground">{new Date(call.date).toLocaleDateString()}</span>
-                                        <span className="mx-1.5">·</span>
-                                        <span className="font-medium">{call.outcome.replace(/_/g, " ")}</span>
-                                        {call.notes && <span className="text-muted-foreground ml-1.5">— {call.notes.length > 60 ? call.notes.slice(0, 60) + "..." : call.notes}</span>}
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Correspondence History */}
-                              {prospect.correspondenceHistory && prospect.correspondenceHistory.length > 0 && (
-                                <div className="mt-3 pt-3 border-t">
-                                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                                    <MessageSquare className="h-3 w-3" /> Recent Correspondence
-                                  </h4>
-                                  <div className="flex flex-wrap gap-2">
-                                    {prospect.correspondenceHistory.slice(0, 5).map((item, i) => (
-                                      <div key={i} className="text-xs bg-background border rounded px-2 py-1">
-                                        <Badge variant="outline" className="text-[10px] mr-1.5">{item.type}</Badge>
-                                        <span className="text-muted-foreground">{new Date(item.date).toLocaleDateString()}</span>
-                                        <span className="ml-1.5">{item.summary.length > 60 ? item.summary.slice(0, 60) + "..." : item.summary}</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
                             </td>
                           </tr>
                         )}
@@ -2155,18 +2276,18 @@ export default function DialerPage() {
           </div>
           ) : (
             <div className="border rounded-lg p-8 text-center text-muted-foreground text-sm">
-              {selectedTimezones.length > 0 ? "No prospects match the selected timezone filter. Try clearing the filter." : "No prospects in queue."}
+              {selectedTimezones.length > 0 || selectedCallSteps.length > 0 ? "No prospects match the selected filters. Try clearing the filters." : "No prospects in queue."}
             </div>
           )}
         </div>
       )}
 
-      {/* Current Call + Queue (only visible during active session) */}
-      {sessionActive && (
+      {/* Current Call + Queue (visible during active session OR one-off call) */}
+      {(sessionActive || callSlots[0]?.contact) && (
       <div>
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-lg font-semibold">Current Call</h2>
+            <h2 className="text-lg font-semibold">{sessionActive ? "Current Call" : "Quick Call"}</h2>
             {selectedSequence !== "all" && (
               <p className="text-xs text-muted-foreground mt-1">
                 Sequence: {sequences.find(s => s.id === selectedSequence)?.name}
@@ -2178,9 +2299,33 @@ export default function DialerPage() {
               <Phone className="h-3 w-3 mr-1" />
               {selectedPhone}
             </Badge>
-            <Badge variant="outline" className="border-primary/50 text-primary">
-              {queueSize} in queue
-            </Badge>
+            {sessionActive && (
+              <Badge variant="outline" className="border-primary/50 text-primary">
+                {queueSize} in queue
+              </Badge>
+            )}
+            {!sessionActive && callSlots[0]?.contact && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7"
+                onClick={() => {
+                  setCallSlots([{
+                    id: "1",
+                    status: "idle" as CallStatus,
+                    contact: null,
+                    startTime: null,
+                    notes: "",
+                    pendingOutcome: undefined,
+                    pendingPipelineStage: undefined,
+                  }])
+                  setExpandedSlots(new Set())
+                }}
+              >
+                <X className="h-3 w-3 mr-1" />
+                Close
+              </Button>
+            )}
           </div>
         </div>
 
@@ -2251,7 +2396,21 @@ export default function DialerPage() {
                             Completed • {String(Math.floor(callDuration / 60)).padStart(2, '0')}:{String(callDuration % 60).padStart(2, '0')}
                           </Badge>
                         )}
-                        {slot.status === "idle" && (
+                        {slot.status === "idle" && !sessionActive && (
+                          <Button
+                            size="sm"
+                            className="bg-primary hover:bg-primary/90 text-primary-foreground h-7"
+                            disabled={!deviceReady}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (slot.contact) dialOneOff(slot.contact as any)
+                            }}
+                          >
+                            <Phone className="h-3 w-3 mr-1" />
+                            Dial
+                          </Button>
+                        )}
+                        {slot.status === "idle" && sessionActive && (
                           <Badge variant="outline">Idle</Badge>
                         )}
                         {(slot.status === "ringing" || slot.status === "connected") && slot.startTime && <CallTimer startTime={slot.startTime} />}
@@ -2467,14 +2626,14 @@ export default function DialerPage() {
 
                         <div className="border-l border-border h-5 mx-1" />
 
-                        {/* Save & Next - always visible */}
+                        {/* Save & Next / Save */}
                         <Button
                           size="sm"
                           className="bg-green-600 hover:bg-green-700 text-white h-7"
                           onClick={() => saveAndAdvance(slot.id)}
                         >
                           <Save className="h-3 w-3 mr-1" />
-                          Save & Next
+                          {sessionActive ? "Save & Next" : "Save"}
                         </Button>
 
                         <div className="border-l border-border h-5 mx-1" />

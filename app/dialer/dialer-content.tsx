@@ -87,7 +87,7 @@ type CallSlot = {
     location?: string | null
     companyDescription?: string | null
     aiNotes: string
-    priorCalls: { date: string; outcome: string; notes: string }[]
+    priorCalls: { date: string; outcome: string; notes: string; calledBy?: string }[]
     lastEmailSent: string
     sequenceStage: string
     sequence: string
@@ -142,7 +142,7 @@ type DialerProspect = {
   businessDescription?: string
   whatTheySell?: string
   aiNotes?: string
-  priorCalls?: { date: string; outcome: string; notes: string }[]
+  priorCalls?: { date: string; outcome: string; notes: string; calledBy?: string }[]
   lastEmailSent?: string | null
   sequenceStage?: string
   sequence?: string | null
@@ -562,7 +562,10 @@ export default function DialerPage() {
     }
   })
 
-  const uniqueCallSteps = [...new Set(apiProspects.map(p => p.sequenceStage).filter(Boolean))] as string[]
+  const callStepOptions = [...new Set([
+    ...Array.from({ length: 10 }, (_, i) => `Call ${i + 1}`),
+    ...apiProspects.map(p => p.sequenceStage).filter(Boolean),
+  ])] as string[]
 
   // Update queue size when prospects or position changes
   useEffect(() => {
@@ -1878,7 +1881,7 @@ export default function DialerPage() {
                           </button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="start" className="min-w-[120px]">
-                          {uniqueCallSteps.map(step => (
+                          {callStepOptions.map(step => (
                             <DropdownMenuItem
                               key={step}
                               onSelect={(e) => {
@@ -2274,7 +2277,10 @@ export default function DialerPage() {
                                     {prospect.priorCalls.map((call, i) => (
                                       <div key={i} className="p-2 rounded bg-secondary/30 border border-border">
                                         <div className="flex items-center justify-between mb-1">
-                                          <span className="text-xs font-medium">{new Date(call.date).toLocaleDateString()}</span>
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-xs font-medium">{new Date(call.date).toLocaleDateString()}</span>
+                                            {call.calledBy && <span className="text-[10px] text-muted-foreground">by {call.calledBy}</span>}
+                                          </div>
                                           <Badge variant="outline" className="text-xs h-5">
                                             {call.outcome.replace(/_/g, " ")}
                                           </Badge>
@@ -2299,6 +2305,123 @@ export default function DialerPage() {
                                     </div>
                                   </div>
                                 )}
+
+                                {/* Notes row */}
+                                <div className="grid grid-cols-2 gap-3">
+                                  {/* Prospect Notes */}
+                                  <div>
+                                    <div className="flex items-center justify-between mb-1">
+                                      <div className="flex items-center gap-1.5">
+                                        <FileText className="h-3 w-3 text-muted-foreground" />
+                                        <p className="text-xs font-medium text-foreground">Prospect Notes</p>
+                                      </div>
+                                      {editingNoteId !== `q-${prospect.id}-prospect` && (
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            setEditingNoteId(`q-${prospect.id}-prospect`)
+                                            setEditingNoteType("prospect")
+                                          }}
+                                          className="text-xs text-primary hover:underline"
+                                        >
+                                          {prospectNotes[prospect.email] ? "Edit" : "Add"}
+                                        </button>
+                                      )}
+                                    </div>
+                                    {editingNoteId === `q-${prospect.id}-prospect` ? (
+                                      <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
+                                        <Textarea
+                                          placeholder="Add notes about this prospect..."
+                                          defaultValue={prospectNotes[prospect.email] || ""}
+                                          className="min-h-[60px] text-xs"
+                                          id={`q-prospect-note-${prospect.id}`}
+                                        />
+                                        <div className="flex gap-2">
+                                          <Button
+                                            size="sm"
+                                            onClick={() => {
+                                              const textarea = document.getElementById(`q-prospect-note-${prospect.id}`) as HTMLTextAreaElement
+                                              saveNote(prospect.email, "prospect", textarea.value, prospect.prospectId)
+                                            }}
+                                            className="h-7 text-xs"
+                                          >
+                                            <Save className="h-3 w-3 mr-1" />
+                                            Save
+                                          </Button>
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => { setEditingNoteId(null); setEditingNoteType(null) }}
+                                            className="h-7 text-xs"
+                                          >
+                                            Cancel
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="text-xs text-muted-foreground p-2 bg-muted/30 rounded border border-border">
+                                        {prospectNotes[prospect.email] || "No notes yet"}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Account Notes */}
+                                  <div>
+                                    <div className="flex items-center justify-between mb-1">
+                                      <div className="flex items-center gap-1.5">
+                                        <Users className="h-3 w-3 text-muted-foreground" />
+                                        <p className="text-xs font-medium text-foreground">Account Notes ({prospect.company})</p>
+                                      </div>
+                                      {editingNoteId !== `q-${prospect.id}-account` && (
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            setEditingNoteId(`q-${prospect.id}-account`)
+                                            setEditingNoteType("account")
+                                          }}
+                                          className="text-xs text-primary hover:underline"
+                                        >
+                                          {accountNotes[prospect.company] ? "Edit" : "Add"}
+                                        </button>
+                                      )}
+                                    </div>
+                                    {editingNoteId === `q-${prospect.id}-account` ? (
+                                      <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
+                                        <Textarea
+                                          placeholder="Add notes about this account..."
+                                          defaultValue={accountNotes[prospect.company] || ""}
+                                          className="min-h-[60px] text-xs"
+                                          id={`q-account-note-${prospect.id}`}
+                                        />
+                                        <div className="flex gap-2">
+                                          <Button
+                                            size="sm"
+                                            onClick={() => {
+                                              const textarea = document.getElementById(`q-account-note-${prospect.id}`) as HTMLTextAreaElement
+                                              saveNote(prospect.company, "account", textarea.value)
+                                            }}
+                                            className="h-7 text-xs"
+                                          >
+                                            <Save className="h-3 w-3 mr-1" />
+                                            Save
+                                          </Button>
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => { setEditingNoteId(null); setEditingNoteType(null) }}
+                                            className="h-7 text-xs"
+                                          >
+                                            Cancel
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="text-xs text-muted-foreground p-2 bg-muted/30 rounded border border-border">
+                                        {accountNotes[prospect.company] || "No notes yet"}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
                               </div>
                             </td>
                           </tr>
@@ -2790,7 +2913,10 @@ export default function DialerPage() {
                               {slot.contact.priorCalls.map((call, idx) => (
                                 <div key={idx} className="p-2 rounded bg-secondary/30 border border-border">
                                   <div className="flex items-center justify-between mb-1">
-                                    <span className="text-xs font-medium">{call.date}</span>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs font-medium">{call.date}</span>
+                                      {call.calledBy && <span className="text-[10px] text-muted-foreground">by {call.calledBy}</span>}
+                                    </div>
                                     <Badge variant="outline" className="text-xs h-5">
                                       {call.outcome}
                                     </Badge>

@@ -26,7 +26,7 @@ export const GET = withAuth(async (
     const [calls, emails, account, prospect] = await Promise.all([
       prospectId
         ? prisma.call.findMany({
-            where: { prospectId, userId },
+            where: { prospectId },
             orderBy: { createdAt: 'desc' },
             take: 10,
             select: {
@@ -35,6 +35,7 @@ export const GET = withAuth(async (
               notes: true,
               duration: true,
               createdAt: true,
+              user: { select: { firstName: true, lastName: true } },
             },
           })
         : Promise.resolve([]),
@@ -83,10 +84,11 @@ export const GET = withAuth(async (
         : Promise.resolve(null),
     ])
 
-    const priorCalls = calls.map((c) => ({
+    const priorCalls = calls.map((c: any) => ({
       date: safeTimeAgo(c.createdAt),
       outcome: c.outcome || 'unknown',
       notes: c.notes || '',
+      calledBy: c.user ? `${c.user.firstName || ''} ${c.user.lastName || ''}`.trim() : undefined,
     }))
 
     const correspondenceHistory: any[] = []

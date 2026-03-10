@@ -3,19 +3,38 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Phone, Clock, Mic, Play, FileText } from "lucide-react"
+import { Phone, Clock, Mic, Play, FileText, Sparkles } from "lucide-react"
 import { format } from "date-fns"
+
+type CallAnalysis = {
+  summary?: string
+  keyPoints?: string[]
+  nextSteps?: string | null
+  sentiment?: string
+  outcome?: string
+}
 
 type Call = {
   id: string
   outcome: string | null
   duration: number | null
   notes: string | null
+  transcription: string | null
   recordingUrl: string | null
   recordingDuration: number | null
   transcriptionStatus: string | null
   startedAt: string | null
   createdAt: string
+}
+
+function getCallAnalysis(call: Call): CallAnalysis | null {
+  if (!call.transcription) return null
+  try {
+    const parsed = JSON.parse(call.transcription)
+    return parsed.analysis || null
+  } catch {
+    return null
+  }
 }
 
 const formatDuration = (seconds: number | null) => {
@@ -140,6 +159,26 @@ export function CallHistory({ prospectId, limit }: { prospectId?: string; limit?
                     {format(new Date(call.startedAt || call.createdAt), "MMM d, h:mm a")}
                   </span>
                 </div>
+
+                {(() => {
+                  const analysis = getCallAnalysis(call)
+                  if (!analysis?.summary) return null
+                  return (
+                    <div className="flex items-start gap-1.5">
+                      <Sparkles className="h-3 w-3 text-primary mt-0.5 flex-shrink-0" />
+                      <div className="flex-1 space-y-1">
+                        <p className="text-xs text-primary/80">{analysis.summary}</p>
+                        {analysis.keyPoints && analysis.keyPoints.length > 0 && (
+                          <ul className="text-xs text-muted-foreground space-y-0.5 list-disc list-inside">
+                            {analysis.keyPoints.map((point, i) => (
+                              <li key={i}>{point}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })()}
 
                 {call.notes && (
                   <p className="text-xs text-muted-foreground line-clamp-2">{call.notes}</p>

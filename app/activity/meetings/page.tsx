@@ -5,19 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Calendar } from "@/components/ui/calendar"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { useUserRole } from "@/hooks/use-user-role"
 import { Loader2 } from "lucide-react"
-
-// Demo data for super admin
-const demoMeetings = [
-  { id: "1", title: "Product Demo", date: new Date(2023, 4, 15, 10, 0), attendees: ["John Doe", "Sarah Smith"], status: "completed" },
-  { id: "2", title: "Follow-up Call", date: new Date(2023, 4, 17, 14, 30), attendees: ["Mike Johnson"], status: "scheduled" },
-  { id: "3", title: "Contract Negotiation", date: new Date(2023, 4, 20, 11, 0), attendees: ["Lisa Brown", "David Lee"], status: "scheduled" },
-  { id: "4", title: "Team Sync", date: new Date(2023, 4, 22, 9, 0), attendees: ["Team Members"], status: "scheduled" },
-  { id: "5", title: "Quarterly Review", date: new Date(2023, 4, 25, 13, 0), attendees: ["Executive Team"], status: "scheduled" },
-]
-
-const demoStats = { totalMeetings: "15", attendanceRate: "80%", avgRating: "4.5/5" }
 
 interface MeetingItem {
   id: string
@@ -28,16 +16,11 @@ interface MeetingItem {
 }
 
 export default function MeetingsHadPage() {
-  const { isSuperAdmin } = useUserRole()
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
   const [meetings, setMeetings] = useState<MeetingItem[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (isSuperAdmin) {
-      setLoading(false)
-      return
-    }
     // Fetch prospects with meeting_scheduled status as a proxy for meetings
     fetch("/api/prospects?status=meeting_scheduled")
       .then((r) => (r.ok ? r.json() : { prospects: [] }))
@@ -54,17 +37,11 @@ export default function MeetingsHadPage() {
       })
       .catch(console.error)
       .finally(() => setLoading(false))
-  }, [isSuperAdmin])
+  }, [])
 
-  const displayMeetings = isSuperAdmin ? demoMeetings : meetings
-
-  const meetingsOnSelectedDate = displayMeetings.filter(
+  const meetingsOnSelectedDate = meetings.filter(
     (meeting) => meeting.date.toDateString() === selectedDate?.toDateString(),
   )
-
-  const stats = isSuperAdmin
-    ? demoStats
-    : { totalMeetings: String(displayMeetings.length), attendanceRate: "--", avgRating: "--" }
 
   if (loading) {
     return (
@@ -139,15 +116,15 @@ export default function MeetingsHadPage() {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="text-center">
-              <h3 className="text-2xl font-bold text-blue-600">{stats.totalMeetings}</h3>
+              <h3 className="text-2xl font-bold text-blue-600">{meetings.length}</h3>
               <p className="text-sm text-gray-600">Total Meetings</p>
             </div>
             <div className="text-center">
-              <h3 className="text-2xl font-bold text-green-600">{stats.attendanceRate}</h3>
+              <h3 className="text-2xl font-bold text-green-600">--</h3>
               <p className="text-sm text-gray-600">Meeting Attendance Rate</p>
             </div>
             <div className="text-center">
-              <h3 className="text-2xl font-bold text-yellow-600">{stats.avgRating}</h3>
+              <h3 className="text-2xl font-bold text-yellow-600">--</h3>
               <p className="text-sm text-gray-600">Average Meeting Rating</p>
             </div>
           </div>

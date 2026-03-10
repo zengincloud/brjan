@@ -217,6 +217,13 @@ function getThreadParticipantName(): string {
     '.msg-entity-lockup__entity-title',
     'h2.msg-overlay-bubble-header__title',
     '.msg-s-message-list-container + .msg-thread h2',
+    // Sales Navigator selectors
+    '.conversation-header__profile-name',
+    '.message-overlay__header-profile-name',
+    '.thread-header__lead-name',
+    '[data-test-thread-header] .artdeco-entity-lockup__title',
+    '.artdeco-entity-lockup__title a',
+    '.profile-topcard-person-entity__name',
   ]
 
   for (const sel of headerSelectors) {
@@ -645,12 +652,19 @@ function injectTemplateButton() {
     return
   }
 
-  // Find the message form area
+  // Find the message form area (regular LinkedIn + Sales Navigator)
   const formSelectors = [
     '.msg-form__left-actions',
     '.msg-form__footer',
     '.msg-form__msg-content-container',
     'form.msg-form',
+    // Sales Navigator selectors
+    '.compose-form__actions',
+    '.compose-form__footer',
+    '.message-overlay__compose',
+    '.inbox-compose__form',
+    '[data-test-message-compose]',
+    '.message-compose-form',
   ]
 
   let formEl: Element | null = null
@@ -849,7 +863,7 @@ function insertTemplate(templateBody: string) {
   // Apply variable substitution
   const resolved = replaceTemplateVariables(templateBody, cachedProspect)
 
-  // Find the message input (same selectors as sendLinkedInMessage)
+  // Find the message input (regular LinkedIn + Sales Navigator)
   const inputSelectors = [
     '.msg-form__contenteditable[contenteditable="true"]',
     '.msg-form__msg-content-container .msg-form__contenteditable',
@@ -857,6 +871,12 @@ function insertTemplate(templateBody: string) {
     '.msg-form__contenteditable',
     '.msg-form div[contenteditable]',
     'form.msg-form div[contenteditable]',
+    // Sales Navigator selectors
+    '.compose-form__message-input [contenteditable="true"]',
+    '.message-overlay [contenteditable="true"]',
+    '.inbox-compose [contenteditable="true"]',
+    '[data-test-message-input] [contenteditable="true"]',
+    'textarea.compose-form__message-input',
   ]
 
   let inputEl: HTMLElement | null = null
@@ -890,35 +910,39 @@ function insertTemplate(templateBody: string) {
 
 // ——— Initialization ———
 
-async function init() {
-  // Only run on messaging pages
-  if (!window.location.pathname.startsWith('/messaging')) return
+const isMessagingPage = () => window.location.pathname.startsWith('/messaging')
+const isSalesNavPage = () => window.location.pathname.startsWith('/sales')
 
-  console.log('[BR Messaging] Content script loaded')
+async function init() {
+  const onMessaging = isMessagingPage()
+  const onSalesNav = isSalesNavPage()
+
+  if (!onMessaging && !onSalesNav) return
+
+  console.log(`[BR Messaging] Content script loaded (${onMessaging ? 'messaging' : 'sales-nav'})`)
 
   // Fetch the logged-in user's name for direction detection
   await fetchMyName()
   console.log('[BR Messaging] Logged-in user:', myName || '(unknown)')
 
-  // Notify service worker that messaging tab is ready
-  sendMessage({ type: 'MESSAGING_TAB_READY' }).catch(() => {})
+  // Messaging-specific: sync conversations and handle pending outbound messages
+  if (onMessaging) {
+    sendMessage({ type: 'MESSAGING_TAB_READY' }).catch(() => {})
 
-  // Initial sync after page loads
-  setTimeout(() => {
-    doSync()
-    startMessageObserver()
-  }, 3000)
+    setTimeout(() => {
+      doSync()
+      startMessageObserver()
+    }, 3000)
 
-  // Periodic sync every 30 seconds
-  syncInterval = setInterval(doSync, 30000)
+    syncInterval = setInterval(doSync, 30000)
+    pendingInterval = setInterval(checkPendingMessages, 10000)
+  }
 
-  // Check for pending outbound messages every 10 seconds
-  pendingInterval = setInterval(checkPendingMessages, 10000)
-
-  // Inject template button after page settles
+  // Template injection — runs on both messaging and Sales Nav
   setTimeout(() => injectTemplateButton(), 3500)
 
-  // Watch for compose box appearing (LinkedIn loads it lazily)
+  // Watch for compose box appearing (LinkedIn/Sales Nav loads it lazily,
+  // and on Sales Nav it can appear as an overlay on any page)
   const composeObserver = new MutationObserver(() => {
     if (!templateButtonInjected) injectTemplateButton()
   })
@@ -931,7 +955,7 @@ const urlObserver = new MutationObserver(() => {
   if (window.location.href !== lastUrl) {
     lastUrl = window.location.href
 
-    if (window.location.pathname.startsWith('/messaging')) {
+    if (isMessagingPage()) {
       // Re-setup observer for new thread
       if (messageObserver) {
         messageObserver.disconnect()
@@ -939,13 +963,19 @@ const urlObserver = new MutationObserver(() => {
       }
       // Reset template button for new thread
       templateButtonInjected = false
-      cachedProspect = null // Re-fetch prospect for new conversation
+      cachedProspect = null
       templateCacheTime = 0
       setTimeout(() => {
         doSync()
         startMessageObserver()
         injectTemplateButton()
       }, 2000)
+    } else if (isSalesNavPage()) {
+      // Reset template button for new Sales Nav page/overlay
+      templateButtonInjected = false
+      cachedProspect = null
+      templateCacheTime = 0
+      setTimeout(() => injectTemplateButton(), 2000)
     }
   }
 })

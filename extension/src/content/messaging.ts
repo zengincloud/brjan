@@ -2,6 +2,8 @@ import type {
   LinkedInConversationSync,
   LinkedInMessageSync,
   PendingMessage,
+  LinkedinTemplate,
+  LinkedinTemplatesResponse,
 } from '@shared/types'
 
 /**
@@ -602,6 +604,290 @@ function startMessageObserver() {
 
 let syncDebounce: ReturnType<typeof setTimeout> | null = null
 
+// ——— LinkedIn DM Templates ———
+
+// Template variable substitution (ported from lib/template-variables.ts)
+function replaceTemplateVariables(
+  text: string,
+  prospect: { name: string; email?: string | null; company?: string | null; title?: string | null; phone?: string | null } | null
+): string {
+  if (!text || !prospect) return text
+  const firstName = prospect.name?.split(' ')[0] || ''
+  const lastName = prospect.name?.split(' ').slice(1).join(' ') || ''
+  return text
+    .replace(/\{\{name\}\}/gi, prospect.name || '')
+    .replace(/\{\{firstName\}\}/gi, firstName)
+    .replace(/\{\{first_name\}\}/gi, firstName)
+    .replace(/\{\{lastName\}\}/gi, lastName)
+    .replace(/\{\{last_name\}\}/gi, lastName)
+    .replace(/\{\{email\}\}/gi, prospect.email || '')
+    .replace(/\{\{company\}\}/gi, prospect.company || '')
+    .replace(/\{\{title\}\}/gi, prospect.title || '')
+    .replace(/\{\{phone\}\}/gi, prospect.phone || '')
+}
+
+// Template cache
+let cachedTemplates: LinkedinTemplate[] | null = null
+let cachedProspect: LinkedinTemplatesResponse['prospect'] = null
+let templateCacheTime = 0
+const TEMPLATE_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+
+let templateButtonInjected = false
+
+function escapeHtml(str: string): string {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
+function injectTemplateButton() {
+  if (templateButtonInjected) return
+  if (document.getElementById('br-template-btn')) {
+    templateButtonInjected = true
+    return
+  }
+
+  // Find the message form area
+  const formSelectors = [
+    '.msg-form__left-actions',
+    '.msg-form__footer',
+    '.msg-form__msg-content-container',
+    'form.msg-form',
+  ]
+
+  let formEl: Element | null = null
+  for (const sel of formSelectors) {
+    formEl = document.querySelector(sel)
+    if (formEl) break
+  }
+  if (!formEl) return
+
+  const btn = document.createElement('button')
+  btn.id = 'br-template-btn'
+  btn.type = 'button'
+  btn.title = 'Insert DM template'
+  btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>`
+  Object.assign(btn.style, {
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    padding: '4px 6px',
+    color: '#666',
+    borderRadius: '4px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transition: 'color 0.15s',
+  })
+  btn.addEventListener('mouseenter', () => { btn.style.color = '#4CD112' })
+  btn.addEventListener('mouseleave', () => {
+    if (!document.getElementById('br-template-dropdown')) btn.style.color = '#666'
+  })
+  btn.addEventListener('click', (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    toggleTemplateDropdown()
+  })
+
+  // Insert into the toolbar
+  if (formEl.classList.contains('msg-form__left-actions') || formEl.classList.contains('msg-form__footer')) {
+    formEl.insertBefore(btn, formEl.firstChild)
+  } else {
+    // Wrap relative for dropdown positioning
+    const wrapper = document.createElement('div')
+    wrapper.id = 'br-template-wrapper'
+    Object.assign(wrapper.style, { position: 'relative', display: 'inline-block' })
+    wrapper.appendChild(btn)
+    formEl.parentElement?.insertBefore(wrapper, formEl)
+  }
+
+  templateButtonInjected = true
+}
+
+function toggleTemplateDropdown() {
+  const existing = document.getElementById('br-template-dropdown')
+  if (existing) {
+    existing.remove()
+    const btn = document.getElementById('br-template-btn')
+    if (btn) btn.style.color = '#666'
+    return
+  }
+  showTemplateDropdown()
+}
+
+async function showTemplateDropdown() {
+  const participantName = getThreadParticipantName()
+
+  // Create dropdown
+  const dropdown = document.createElement('div')
+  dropdown.id = 'br-template-dropdown'
+  Object.assign(dropdown.style, {
+    position: 'absolute',
+    bottom: '100%',
+    left: '0',
+    width: '280px',
+    maxHeight: '320px',
+    overflowY: 'auto',
+    background: '#121620',
+    border: '1px solid #222833',
+    borderRadius: '8px',
+    boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+    zIndex: '100000',
+    padding: '4px 0',
+    marginBottom: '4px',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    fontSize: '13px',
+    color: '#f2f3f5',
+  })
+
+  // Position relative to button or wrapper
+  const wrapper = document.getElementById('br-template-wrapper')
+  const btn = document.getElementById('br-template-btn')
+  const parent = wrapper || btn?.parentElement
+  if (parent) {
+    parent.style.position = 'relative'
+    parent.appendChild(dropdown)
+  } else {
+    return
+  }
+
+  // Loading state
+  dropdown.innerHTML = `<div style="padding:12px;text-align:center;color:#808590;font-size:12px;">Loading templates...</div>`
+
+  // Fetch templates
+  const now = Date.now()
+  const needsRefresh = !cachedTemplates || (now - templateCacheTime > TEMPLATE_CACHE_TTL)
+
+  try {
+    if (needsRefresh) {
+      const result = await sendMessage<LinkedinTemplatesResponse>({
+        type: 'GET_LINKEDIN_TEMPLATES',
+        data: { participantName: participantName || undefined },
+      })
+      cachedTemplates = result.templates
+      cachedProspect = result.prospect
+      templateCacheTime = now
+    }
+
+    if (!cachedTemplates || cachedTemplates.length === 0) {
+      dropdown.innerHTML = `<div style="padding:12px;text-align:center;color:#808590;font-size:12px;">No templates yet.<br>Create templates in the Boilerroom web app.</div>`
+      setupDropdownClose(dropdown)
+      return
+    }
+
+    // Render template list
+    dropdown.innerHTML = ''
+    const header = document.createElement('div')
+    Object.assign(header.style, {
+      padding: '8px 12px 4px',
+      fontSize: '10px',
+      textTransform: 'uppercase',
+      letterSpacing: '0.5px',
+      color: '#808590',
+      fontWeight: '600',
+    })
+    header.textContent = 'LinkedIn Templates'
+    dropdown.appendChild(header)
+
+    for (const tmpl of cachedTemplates) {
+      const item = document.createElement('button')
+      item.type = 'button'
+      Object.assign(item.style, {
+        display: 'block',
+        width: '100%',
+        textAlign: 'left',
+        padding: '8px 12px',
+        background: 'none',
+        border: 'none',
+        color: '#f2f3f5',
+        cursor: 'pointer',
+        fontSize: '13px',
+        lineHeight: '1.4',
+        transition: 'background 0.1s',
+        fontFamily: 'inherit',
+      })
+
+      const preview = tmpl.body.substring(0, 60).replace(/\n/g, ' ')
+      item.innerHTML = `
+        <div style="font-weight:600;margin-bottom:2px;">${escapeHtml(tmpl.name)}</div>
+        <div style="color:#808590;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(preview)}${tmpl.body.length > 60 ? '...' : ''}</div>
+      `
+
+      item.addEventListener('mouseenter', () => { item.style.background = '#1e2330' })
+      item.addEventListener('mouseleave', () => { item.style.background = 'none' })
+      item.addEventListener('click', (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        insertTemplate(tmpl.body)
+        dropdown.remove()
+        const btnEl = document.getElementById('br-template-btn')
+        if (btnEl) btnEl.style.color = '#666'
+      })
+
+      dropdown.appendChild(item)
+    }
+
+    setupDropdownClose(dropdown)
+  } catch (err) {
+    console.error('[BR Templates] Failed to load templates:', err)
+    dropdown.innerHTML = `<div style="padding:12px;text-align:center;color:#ef4444;font-size:12px;">Failed to load templates</div>`
+    setupDropdownClose(dropdown)
+  }
+}
+
+function setupDropdownClose(dropdown: HTMLElement) {
+  const btn = document.getElementById('br-template-btn')
+  const closeHandler = (e: MouseEvent) => {
+    if (!dropdown.contains(e.target as Node) && e.target !== btn && !btn?.contains(e.target as Node)) {
+      dropdown.remove()
+      if (btn) btn.style.color = '#666'
+      document.removeEventListener('click', closeHandler)
+    }
+  }
+  setTimeout(() => document.addEventListener('click', closeHandler), 0)
+}
+
+function insertTemplate(templateBody: string) {
+  // Apply variable substitution
+  const resolved = replaceTemplateVariables(templateBody, cachedProspect)
+
+  // Find the message input (same selectors as sendLinkedInMessage)
+  const inputSelectors = [
+    '.msg-form__contenteditable[contenteditable="true"]',
+    '.msg-form__msg-content-container .msg-form__contenteditable',
+    'div[role="textbox"][contenteditable="true"]',
+    '.msg-form__contenteditable',
+    '.msg-form div[contenteditable]',
+    'form.msg-form div[contenteditable]',
+  ]
+
+  let inputEl: HTMLElement | null = null
+  for (const sel of inputSelectors) {
+    inputEl = document.querySelector(sel) as HTMLElement | null
+    if (inputEl) break
+  }
+
+  if (!inputEl) {
+    console.error('[BR Templates] Could not find message input')
+    return
+  }
+
+  // Focus the input
+  inputEl.focus()
+
+  // Clear existing content
+  const selection = window.getSelection()
+  if (selection) {
+    selection.selectAllChildren(inputEl)
+    selection.deleteFromDocument()
+  }
+
+  // Insert using execCommand for React compatibility
+  document.execCommand('insertText', false, resolved)
+
+  // Dispatch events LinkedIn might listen to
+  inputEl.dispatchEvent(new InputEvent('input', { bubbles: true, data: resolved, inputType: 'insertText' }))
+  inputEl.dispatchEvent(new Event('change', { bubbles: true }))
+}
+
 // ——— Initialization ———
 
 async function init() {
@@ -628,6 +914,15 @@ async function init() {
 
   // Check for pending outbound messages every 10 seconds
   pendingInterval = setInterval(checkPendingMessages, 10000)
+
+  // Inject template button after page settles
+  setTimeout(() => injectTemplateButton(), 3500)
+
+  // Watch for compose box appearing (LinkedIn loads it lazily)
+  const composeObserver = new MutationObserver(() => {
+    if (!templateButtonInjected) injectTemplateButton()
+  })
+  composeObserver.observe(document.body, { childList: true, subtree: true })
 }
 
 // Handle URL changes (LinkedIn SPA navigation)
@@ -642,9 +937,14 @@ const urlObserver = new MutationObserver(() => {
         messageObserver.disconnect()
         messageObserver = null
       }
+      // Reset template button for new thread
+      templateButtonInjected = false
+      cachedProspect = null // Re-fetch prospect for new conversation
+      templateCacheTime = 0
       setTimeout(() => {
         doSync()
         startMessageObserver()
+        injectTemplateButton()
       }, 2000)
     }
   }

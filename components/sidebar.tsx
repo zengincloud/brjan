@@ -22,6 +22,7 @@ import {
   Send,
   Zap,
   Shield,
+  MessageSquareText,
 } from "lucide-react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { useState } from "react"
@@ -283,6 +284,20 @@ export function Sidebar({ className }: { className?: string }) {
           <Link href="/reports">
             <FileBarChart className="h-4 w-4 mr-3" />
             Reports
+          </Link>
+        </Button>
+
+        <Button
+          variant="ghost"
+          className={cn(
+            "w-full justify-start transition-colors",
+            pathname === "/linkedin-templates" && "bg-accent/10 text-accent hover:bg-accent/15"
+          )}
+          asChild
+        >
+          <Link href="/linkedin-templates">
+            <MessageSquareText className="h-4 w-4 mr-3" />
+            LinkedIn Templates
           </Link>
         </Button>
       </div>

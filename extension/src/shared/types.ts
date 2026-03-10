@@ -136,6 +136,7 @@ export type ExtensionMessage =
   | { type: 'ENSURE_MESSAGING_TAB' }
   | { type: 'MESSAGING_TAB_READY' }
   | { type: 'SEND_LINKEDIN_MESSAGE'; data: { linkedinThreadId: string; body: string } }
+  | { type: 'GET_LINKEDIN_TEMPLATES'; data: { participantName?: string } }
 
 export interface SaveProspectPayload {
   name: string
@@ -184,4 +185,26 @@ export interface PendingMessage {
 
 export interface PendingMessagesResponse {
   messages: PendingMessage[]
+}
+
+// =============================================
+// LinkedIn DM Template Types
+// =============================================
+
+export interface LinkedinTemplate {
+  id: string
+  name: string
+  body: string
+  category: string | null
+}
+
+export interface LinkedinTemplatesResponse {
+  templates: LinkedinTemplate[]
+  prospect: {
+    name: string
+    email?: string | null
+    company?: string | null
+    title?: string | null
+    phone?: string | null
+  } | null
 }

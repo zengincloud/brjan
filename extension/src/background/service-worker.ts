@@ -1,5 +1,5 @@
 import { login, loginWithGoogle, logout, getAuthState, refreshTokenIfNeeded } from '@shared/auth'
-import { revealContact, saveProspect, addToSequence, fetchAccountPov, syncMessages, getPendingMessages, reportPendingResult } from '@shared/api'
+import { revealContact, saveProspect, addToSequence, fetchAccountPov, syncMessages, getPendingMessages, reportPendingResult, getLinkedinTemplates } from '@shared/api'
 import type { ExtensionMessage } from '@shared/types'
 
 // Track the LinkedIn messaging tab
@@ -100,6 +100,10 @@ async function handleMessage(message: ExtensionMessage): Promise<any> {
         message.data.success,
         message.data.errorMessage
       )
+    }
+
+    case 'GET_LINKEDIN_TEMPLATES': {
+      return await getLinkedinTemplates(message.data?.participantName)
     }
 
     case 'MESSAGING_TAB_READY': {

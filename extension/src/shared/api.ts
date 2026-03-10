@@ -10,6 +10,7 @@ import type {
   LinkedInConversationSync,
   SyncMessagesResponse,
   PendingMessagesResponse,
+  LinkedinTemplatesResponse,
 } from './types'
 
 /** Make an authenticated API call to the Boilerroom backend */
@@ -86,6 +87,18 @@ export function syncMessages(conversations: LinkedInConversationSync[]): Promise
 /** GET /api/extension/pending-messages — get queued outbound messages */
 export function getPendingMessages(): Promise<PendingMessagesResponse> {
   return apiFetch<PendingMessagesResponse>('/api/extension/pending-messages')
+}
+
+/** GET /api/extension/linkedin-templates — fetch DM templates + optional prospect data */
+export function getLinkedinTemplates(
+  participantName?: string
+): Promise<LinkedinTemplatesResponse> {
+  const params = participantName
+    ? `?participantName=${encodeURIComponent(participantName)}`
+    : ''
+  return apiFetch<LinkedinTemplatesResponse>(
+    `/api/extension/linkedin-templates${params}`
+  )
 }
 
 /** POST /api/extension/pending-messages — report send result */

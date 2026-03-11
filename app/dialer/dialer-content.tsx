@@ -258,6 +258,9 @@ export default function DialerPage() {
   const currentProspectIndexRef = useRef(currentProspectIndex)
   currentProspectIndexRef.current = currentProspectIndex
 
+  // Ref for handleCallOutcomeAndAdvance so connectCall event handlers always call the latest version
+  const handleCallOutcomeAndAdvanceRef = useRef<(slotIndex: number, outcome: string) => Promise<void>>(null as any)
+
   // Twilio refs
   const deviceRef = useRef<Device | null>(null)
   const activeCallRef = useRef<TwilioCall | null>(null)
@@ -752,7 +755,7 @@ export default function DialerPage() {
         playHangupSound()
 
         // Mark as no answer and auto-advance
-        handleCallOutcomeAndAdvance(slotIndex, "no_answer")
+        handleCallOutcomeAndAdvanceRef.current(slotIndex, "no_answer")
       })
 
       call.on("reject", () => {
@@ -763,7 +766,7 @@ export default function DialerPage() {
         // Play hangup sound
         playHangupSound()
 
-        handleCallOutcomeAndAdvance(slotIndex, "busy")
+        handleCallOutcomeAndAdvanceRef.current(slotIndex, "busy")
       })
 
       call.on("error", (error) => {
@@ -790,7 +793,7 @@ export default function DialerPage() {
 
         // Small delay so the user sees what happened before advancing
         setTimeout(() => {
-          handleCallOutcomeAndAdvance(slotIndex, "failed")
+          handleCallOutcomeAndAdvanceRef.current(slotIndex, "failed")
         }, 800)
       })
 
@@ -843,7 +846,7 @@ export default function DialerPage() {
 
       // Auto-advance to next prospect after a brief delay
       setTimeout(() => {
-        handleCallOutcomeAndAdvance(slotIndex, "failed")
+        handleCallOutcomeAndAdvanceRef.current(slotIndex, "failed")
       }, 800)
 
       return null
@@ -939,6 +942,9 @@ export default function DialerPage() {
       }
     }
   }, [sessionActive, sessionPaused, mockProspects, connectCall, callDuration, toast])
+
+  // Keep ref always pointing to latest version
+  handleCallOutcomeAndAdvanceRef.current = handleCallOutcomeAndAdvance
 
   // End current call
   const endCall = useCallback(() => {

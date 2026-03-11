@@ -254,6 +254,10 @@ export default function DialerPage() {
   const callSlotsRef = useRef(callSlots)
   callSlotsRef.current = callSlots
 
+  // Keep a ref to currentProspectIndex so async callbacks always read fresh state
+  const currentProspectIndexRef = useRef(currentProspectIndex)
+  currentProspectIndexRef.current = currentProspectIndex
+
   // Twilio refs
   const deviceRef = useRef<Device | null>(null)
   const activeCallRef = useRef<TwilioCall | null>(null)
@@ -885,11 +889,12 @@ export default function DialerPage() {
 
     Promise.all(savePromises)
 
-    // Capture next prospect BEFORE advancing the index
-    const nextProspect = mockProspects[currentProspectIndex + 1]
+    // Use ref to always get fresh index (avoids stale closures from setTimeout chains)
+    const freshIndex = currentProspectIndexRef.current
+    const nextProspect = mockProspects[freshIndex + 1]
 
     // Advance the index — keep all prospects in the list so the queue stays visible
-    setCurrentProspectIndex(prev => prev + 1)
+    setCurrentProspectIndex(freshIndex + 1)
 
     // Track in archive
     if (slot?.contact) {
@@ -933,7 +938,7 @@ export default function DialerPage() {
         })
       }
     }
-  }, [sessionActive, sessionPaused, currentProspectIndex, mockProspects, connectCall, callDuration, toast])
+  }, [sessionActive, sessionPaused, mockProspects, connectCall, callDuration, toast])
 
   // End current call
   const endCall = useCallback(() => {
@@ -1242,11 +1247,12 @@ export default function DialerPage() {
       setTimeout(() => generateCallSummary(slot.callId!), 2000)
     }
 
-    // Capture next prospect BEFORE advancing the index
-    const nextProspect = mockProspects[currentProspectIndex + 1]
+    // Use ref to always get fresh index (avoids stale closures from setTimeout chains)
+    const freshIndex = currentProspectIndexRef.current
+    const nextProspect = mockProspects[freshIndex + 1]
 
     // Advance the index — keep all prospects in the list so the queue stays visible
-    setCurrentProspectIndex(prev => prev + 1)
+    setCurrentProspectIndex(freshIndex + 1)
 
     // Track in archive
     if (contact) {
@@ -1323,11 +1329,12 @@ export default function DialerPage() {
       activeCallRef.current = null
     }
 
-    // Capture next prospect BEFORE advancing the index
-    const nextProspect = mockProspects[currentProspectIndex + 1]
+    // Use ref to always get fresh index (avoids stale closures from setTimeout chains)
+    const freshIndex = currentProspectIndexRef.current
+    const nextProspect = mockProspects[freshIndex + 1]
 
-    // Advance the index — keep all prospects in the list so the queue stays visible
-    setCurrentProspectIndex(prev => prev + 1)
+    // Advance the index
+    setCurrentProspectIndex(freshIndex + 1)
 
     toast({
       title: "Skipped",
@@ -1801,14 +1808,15 @@ export default function DialerPage() {
         </Card>
       )}
 
-      {/* Prospect Queue - Row-based layout, only show when session is not active */}
-      {!sessionActive && (
+      {/* Prospect Queue */}
         <div>
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-lg font-semibold">Call Queue</h2>
               <p className="text-xs text-muted-foreground mt-1">
-                {mockProspects.length > 0
+                {sessionActive
+                  ? `${currentProspectIndex + 1} of ${mockProspects.length} — ${mockProspects.length - currentProspectIndex - 1} remaining`
+                  : mockProspects.length > 0
                   ? `${mockProspects.length} prospect${mockProspects.length !== 1 ? "s" : ""} to call`
                   : selectedTimezones.length > 0 || selectedCallSteps.length > 0
                     ? "No prospects match the selected filters"
@@ -1816,6 +1824,12 @@ export default function DialerPage() {
                 }
               </p>
             </div>
+            {sessionActive && (
+              <Badge variant="outline" className="border-muted-foreground/30 text-muted-foreground">
+                <Phone className="h-3 w-3 mr-1" />
+                {selectedPhone}
+              </Badge>
+            )}
           </div>
           {mockProspects.length > 0 ? (
           <div className="border rounded-lg overflow-hidden">
@@ -1927,12 +1941,21 @@ export default function DialerPage() {
                       insightBullets.push(`${prospect.priorCalls.length} prior call${prospect.priorCalls.length !== 1 ? "s" : ""} — last: ${prospect.priorCalls[0].outcome}`)
                     }
 
-                    const isExpanded = expandedQueueRows.has(prospect.id)
+                    const isCurrentCall = sessionActive && idx === currentProspectIndex
+                    const isAlreadyCalled = sessionActive && idx < currentProspectIndex
+                    const isExpanded = expandedQueueRows.has(prospect.id) || isCurrentCall
+                    const activeSlot = isCurrentCall ? callSlots[0] : null
 
                     return (
                       <React.Fragment key={prospect.id}>
                         <tr
-                          className="border-b last:border-0 hover:bg-muted/30 transition-colors group cursor-pointer"
+                          className={`border-b last:border-0 transition-colors group cursor-pointer ${
+                            isCurrentCall
+                              ? "bg-primary/10 border-l-2 border-l-primary"
+                              : isAlreadyCalled
+                              ? "opacity-40 bg-muted/10"
+                              : "hover:bg-muted/30"
+                          }`}
                           onClick={() => {
                             setExpandedQueueRows(prev => {
                               const next = new Set(prev)
@@ -1947,7 +1970,15 @@ export default function DialerPage() {
                         >
                           <td className="py-3 px-4 text-xs text-muted-foreground font-mono">
                             <div className="flex items-center gap-1">
-                              {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                              {isCurrentCall ? (
+                                <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                              ) : isAlreadyCalled ? (
+                                <Check className="h-3 w-3 text-muted-foreground" />
+                              ) : isExpanded ? (
+                                <ChevronUp className="h-3 w-3" />
+                              ) : (
+                                <ChevronDown className="h-3 w-3" />
+                              )}
                               {idx + 1}
                             </div>
                           </td>
@@ -2075,53 +2106,294 @@ export default function DialerPage() {
                           </td>
                         </tr>
                         {isExpanded && (
-                          <tr className="border-b last:border-0 bg-muted/20">
+                          <tr className={`border-b last:border-0 ${isCurrentCall ? "bg-primary/5" : "bg-muted/20"}`}>
                             <td colSpan={7} className="px-4 py-4">
                               <div className="space-y-3">
-                                {/* Call button */}
-                                <div className="flex items-center gap-2">
-                                  <Button
-                                    size="sm"
-                                    className="bg-primary hover:bg-primary/90 text-primary-foreground h-7"
-                                    disabled={!deviceReady}
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setExpandedQueueRows(prev => {
-                                        const next = new Set(prev)
-                                        next.delete(prospect.id)
-                                        return next
-                                      })
-                                      dialOneOff(prospect)
-                                    }}
-                                  >
-                                    <Phone className="h-3 w-3 mr-1" />
-                                    Call
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-7"
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      openEmailDialog(prospect)
-                                    }}
-                                  >
-                                    <Mail className="h-3 w-3 mr-1" />
-                                    Email
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-7"
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      openCalendarInvite(prospect as any)
-                                    }}
-                                  >
-                                    <Calendar className="h-3 w-3 mr-1" />
-                                    Calendar
-                                  </Button>
-                                </div>
+                                {/* Active call controls (during session) or regular action buttons */}
+                                {isCurrentCall && activeSlot ? (
+                                  <>
+                                    {/* Call status + controls */}
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      {activeSlot.status === "ringing" && (
+                                        <>
+                                          <Badge className="bg-primary/20 text-primary border-0 animate-pulse">
+                                            <PhoneCall className="h-3 w-3 mr-1" />
+                                            Ringing
+                                          </Badge>
+                                          {activeSlot.startTime && <CallTimer startTime={activeSlot.startTime} />}
+                                          <Button size="sm" variant="destructive" onClick={(e) => { e.stopPropagation(); endCall() }} className="h-7 px-2">
+                                            <PhoneOff className="h-3 w-3" />
+                                          </Button>
+                                        </>
+                                      )}
+                                      {activeSlot.status === "connected" && (
+                                        <>
+                                          <Badge className="bg-primary text-primary-foreground border-0">
+                                            <PhoneCall className="h-3 w-3 mr-1" />
+                                            Connected
+                                          </Badge>
+                                          {activeSlot.startTime && <CallTimer startTime={activeSlot.startTime} />}
+                                          <Button size="sm" variant={isMuted ? "secondary" : "outline"} onClick={(e) => { e.stopPropagation(); toggleMute() }} className="h-7 px-2" title={isMuted ? "Unmute" : "Mute"}>
+                                            {isMuted ? <MicOff className="h-3 w-3" /> : <Mic className="h-3 w-3" />}
+                                          </Button>
+                                          <Button size="sm" variant="destructive" onClick={(e) => { e.stopPropagation(); endCall() }} className="h-7 px-2">
+                                            <PhoneOff className="h-3 w-3" />
+                                          </Button>
+                                        </>
+                                      )}
+                                      {activeSlot.status === "completed" && (
+                                        <Badge variant="outline" className="border-muted-foreground/50">
+                                          Completed {activeSlot.finalDuration ? `• ${String(Math.floor(activeSlot.finalDuration / 60)).padStart(2, '0')}:${String(activeSlot.finalDuration % 60).padStart(2, '0')}` : ""}
+                                        </Badge>
+                                      )}
+                                      {activeSlot.status === "idle" && (
+                                        <Badge variant="outline" className="animate-pulse">
+                                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                          Dialing...
+                                        </Badge>
+                                      )}
+                                    </div>
+
+                                    {/* Outcome, Pipeline, Save & Next */}
+                                    <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-border/50" onClick={(e) => e.stopPropagation()}>
+                                      {/* Outcome dropdown */}
+                                      <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                          <Button
+                                            size="sm"
+                                            variant={activeSlot.pendingOutcome ? "default" : "outline"}
+                                            className={activeSlot.pendingOutcome ? "bg-primary hover:bg-primary/90 text-primary-foreground h-7" : "h-7"}
+                                          >
+                                            <UserCheck className="h-3 w-3 mr-1" />
+                                            {activeSlot.pendingOutcome === "callback" && activeSlot.pendingCallbackDate
+                                              ? `Callback ${activeSlot.pendingCallbackDate.toLocaleDateString([], { month: "short", day: "numeric" })} ${activeSlot.pendingCallbackDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                                              : activeSlot.pendingOutcome ? outcomeLabels[activeSlot.pendingOutcome] || activeSlot.pendingOutcome : "Outcome"}
+                                            <ChevronDown className="h-3 w-3 ml-1" />
+                                          </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="start">
+                                          <DropdownMenuItem onClick={() => handleCallOutcome("1", "connected_intro_booked")}>
+                                            <CalendarCheck className="h-4 w-4 mr-2 text-green-500" />
+                                            Intro Booked
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem onClick={() => handleCallOutcome("1", "connected_referral")}>
+                                            <UserCheck className="h-4 w-4 mr-2 text-blue-500" />
+                                            Referral
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem onClick={() => handleCallOutcome("1", "connected_not_interested")}>
+                                            <UserX className="h-4 w-4 mr-2 text-orange-500" />
+                                            Not Interested
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem onClick={() => handleCallOutcome("1", "connected_info_gathered")}>
+                                            <FileText className="h-4 w-4 mr-2 text-purple-500" />
+                                            Informational
+                                          </DropdownMenuItem>
+                                          <DropdownMenuSub>
+                                            <DropdownMenuSubTrigger>
+                                              <CalendarClock className="h-4 w-4 mr-2 text-amber-500" />
+                                              Call Back Later
+                                            </DropdownMenuSubTrigger>
+                                            <DropdownMenuSubContent>
+                                              <DropdownMenuItem onClick={() => handleCallbackSchedule("1", getCallbackDate("1h"))}>
+                                                <Clock className="h-4 w-4 mr-2" />In 1 Hour
+                                              </DropdownMenuItem>
+                                              <DropdownMenuItem onClick={() => handleCallbackSchedule("1", getCallbackDate("3h"))}>
+                                                <Clock className="h-4 w-4 mr-2" />In 3 Hours
+                                              </DropdownMenuItem>
+                                              <DropdownMenuItem onClick={() => handleCallbackSchedule("1", getCallbackDate("tomorrow_morning"))}>
+                                                <Calendar className="h-4 w-4 mr-2" />Tomorrow Morning
+                                              </DropdownMenuItem>
+                                              <DropdownMenuItem onClick={() => handleCallbackSchedule("1", getCallbackDate("tomorrow_afternoon"))}>
+                                                <Calendar className="h-4 w-4 mr-2" />Tomorrow Afternoon
+                                              </DropdownMenuItem>
+                                              <DropdownMenuItem onClick={() => handleCallbackSchedule("1", getCallbackDate("next_week"))}>
+                                                <Calendar className="h-4 w-4 mr-2" />Next Monday
+                                              </DropdownMenuItem>
+                                            </DropdownMenuSubContent>
+                                          </DropdownMenuSub>
+                                          <DropdownMenuItem onClick={() => handleCallOutcome("1", "voicemail")}>
+                                            <Voicemail className="h-4 w-4 mr-2" />
+                                            Voicemail
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem onClick={() => handleCallOutcome("1", "no_answer")}>
+                                            <UserX className="h-4 w-4 mr-2" />
+                                            No Answer
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem onClick={() => handleCallOutcome("1", "wrong_number")}>
+                                            <PhoneOff className="h-4 w-4 mr-2 text-red-500" />
+                                            Wrong Number
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem onClick={() => handleCallOutcome("1", "no_answer")}>
+                                            <SkipForward className="h-4 w-4 mr-2" />
+                                            Skip
+                                          </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                      </DropdownMenu>
+
+                                      {/* Pipeline dropdown */}
+                                      <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                          <Button
+                                            size="sm"
+                                            variant={activeSlot.pendingPipelineStage ? "default" : "outline"}
+                                            className={activeSlot.pendingPipelineStage ? "bg-green-600 hover:bg-green-700 text-white h-7" : "h-7"}
+                                          >
+                                            <Rocket className="h-3 w-3 mr-1" />
+                                            {activeSlot.pendingPipelineStage ? pipelineStageLabels[activeSlot.pendingPipelineStage as PipelineStage] || activeSlot.pendingPipelineStage : "Pipeline"}
+                                            <ChevronDown className="h-3 w-3 ml-1" />
+                                          </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="start">
+                                          <DropdownMenuItem onClick={() => handlePipelineOutcome("1", "interested")}>
+                                            <Star className="h-4 w-4 mr-2 text-yellow-500" />
+                                            Interested
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem onClick={() => handlePipelineOutcome("1", "intro_booked")}>
+                                            <CalendarCheck className="h-4 w-4 mr-2 text-blue-500" />
+                                            Intro Booked
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem onClick={() => handlePipelineOutcome("1", "opportunity")}>
+                                            <Target className="h-4 w-4 mr-2 text-purple-500" />
+                                            Opportunity
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem onClick={() => handlePipelineOutcome("1", "demo_booked")}>
+                                            <Handshake className="h-4 w-4 mr-2 text-green-500" />
+                                            Demo Booked
+                                          </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                      </DropdownMenu>
+
+                                      <div className="border-l border-border h-5 mx-1" />
+
+                                      <Button
+                                        size="sm"
+                                        className="bg-green-600 hover:bg-green-700 text-white h-7"
+                                        onClick={() => saveAndAdvance("1")}
+                                      >
+                                        <Save className="h-3 w-3 mr-1" />
+                                        Save & Next
+                                      </Button>
+
+                                      <div className="border-l border-border h-5 mx-1" />
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => openEmailDialog(prospect)}
+                                        className="h-7"
+                                      >
+                                        <Mail className="h-3 w-3 mr-1" />
+                                        Email
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => openCalendarInvite(prospect as any)}
+                                        className="h-7"
+                                      >
+                                        <Calendar className="h-3 w-3 mr-1" />
+                                        Calendar
+                                      </Button>
+                                    </div>
+
+                                    {/* Call Summary */}
+                                    {activeSlot.callId && summaryCallId === activeSlot.callId && (loadingSummary || callSummary) && (
+                                      <div className="p-3 rounded-lg border border-primary/30 bg-primary/5">
+                                        <div className="flex items-start justify-between gap-3">
+                                          <div className="flex items-start gap-2 flex-1">
+                                            <Sparkles className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                                            <div className="flex-1">
+                                              <p className="text-sm font-medium text-primary mb-1">Call Summary</p>
+                                              {loadingSummary && !callSummary ? (
+                                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                                  Generating summary...
+                                                </div>
+                                              ) : callSummary ? (
+                                                <div className="space-y-2">
+                                                  <p className="text-sm text-foreground leading-relaxed">{callSummary.summary}</p>
+                                                  <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="h-7"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation()
+                                                      const to = encodeURIComponent(callSummary.prospectEmail)
+                                                      const su = encodeURIComponent(callSummary.emailSubject)
+                                                      const body = encodeURIComponent(callSummary.emailBody)
+                                                      window.open(`https://mail.google.com/mail/?view=cm&to=${to}&su=${su}&body=${body}`, "_blank")
+                                                    }}
+                                                  >
+                                                    <Mail className="h-3 w-3 mr-1" />
+                                                    Draft in Gmail
+                                                  </Button>
+                                                </div>
+                                              ) : null}
+                                            </div>
+                                          </div>
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); setCallSummary(null); setLoadingSummary(false) }}
+                                            className="p-1 rounded hover:bg-muted transition-colors"
+                                          >
+                                            <X className="h-3.5 w-3.5 text-muted-foreground" />
+                                          </button>
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {/* Call notes */}
+                                    <Textarea
+                                      placeholder="Call notes..."
+                                      value={activeSlot.notes}
+                                      onChange={(e) => updateNotes("1", e.target.value)}
+                                      className="min-h-[60px] text-sm"
+                                      onClick={(e) => e.stopPropagation()}
+                                    />
+                                  </>
+                                ) : (
+                                  <div className="flex items-center gap-2">
+                                    <Button
+                                      size="sm"
+                                      className="bg-primary hover:bg-primary/90 text-primary-foreground h-7"
+                                      disabled={!deviceReady}
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setExpandedQueueRows(prev => {
+                                          const next = new Set(prev)
+                                          next.delete(prospect.id)
+                                          return next
+                                        })
+                                        dialOneOff(prospect)
+                                      }}
+                                    >
+                                      <Phone className="h-3 w-3 mr-1" />
+                                      Call
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-7"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        openEmailDialog(prospect)
+                                      }}
+                                    >
+                                      <Mail className="h-3 w-3 mr-1" />
+                                      Email
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-7"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        openCalendarInvite(prospect as any)
+                                      }}
+                                    >
+                                      <Calendar className="h-3 w-3 mr-1" />
+                                      Calendar
+                                    </Button>
+                                  </div>
+                                )}
 
                                 {/* Company Info */}
                                 {prospect.accountInfo && (
@@ -2396,14 +2668,13 @@ export default function DialerPage() {
             </div>
           )}
         </div>
-      )}
 
-      {/* Current Call + Queue (visible during active session OR one-off call) */}
-      {(sessionActive || callSlots[0]?.contact) && (
+      {/* Quick Call card (only for one-off calls outside session) */}
+      {!sessionActive && callSlots[0]?.contact && (
       <div>
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-lg font-semibold">{sessionActive ? "Current Call" : "Quick Call"}</h2>
+            <h2 className="text-lg font-semibold">Quick Call</h2>
             {selectedSequence !== "all" && (
               <p className="text-xs text-muted-foreground mt-1">
                 Sequence: {sequences.find(s => s.id === selectedSequence)?.name}
@@ -2415,12 +2686,7 @@ export default function DialerPage() {
               <Phone className="h-3 w-3 mr-1" />
               {selectedPhone}
             </Badge>
-            {sessionActive && (
-              <Badge variant="outline" className="border-primary/50 text-primary">
-                {queueSize} in queue
-              </Badge>
-            )}
-            {!sessionActive && callSlots[0]?.contact && (
+            {callSlots[0]?.contact && (
               <Button
                 size="sm"
                 variant="outline"
@@ -2512,7 +2778,7 @@ export default function DialerPage() {
                             Completed • {String(Math.floor((slot.finalDuration || 0) / 60)).padStart(2, '0')}:{String((slot.finalDuration || 0) % 60).padStart(2, '0')}
                           </Badge>
                         )}
-                        {slot.status === "idle" && !sessionActive && (
+                        {slot.status === "idle" && (
                           <Button
                             size="sm"
                             className="bg-primary hover:bg-primary/90 text-primary-foreground h-7"
@@ -2525,9 +2791,6 @@ export default function DialerPage() {
                             <Phone className="h-3 w-3 mr-1" />
                             Dial
                           </Button>
-                        )}
-                        {slot.status === "idle" && sessionActive && (
-                          <Badge variant="outline">Idle</Badge>
                         )}
                         {(slot.status === "ringing" || slot.status === "connected") && slot.startTime && <CallTimer startTime={slot.startTime} />}
                       </div>
@@ -2749,7 +3012,7 @@ export default function DialerPage() {
                           onClick={() => saveAndAdvance(slot.id)}
                         >
                           <Save className="h-3 w-3 mr-1" />
-                          {sessionActive ? "Save & Next" : "Save"}
+                          Save
                         </Button>
 
                         <div className="border-l border-border h-5 mx-1" />
@@ -3124,88 +3387,6 @@ export default function DialerPage() {
               </div>
             ))}
 
-            {/* Up Next queue preview — always visible during session */}
-            {mockProspects.length > currentProspectIndex + 1 && sessionActive && callSlots[0]?.contact && (
-              <div className="mt-4">
-                <h3 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
-                  <Users className="h-3.5 w-3.5" />
-                  Up Next ({mockProspects.length - currentProspectIndex - 1} remaining)
-                </h3>
-                <div className="space-y-1.5">
-                  {mockProspects.slice(currentProspectIndex + 1).map((prospect, idx) => (
-                    <div
-                      key={prospect.id}
-                      className="flex items-center gap-3 px-3 py-2 rounded-lg border border-border bg-card hover:bg-muted/30 transition-colors"
-                    >
-                      <span className="text-xs text-muted-foreground w-5 text-center font-mono">{idx + 1}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium truncate">{prospect.name}</span>
-                          <span className="text-xs text-muted-foreground truncate">{prospect.title}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <Building2 className="h-3 w-3 flex-shrink-0" />
-                          <span className="truncate">{prospect.company}</span>
-                          <span>•</span>
-                          <Phone className="h-3 w-3 flex-shrink-0" />
-                          <span className="font-mono">{prospect.phone}</span>
-                        </div>
-                      </div>
-                      {prospect.dueDate && (
-                        <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                          {(() => {
-                            try {
-                              const d = new Date(prospect.dueDate)
-                              if (isNaN(d.getTime())) return ""
-                              return formatDistanceToNow(d, { addSuffix: true })
-                            } catch { return "" }
-                          })()}
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            {/* Called — archive of completed calls this session */}
-            {calledProspects.length > 0 && sessionActive && (
-              <div className="mt-4">
-                <h3 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
-                  <History className="h-3.5 w-3.5" />
-                  Called ({calledProspects.length})
-                </h3>
-                <div className="space-y-1">
-                  {[...calledProspects].reverse().map((cp, idx) => {
-                    const outcomeColors: Record<string, string> = {
-                      connected: "text-green-500",
-                      connected_intro_booked: "text-green-500",
-                      connected_referral: "text-green-500",
-                      connected_not_interested: "text-yellow-500",
-                      connected_info_gathered: "text-green-500",
-                      callback: "text-blue-500",
-                      voicemail: "text-orange-500",
-                      no_answer: "text-muted-foreground",
-                      busy: "text-muted-foreground",
-                      failed: "text-red-500",
-                      gatekeeper: "text-yellow-500",
-                      wrong_number: "text-red-500",
-                    }
-                    const label = (o: string) => (o || "unknown").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())
-                    return (
-                      <div key={idx} className="flex items-center gap-3 px-3 py-1.5 rounded-lg bg-muted/20 border border-border/50 opacity-70">
-                        <div className="flex-1 min-w-0">
-                          <span className="text-xs font-medium truncate">{cp.name}</span>
-                          {cp.company && <span className="text-xs text-muted-foreground ml-1.5">@ {cp.company}</span>}
-                        </div>
-                        <span className={`text-xs font-medium ${outcomeColors[cp.outcome] || "text-muted-foreground"}`}>
-                          {label(cp.outcome)}
-                        </span>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
           </div>
       </div>
       )}

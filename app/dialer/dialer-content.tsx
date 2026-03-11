@@ -1831,7 +1831,6 @@ export default function DialerPage() {
               </Badge>
             )}
           </div>
-          {mockProspects.length > 0 ? (
           <div className="border rounded-lg overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -2658,15 +2657,17 @@ export default function DialerPage() {
                       </React.Fragment>
                     )
                   })}
+                  {mockProspects.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground text-sm">
+                        {selectedTimezones.length > 0 || selectedCallSteps.length > 0 ? "No prospects match the selected filters." : "No prospects in queue."}
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
           </div>
-          ) : (
-            <div className="border rounded-lg p-8 text-center text-muted-foreground text-sm">
-              {selectedTimezones.length > 0 || selectedCallSteps.length > 0 ? "No prospects match the selected filters. Try clearing the filters." : "No prospects in queue."}
-            </div>
-          )}
         </div>
 
       {/* Quick Call card (only for one-off calls outside session) */}

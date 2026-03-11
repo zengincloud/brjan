@@ -35,6 +35,7 @@ import {
   UserCheck,
   UserX,
   Building2,
+  Bell,
   Clock,
   TrendingUp,
   Mail,
@@ -208,37 +209,38 @@ export default function DialerPage() {
   const [fetchedSequences, setFetchedSequences] = useState<{ id: string; name: string }[]>([])
   const [selectedTimezones, setSelectedTimezones] = useState<string[]>([])
   const [selectedCallSteps, setSelectedCallSteps] = useState<string[]>([])
-  const [callSummary, setCallSummary] = useState<{
+  const [callSummaries, setCallSummaries] = useState<Map<string, {
     summary: string
     emailSubject: string
     emailBody: string
     prospectEmail: string
     prospectName: string
-  } | null>(null)
-  const [loadingSummary, setLoadingSummary] = useState(false)
-  const [summaryCallId, setSummaryCallId] = useState<string | null>(null)
+  }>>(new Map())
+  const [loadingSummaryForProspect, setLoadingSummaryForProspect] = useState<string | null>(null)
 
-  const generateCallSummary = useCallback(async (callId: string, retries = 0) => {
-    setLoadingSummary(true)
-    setSummaryCallId(callId)
+  const generateCallSummary = useCallback(async (callId: string, prospectId: string, retries = 0) => {
+    setLoadingSummaryForProspect(prospectId)
     try {
       const res = await fetch(`/api/calls/${callId}/summarize`, { method: "POST" })
       if (!res.ok) {
         const data = await res.json()
-        // If transcription not ready yet, retry with increasing delay (max ~2 min total)
         if (data.error?.includes("No transcription") && retries < 8) {
-          const delay = retries < 3 ? 10000 : 15000 // 10s for first 3, then 15s
-          setTimeout(() => generateCallSummary(callId, retries + 1), delay)
+          const delay = retries < 3 ? 10000 : 15000
+          setTimeout(() => generateCallSummary(callId, prospectId, retries + 1), delay)
           return
         }
-        setLoadingSummary(false)
+        setLoadingSummaryForProspect(null)
         return
       }
       const result = await res.json()
-      setCallSummary(result)
-      setLoadingSummary(false)
+      setCallSummaries(prev => {
+        const next = new Map(prev)
+        next.set(prospectId, result)
+        return next
+      })
+      setLoadingSummaryForProspect(null)
     } catch {
-      setLoadingSummary(false)
+      setLoadingSummaryForProspect(null)
     }
   }, [])
 
@@ -660,9 +662,8 @@ export default function DialerPage() {
         throw new Error(data.error || "Failed to create call record")
       }
 
-      // Clear any previous call summary
-      setCallSummary(null)
-      setLoadingSummary(false)
+      // Clear loading state for any previous summary
+      setLoadingSummaryForProspect(null)
 
       // Update slot to ringing state and auto-expand the card
       const slotId = callSlots[slotIndex]?.id || "1"
@@ -1138,6 +1139,44 @@ export default function DialerPage() {
     }
   }
 
+  const createReminder = async (prospect: DialerProspect, timeOption: string) => {
+    const dueDate = getCallbackDate(timeOption)
+    const summaryData = callSummaries.get(prospect.prospectId || prospect.id)
+    const summaryText = summaryData?.summary || ""
+    const taskDescription = [
+      `Follow-up with ${prospect.name}${prospect.company ? ` at ${prospect.company}` : ""}.`,
+      summaryText ? `AI Call Summary: ${summaryText}` : "",
+    ].filter(Boolean).join("\n\n")
+    try {
+      await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: `Follow up: ${prospect.name}${prospect.company ? ` — ${prospect.company}` : ""}`,
+          description: taskDescription,
+          type: "follow_up",
+          priority: "high",
+          dueDate: dueDate.toISOString(),
+          contact: {
+            prospectId: prospect.prospectId,
+            name: prospect.name,
+            email: prospect.email,
+            phone: prospect.phone,
+            company: prospect.company,
+            title: prospect.title,
+          },
+        }),
+      })
+      toast({
+        title: "Reminder created",
+        description: `Follow-up for ${prospect.name} on ${dueDate.toLocaleDateString()} at ${dueDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`,
+      })
+    } catch (err) {
+      console.error("Error creating reminder task:", err)
+      toast({ title: "Error", description: "Failed to create reminder", variant: "destructive" })
+    }
+  }
+
   const handlePipelineOutcome = async (slotId: string, pipelineStage: PipelineStage) => {
     // Store the pending pipeline stage on the slot (independent of outcome)
     setCallSlots(prev => prev.map(slot =>
@@ -1248,9 +1287,10 @@ export default function DialerPage() {
     Promise.all(savePromises)
 
     // Generate AI summary for connected calls (non-blocking)
-    if (slot.callId && outcome.startsWith("connected")) {
+    if (slot.callId && outcome.startsWith("connected") && slot.prospectId) {
+      const pid = slot.prospectId
       // Small delay to let the call record save first
-      setTimeout(() => generateCallSummary(slot.callId!), 2000)
+      setTimeout(() => generateCallSummary(slot.callId!, pid), 2000)
     }
 
     // Use ref to always get fresh index (avoids stale closures from setTimeout chains)
@@ -2300,51 +2340,6 @@ export default function DialerPage() {
                                       </Button>
                                     </div>
 
-                                    {/* Call Summary */}
-                                    {activeSlot.callId && summaryCallId === activeSlot.callId && (loadingSummary || callSummary) && (
-                                      <div className="p-3 rounded-lg border border-primary/30 bg-primary/5">
-                                        <div className="flex items-start justify-between gap-3">
-                                          <div className="flex items-start gap-2 flex-1">
-                                            <Sparkles className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                                            <div className="flex-1">
-                                              <p className="text-sm font-medium text-primary mb-1">Call Summary</p>
-                                              {loadingSummary && !callSummary ? (
-                                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                                  Generating summary...
-                                                </div>
-                                              ) : callSummary ? (
-                                                <div className="space-y-2">
-                                                  <p className="text-sm text-foreground leading-relaxed">{callSummary.summary}</p>
-                                                  <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    className="h-7"
-                                                    onClick={(e) => {
-                                                      e.stopPropagation()
-                                                      const to = encodeURIComponent(callSummary.prospectEmail)
-                                                      const su = encodeURIComponent(callSummary.emailSubject)
-                                                      const body = encodeURIComponent(callSummary.emailBody)
-                                                      window.open(`https://mail.google.com/mail/?view=cm&to=${to}&su=${su}&body=${body}`, "_blank")
-                                                    }}
-                                                  >
-                                                    <Mail className="h-3 w-3 mr-1" />
-                                                    Draft in Gmail
-                                                  </Button>
-                                                </div>
-                                              ) : null}
-                                            </div>
-                                          </div>
-                                          <button
-                                            onClick={(e) => { e.stopPropagation(); setCallSummary(null); setLoadingSummary(false) }}
-                                            className="p-1 rounded hover:bg-muted transition-colors"
-                                          >
-                                            <X className="h-3.5 w-3.5 text-muted-foreground" />
-                                          </button>
-                                        </div>
-                                      </div>
-                                    )}
-
                                     {/* Call notes */}
                                     <Textarea
                                       placeholder="Call notes..."
@@ -2399,6 +2394,94 @@ export default function DialerPage() {
                                     </Button>
                                   </div>
                                 )}
+
+                                {/* Call Notes (AI Summary) */}
+                                {(callSummaries.has(prospect.prospectId || prospect.id) || loadingSummaryForProspect === (prospect.prospectId || prospect.id)) && (() => {
+                                  const pKey = prospect.prospectId || prospect.id
+                                  const summaryData = callSummaries.get(pKey)
+                                  return (
+                                    <div className="p-3 rounded-lg border border-primary/30 bg-primary/5">
+                                      <div className="flex items-start justify-between gap-3">
+                                        <div className="flex items-start gap-2 flex-1">
+                                          <Sparkles className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                                          <div className="flex-1">
+                                            <p className="text-sm font-medium text-primary mb-1">Call Notes</p>
+                                            {loadingSummaryForProspect === pKey && !summaryData ? (
+                                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                                <Loader2 className="h-3 w-3 animate-spin" />
+                                                Generating summary...
+                                              </div>
+                                            ) : summaryData ? (
+                                              <div className="space-y-2">
+                                                <ul className="text-sm text-foreground leading-relaxed list-disc list-inside space-y-1">
+                                                  {summaryData.summary.split(/[.!?]+/).filter(s => s.trim()).map((sentence, i) => (
+                                                    <li key={i}>{sentence.trim()}</li>
+                                                  ))}
+                                                </ul>
+                                                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                                  <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="h-7"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation()
+                                                      const to = encodeURIComponent(summaryData.prospectEmail)
+                                                      const su = encodeURIComponent(summaryData.emailSubject)
+                                                      const body = encodeURIComponent(summaryData.emailBody)
+                                                      window.open(`https://mail.google.com/mail/?view=cm&to=${to}&su=${su}&body=${body}`, "_blank")
+                                                    }}
+                                                  >
+                                                    <Mail className="h-3 w-3 mr-1" />
+                                                    Draft in Gmail
+                                                  </Button>
+                                                  <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                      <Button size="sm" variant="outline" className="h-7">
+                                                        <Bell className="h-3 w-3 mr-1" />
+                                                        Make a Reminder
+                                                        <ChevronDown className="h-3 w-3 ml-1" />
+                                                      </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="start">
+                                                      <DropdownMenuItem onClick={() => createReminder(prospect, "1h")}>
+                                                        <Clock className="h-4 w-4 mr-2" />In 1 Hour
+                                                      </DropdownMenuItem>
+                                                      <DropdownMenuItem onClick={() => createReminder(prospect, "3h")}>
+                                                        <Clock className="h-4 w-4 mr-2" />In 3 Hours
+                                                      </DropdownMenuItem>
+                                                      <DropdownMenuItem onClick={() => createReminder(prospect, "tomorrow_morning")}>
+                                                        <Calendar className="h-4 w-4 mr-2" />Tomorrow Morning
+                                                      </DropdownMenuItem>
+                                                      <DropdownMenuItem onClick={() => createReminder(prospect, "tomorrow_afternoon")}>
+                                                        <Calendar className="h-4 w-4 mr-2" />Tomorrow Afternoon
+                                                      </DropdownMenuItem>
+                                                      <DropdownMenuItem onClick={() => createReminder(prospect, "next_week")}>
+                                                        <Calendar className="h-4 w-4 mr-2" />Next Monday
+                                                      </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                  </DropdownMenu>
+                                                </div>
+                                              </div>
+                                            ) : null}
+                                          </div>
+                                        </div>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            setCallSummaries(prev => {
+                                              const next = new Map(prev)
+                                              next.delete(pKey)
+                                              return next
+                                            })
+                                          }}
+                                          className="p-1 rounded hover:bg-muted transition-colors"
+                                        >
+                                          <X className="h-3.5 w-3.5 text-muted-foreground" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )
+                                })()}
 
                                 {/* Company Info */}
                                 {prospect.accountInfo && (
@@ -3043,49 +3126,66 @@ export default function DialerPage() {
                       </Button>
                     </div>
 
-                    {/* Call Summary — inline in card */}
-                    {slot.callId && summaryCallId === slot.callId && (loadingSummary || callSummary) && (
-                      <div className="mt-2 p-3 rounded-lg border border-primary/30 bg-primary/5">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-start gap-2 flex-1">
-                            <Sparkles className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                            <div className="flex-1">
-                              <p className="text-sm font-medium text-primary mb-1">Call Summary</p>
-                              {loadingSummary && !callSummary ? (
-                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                  Generating summary...
-                                </div>
-                              ) : callSummary ? (
-                                <div className="space-y-2">
-                                  <p className="text-sm text-foreground leading-relaxed">{callSummary.summary}</p>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-7"
-                                    onClick={() => {
-                                      const to = encodeURIComponent(callSummary.prospectEmail)
-                                      const su = encodeURIComponent(callSummary.emailSubject)
-                                      const body = encodeURIComponent(callSummary.emailBody)
-                                      window.open(`https://mail.google.com/mail/?view=cm&to=${to}&su=${su}&body=${body}`, "_blank")
-                                    }}
-                                  >
-                                    <Mail className="h-3 w-3 mr-1" />
-                                    Draft in Gmail
-                                  </Button>
-                                </div>
-                              ) : null}
+                    {/* Call Notes — inline in card */}
+                    {slot.prospectId && (callSummaries.has(slot.prospectId) || loadingSummaryForProspect === slot.prospectId) && (() => {
+                      const summaryData = callSummaries.get(slot.prospectId!)
+                      return (
+                        <div className="mt-2 p-3 rounded-lg border border-primary/30 bg-primary/5">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-start gap-2 flex-1">
+                              <Sparkles className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                              <div className="flex-1">
+                                <p className="text-sm font-medium text-primary mb-1">Call Notes</p>
+                                {loadingSummaryForProspect === slot.prospectId && !summaryData ? (
+                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                    Generating summary...
+                                  </div>
+                                ) : summaryData ? (
+                                  <div className="space-y-2">
+                                    <ul className="text-sm text-foreground leading-relaxed list-disc list-inside space-y-1">
+                                      {summaryData.summary.split(/[.!?]+/).filter(s => s.trim()).map((sentence, i) => (
+                                        <li key={i}>{sentence.trim()}</li>
+                                      ))}
+                                    </ul>
+                                    <div className="flex items-center gap-2">
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-7"
+                                        onClick={() => {
+                                          const to = encodeURIComponent(summaryData.prospectEmail)
+                                          const su = encodeURIComponent(summaryData.emailSubject)
+                                          const body = encodeURIComponent(summaryData.emailBody)
+                                          window.open(`https://mail.google.com/mail/?view=cm&to=${to}&su=${su}&body=${body}`, "_blank")
+                                        }}
+                                      >
+                                        <Mail className="h-3 w-3 mr-1" />
+                                        Draft in Gmail
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ) : null}
+                              </div>
                             </div>
+                            <button
+                              onClick={() => {
+                                if (slot.prospectId) {
+                                  setCallSummaries(prev => {
+                                    const next = new Map(prev)
+                                    next.delete(slot.prospectId!)
+                                    return next
+                                  })
+                                }
+                              }}
+                              className="p-1 rounded hover:bg-muted transition-colors"
+                            >
+                              <X className="h-3.5 w-3.5 text-muted-foreground" />
+                            </button>
                           </div>
-                          <button
-                            onClick={() => { setCallSummary(null); setLoadingSummary(false) }}
-                            className="p-1 rounded hover:bg-muted transition-colors"
-                          >
-                            <X className="h-3.5 w-3.5 text-muted-foreground" />
-                          </button>
                         </div>
-                      </div>
-                    )}
+                      )
+                    })()}
 
                     {/* Expandable details section */}
                     {expandedSlots.has(slot.id) && (

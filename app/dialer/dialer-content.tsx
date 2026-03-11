@@ -734,6 +734,11 @@ export default function DialerPage() {
           ? Math.floor((Date.now() - callStartTimeRef.current) / 1000)
           : 0
 
+        // Start generating AI summary immediately (don't wait for Save & Next)
+        if (data.callId && prospect.prospectId) {
+          setTimeout(() => generateCallSummary(data.callId, prospect.prospectId!), 2000)
+        }
+
         // Update slot to completed — but only if it's still the same call
         // (saveAndAdvance may have already reset the slot to idle with a new contact)
         setCallSlots(prev => prev.map((slot, idx) => {
@@ -1285,13 +1290,6 @@ export default function DialerPage() {
 
     // Fire all in parallel — don't block UI advancement
     Promise.all(savePromises)
-
-    // Generate AI summary for connected calls (non-blocking)
-    if (slot.callId && outcome.startsWith("connected") && slot.prospectId) {
-      const pid = slot.prospectId
-      // Small delay to let the call record save first
-      setTimeout(() => generateCallSummary(slot.callId!, pid), 2000)
-    }
 
     // Use ref to always get fresh index (avoids stale closures from setTimeout chains)
     const freshIndex = currentProspectIndexRef.current

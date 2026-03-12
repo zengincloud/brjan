@@ -97,6 +97,7 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
       taskTypeCounts,
       // Sequence performance
       sequenceStatusCounts,
+      sequenceDetails,
       // Recent activity
       recentCalls,
       recentEmails,
@@ -104,7 +105,7 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
       // All calls in range with details for grouping
       prisma.call.findMany({
         where: { userId, createdAt: { gte: from, lte: to } },
-        select: { id: true, createdAt: true, outcome: true, duration: true, status: true },
+        select: { id: true, createdAt: true, startedAt: true, outcome: true, duration: true, recordingDuration: true, status: true },
       }),
       // Previous period totals
       prisma.call.count({
@@ -171,7 +172,7 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
         where: { userId, createdAt: { gte: from, lte: to } },
         _count: { id: true },
       }),
-      // Sequence performance
+      // Sequence performance (grouped by status)
       prisma.prospectSequence.groupBy({
         by: ["status"],
         where: {
@@ -179,6 +180,28 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
           startedAt: { gte: from, lte: to },
         },
         _count: { id: true },
+      }),
+      // Per-sequence stats
+      prisma.sequence.findMany({
+        where: { userId },
+        select: {
+          id: true,
+          name: true,
+          prospectSequences: {
+            where: { startedAt: { gte: from, lte: to } },
+            select: {
+              status: true,
+              prospect: {
+                select: {
+                  calls: {
+                    where: { createdAt: { gte: from, lte: to } },
+                    select: { outcome: true },
+                  },
+                },
+              },
+            },
+          },
+        },
       }),
       // Recent calls
       prisma.call.findMany({
@@ -446,8 +469,75 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
       byType: taskTypeMap,
     }
 
+    // ========== BEST TIME TO CALL (heatmap) ==========
+    const heatmap: Record<string, { calls: number; connected: number }> = {}
+    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    // Initialize all slots
+    for (const day of days) {
+      for (let h = 7; h <= 18; h++) {
+        heatmap[`${day}-${h}`] = { calls: 0, connected: 0 }
+      }
+    }
+    for (const c of calls) {
+      const d = c.startedAt || c.createdAt
+      const day = days[d.getDay()]
+      const hour = d.getHours()
+      if (hour >= 7 && hour <= 18) {
+        const key = `${day}-${hour}`
+        heatmap[key].calls++
+        if (c.outcome && CONNECTED_OUTCOMES.includes(c.outcome)) {
+          heatmap[key].connected++
+        }
+      }
+    }
+    const bestTimeToCall = Object.entries(heatmap).map(([key, val]) => {
+      const [day, hour] = key.split("-")
+      return {
+        day,
+        hour: parseInt(hour),
+        calls: val.calls,
+        connected: val.connected,
+        connectRate: val.calls > 0 ? Math.round((val.connected / val.calls) * 100) : 0,
+      }
+    })
+
+    // ========== CONVERSATION TO INTRO RATE ==========
+    const conversations = calls.filter(c =>
+      c.outcome?.startsWith("connected") && (c.recordingDuration || c.duration || 0) > 60
+    )
+    const introsFromConversations = conversations.filter(c => c.outcome === "connected_intro_booked")
+    const conversationToIntroRate = conversations.length > 0
+      ? Math.round((introsFromConversations.length / conversations.length) * 100)
+      : 0
+
+    // ========== SEQUENCE PERFORMANCE (per sequence) ==========
+    const sequencePerformance = sequenceDetails
+      .filter((seq: any) => seq.prospectSequences.length > 0)
+      .map((seq: any) => {
+        const total = seq.prospectSequences.length
+        const completed = seq.prospectSequences.filter((ps: any) => ps.status === "completed").length
+        const allCalls = seq.prospectSequences.flatMap((ps: any) => ps.prospect.calls)
+        const seqConnected = allCalls.filter((c: any) => c.outcome && CONNECTED_OUTCOMES.includes(c.outcome)).length
+        const seqIntros = allCalls.filter((c: any) => c.outcome === "connected_intro_booked").length
+        return {
+          name: seq.name,
+          prospects: total,
+          completed,
+          completionRate: total > 0 ? Math.round((completed / total) * 100) : 0,
+          calls: allCalls.length,
+          connected: seqConnected,
+          connectRate: allCalls.length > 0 ? Math.round((seqConnected / allCalls.length) * 100) : 0,
+          introsBooked: seqIntros,
+        }
+      })
+
     return NextResponse.json({
-      overview,
+      overview: {
+        ...overview,
+        conversationToIntroRate,
+        totalConversations: conversations.length,
+        totalIntrosFromConversations: introsFromConversations.length,
+      },
       activityByDay,
       activityByType,
       recentActivity,
@@ -457,6 +547,8 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
       conversion,
       sequences,
       tasks,
+      bestTimeToCall,
+      sequencePerformance,
     })
   } catch (error: any) {
     console.error("Reports stats error:", error)

@@ -14,6 +14,9 @@ export interface ReportStats {
     prevTotalEmailsSent: number
     prevConnectRate: number
     prevMeetingsBooked: number
+    conversationToIntroRate: number
+    totalConversations: number
+    totalIntrosFromConversations: number
   }
   activityByDay: {
     date: string
@@ -87,6 +90,23 @@ export interface ReportStats {
     byStatus: Record<string, number>
     byType: Record<string, number>
   }
+  bestTimeToCall: {
+    day: string
+    hour: number
+    calls: number
+    connected: number
+    connectRate: number
+  }[]
+  sequencePerformance: {
+    name: string
+    prospects: number
+    completed: number
+    completionRate: number
+    calls: number
+    connected: number
+    connectRate: number
+    introsBooked: number
+  }[]
 }
 
 export function useReportStats(date: DateRange | undefined) {

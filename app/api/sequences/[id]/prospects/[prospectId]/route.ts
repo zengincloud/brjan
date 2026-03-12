@@ -46,6 +46,27 @@ export const DELETE = withAuth<{ params: { id: string; prospectId: string } }>(a
       },
     })
 
+    // Delete any pending call/task board tasks created by this sequence for this prospect
+    // These have the prospectId stored in the contact JSON field
+    const pendingTasks = await prisma.task.findMany({
+      where: {
+        userId,
+        status: { in: ['to_do', 'in_progress'] },
+      },
+    })
+    const taskIdsToDelete = pendingTasks
+      .filter(t => {
+        const contact = t.contact as any
+        return contact?.prospectId === params.prospectId && contact?.sequenceId === params.id
+      })
+      .map(t => t.id)
+
+    if (taskIdsToDelete.length > 0) {
+      await prisma.task.deleteMany({
+        where: { id: { in: taskIdsToDelete } },
+      })
+    }
+
     // Update prospect status
     await prisma.prospect.update({
       where: {

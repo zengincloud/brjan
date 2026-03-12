@@ -72,9 +72,18 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     // Remove nested data and add flattened currentStepDetails
     const { prospectSequences, ...prospectData } = prospect
 
+    // If the prospect has an active ProspectSequence but the denormalized
+    // `sequence` field is empty (e.g. added via extension), backfill it
+    // from the relation so the UI shows the correct sequence status.
+    const ps = prospect.prospectSequences?.[0]
+    const sequenceName = prospectData.sequence || (ps ? ps.sequence.name : null)
+    const sequenceStep = prospectData.sequenceStep || (currentStepDetails ? currentStepDetails.name : null)
+
     return NextResponse.json({
       prospect: {
         ...prospectData,
+        sequence: sequenceName,
+        sequenceStep,
         currentStepDetails,
       }
     })

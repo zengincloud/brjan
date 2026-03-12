@@ -731,7 +731,8 @@ export default function DialerPage() {
           : 0
 
         // Start generating AI summary immediately (don't wait for Save & Next)
-        if (data.callId && prospect.prospectId) {
+        // Only generate if the call lasted more than 10 seconds (skip voicemails/instant hangups)
+        if (data.callId && prospect.prospectId && finalDuration > 10) {
           setTimeout(() => generateCallSummary(data.callId, prospect.prospectId!), 2000)
         }
 

@@ -843,13 +843,13 @@ export default function ProspectDetailPage() {
             <CardTitle>Sequence Status</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {prospect.sequence ? (
+            {(prospect.sequence || prospect.currentStepDetails) ? (
               <>
                 <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <Zap className="h-4 w-4 text-primary" />
-                      <p className="text-sm font-medium">{prospect.sequence}</p>
+                      <p className="text-sm font-medium">{prospect.sequence || prospect.currentStepDetails?.sequenceName}</p>
                     </div>
                     <Badge variant="outline" className="text-xs border-primary/30 text-primary">
                       Active

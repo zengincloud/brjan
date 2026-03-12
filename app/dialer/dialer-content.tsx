@@ -119,10 +119,8 @@ type CallSlot = {
 type SessionStats = {
   totalCalls: number
   connected: number
-  voicemail: number
-  noAnswer: number
-  pipeline: number
-  callsPerHour: number
+  conversations: number
+  introsBooked: number
 }
 
 type DialerProspect = {
@@ -187,10 +185,8 @@ export default function DialerPage() {
   const [stats, setStats] = useSessionState<SessionStats>("dialer_stats", {
     totalCalls: 0,
     connected: 0,
-    voicemail: 0,
-    noAnswer: 0,
-    pipeline: 0,
-    callsPerHour: 0,
+    conversations: 0,
+    introsBooked: 0,
   })
   const [expandedSlots, setExpandedSlots] = useState<Set<string>>(new Set())
   const [expandedQueueRows, setExpandedQueueRows] = useState<Set<string>>(new Set())
@@ -911,12 +907,13 @@ export default function DialerPage() {
     }
 
     // Update stats
+    const duration = slot?.finalDuration || callDuration || 0
     setStats(prev => ({
       ...prev,
       totalCalls: prev.totalCalls + 1,
       connected: outcome.startsWith("connected") ? prev.connected + 1 : prev.connected,
-      voicemail: outcome === "voicemail" ? prev.voicemail + 1 : prev.voicemail,
-      noAnswer: outcome === "no_answer" ? prev.noAnswer + 1 : prev.noAnswer,
+      conversations: outcome.startsWith("connected") && duration > 60 ? prev.conversations + 1 : prev.conversations,
+      introsBooked: outcome === "connected_intro_booked" ? prev.introsBooked + 1 : prev.introsBooked,
     }))
 
     // Reset slot
@@ -1323,13 +1320,13 @@ export default function DialerPage() {
     }
 
     // Update stats
+    const duration = slot.finalDuration || callDuration || 0
     setStats(prev => ({
       ...prev,
       totalCalls: prev.totalCalls + 1,
       connected: outcome.startsWith("connected") ? prev.connected + 1 : prev.connected,
-      voicemail: outcome === "voicemail" ? prev.voicemail + 1 : prev.voicemail,
-      noAnswer: outcome === "no_answer" ? prev.noAnswer + 1 : prev.noAnswer,
-      pipeline: pipelineStage ? prev.pipeline + 1 : prev.pipeline,
+      conversations: outcome.startsWith("connected") && duration > 60 ? prev.conversations + 1 : prev.conversations,
+      introsBooked: outcome === "connected_intro_booked" ? prev.introsBooked + 1 : prev.introsBooked,
     }))
 
     // Reset slot and advance
@@ -1721,7 +1718,7 @@ export default function DialerPage() {
       </div>
 
       {/* Stats Bar */}
-      <div className="grid gap-4 md:grid-cols-6">
+      <div className="grid gap-4 md:grid-cols-5">
         <Card className="border-border bg-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Calls</CardTitle>
@@ -1742,38 +1739,29 @@ export default function DialerPage() {
         </Card>
         <Card className="border-border bg-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Voicemail</CardTitle>
-            <Voicemail className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Connect Rate</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.voicemail}</div>
+            <div className="text-2xl font-bold">{stats.totalCalls > 0 ? Math.round((stats.connected / stats.totalCalls) * 100) : 0}%</div>
           </CardContent>
         </Card>
         <Card className="border-border bg-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">No Answer</CardTitle>
-            <UserX className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Conversation Rate</CardTitle>
+            <MessageSquare className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.noAnswer}</div>
+            <div className="text-2xl font-bold">{stats.totalCalls > 0 ? Math.round((stats.conversations / stats.totalCalls) * 100) : 0}%</div>
           </CardContent>
         </Card>
         <Card className="border-border bg-card border-green-500/30">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pipeline</CardTitle>
-            <Rocket className="h-4 w-4 text-green-500" />
+            <CardTitle className="text-sm font-medium">Intros Booked</CardTitle>
+            <CalendarCheck className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-500">{stats.pipeline}</div>
-          </CardContent>
-        </Card>
-        <Card className="border-border bg-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Calls/Hour</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.callsPerHour}</div>
+            <div className="text-2xl font-bold text-green-500">{stats.introsBooked}</div>
           </CardContent>
         </Card>
       </div>
@@ -2215,21 +2203,33 @@ export default function DialerPage() {
                                           </Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="start">
-                                          <DropdownMenuItem onClick={() => handleCallOutcome("1", "connected_intro_booked")}>
-                                            <CalendarCheck className="h-4 w-4 mr-2 text-green-500" />
-                                            Intro Booked
-                                          </DropdownMenuItem>
-                                          <DropdownMenuItem onClick={() => handleCallOutcome("1", "connected_referral")}>
-                                            <UserCheck className="h-4 w-4 mr-2 text-blue-500" />
-                                            Referral
+                                          <DropdownMenuItem onClick={() => handleCallOutcome("1", "no_answer")}>
+                                            <UserX className="h-4 w-4 mr-2" />
+                                            No Answer
                                           </DropdownMenuItem>
                                           <DropdownMenuItem onClick={() => handleCallOutcome("1", "connected_not_interested")}>
                                             <UserX className="h-4 w-4 mr-2 text-orange-500" />
                                             Not Interested
                                           </DropdownMenuItem>
+                                          <DropdownMenuItem onClick={() => handleCallOutcome("1", "connected_referral")}>
+                                            <UserCheck className="h-4 w-4 mr-2 text-blue-500" />
+                                            Referral
+                                          </DropdownMenuItem>
                                           <DropdownMenuItem onClick={() => handleCallOutcome("1", "connected_info_gathered")}>
                                             <FileText className="h-4 w-4 mr-2 text-purple-500" />
                                             Informational
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem onClick={() => handleCallOutcome("1", "connected_intro_booked")}>
+                                            <CalendarCheck className="h-4 w-4 mr-2 text-green-500" />
+                                            Intro Booked
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem onClick={() => handleCallOutcome("1", "voicemail")}>
+                                            <Voicemail className="h-4 w-4 mr-2" />
+                                            Voicemail
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem onClick={() => handleCallOutcome("1", "wrong_number")}>
+                                            <PhoneOff className="h-4 w-4 mr-2 text-red-500" />
+                                            Wrong Number
                                           </DropdownMenuItem>
                                           <DropdownMenuSub>
                                             <DropdownMenuSubTrigger>
@@ -2254,18 +2254,6 @@ export default function DialerPage() {
                                               </DropdownMenuItem>
                                             </DropdownMenuSubContent>
                                           </DropdownMenuSub>
-                                          <DropdownMenuItem onClick={() => handleCallOutcome("1", "voicemail")}>
-                                            <Voicemail className="h-4 w-4 mr-2" />
-                                            Voicemail
-                                          </DropdownMenuItem>
-                                          <DropdownMenuItem onClick={() => handleCallOutcome("1", "no_answer")}>
-                                            <UserX className="h-4 w-4 mr-2" />
-                                            No Answer
-                                          </DropdownMenuItem>
-                                          <DropdownMenuItem onClick={() => handleCallOutcome("1", "wrong_number")}>
-                                            <PhoneOff className="h-4 w-4 mr-2 text-red-500" />
-                                            Wrong Number
-                                          </DropdownMenuItem>
                                           <DropdownMenuItem onClick={() => handleCallOutcome("1", "no_answer")}>
                                             <SkipForward className="h-4 w-4 mr-2" />
                                             Skip
@@ -3000,21 +2988,33 @@ export default function DialerPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="start">
-                            <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "connected_intro_booked")}>
-                              <CalendarCheck className="h-4 w-4 mr-2 text-green-500" />
-                              Intro Booked
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "connected_referral")}>
-                              <UserCheck className="h-4 w-4 mr-2 text-blue-500" />
-                              Referral
+                            <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "no_answer")}>
+                              <UserX className="h-4 w-4 mr-2" />
+                              No Answer
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "connected_not_interested")}>
                               <UserX className="h-4 w-4 mr-2 text-orange-500" />
                               Not Interested
                             </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "connected_referral")}>
+                              <UserCheck className="h-4 w-4 mr-2 text-blue-500" />
+                              Referral
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "connected_info_gathered")}>
                               <FileText className="h-4 w-4 mr-2 text-purple-500" />
                               Informational
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "connected_intro_booked")}>
+                              <CalendarCheck className="h-4 w-4 mr-2 text-green-500" />
+                              Intro Booked
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "voicemail")}>
+                              <Voicemail className="h-4 w-4 mr-2" />
+                              Voicemail
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "wrong_number")}>
+                              <PhoneOff className="h-4 w-4 mr-2 text-red-500" />
+                              Wrong Number
                             </DropdownMenuItem>
                             <DropdownMenuSub>
                               <DropdownMenuSubTrigger>
@@ -3039,18 +3039,6 @@ export default function DialerPage() {
                                 </DropdownMenuItem>
                               </DropdownMenuSubContent>
                             </DropdownMenuSub>
-                            <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "voicemail")}>
-                              <Voicemail className="h-4 w-4 mr-2" />
-                              Voicemail
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "no_answer")}>
-                              <UserX className="h-4 w-4 mr-2" />
-                              No Answer
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "wrong_number")}>
-                              <PhoneOff className="h-4 w-4 mr-2 text-red-500" />
-                              Wrong Number
-                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleCallOutcome(slot.id, "no_answer")}>
                               <SkipForward className="h-4 w-4 mr-2" />
                               Skip

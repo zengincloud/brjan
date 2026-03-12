@@ -34,6 +34,7 @@ interface CallTranscriptProps {
   callId: string
   hasRecording: boolean
   transcriptionStatus?: string | null
+  callOutcome?: string | null
   onTranscriptionComplete?: () => void
 }
 
@@ -46,40 +47,43 @@ function formatTimestamp(seconds: number): string {
 const sentimentConfig = {
   positive: {
     label: "Positive",
-    color: "bg-green-500/10 text-green-600 border-green-500/20",
+    color: "bg-green-500/20 text-green-500 border-green-500/40",
     icon: TrendingUp,
   },
   neutral: {
     label: "Neutral",
-    color: "bg-gray-500/10 text-gray-600 border-gray-500/20",
+    color: "bg-blue-500/20 text-blue-500 border-blue-500/40",
     icon: Minus,
   },
   negative: {
     label: "Negative",
-    color: "bg-red-500/10 text-red-600 border-red-500/20",
+    color: "bg-red-500/20 text-red-500 border-red-500/40",
     icon: TrendingDown,
   },
   mixed: {
     label: "Mixed",
-    color: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20",
+    color: "bg-yellow-500/20 text-yellow-500 border-yellow-500/40",
     icon: Minus,
   },
 }
 
 const outcomeConfig: Record<string, { label: string; color: string }> = {
-  interested: { label: "Interested", color: "bg-green-500/10 text-green-600 border-green-500/20" },
-  not_interested: { label: "Not Interested", color: "bg-red-500/10 text-red-600 border-red-500/20" },
-  follow_up: { label: "Follow Up Needed", color: "bg-blue-500/10 text-blue-600 border-blue-500/20" },
-  meeting_booked: { label: "Meeting Booked", color: "bg-purple-500/10 text-purple-600 border-purple-500/20" },
-  voicemail: { label: "Voicemail", color: "bg-orange-500/10 text-orange-600 border-orange-500/20" },
-  gatekeeper: { label: "Gatekeeper", color: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20" },
-  unknown: { label: "Unknown", color: "bg-gray-500/10 text-gray-600 border-gray-500/20" },
+  connected_intro_booked: { label: "Intro Booked", color: "bg-green-500/20 text-green-500 border-green-500/40" },
+  connected_referral: { label: "Referral", color: "bg-blue-500/20 text-blue-500 border-blue-500/40" },
+  connected_not_interested: { label: "Not Interested", color: "bg-red-500/20 text-red-500 border-red-500/40" },
+  connected_info_gathered: { label: "Informational", color: "bg-purple-500/20 text-purple-500 border-purple-500/40" },
+  callback: { label: "Callback", color: "bg-amber-500/20 text-amber-500 border-amber-500/40" },
+  voicemail: { label: "Voicemail", color: "bg-orange-500/20 text-orange-500 border-orange-500/40" },
+  no_answer: { label: "No Answer", color: "bg-gray-500/20 text-gray-400 border-gray-500/40" },
+  wrong_number: { label: "Wrong Number", color: "bg-red-500/20 text-red-500 border-red-500/40" },
+  gatekeeper: { label: "Gatekeeper", color: "bg-yellow-500/20 text-yellow-500 border-yellow-500/40" },
 }
 
 export function CallTranscript({
   callId,
   hasRecording,
   transcriptionStatus: initialStatus,
+  callOutcome,
   onTranscriptionComplete,
 }: CallTranscriptProps) {
   const [status, setStatus] = useState<string>(initialStatus || "none")
@@ -263,7 +267,8 @@ export function CallTranscript({
 
   const analysis = transcript?.analysis
   const sentimentInfo = analysis ? sentimentConfig[analysis.sentiment] : null
-  const outcomeInfo = analysis ? outcomeConfig[analysis.outcome] : null
+  const actualOutcome = callOutcome || analysis?.outcome
+  const outcomeInfo = actualOutcome ? outcomeConfig[actualOutcome] || { label: actualOutcome.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()), color: "bg-gray-500/20 text-gray-400 border-gray-500/40" } : null
 
   return (
     <div className="space-y-4">
@@ -310,30 +315,34 @@ export function CallTranscript({
       )}
 
       {/* Analysis boxes - Sentiment & Call Outcome */}
-      {status === "completed" && analysis && (
+      {status === "completed" && (analysis || outcomeInfo) && (
         <div className="grid grid-cols-2 gap-3">
           {/* Sentiment Analysis Box */}
-          <div className={`rounded-lg border p-4 ${sentimentInfo?.color || ""}`}>
-            <div className="flex items-center gap-2 mb-2">
-              {sentimentInfo && <sentimentInfo.icon className="h-4 w-4" />}
-              <span className="text-xs font-medium uppercase tracking-wide">Sentiment Analysis</span>
+          {sentimentInfo && (
+            <div className={`rounded-lg border p-4 ${sentimentInfo.color}`}>
+              <div className="flex items-center gap-2 mb-2">
+                <sentimentInfo.icon className="h-4 w-4" />
+                <span className="text-xs font-medium uppercase tracking-wide">Sentiment</span>
+              </div>
+              <p className="text-lg font-semibold">{sentimentInfo.label}</p>
+              {analysis?.sentimentScore !== undefined && (
+                <p className="text-xs mt-1">
+                  Score: {(analysis.sentimentScore * 100).toFixed(0)}%
+                </p>
+              )}
             </div>
-            <p className="text-lg font-semibold">{sentimentInfo?.label || "Unknown"}</p>
-            {analysis.sentimentScore !== undefined && (
-              <p className="text-xs mt-1 opacity-70">
-                Score: {(analysis.sentimentScore * 100).toFixed(0)}%
-              </p>
-            )}
-          </div>
+          )}
 
           {/* Call Outcome Box */}
-          <div className={`rounded-lg border p-4 ${outcomeInfo?.color || ""}`}>
-            <div className="flex items-center gap-2 mb-2">
-              <Target className="h-4 w-4" />
-              <span className="text-xs font-medium uppercase tracking-wide">Call Outcome</span>
+          {outcomeInfo && (
+            <div className={`rounded-lg border p-4 ${outcomeInfo.color}`}>
+              <div className="flex items-center gap-2 mb-2">
+                <Target className="h-4 w-4" />
+                <span className="text-xs font-medium uppercase tracking-wide">Call Outcome</span>
+              </div>
+              <p className="text-lg font-semibold">{outcomeInfo.label}</p>
             </div>
-            <p className="text-lg font-semibold">{outcomeInfo?.label || "Unknown"}</p>
-          </div>
+          )}
         </div>
       )}
 

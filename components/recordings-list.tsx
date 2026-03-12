@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Phone, Search, User, Building2, CalendarIcon, Clock, Download, Play, FileText, X, Mic, PhoneOutgoing, TrendingUp, UserCheck, MessageSquare } from "lucide-react"
+import { Phone, Search, User, Building2, CalendarIcon, Clock, Download, Play, FileText, X, Mic, PhoneOutgoing, TrendingUp, UserCheck, MessageSquare, Mail, Loader2 } from "lucide-react"
 import { format, isWithinInterval, startOfDay, endOfDay } from "date-fns"
 import { Skeleton } from "@/components/ui/skeleton"
 import { CallTranscript } from "@/components/call-transcript"
@@ -47,15 +47,38 @@ export function RecordingsList() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined)
   const [filter, setFilter] = useState<"all" | "recordings">("all")
   const [metricFilter, setMetricFilter] = useState<"none" | "calls_this_week" | "connected" | "conversations" | "intros_booked">("none")
+  const [draftingEmail, setDraftingEmail] = useState(false)
+
+  const draftEmailFromCall = async (recording: CallRecording) => {
+    if (!recording.prospect?.email) return
+    setDraftingEmail(true)
+    try {
+      const res = await fetch(`/api/calls/${recording.id}/summarize`, { method: "POST" })
+      if (res.ok) {
+        const data = await res.json()
+        const to = encodeURIComponent(data.prospectEmail || recording.prospect.email)
+        const su = encodeURIComponent(data.emailSubject)
+        const body = encodeURIComponent(data.emailBody)
+        window.open(`https://mail.google.com/mail/?view=cm&to=${to}&su=${su}&body=${body}`, "_blank")
+      }
+    } catch (err) {
+      console.error("Error drafting email:", err)
+    } finally {
+      setDraftingEmail(false)
+    }
+  }
 
   useEffect(() => {
-    loadRecordings()
-  }, [])
+    loadRecordings(dateRange)
+  }, [dateRange])
 
-  const loadRecordings = async () => {
+  const loadRecordings = async (range?: DateRange) => {
     try {
       setLoading(true)
-      const response = await fetch("/api/calls")
+      const params = new URLSearchParams({ pageSize: "500" })
+      if (range?.from) params.set("from", range.from.toISOString())
+      if (range?.to) params.set("to", range.to.toISOString())
+      const response = await fetch(`/api/calls?${params}`)
       if (!response.ok) throw new Error("Failed to load calls")
       const data = await response.json()
       setRecordings(data.calls || [])
@@ -77,7 +100,7 @@ export function RecordingsList() {
 
   const callsThisWeek = recordings.filter(r => new Date(r.createdAt) >= startOfWeek)
   const connectedCalls = callsThisWeek.filter(r => r.outcome?.startsWith("connected"))
-  const conversations = callsThisWeek.filter(r => (r.duration || 0) > 60) // > 1 minute
+  const conversations = callsThisWeek.filter(r => (r.recordingDuration || r.duration || 0) > 60) // > 1 minute
   const introsBooked = callsThisWeek.filter(r => r.outcome === "connected_intro_booked")
   const connectRate = callsThisWeek.length > 0 ? Math.round((connectedCalls.length / callsThisWeek.length) * 100) : 0
   const conversationRate = callsThisWeek.length > 0 ? Math.round((conversations.length / callsThisWeek.length) * 100) : 0
@@ -99,7 +122,7 @@ export function RecordingsList() {
           if (!recording.outcome?.startsWith("connected")) return false
           break
         case "conversations":
-          if ((recording.duration || 0) <= 60) return false
+          if ((recording.recordingDuration || recording.duration || 0) <= 60) return false
           break
         case "intros_booked":
           if (recording.outcome !== "connected_intro_booked") return false
@@ -443,23 +466,36 @@ export function RecordingsList() {
                             )}
                           </div>
 
-                          {selectedRecording.recordingUrl && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              asChild
-                            >
-                              <a
-                                href={`/api/calls/${selectedRecording.id}/recording`}
-                                download={`recording-${selectedRecording.id}.mp3`}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                          <div className="flex items-center gap-2">
+                            {selectedRecording.prospect?.email && selectedRecording.transcriptionStatus === "completed" && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => draftEmailFromCall(selectedRecording)}
+                                disabled={draftingEmail}
                               >
-                                <Download className="h-4 w-4 mr-2" />
-                                Download
-                              </a>
-                            </Button>
-                          )}
+                                {draftingEmail ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Mail className="h-4 w-4 mr-2" />}
+                                Draft Email
+                              </Button>
+                            )}
+                            {selectedRecording.recordingUrl && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                asChild
+                              >
+                                <a
+                                  href={`/api/calls/${selectedRecording.id}/recording`}
+                                  download={`recording-${selectedRecording.id}.mp3`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                >
+                                  <Download className="h-4 w-4 mr-2" />
+                                  Download
+                                </a>
+                              </Button>
+                            )}
+                          </div>
                         </div>
 
                         <div className="flex items-center gap-4 text-sm">
@@ -519,6 +555,7 @@ export function RecordingsList() {
                           callId={selectedRecording.id}
                           hasRecording={!!selectedRecording.recordingUrl}
                           transcriptionStatus={selectedRecording.transcriptionStatus}
+                          callOutcome={selectedRecording.outcome}
                         />
                       )}
                     </div>

@@ -234,10 +234,14 @@ function getThreadParticipantName(): string {
     '[data-anonymize="person-name"]',
   ]
 
+  // Generic header texts that aren't participant names
+  const ignoredTexts = new Set(['new message', 'new messages', 'messaging', 'message', 'compose message'])
+
   for (const sel of headerSelectors) {
     const el = document.querySelector(sel)
-    if (el?.textContent?.trim()) {
-      return el.textContent.trim()
+    const text = el?.textContent?.trim()
+    if (text && !ignoredTexts.has(text.toLowerCase())) {
+      return text
     }
   }
 
@@ -647,29 +651,54 @@ let cachedProspect: LinkedinTemplatesResponse['prospect'] = null
 let templateCacheTime = 0
 const TEMPLATE_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
 
-let templateButtonInjected = false
+// Track which form elements already have template buttons (supports multiple popups)
+const injectedForms = new WeakSet<Element>()
 let lastInjectLog = 0
 
 function escapeHtml(str: string): string {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
-function injectTemplateButton() {
-  if (templateButtonInjected) return
-  if (findElementAcrossFrames('br-template-btn')) {
-    templateButtonInjected = true
-    return
+/** Deep querySelector that traverses into open shadow DOMs */
+function querySelectorDeep(selector: string, root: Document | Element = document): Element | null {
+  // Try normal search first
+  const result = root.querySelector(selector)
+  if (result) return result
+
+  // Search inside shadow roots
+  const allElements = root.querySelectorAll('*')
+  for (const el of allElements) {
+    if (el.shadowRoot) {
+      const shadowResult = querySelectorDeep(selector, el.shadowRoot as unknown as Element)
+      if (shadowResult) return shadowResult
+    }
   }
+  return null
+}
+
+/** Deep querySelectorAll that traverses into open shadow DOMs */
+function querySelectorAllDeep(selector: string, root: Document | Element = document): Element[] {
+  const results: Element[] = Array.from(root.querySelectorAll(selector))
+
+  const allElements = root.querySelectorAll('*')
+  for (const el of allElements) {
+    if (el.shadowRoot) {
+      results.push(...querySelectorAllDeep(selector, el.shadowRoot as unknown as Element))
+    }
+  }
+  return results
+}
+
+function injectTemplateButton() {
   // Throttle debug logging to once per 5 seconds
   const now = Date.now()
   const shouldLog = now - lastInjectLog > 5000
   if (shouldLog) lastInjectLog = now
 
-  // Find the message form area (regular LinkedIn + Sales Navigator)
+  // Find ALL visible message form areas (supports multiple chat popups)
   const formSelectors = [
     '.msg-form__left-actions',
     '.msg-form__footer',
-    '.msg-form__msg-content-container',
     'form.msg-form',
     // Sales Navigator selectors
     '.compose-form__actions',
@@ -680,201 +709,182 @@ function injectTemplateButton() {
     '.message-compose-form',
   ]
 
-  let formEl: Element | null = null
+  // Collect all visible form elements (including shadow DOM)
+  const allForms: Element[] = []
   for (const sel of formSelectors) {
-    formEl = document.querySelector(sel)
-    if (formEl) break
+    for (const el of querySelectorAllDeep(sel)) {
+      const rect = el.getBoundingClientRect()
+      if (rect.width > 0 && rect.height > 0 && !injectedForms.has(el)) {
+        allForms.push(el)
+      }
+    }
   }
 
-  // Check for Sales Nav attach button first — most reliable anchor point
-  const attachBtn = document.querySelector('button[aria-describedby*="msg-add-attachment"]') as HTMLElement | null
-
-  // Fallback: find the textarea/contenteditable and use its parent form or container
-  if (!formEl) {
-    const textarea = document.querySelector('textarea[class*="_message-field"]') as HTMLElement | null
-    // Match msg-form__contenteditable with or without contenteditable="true" (LinkedIn sets it dynamically)
-    const contentEditable = document.querySelector('.msg-form__contenteditable') as HTMLElement | null
-    // Broader fallback: any role="textbox" or contenteditable inside messaging overlays
-    const anyEditable = document.querySelector(
-      '.msg-overlay-conversation-bubble [role="textbox"], ' +
-      '.msg-overlay-conversation-bubble [contenteditable], ' +
-      'div[role="textbox"][aria-label*="message" i], ' +
-      'div[role="textbox"][aria-label*="Write" i]'
-    ) as HTMLElement | null
-    const inputEl = textarea || contentEditable || anyEditable
+  // Also check for contenteditable inputs in shadow DOM as fallback
+  if (allForms.length === 0) {
+    const contentEditable = querySelectorDeep('.msg-form__contenteditable') as HTMLElement | null
+    const anyEditable = querySelectorDeep('div[role="textbox"][aria-label*="message" i]')
+      || querySelectorDeep('div[role="textbox"][aria-label*="Write" i]') as HTMLElement | null
+    const inputEl = contentEditable || anyEditable
     if (inputEl) {
-      formEl = inputEl.closest('.msg-form__left-actions')
+      const formEl = inputEl.closest('.msg-form__left-actions')
         || inputEl.closest('.msg-form__footer')
         || inputEl.closest('form')
         || inputEl.parentElement
+      if (formEl && !injectedForms.has(formEl)) {
+        allForms.push(formEl)
+      }
     }
   }
 
-  // If we have an attach button but no form, use the attach button's parent as anchor
-  if (!formEl && attachBtn) {
-    formEl = attachBtn.parentElement
+  // Check for Sales Nav attach button
+  const attachBtn = document.querySelector('button[aria-describedby*="msg-add-attachment"]') as HTMLElement | null
+
+  // Also check attach button as fallback
+  if (allForms.length === 0 && attachBtn?.parentElement && !injectedForms.has(attachBtn.parentElement)) {
+    allForms.push(attachBtn.parentElement)
   }
 
-  // Check inside same-origin iframes (LinkedIn message popups use about:blank iframes)
-  if (!formEl) {
-    const iframes = document.querySelectorAll('iframe')
-    for (const iframe of iframes) {
-      try {
-        const iframeDoc = iframe.contentDocument
-        if (!iframeDoc) continue
-        // Look for msg-form elements inside iframe
-        const iframeForm = iframeDoc.querySelector('.msg-form__left-actions')
-          || iframeDoc.querySelector('.msg-form__footer')
-          || iframeDoc.querySelector('form.msg-form')
-        if (iframeForm) {
-          formEl = iframeForm
-          break
-        }
-        const iframeEditable = iframeDoc.querySelector('.msg-form__contenteditable') as HTMLElement | null
-        if (iframeEditable) {
-          formEl = iframeEditable.closest('form') || iframeEditable.parentElement
-          break
-        }
-      } catch {}
-    }
-  }
-
-  if (!formEl) {
+  if (allForms.length === 0) {
     if (shouldLog) {
-      const editables = document.querySelectorAll('[contenteditable]')
-      const msgForms = document.querySelectorAll('.msg-form__contenteditable')
-      // Also check iframes
-      let iframeEditables = 0
-      document.querySelectorAll('iframe').forEach(iframe => {
-        try { iframeEditables += iframe.contentDocument?.querySelectorAll('.msg-form__contenteditable')?.length || 0 } catch {}
-      })
-      console.log('[BR Templates] No form found. contenteditable:', editables.length, 'msg-form:', msgForms.length, 'iframe-msg-form:', iframeEditables)
+      const editables = querySelectorAllDeep('[contenteditable]')
+      const msgForms = querySelectorAllDeep('.msg-form__contenteditable')
+      let shadowRoots = 0
+      document.querySelectorAll('*').forEach(el => { if (el.shadowRoot) shadowRoots++ })
+      console.log('[BR Templates] No form found. contenteditable:', editables.length, 'msg-form:', msgForms.length, 'shadow-roots:', shadowRoots)
     }
     return
   }
-  // Use the form element's ownerDocument (may be inside an iframe)
-  const targetDoc = formEl.ownerDocument || document
-  console.log('[BR Templates] Form found:', formEl.tagName, formEl.className?.substring(0, 60), 'iframe:', targetDoc !== document)
 
-  const btn = targetDoc.createElement('button')
-  btn.id = 'br-template-btn'
-  btn.type = 'button'
-  btn.title = 'Insert DM template'
-  btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>`
-  Object.assign(btn.style, {
-    background: 'none',
-    border: 'none',
-    cursor: 'pointer',
-    padding: '4px 6px',
-    color: '#666',
-    borderRadius: '4px',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    transition: 'color 0.15s',
-  })
-  btn.addEventListener('mouseenter', () => { btn.style.color = '#4CD112' })
-  btn.addEventListener('mouseleave', () => {
-    if (!document.getElementById('br-template-dropdown')) btn.style.color = '#666'
-  })
-  btn.addEventListener('click', (e) => {
-    e.preventDefault()
-    e.stopPropagation()
-    toggleTemplateDropdown()
-  })
+  // Inject a template button for each form that doesn't have one yet
+  for (const formEl of allForms) {
+    injectedForms.add(formEl)
 
-  // Insert into the toolbar
-  if (attachBtn && attachBtn.parentElement) {
-    // Sales Nav: Ember re-renders the form, so append to document.body
-    // as a fixed overlay positioned near the attach button
-    const wrapper = document.createElement('div')
-    wrapper.id = 'br-template-wrapper'
-    const rect = attachBtn.getBoundingClientRect()
-    Object.assign(wrapper.style, {
-      position: 'fixed',
-      top: `${rect.top + 5}px`,
-      left: `${rect.right + 5}px`,
-      zIndex: '100000',
+    const targetDoc = formEl.ownerDocument || document
+    const btn = targetDoc.createElement('button')
+    btn.className = 'br-template-btn'
+    btn.type = 'button'
+    btn.title = 'Insert DM template'
+    btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>`
+    Object.assign(btn.style, {
+      background: 'none',
+      border: 'none',
+      cursor: 'pointer',
+      padding: '4px 6px',
+      color: '#666',
+      borderRadius: '4px',
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      transition: 'color 0.15s',
     })
-    wrapper.appendChild(btn)
-    document.body.appendChild(wrapper)
+    btn.addEventListener('mouseenter', () => { btn.style.color = '#4CD112' })
+    btn.addEventListener('mouseleave', () => {
+      if (!document.getElementById('br-template-dropdown')) btn.style.color = '#666'
+    })
+    btn.addEventListener('click', (e: MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      toggleTemplateDropdown(btn)
+    })
 
-    // Reposition on scroll/resize
-    let missingCount = 0
-    const reposition = () => {
-      if (!document.body.contains(wrapper)) return
-      const r = attachBtn.getBoundingClientRect()
-      if (r.width === 0) {
-        missingCount++
-        // Only remove after attach button is gone for 30+ frames (~500ms)
-        if (missingCount > 30) {
-          wrapper.remove()
-          templateButtonInjected = false
-          return
+    // Use fixed overlay on all pages except the full messaging page
+    const bubble = formEl.closest('.msg-overlay-conversation-bubble')
+    const needsFixedOverlay = !isMessagingPage() || !!(attachBtn && attachBtn.parentElement)
+
+    if (needsFixedOverlay) {
+      const wrapper = document.createElement('div')
+      wrapper.className = 'br-template-wrapper'
+
+      // Find anchor: last button in left-actions, or the form itself
+      const actionsBar = (bubble || formEl.closest('form') || formEl).querySelector('.msg-form__left-actions') as HTMLElement | null
+      const lastIcon = actionsBar?.querySelector(':scope > div:last-child button, :scope > button:last-child') as HTMLElement | null
+      const anchor = lastIcon || attachBtn || actionsBar || formEl
+
+      const rect = anchor.getBoundingClientRect()
+      Object.assign(wrapper.style, {
+        position: 'fixed',
+        top: `${rect.top + (rect.height / 2) - 12}px`,
+        left: `${rect.right + 4}px`,
+        zIndex: '100000',
+      })
+      wrapper.appendChild(btn)
+      document.body.appendChild(wrapper)
+
+      // Reposition each frame, re-querying the anchor
+      let missingCount = 0
+      const reposition = () => {
+        if (!document.body.contains(wrapper)) return
+        const bar = querySelectorDeep('.msg-form__left-actions') as HTMLElement | null
+        // Find the bar closest to this wrapper's position
+        const bars = querySelectorAllDeep('.msg-form__left-actions') as HTMLElement[]
+        let closestBar: HTMLElement | null = null
+        let closestDist = Infinity
+        for (const b of bars) {
+          const br = b.getBoundingClientRect()
+          if (br.width === 0) continue
+          const dist = Math.abs(br.top - parseFloat(wrapper.style.top))
+          if (dist < closestDist) { closestDist = dist; closestBar = b }
         }
-      } else {
-        missingCount = 0
-        wrapper.style.top = `${r.top + 5}px`
-        wrapper.style.left = `${r.right + 5}px`
+        const icon = closestBar?.querySelector(':scope > div:last-child button, :scope > button:last-child') as HTMLElement | null
+        const a = icon || closestBar || bar
+        if (!a) {
+          missingCount++
+          if (missingCount > 60) {
+            wrapper.remove()
+            return
+          }
+        } else {
+          const r = a.getBoundingClientRect()
+          if (r.width === 0) {
+            missingCount++
+            if (missingCount > 60) { wrapper.remove(); return }
+          } else {
+            missingCount = 0
+            wrapper.style.top = `${r.top + (r.height / 2) - 12}px`
+            wrapper.style.left = `${r.right + 4}px`
+          }
+        }
+        requestAnimationFrame(reposition)
       }
       requestAnimationFrame(reposition)
+    } else if (formEl.classList.contains('msg-form__left-actions') || formEl.classList.contains('msg-form__footer')) {
+      formEl.insertBefore(btn, formEl.firstChild)
+    } else {
+      const wrapper = targetDoc.createElement('div')
+      wrapper.className = 'br-template-wrapper'
+      Object.assign(wrapper.style, { position: 'relative', display: 'inline-block' })
+      wrapper.appendChild(btn)
+      formEl.parentElement?.insertBefore(wrapper, formEl)
     }
-    requestAnimationFrame(reposition)
-    console.log('[BR Templates] Button injected as fixed overlay near attach button')
-  } else if (formEl.classList.contains('msg-form__left-actions') || formEl.classList.contains('msg-form__footer')) {
-    formEl.insertBefore(btn, formEl.firstChild)
-  } else {
-    // Wrap relative for dropdown positioning
-    const wrapper = targetDoc.createElement('div')
-    wrapper.id = 'br-template-wrapper'
-    Object.assign(wrapper.style, { position: 'relative', display: 'inline-block' })
-    wrapper.appendChild(btn)
-    formEl.parentElement?.insertBefore(wrapper, formEl)
   }
-
-  templateButtonInjected = true
 }
 
-/** Find an element by ID across main document and iframes */
-function findElementAcrossFrames(id: string): HTMLElement | null {
-  const el = document.getElementById(id)
-  if (el) return el
-  const iframes = document.querySelectorAll('iframe')
-  for (const iframe of iframes) {
-    try {
-      const iframeEl = iframe.contentDocument?.getElementById(id)
-      if (iframeEl) return iframeEl
-    } catch {}
-  }
-  return null
-}
 
-function toggleTemplateDropdown() {
-  const existing = findElementAcrossFrames('br-template-dropdown')
+function toggleTemplateDropdown(clickedBtn: HTMLElement) {
+  const existing = document.getElementById('br-template-dropdown')
   if (existing) {
     existing.remove()
-    const btn = findElementAcrossFrames('br-template-btn')
-    if (btn) btn.style.color = '#666'
+    clickedBtn.style.color = '#666'
     return
   }
-  showTemplateDropdown()
+  showTemplateDropdown(clickedBtn)
 }
 
-async function showTemplateDropdown() {
+async function showTemplateDropdown(clickedBtn: HTMLElement) {
   const participantName = getThreadParticipantName()
 
   // Create dropdown
-  const btn = findElementAcrossFrames('br-template-btn')
-  const wrapper = findElementAcrossFrames('br-template-wrapper')
+  const wrapper = clickedBtn.closest('.br-template-wrapper') as HTMLElement | null
   const isFixedWrapper = wrapper?.style.position === 'fixed'
 
-  const dropdownDoc = btn?.ownerDocument || document
+  const dropdownDoc = clickedBtn.ownerDocument || document
   const dropdown = dropdownDoc.createElement('div')
   dropdown.id = 'br-template-dropdown'
 
-  if (isFixedWrapper && btn) {
+  if (isFixedWrapper) {
     // Sales Nav: dropdown as fixed overlay positioned relative to button
-    const btnRect = btn.getBoundingClientRect()
+    const btnRect = clickedBtn.getBoundingClientRect()
     Object.assign(dropdown.style, {
       position: 'fixed',
       bottom: `${window.innerHeight - btnRect.top + 5}px`,
@@ -912,7 +922,7 @@ async function showTemplateDropdown() {
       fontSize: '13px',
       color: '#f2f3f5',
     })
-    const parent = wrapper || btn?.parentElement
+    const parent = wrapper || clickedBtn.parentElement
     if (parent) {
       parent.style.position = 'relative'
       parent.appendChild(dropdown)
@@ -941,7 +951,7 @@ async function showTemplateDropdown() {
 
     if (!cachedTemplates || cachedTemplates.length === 0) {
       dropdown.innerHTML = `<div style="padding:12px;text-align:center;color:#808590;font-size:12px;">No templates yet.<br>Create templates in the Boilerroom web app.</div>`
-      setupDropdownClose(dropdown)
+      setupDropdownClose(dropdown, clickedBtn)
       return
     }
 
@@ -990,27 +1000,25 @@ async function showTemplateDropdown() {
         e.stopPropagation()
         insertTemplate(tmpl.body)
         dropdown.remove()
-        const btnEl = findElementAcrossFrames('br-template-btn')
-        if (btnEl) btnEl.style.color = '#666'
+        clickedBtn.style.color = '#666'
       })
 
       dropdown.appendChild(item)
     }
 
-    setupDropdownClose(dropdown)
+    setupDropdownClose(dropdown, clickedBtn)
   } catch (err) {
     console.error('[BR Templates] Failed to load templates:', err)
     dropdown.innerHTML = `<div style="padding:12px;text-align:center;color:#ef4444;font-size:12px;">Failed to load templates</div>`
-    setupDropdownClose(dropdown)
+    setupDropdownClose(dropdown, clickedBtn)
   }
 }
 
-function setupDropdownClose(dropdown: HTMLElement) {
-  const btn = findElementAcrossFrames('br-template-btn')
+function setupDropdownClose(dropdown: HTMLElement, clickedBtn: HTMLElement) {
   const closeHandler = (e: MouseEvent) => {
-    if (!dropdown.contains(e.target as Node) && e.target !== btn && !btn?.contains(e.target as Node)) {
+    if (!dropdown.contains(e.target as Node) && e.target !== clickedBtn && !clickedBtn.contains(e.target as Node)) {
       dropdown.remove()
-      if (btn) btn.style.color = '#666'
+      clickedBtn.style.color = '#666'
       document.removeEventListener('click', closeHandler)
     }
   }
@@ -1041,12 +1049,12 @@ function insertTemplate(templateBody: string) {
   ]
 
   let inputEl: HTMLElement | null = null
-  // Search main document first
+  // Search main document and shadow DOMs
   for (const sel of inputSelectors) {
-    inputEl = document.querySelector(sel) as HTMLElement | null
+    inputEl = querySelectorDeep(sel) as HTMLElement | null
     if (inputEl) break
   }
-  // Search iframes if not found in main document
+  // Search iframes if not found
   if (!inputEl) {
     const iframes = document.querySelectorAll('iframe')
     for (const iframe of iframes) {
@@ -1145,8 +1153,6 @@ const urlObserver = new MutationObserver(() => {
   if (window.location.href !== lastUrl) {
     lastUrl = window.location.href
 
-    // Reset template button on any navigation
-    templateButtonInjected = false
     cachedProspect = null
     templateCacheTime = 0
 
@@ -1156,48 +1162,51 @@ const urlObserver = new MutationObserver(() => {
         messageObserver = null
       }
       initMessagingSync()
-      setTimeout(() => injectTemplateButton(), 2000)
-    } else if (isSalesNavPage() || isProfilePage()) {
-      setTimeout(() => injectTemplateButton(), 2000)
     }
+    // Try injecting template button on any page (chat popups appear everywhere)
+    setTimeout(() => injectTemplateButton(), 2000)
   }
 })
 urlObserver.observe(document.body, { childList: true, subtree: true })
 
 // Watch for compose box appearing on ANY LinkedIn page (message popups, overlays, etc.)
 const composeObserver = new MutationObserver((mutations) => {
-  // If button was injected but is no longer in DOM, reset flag
-  if (templateButtonInjected && !document.getElementById('br-template-btn')) {
-    templateButtonInjected = false
-  }
-
   for (const m of mutations) {
     for (const node of m.addedNodes) {
       if (node instanceof HTMLElement) {
-        const hasForm = node.querySelector?.('.msg-form__contenteditable, .msg-form__left-actions, .msg-form, [contenteditable="true"], textarea[class*="_message-field"], textarea[name="message"]')
-        if (hasForm && !document.getElementById('br-template-btn')) {
-          templateButtonInjected = false
-          injectTemplateButton()
+        // If a new chat overlay popup or form appeared, try injecting (skips already-injected forms)
+        const hasForm = node.classList?.contains('msg-overlay-conversation-bubble')
+          || node.querySelector?.('.msg-overlay-conversation-bubble')
+          || node.querySelector?.('.msg-form__contenteditable, .msg-form__left-actions, .msg-form, [contenteditable="true"], textarea[class*="_message-field"], textarea[name="message"]')
+        if (hasForm) {
+          setTimeout(() => injectTemplateButton(), 500)
           return
         }
       }
     }
   }
-  if (!templateButtonInjected) injectTemplateButton()
+  // Always try — injectTemplateButton skips forms that already have buttons
+  injectTemplateButton()
 })
 composeObserver.observe(document.body, { childList: true, subtree: true })
 
-// Polling fallback — compose box may load lazily on any page type
+// Also observe shadow roots for compose box changes (LinkedIn uses shadow DOM on some pages)
+const observedShadowRoots = new WeakSet<ShadowRoot>()
+function observeShadowRoots() {
+  document.querySelectorAll('*').forEach(el => {
+    if (el.shadowRoot && !observedShadowRoots.has(el.shadowRoot)) {
+      observedShadowRoots.add(el.shadowRoot)
+      composeObserver.observe(el.shadowRoot, { childList: true, subtree: true })
+    }
+  })
+}
+// Check for new shadow roots periodically
+setInterval(observeShadowRoots, 3000)
+observeShadowRoots()
+
+// Polling fallback — compose box may load lazily on any page type (including shadow DOM)
 setInterval(() => {
-  if (templateButtonInjected || document.getElementById('br-template-btn')) return
-  const hasInput = document.querySelector(
-    'textarea[class*="_message-field"], textarea[name="message"], ' +
-    '.msg-form__contenteditable, .msg-form__left-actions, ' +
-    'form.msg-form, div[role="textbox"]'
-  )
-  if (hasInput) {
-    injectTemplateButton()
-  }
+  injectTemplateButton()
 }, 2000)
 
 // Listen for messages from service worker (e.g., to send a message)
@@ -1210,10 +1219,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 })
 
+// Clean up stale template elements from previous extension loads
+document.querySelectorAll('.br-template-btn').forEach(el => el.remove())
+document.querySelectorAll('.br-template-wrapper').forEach(el => el.remove())
+document.getElementById('br-template-dropdown')?.remove()
+
 // Initialize messaging sync if already on a messaging page
 fetchMyName().then(() => {
   initMessagingSync()
-  if (isMessagingPage() || isSalesNavPage() || isProfilePage()) {
-    setTimeout(() => injectTemplateButton(), 3500)
-  }
+  // Inject template button on any LinkedIn page (chat popups can appear anywhere)
+  setTimeout(() => injectTemplateButton(), 3500)
 })

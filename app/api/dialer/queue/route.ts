@@ -137,7 +137,7 @@ export const GET = withAuth(async (
         // Sequence info
         sequence: sequence?.name || null,
         sequenceId: sequence?.id || null,
-        sequenceStage: currentStep?.name || task.title || '',
+        sequenceStage: currentStep?.name || '',
         callScript: currentStep?.callScript || task.description || '',
 
         // POV from prospect

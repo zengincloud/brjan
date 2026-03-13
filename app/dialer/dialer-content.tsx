@@ -66,7 +66,9 @@ import {
   Linkedin,
 } from "lucide-react"
 import { SendEmailDialog } from "@/components/send-email-dialog"
-import { Calendar, CalendarClock } from "lucide-react"
+import { Calendar as CalendarIcon, CalendarClock } from "lucide-react"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Device, Call as TwilioCall } from "@twilio/voice-sdk"
 import { formatDistanceToNow } from "date-fns"
 import { useUserRole } from "@/hooks/use-user-role"
@@ -213,6 +215,7 @@ export default function DialerPage() {
     prospectName: string
   }>>(new Map())
   const [loadingSummaryForProspect, setLoadingSummaryForProspect] = useState<string | null>(null)
+  const [callbackPickerSlotId, setCallbackPickerSlotId] = useState<string | null>(null)
 
   const generateCallSummary = useCallback(async (callId: string, prospectId: string, retries = 0) => {
     setLoadingSummaryForProspect(prospectId)
@@ -220,11 +223,16 @@ export default function DialerPage() {
       const res = await fetch(`/api/calls/${callId}/summarize`, { method: "POST" })
       if (!res.ok) {
         const data = await res.json()
-        if (data.error?.includes("No transcription") && retries < 8) {
-          const delay = retries < 3 ? 10000 : 15000
-          setTimeout(() => generateCallSummary(callId, prospectId, retries + 1), delay)
+        if (data.error?.includes("No transcription") && retries < 4) {
+          setTimeout(() => generateCallSummary(callId, prospectId, retries + 1), 5000)
           return
         }
+        // Retries exhausted or other error — show a fallback so it doesn't go blank
+        setCallSummaries(prev => {
+          const next = new Map(prev)
+          next.set(prospectId, { summary: "Transcript not available — add notes manually.", emailSubject: "", emailBody: "", prospectEmail: "", prospectName: "" })
+          return next
+        })
         setLoadingSummaryForProspect(null)
         return
       }
@@ -236,6 +244,11 @@ export default function DialerPage() {
       })
       setLoadingSummaryForProspect(null)
     } catch {
+      setCallSummaries(prev => {
+        const next = new Map(prev)
+        next.set(prospectId, { summary: "Summary failed — add notes manually.", emailSubject: "", emailBody: "", prospectEmail: "", prospectName: "" })
+        return next
+      })
       setLoadingSummaryForProspect(null)
     }
   }, [])
@@ -567,10 +580,9 @@ export default function DialerPage() {
     }
   })
 
-  const callStepOptions = [...new Set([
-    ...Array.from({ length: 10 }, (_, i) => `Call ${i + 1}`),
-    ...apiProspects.map(p => p.sequenceStage).filter(Boolean),
-  ])] as string[]
+  const callStepOptions = [...new Set(
+    apiProspects.map(p => p.sequenceStage).filter(Boolean)
+  )] as string[]
 
   // Update queue size when prospects or position changes
   useEffect(() => {
@@ -2245,13 +2257,16 @@ export default function DialerPage() {
                                                 <Clock className="h-4 w-4 mr-2" />In 3 Hours
                                               </DropdownMenuItem>
                                               <DropdownMenuItem onClick={() => handleCallbackSchedule("1", getCallbackDate("tomorrow_morning"))}>
-                                                <Calendar className="h-4 w-4 mr-2" />Tomorrow Morning
+                                                <CalendarIcon className="h-4 w-4 mr-2" />Tomorrow Morning
                                               </DropdownMenuItem>
                                               <DropdownMenuItem onClick={() => handleCallbackSchedule("1", getCallbackDate("tomorrow_afternoon"))}>
-                                                <Calendar className="h-4 w-4 mr-2" />Tomorrow Afternoon
+                                                <CalendarIcon className="h-4 w-4 mr-2" />Tomorrow Afternoon
                                               </DropdownMenuItem>
                                               <DropdownMenuItem onClick={() => handleCallbackSchedule("1", getCallbackDate("next_week"))}>
-                                                <Calendar className="h-4 w-4 mr-2" />Next Monday
+                                                <CalendarIcon className="h-4 w-4 mr-2" />Next Monday
+                                              </DropdownMenuItem>
+                                              <DropdownMenuItem onClick={() => setCallbackPickerSlotId("1")}>
+                                                <CalendarClock className="h-4 w-4 mr-2" />Pick a Date...
                                               </DropdownMenuItem>
                                             </DropdownMenuSubContent>
                                           </DropdownMenuSub>
@@ -2322,7 +2337,7 @@ export default function DialerPage() {
                                         onClick={() => openCalendarInvite(prospect as any)}
                                         className="h-7"
                                       >
-                                        <Calendar className="h-3 w-3 mr-1" />
+                                        <CalendarIcon className="h-3 w-3 mr-1" />
                                         Calendar
                                       </Button>
                                     </div>
@@ -2376,7 +2391,7 @@ export default function DialerPage() {
                                         openCalendarInvite(prospect as any)
                                       }}
                                     >
-                                      <Calendar className="h-3 w-3 mr-1" />
+                                      <CalendarIcon className="h-3 w-3 mr-1" />
                                       Calendar
                                     </Button>
                                   </div>
@@ -2406,21 +2421,69 @@ export default function DialerPage() {
                                                   ))}
                                                 </ul>
                                                 <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                                                  <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    className="h-7"
-                                                    onClick={(e) => {
-                                                      e.stopPropagation()
-                                                      const to = encodeURIComponent(summaryData.prospectEmail)
-                                                      const su = encodeURIComponent(summaryData.emailSubject)
-                                                      const body = encodeURIComponent(summaryData.emailBody)
-                                                      window.open(`https://mail.google.com/mail/?view=cm&to=${to}&su=${su}&body=${body}`, "_blank")
-                                                    }}
-                                                  >
-                                                    <Mail className="h-3 w-3 mr-1" />
-                                                    Draft in Gmail
-                                                  </Button>
+                                                  {summaryData.emailBody ? (
+                                                    <Button
+                                                      size="sm"
+                                                      variant="outline"
+                                                      className="h-7"
+                                                      onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        const to = encodeURIComponent(summaryData.prospectEmail)
+                                                        const su = encodeURIComponent(summaryData.emailSubject)
+                                                        const body = encodeURIComponent(summaryData.emailBody)
+                                                        window.open(`https://mail.google.com/mail/?view=cm&to=${to}&su=${su}&body=${body}`, "_blank")
+                                                      }}
+                                                    >
+                                                      <Mail className="h-3 w-3 mr-1" />
+                                                      Open in Gmail
+                                                    </Button>
+                                                  ) : (
+                                                    <Button
+                                                      size="sm"
+                                                      variant="outline"
+                                                      className="h-7"
+                                                      disabled={summaryData.draftingEmail}
+                                                      onClick={async (e) => {
+                                                        e.stopPropagation()
+                                                        if (!summaryData.callId) return
+                                                        setCallSummaries(prev => {
+                                                          const next = new Map(prev)
+                                                          next.set(pKey, { ...summaryData, draftingEmail: true })
+                                                          return next
+                                                        })
+                                                        try {
+                                                          const res = await fetch(`/api/calls/${summaryData.callId}/draft-email`, { method: "POST" })
+                                                          if (res.ok) {
+                                                            const email = await res.json()
+                                                            setCallSummaries(prev => {
+                                                              const next = new Map(prev)
+                                                              next.set(pKey, { ...prev.get(pKey)!, ...email, draftingEmail: false })
+                                                              return next
+                                                            })
+                                                          } else {
+                                                            setCallSummaries(prev => {
+                                                              const next = new Map(prev)
+                                                              next.set(pKey, { ...prev.get(pKey)!, draftingEmail: false })
+                                                              return next
+                                                            })
+                                                          }
+                                                        } catch {
+                                                          setCallSummaries(prev => {
+                                                            const next = new Map(prev)
+                                                            next.set(pKey, { ...prev.get(pKey)!, draftingEmail: false })
+                                                            return next
+                                                          })
+                                                        }
+                                                      }}
+                                                    >
+                                                      {summaryData.draftingEmail ? (
+                                                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                                      ) : (
+                                                        <Mail className="h-3 w-3 mr-1" />
+                                                      )}
+                                                      Draft Email
+                                                    </Button>
+                                                  )}
                                                   <DropdownMenu>
                                                     <DropdownMenuTrigger asChild>
                                                       <Button size="sm" variant="outline" className="h-7">
@@ -2437,13 +2500,13 @@ export default function DialerPage() {
                                                         <Clock className="h-4 w-4 mr-2" />In 3 Hours
                                                       </DropdownMenuItem>
                                                       <DropdownMenuItem onClick={() => createReminder(prospect, "tomorrow_morning")}>
-                                                        <Calendar className="h-4 w-4 mr-2" />Tomorrow Morning
+                                                        <CalendarIcon className="h-4 w-4 mr-2" />Tomorrow Morning
                                                       </DropdownMenuItem>
                                                       <DropdownMenuItem onClick={() => createReminder(prospect, "tomorrow_afternoon")}>
-                                                        <Calendar className="h-4 w-4 mr-2" />Tomorrow Afternoon
+                                                        <CalendarIcon className="h-4 w-4 mr-2" />Tomorrow Afternoon
                                                       </DropdownMenuItem>
                                                       <DropdownMenuItem onClick={() => createReminder(prospect, "next_week")}>
-                                                        <Calendar className="h-4 w-4 mr-2" />Next Monday
+                                                        <CalendarIcon className="h-4 w-4 mr-2" />Next Monday
                                                       </DropdownMenuItem>
                                                     </DropdownMenuContent>
                                                   </DropdownMenu>
@@ -3030,13 +3093,16 @@ export default function DialerPage() {
                                   <Clock className="h-4 w-4 mr-2" />In 3 Hours
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => handleCallbackSchedule(slot.id, getCallbackDate("tomorrow_morning"))}>
-                                  <Calendar className="h-4 w-4 mr-2" />Tomorrow Morning
+                                  <CalendarIcon className="h-4 w-4 mr-2" />Tomorrow Morning
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => handleCallbackSchedule(slot.id, getCallbackDate("tomorrow_afternoon"))}>
-                                  <Calendar className="h-4 w-4 mr-2" />Tomorrow Afternoon
+                                  <CalendarIcon className="h-4 w-4 mr-2" />Tomorrow Afternoon
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => handleCallbackSchedule(slot.id, getCallbackDate("next_week"))}>
-                                  <Calendar className="h-4 w-4 mr-2" />Next Monday
+                                  <CalendarIcon className="h-4 w-4 mr-2" />Next Monday
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setCallbackPickerSlotId(slot.id)}>
+                                  <CalendarClock className="h-4 w-4 mr-2" />Pick a Date...
                                 </DropdownMenuItem>
                               </DropdownMenuSubContent>
                             </DropdownMenuSub>
@@ -3108,7 +3174,7 @@ export default function DialerPage() {
                           onClick={() => slot.contact && openCalendarInvite(slot.contact as any)}
                           className="h-7"
                         >
-                          <Calendar className="h-3 w-3 mr-1" />
+                          <CalendarIcon className="h-3 w-3 mr-1" />
                           Calendar
                       </Button>
                     </div>
@@ -3136,20 +3202,68 @@ export default function DialerPage() {
                                       ))}
                                     </ul>
                                     <div className="flex items-center gap-2">
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="h-7"
-                                        onClick={() => {
-                                          const to = encodeURIComponent(summaryData.prospectEmail)
-                                          const su = encodeURIComponent(summaryData.emailSubject)
-                                          const body = encodeURIComponent(summaryData.emailBody)
-                                          window.open(`https://mail.google.com/mail/?view=cm&to=${to}&su=${su}&body=${body}`, "_blank")
-                                        }}
-                                      >
-                                        <Mail className="h-3 w-3 mr-1" />
-                                        Draft in Gmail
-                                      </Button>
+                                      {summaryData.emailBody ? (
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="h-7"
+                                          onClick={() => {
+                                            const to = encodeURIComponent(summaryData.prospectEmail)
+                                            const su = encodeURIComponent(summaryData.emailSubject)
+                                            const body = encodeURIComponent(summaryData.emailBody)
+                                            window.open(`https://mail.google.com/mail/?view=cm&to=${to}&su=${su}&body=${body}`, "_blank")
+                                          }}
+                                        >
+                                          <Mail className="h-3 w-3 mr-1" />
+                                          Open in Gmail
+                                        </Button>
+                                      ) : (
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="h-7"
+                                          disabled={summaryData.draftingEmail}
+                                          onClick={async () => {
+                                            if (!summaryData.callId) return
+                                            const pId = slot.prospectId!
+                                            setCallSummaries(prev => {
+                                              const next = new Map(prev)
+                                              next.set(pId, { ...summaryData, draftingEmail: true })
+                                              return next
+                                            })
+                                            try {
+                                              const res = await fetch(`/api/calls/${summaryData.callId}/draft-email`, { method: "POST" })
+                                              if (res.ok) {
+                                                const email = await res.json()
+                                                setCallSummaries(prev => {
+                                                  const next = new Map(prev)
+                                                  next.set(pId, { ...prev.get(pId)!, ...email, draftingEmail: false })
+                                                  return next
+                                                })
+                                              } else {
+                                                setCallSummaries(prev => {
+                                                  const next = new Map(prev)
+                                                  next.set(pId, { ...prev.get(pId)!, draftingEmail: false })
+                                                  return next
+                                                })
+                                              }
+                                            } catch {
+                                              setCallSummaries(prev => {
+                                                const next = new Map(prev)
+                                                next.set(pId, { ...prev.get(pId)!, draftingEmail: false })
+                                                return next
+                                              })
+                                            }
+                                          }}
+                                        >
+                                          {summaryData.draftingEmail ? (
+                                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                          ) : (
+                                            <Mail className="h-3 w-3 mr-1" />
+                                          )}
+                                          Draft Email
+                                        </Button>
+                                      )}
                                     </div>
                                   </div>
                                 ) : null}
@@ -3491,6 +3605,30 @@ export default function DialerPage() {
         onOpenChange={setEmailDialogOpen}
         prospect={emailProspect}
       />
+
+      {/* Callback date picker overlay */}
+      {callbackPickerSlotId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setCallbackPickerSlotId(null)}>
+          <div className="bg-background rounded-lg border shadow-lg p-4" onClick={e => e.stopPropagation()}>
+            <p className="text-sm font-medium mb-3">Pick a callback date</p>
+            <Calendar
+              mode="single"
+              selected={undefined}
+              onSelect={(date) => {
+                if (date) {
+                  date.setHours(9, 0, 0, 0)
+                  handleCallbackSchedule(callbackPickerSlotId, date)
+                  setCallbackPickerSlotId(null)
+                }
+              }}
+              disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+            />
+            <Button variant="ghost" size="sm" className="w-full mt-2" onClick={() => setCallbackPickerSlotId(null)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

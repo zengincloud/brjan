@@ -5,7 +5,7 @@ import Anthropic from "@anthropic-ai/sdk"
 
 export const dynamic = "force-dynamic"
 
-// POST /api/calls/[id]/summarize - Quick call summary only
+// POST /api/calls/[id]/draft-email - Generate follow-up email draft from call transcript
 export const POST = withAuth<{ params: { id: string } }>(async (
   request: NextRequest,
   userId: string,
@@ -17,7 +17,7 @@ export const POST = withAuth<{ params: { id: string } }>(async (
       where: { id: params.id, userId },
       include: {
         prospect: {
-          select: { name: true, title: true, email: true, phone: true, company: true },
+          select: { name: true, title: true, email: true, company: true },
         },
       },
     })
@@ -26,7 +26,6 @@ export const POST = withAuth<{ params: { id: string } }>(async (
       return NextResponse.json({ error: "Call not found" }, { status: 404 })
     }
 
-    // Get transcription text
     let transcriptText = ""
     if (call.transcription) {
       try {
@@ -38,7 +37,7 @@ export const POST = withAuth<{ params: { id: string } }>(async (
     }
 
     if (!transcriptText) {
-      return NextResponse.json({ error: "No transcription available for this call" }, { status: 400 })
+      return NextResponse.json({ error: "No transcription available" }, { status: 400 })
     }
 
     const anthropicKey = process.env.ANTHROPIC_API_KEY
@@ -49,35 +48,47 @@ export const POST = withAuth<{ params: { id: string } }>(async (
     const anthropic = new Anthropic({ apiKey: anthropicKey })
     const callerName = "Sadid"
     const prospectName = call.prospect?.name || "the prospect"
+    const prospectCompany = call.prospect?.company || ""
 
     const response = await anthropic.messages.create({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 300,
+      max_tokens: 500,
       messages: [
         {
           role: "user",
-          content: `Quick bullet-point summary of this sales call. Each bullet = one thing that happened. Be blunt and direct, no fluff.
-
-Example: "${callerName} called John. John said they already use a competitor. ${callerName} pitched ROI angle. John asked to send info via email. No next meeting booked."
+          content: `Draft a short follow-up email (2-3 sentences max, casual and professional) from ${callerName} to ${prospectName}${prospectCompany ? ` at ${prospectCompany}` : ""}. Reference specific things discussed. Include a clear next step if one was established.
 
 Transcript:
 ${transcriptText}
 
-Return ONLY the summary text, no JSON, no formatting.`,
+JSON only:
+{"emailSubject": "...", "emailBody": "..."}`,
         },
       ],
     })
 
-    const summary = response.content[0].type === "text" ? response.content[0].text.trim() : ""
+    const text = response.content[0].type === "text" ? response.content[0].text : ""
+
+    let result
+    try {
+      result = JSON.parse(text)
+    } catch {
+      const jsonMatch = text.match(/\{[\s\S]*\}/)
+      if (jsonMatch) {
+        result = JSON.parse(jsonMatch[0])
+      } else {
+        return NextResponse.json({ error: "Failed to parse AI response" }, { status: 500 })
+      }
+    }
 
     return NextResponse.json({
-      summary,
-      callId: call.id,
+      emailSubject: result.emailSubject,
+      emailBody: result.emailBody,
       prospectEmail: call.prospect?.email || "",
       prospectName,
     })
   } catch (error) {
-    console.error("Error generating call summary:", error)
-    return NextResponse.json({ error: "Failed to generate summary" }, { status: 500 })
+    console.error("Error drafting email:", error)
+    return NextResponse.json({ error: "Failed to draft email" }, { status: 500 })
   }
 })

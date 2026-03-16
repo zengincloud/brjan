@@ -115,6 +115,7 @@ type CallSlot = {
   pendingOutcome?: string
   pendingPipelineStage?: string
   pendingCallbackDate?: Date
+  pendingCallbackNotes?: string
   finalDuration?: number
 }
 
@@ -182,7 +183,7 @@ export default function DialerPage() {
   const [sortBy, setSortBy] = useSessionState<string>("dialer_sort", "due_date")
   const [selectedPhone, setSelectedPhone] = useSessionState<string>("dialer_phone", "+16282253832")
   const [callSlots, setCallSlots] = useSessionState<CallSlot[]>("dialer_call_slots", [
-    { id: "1", status: "idle", contact: null, startTime: null, notes: "", pendingOutcome: undefined, pendingPipelineStage: undefined },
+    { id: "1", status: "idle", contact: null, startTime: null, notes: "", pendingOutcome: undefined, pendingPipelineStage: undefined, pendingCallbackNotes: undefined },
   ])
   const [stats, setStats] = useSessionState<SessionStats>("dialer_stats", {
     totalCalls: 0,
@@ -216,6 +217,7 @@ export default function DialerPage() {
   }>>(new Map())
   const [loadingSummaryForProspect, setLoadingSummaryForProspect] = useState<string | null>(null)
   const [callbackPickerSlotId, setCallbackPickerSlotId] = useState<string | null>(null)
+  const [callbackPickerNotes, setCallbackPickerNotes] = useState("")
 
   const generateCallSummary = useCallback(async (callId: string, prospectId: string, retries = 0) => {
     setLoadingSummaryForProspect(prospectId)
@@ -921,11 +923,12 @@ export default function DialerPage() {
 
     // Update stats
     const duration = slot?.finalDuration || callDuration || 0
+    const isConnect = outcome.startsWith("connected") || outcome === "callback"
     setStats(prev => ({
       ...prev,
       totalCalls: prev.totalCalls + 1,
-      connected: outcome.startsWith("connected") ? prev.connected + 1 : prev.connected,
-      conversations: outcome.startsWith("connected") && duration > 60 ? prev.conversations + 1 : prev.conversations,
+      connected: isConnect ? prev.connected + 1 : prev.connected,
+      conversations: isConnect && duration > 60 ? prev.conversations + 1 : prev.conversations,
       introsBooked: outcome === "connected_intro_booked" ? prev.introsBooked + 1 : prev.introsBooked,
     }))
 
@@ -1118,9 +1121,9 @@ export default function DialerPage() {
     ))
   }
 
-  const handleCallbackSchedule = (slotId: string, callbackDate: Date) => {
+  const handleCallbackSchedule = (slotId: string, callbackDate: Date, callbackNotes?: string) => {
     setCallSlots(prev => prev.map(slot =>
-      slot.id === slotId ? { ...slot, pendingOutcome: "callback", pendingCallbackDate: callbackDate } : slot
+      slot.id === slotId ? { ...slot, pendingOutcome: "callback", pendingCallbackDate: callbackDate, pendingCallbackNotes: callbackNotes ?? slot.pendingCallbackNotes ?? "" } : slot
     ))
   }
 
@@ -1269,18 +1272,26 @@ export default function DialerPage() {
     if (outcome === "callback" && contact) {
       const callbackDate = slot.pendingCallbackDate || new Date(Date.now() + 60 * 60 * 1000) // default 1h
       const notesSummary = slot.notes ? slot.notes.substring(0, 200) : ""
+      const callbackNotes = slot.pendingCallbackNotes || ""
       const taskDescription = [
         `Follow-up call with ${contact.name}${contact.company ? ` at ${contact.company}` : ""}.`,
+        callbackNotes ? `Callback reason: ${callbackNotes}` : "",
         notesSummary ? `Notes from last call: ${notesSummary}` : "",
         contact.sequenceStage ? `Sequence stage: ${contact.sequenceStage}` : "",
       ].filter(Boolean).join("\n\n")
+
+      const titleSuffix = callbackNotes
+        ? callbackNotes.substring(0, 60)
+        : notesSummary
+          ? notesSummary.substring(0, 60)
+          : ""
 
       savePromises.push(
         fetch("/api/tasks", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            title: `Call back ${contact.name}${notesSummary ? ` — ${notesSummary.substring(0, 60)}` : ""}`,
+            title: `Call back ${contact.name}${titleSuffix ? ` — ${titleSuffix}` : ""}`,
             description: taskDescription,
             type: "follow_up",
             priority: "high",
@@ -1334,11 +1345,12 @@ export default function DialerPage() {
 
     // Update stats
     const duration = slot.finalDuration || callDuration || 0
+    const isConnect = outcome.startsWith("connected") || outcome === "callback"
     setStats(prev => ({
       ...prev,
       totalCalls: prev.totalCalls + 1,
-      connected: outcome.startsWith("connected") ? prev.connected + 1 : prev.connected,
-      conversations: outcome.startsWith("connected") && duration > 60 ? prev.conversations + 1 : prev.conversations,
+      connected: isConnect ? prev.connected + 1 : prev.connected,
+      conversations: isConnect && duration > 60 ? prev.conversations + 1 : prev.conversations,
       introsBooked: outcome === "connected_intro_booked" ? prev.introsBooked + 1 : prev.introsBooked,
     }))
 
@@ -1450,6 +1462,7 @@ export default function DialerPage() {
       notes: "",
       pendingOutcome: undefined,
       pendingPipelineStage: undefined,
+      pendingCallbackNotes: undefined,
     }])
 
     // Lazy-load enrichment data in background
@@ -1522,6 +1535,7 @@ export default function DialerPage() {
       notes: "",
       pendingOutcome: undefined,
       pendingPipelineStage: undefined,
+      pendingCallbackNotes: undefined,
       taskId: prospect.taskId,
       queueItemId: prospect.id,
       prospectId: prospect.prospectId || null,
@@ -2840,6 +2854,7 @@ export default function DialerPage() {
                     notes: "",
                     pendingOutcome: undefined,
                     pendingPipelineStage: undefined,
+                    pendingCallbackNotes: undefined,
                   }])
                   setExpandedSlots(new Set())
                 }}
@@ -3608,7 +3623,7 @@ export default function DialerPage() {
 
       {/* Callback date picker overlay */}
       {callbackPickerSlotId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setCallbackPickerSlotId(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => { setCallbackPickerSlotId(null); setCallbackPickerNotes("") }}>
           <div className="bg-background rounded-lg border shadow-lg p-4" onClick={e => e.stopPropagation()}>
             <p className="text-sm font-medium mb-3">Pick a callback date</p>
             <Calendar
@@ -3617,13 +3632,23 @@ export default function DialerPage() {
               onSelect={(date) => {
                 if (date) {
                   date.setHours(9, 0, 0, 0)
-                  handleCallbackSchedule(callbackPickerSlotId, date)
+                  handleCallbackSchedule(callbackPickerSlotId, date, callbackPickerNotes)
                   setCallbackPickerSlotId(null)
+                  setCallbackPickerNotes("")
                 }
               }}
               disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
             />
-            <Button variant="ghost" size="sm" className="w-full mt-2" onClick={() => setCallbackPickerSlotId(null)}>
+            <div className="mt-3">
+              <p className="text-xs text-muted-foreground mb-1">Callback notes (optional)</p>
+              <Textarea
+                placeholder="Why are we calling back? Any context..."
+                value={callbackPickerNotes}
+                onChange={(e) => setCallbackPickerNotes(e.target.value)}
+                className="min-h-[60px] text-sm"
+              />
+            </div>
+            <Button variant="ghost" size="sm" className="w-full mt-2" onClick={() => { setCallbackPickerSlotId(null); setCallbackPickerNotes("") }}>
               Cancel
             </Button>
           </div>

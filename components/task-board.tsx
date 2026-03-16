@@ -32,7 +32,21 @@ import {
   Filter,
   Plus,
   Linkedin,
+  Trash2,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Maximize2,
+  Loader2,
 } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd"
 import { cn } from "@/lib/utils"
 
@@ -49,6 +63,7 @@ interface Task {
   title: string
   description: string
   contact?: {
+    prospectId?: string
     name: string
     title?: string
     company?: string
@@ -266,6 +281,71 @@ const getPriorityColor = (priority: Priority) => {
   }
 }
 
+// Helper: get Monday of the week containing a given date
+const getWeekStart = (d: Date) => {
+  const day = d.getDay()
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1)
+  return new Date(d.getFullYear(), d.getMonth(), diff)
+}
+
+function WeekPicker({ selected, onSelect }: { selected?: Date; onSelect: (date: Date) => void }) {
+  const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()))
+
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(weekStart)
+    d.setDate(d.getDate() + i)
+    return d
+  })
+
+  const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <Button variant="ghost" size="icon" className="h-7 w-7"
+          onClick={() => setWeekStart(prev => {
+            const d = new Date(prev); d.setDate(d.getDate() - 7); return d
+          })}
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <span className="text-sm font-medium">
+          {weekStart.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – {days[6].toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+        </span>
+        <Button variant="ghost" size="icon" className="h-7 w-7"
+          onClick={() => setWeekStart(prev => {
+            const d = new Date(prev); d.setDate(d.getDate() + 7); return d
+          })}
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+      <div className="grid grid-cols-7 gap-1">
+        {days.map((day, i) => {
+          const isToday = day.getTime() === today.getTime()
+          const isSelected = selected && day.toDateString() === selected.toDateString()
+          return (
+            <button
+              key={i}
+              onClick={() => onSelect(day)}
+              className={cn(
+                "flex flex-col items-center p-2 rounded-md text-xs hover:bg-accent transition-colors",
+                isToday && !isSelected && "bg-accent/50",
+                isSelected && "bg-primary text-primary-foreground hover:bg-primary/90"
+              )}
+            >
+              <span className="font-medium">{dayNames[i]}</span>
+              <span className="text-lg">{day.getDate()}</span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export function TaskBoard() {
   const { isSuperAdmin } = useUserRole()
   const [realTasks, setRealTasks] = useState<Task[]>([])
@@ -280,6 +360,17 @@ export function TaskBoard() {
   const [emailStatus, setEmailStatus] = useState<"idle" | "sending" | "error">("idle")
   const [emailError, setEmailError] = useState<string | null>(null)
   const router = useRouter()
+
+  // Feature 1: Date picker state
+  const [datePickerTask, setDatePickerTask] = useState<Task | null>(null)
+  const [datePickerOpen, setDatePickerOpen] = useState(false)
+  const [dateViewMode, setDateViewMode] = useState<"week" | "month">("week")
+
+  // Feature 3: Task detail state
+  const [detailTask, setDetailTask] = useState<Task | null>(null)
+  const [detailOpen, setDetailOpen] = useState(false)
+  const [callHistory, setCallHistory] = useState<any[]>([])
+  const [loadingCalls, setLoadingCalls] = useState(false)
 
   // Combine real and dummy tasks, but separate LinkedIn tasks for aggregation
   const allTasks = isSuperAdmin ? [...realTasks, ...dummyTasksState] : [...realTasks]
@@ -361,6 +452,119 @@ export function TaskBoard() {
     setEmailStatus("idle")
     setEmailError(null)
     setEmailOpen(true)
+  }
+
+  // Feature 1: Task action handlers
+  const handleUpdateDueDate = async (taskId: string, date: Date | undefined) => {
+    const isDummy = taskId.startsWith("dummy-")
+    const newDueDate = date ? date.toISOString() : null
+
+    if (isDummy) {
+      setDummyTasksState(current =>
+        current.map(task =>
+          task.id === taskId
+            ? { ...task, dueDate: date ? date.toISOString().slice(0, 10) : undefined }
+            : task
+        )
+      )
+      setDatePickerOpen(false)
+      setDatePickerTask(null)
+      return
+    }
+
+    const previousTasks = realTasks
+    setRealTasks(current =>
+      current.map(task =>
+        task.id === taskId
+          ? { ...task, dueDate: date ? date.toISOString().slice(0, 10) : undefined }
+          : task
+      )
+    )
+    setDatePickerOpen(false)
+    setDatePickerTask(null)
+
+    try {
+      const response = await fetch(`/api/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dueDate: newDueDate }),
+      })
+      if (!response.ok) throw new Error("Failed to update due date")
+    } catch (error) {
+      console.error(error)
+      setRealTasks(previousTasks)
+    }
+  }
+
+  const handleMarkDone = async (taskId: string) => {
+    const isDummy = taskId.startsWith("dummy-")
+    if (isDummy) {
+      setDummyTasksState(current =>
+        current.map(task => task.id === taskId ? { ...task, status: "done" } : task)
+      )
+      return
+    }
+
+    const previousTasks = realTasks
+    setRealTasks(current =>
+      current.map(task => task.id === taskId ? { ...task, status: "done" } : task)
+    )
+
+    try {
+      const response = await fetch(`/api/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "done" }),
+      })
+      if (!response.ok) throw new Error("Failed to mark task as done")
+    } catch (error) {
+      console.error(error)
+      setRealTasks(previousTasks)
+    }
+  }
+
+  const handleDeleteTask = async (taskId: string) => {
+    const isDummy = taskId.startsWith("dummy-")
+    if (isDummy) {
+      setDummyTasksState(current => current.filter(task => task.id !== taskId))
+      return
+    }
+
+    const previousTasks = realTasks
+    setRealTasks(current => current.filter(task => task.id !== taskId))
+
+    try {
+      const response = await fetch(`/api/tasks/${taskId}`, { method: "DELETE" })
+      if (!response.ok) throw new Error("Failed to delete task")
+    } catch (error) {
+      console.error(error)
+      setRealTasks(previousTasks)
+    }
+  }
+
+  // Feature 3: Task detail handlers
+  const fetchCallHistory = async (prospectId: string) => {
+    setLoadingCalls(true)
+    try {
+      const response = await fetch(`/api/calls?prospectId=${encodeURIComponent(prospectId)}&limit=5`)
+      if (!response.ok) throw new Error("Failed to fetch calls")
+      const data = await response.json()
+      setCallHistory(data.calls || [])
+    } catch (error) {
+      console.error(error)
+      setCallHistory([])
+    } finally {
+      setLoadingCalls(false)
+    }
+  }
+
+  const openTaskDetail = (task: Task) => {
+    setDetailTask(task)
+    setDetailOpen(true)
+    setCallHistory([])
+    if (task.contact?.prospectId) {
+      fetchCallHistory(task.contact.prospectId)
+    }
   }
 
   const sendEmail = async () => {
@@ -537,8 +741,9 @@ export function TaskBoard() {
                                     ref={provided.innerRef}
                                     {...provided.draggableProps}
                                     {...provided.dragHandleProps}
+                                    onClick={() => openTaskDetail(task)}
                                     className={cn(
-                                      "mb-2 p-3 rounded-md border bg-card",
+                                      "mb-2 p-3 rounded-md border bg-card cursor-pointer hover:border-primary/30 transition-colors",
                                       snapshot.isDragging ? "shadow-lg" : "",
                                       task.id.startsWith("dummy-") ? "border-dashed opacity-80" : "",
                                       task.type === "linkedin" ? "border-[#0A66C2]/30" : "",
@@ -605,7 +810,7 @@ export function TaskBoard() {
                                           variant="ghost"
                                           size="icon"
                                           className="h-6 w-6"
-                                          onClick={() => openEmailComposer(task)}
+                                          onClick={(e) => { e.stopPropagation(); openEmailComposer(task) }}
                                         >
                                           <Mail className="h-3 w-3" />
                                         </Button>
@@ -613,7 +818,7 @@ export function TaskBoard() {
                                           variant="ghost"
                                           size="icon"
                                           className="h-6 w-6"
-                                          onClick={() => router.push(`/dialer?taskId=${task.id}`)}
+                                          onClick={(e) => { e.stopPropagation(); router.push(`/dialer?taskId=${task.id}`) }}
                                         >
                                           <Phone className="h-3 w-3" />
                                         </Button>
@@ -622,14 +827,49 @@ export function TaskBoard() {
                                             variant="ghost"
                                             size="icon"
                                             className="h-6 w-6"
-                                            onClick={() => window.open(task.contact?.linkedin, "_blank")}
+                                            onClick={(e) => { e.stopPropagation(); window.open(task.contact?.linkedin, "_blank") }}
                                           >
                                             <Linkedin className="h-3 w-3 text-[#0A66C2]" />
                                           </Button>
                                         )}
-                                        <Button variant="ghost" size="icon" className="h-6 w-6">
-                                          <MoreHorizontal className="h-3 w-3" />
-                                        </Button>
+                                        <DropdownMenu>
+                                          <DropdownMenuTrigger asChild>
+                                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => e.stopPropagation()}>
+                                              <MoreHorizontal className="h-3 w-3" />
+                                            </Button>
+                                          </DropdownMenuTrigger>
+                                          <DropdownMenuContent align="end">
+                                            <DropdownMenuItem onClick={(e) => {
+                                              e.stopPropagation()
+                                              setDatePickerTask(task)
+                                              setDatePickerOpen(true)
+                                              setDateViewMode("week")
+                                            }}>
+                                              <Calendar className="h-4 w-4 mr-2" />
+                                              Change Due Date
+                                            </DropdownMenuItem>
+                                            {task.status !== "done" && (
+                                              <DropdownMenuItem onClick={(e) => {
+                                                e.stopPropagation()
+                                                handleMarkDone(task.id)
+                                              }}>
+                                                <Check className="h-4 w-4 mr-2" />
+                                                Mark as Done
+                                              </DropdownMenuItem>
+                                            )}
+                                            <DropdownMenuSeparator />
+                                            <DropdownMenuItem
+                                              className="text-destructive focus:text-destructive"
+                                              onClick={(e) => {
+                                                e.stopPropagation()
+                                                handleDeleteTask(task.id)
+                                              }}
+                                            >
+                                              <Trash2 className="h-4 w-4 mr-2" />
+                                              Delete
+                                            </DropdownMenuItem>
+                                          </DropdownMenuContent>
+                                        </DropdownMenu>
                                       </div>
                                     </div>
                                   )}
@@ -663,7 +903,7 @@ export function TaskBoard() {
                 </thead>
                 <tbody>
                   {allTasks.map((task) => (
-                    <tr key={task.id} className="border-b hover:bg-muted/30">
+                    <tr key={task.id} className="border-b hover:bg-muted/30 cursor-pointer" onClick={() => openTaskDetail(task)}>
                       <td className="p-3">
                         <div className="flex items-center gap-2">
                           {getTaskTypeIcon(task.type)}
@@ -722,7 +962,7 @@ export function TaskBoard() {
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7"
-                            onClick={() => router.push(`/dialer?taskId=${task.id}`)}
+                            onClick={(e) => { e.stopPropagation(); router.push(`/dialer?taskId=${task.id}`) }}
                           >
                             <Phone className="h-3 w-3" />
                           </Button>
@@ -730,7 +970,7 @@ export function TaskBoard() {
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7"
-                            onClick={() => openEmailComposer(task)}
+                            onClick={(e) => { e.stopPropagation(); openEmailComposer(task) }}
                           >
                             <Mail className="h-3 w-3" />
                           </Button>
@@ -739,14 +979,49 @@ export function TaskBoard() {
                               variant="ghost"
                               size="icon"
                               className="h-7 w-7"
-                              onClick={() => window.open(task.contact?.linkedin, "_blank")}
+                              onClick={(e) => { e.stopPropagation(); window.open(task.contact?.linkedin, "_blank") }}
                             >
                               <Linkedin className="h-3 w-3 text-[#0A66C2]" />
                             </Button>
                           )}
-                          <Button variant="ghost" size="icon" className="h-7 w-7">
-                            <MoreHorizontal className="h-3 w-3" />
-                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => e.stopPropagation()}>
+                                <MoreHorizontal className="h-3 w-3" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={(e) => {
+                                e.stopPropagation()
+                                setDatePickerTask(task)
+                                setDatePickerOpen(true)
+                                setDateViewMode("week")
+                              }}>
+                                <Calendar className="h-4 w-4 mr-2" />
+                                Change Due Date
+                              </DropdownMenuItem>
+                              {task.status !== "done" && (
+                                <DropdownMenuItem onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleMarkDone(task.id)
+                                }}>
+                                  <Check className="h-4 w-4 mr-2" />
+                                  Mark as Done
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleDeleteTask(task.id)
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </td>
                     </tr>
@@ -757,6 +1032,225 @@ export function TaskBoard() {
           </TabsContent>
         </Tabs>
       </CardContent>
+      {/* Date Picker Dialog */}
+      <Dialog open={datePickerOpen} onOpenChange={(open) => {
+        setDatePickerOpen(open)
+        if (!open) { setDatePickerTask(null); setDateViewMode("week") }
+      }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Change Due Date</DialogTitle>
+          </DialogHeader>
+          {datePickerTask && (
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm text-muted-foreground">
+                  {dateViewMode === "week" ? "Week View" : "Month View"}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setDateViewMode(prev => prev === "week" ? "month" : "week")}
+                >
+                  {dateViewMode === "week" ? <Maximize2 className="h-4 w-4" /> : <Calendar className="h-4 w-4" />}
+                  <span className="ml-1 text-xs">
+                    {dateViewMode === "week" ? "Expand" : "Week"}
+                  </span>
+                </Button>
+              </div>
+
+              {dateViewMode === "month" ? (
+                <CalendarComponent
+                  mode="single"
+                  selected={datePickerTask.dueDate ? new Date(datePickerTask.dueDate) : undefined}
+                  onSelect={(date) => handleUpdateDueDate(datePickerTask.id, date ?? undefined)}
+                />
+              ) : (
+                <WeekPicker
+                  selected={datePickerTask.dueDate ? new Date(datePickerTask.dueDate) : undefined}
+                  onSelect={(date) => handleUpdateDueDate(datePickerTask.id, date)}
+                />
+              )}
+
+              {datePickerTask.dueDate && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full mt-2 text-muted-foreground"
+                  onClick={() => handleUpdateDueDate(datePickerTask.id, undefined)}
+                >
+                  Clear Due Date
+                </Button>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Task Detail Dialog */}
+      <Dialog open={detailOpen} onOpenChange={(open) => {
+        setDetailOpen(open)
+        if (!open) { setDetailTask(null); setCallHistory([]) }
+      }}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {detailTask && getTaskTypeIcon(detailTask.type)}
+              <span>{detailTask?.title}</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          {detailTask && (
+            <div className="space-y-4">
+              {/* Metadata badges */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <Badge variant="outline" className="text-xs">
+                  {getTaskTypeLabel(detailTask.type)}
+                </Badge>
+                <Badge className={cn("text-xs", getPriorityColor(detailTask.priority))}>
+                  {detailTask.priority}
+                </Badge>
+                <Badge variant="outline" className="text-xs">
+                  {columns[detailTask.status as keyof typeof columns]?.title || detailTask.status}
+                </Badge>
+              </div>
+
+              {/* Description */}
+              {detailTask.description && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Description</p>
+                  <p className="text-sm whitespace-pre-wrap">{detailTask.description}</p>
+                </div>
+              )}
+
+              {/* Due date */}
+              {detailTask.dueDate && (
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm">
+                    Due: {new Date(detailTask.dueDate).toLocaleDateString(undefined, {
+                      weekday: "long", month: "long", day: "numeric", year: "numeric"
+                    })}
+                  </span>
+                </div>
+              )}
+
+              {/* Contact info */}
+              {detailTask.contact && (
+                <div className="border rounded-md p-3 space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground">Contact</p>
+                  <div className="flex items-center gap-2">
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback>
+                        {detailTask.contact.name.split(" ").map(n => n[0]).join("")}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      {detailTask.contact.prospectId ? (
+                        <button
+                          className="font-medium text-sm text-primary hover:underline cursor-pointer"
+                          onClick={() => router.push(`/prospects/${detailTask.contact!.prospectId}`)}
+                        >
+                          {detailTask.contact.name}
+                        </button>
+                      ) : (
+                        <span className="font-medium text-sm">{detailTask.contact.name}</span>
+                      )}
+                      {detailTask.contact.title && (
+                        <div className="text-xs text-muted-foreground">{detailTask.contact.title}</div>
+                      )}
+                    </div>
+                  </div>
+                  {detailTask.contact.company && (
+                    <div className="flex items-center gap-2">
+                      <Building2 className="h-3 w-3 text-muted-foreground" />
+                      <span className="text-xs">{detailTask.contact.company}</span>
+                    </div>
+                  )}
+                  {detailTask.contact.email && (
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-3 w-3 text-muted-foreground" />
+                      <span className="text-xs">{detailTask.contact.email}</span>
+                    </div>
+                  )}
+                  {detailTask.contact.phone && (
+                    <div className="flex items-center gap-2">
+                      <Phone className="h-3 w-3 text-muted-foreground" />
+                      <span className="text-xs">{detailTask.contact.phone}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Call history */}
+              {detailTask.contact?.prospectId && (
+                <div className="border rounded-md p-3 space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground">Recent Call History</p>
+                  {loadingCalls ? (
+                    <div className="flex items-center gap-2 py-2">
+                      <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                      <span className="text-xs text-muted-foreground">Loading calls...</span>
+                    </div>
+                  ) : callHistory.length === 0 ? (
+                    <p className="text-xs text-muted-foreground py-2">No call history found</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {callHistory.map((call: any) => (
+                        <div key={call.id} className="border-b last:border-0 pb-2 last:pb-0">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-medium">
+                              Spoke on {new Date(call.createdAt).toLocaleDateString(undefined, {
+                                weekday: "long", month: "long", day: "numeric",
+                              })}
+                              {" @ "}
+                              {new Date(call.createdAt).toLocaleTimeString(undefined, {
+                                hour: "numeric", minute: "2-digit",
+                              })}
+                            </span>
+                            {call.outcome && (
+                              <Badge variant="outline" className="text-xs">
+                                {call.outcome.replace(/_/g, " ")}
+                              </Badge>
+                            )}
+                          </div>
+                          {call.duration != null && call.duration > 0 && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Duration: {Math.floor(call.duration / 60)}m {call.duration % 60}s
+                            </p>
+                          )}
+                          {call.notes && (
+                            <p className="text-xs mt-1 text-muted-foreground italic whitespace-pre-wrap">
+                              {call.notes}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Actions */}
+              <DialogFooter className="gap-2">
+                <Button variant="outline" size="sm" onClick={() => openEmailComposer(detailTask)}>
+                  <Mail className="h-3 w-3 mr-1" />
+                  Email
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => router.push(`/dialer?taskId=${detailTask.id}`)}>
+                  <Phone className="h-3 w-3 mr-1" />
+                  Call
+                </Button>
+                {detailTask.contact?.prospectId && (
+                  <Button size="sm" onClick={() => router.push(`/prospects/${detailTask.contact!.prospectId}`)}>
+                    View Profile
+                  </Button>
+                )}
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={emailOpen} onOpenChange={setEmailOpen}>
         <DialogContent>
           <DialogHeader>

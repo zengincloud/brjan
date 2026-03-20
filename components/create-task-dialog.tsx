@@ -20,7 +20,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Loader2, ClipboardList, Flame, ThumbsUp, MousePointerClick, Clock, Linkedin, CalendarClock } from "lucide-react"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
+import { Loader2, ClipboardList, Flame, ThumbsUp, MousePointerClick, Clock, Linkedin, CalendarClock, CalendarIcon } from "lucide-react"
+import { format } from "date-fns"
+import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 
 type TaskType = "hot_lead" | "interested" | "website_visit" | "follow_up" | "linkedin" | "other"
@@ -67,14 +71,16 @@ export function CreateTaskDialog({
   const [description, setDescription] = useState("")
   const [type, setType] = useState<TaskType>("follow_up")
   const [priority, setPriority] = useState<Priority>("medium")
-  const [dueDate, setDueDate] = useState("")
+  const [dueDate, setDueDate] = useState<Date | undefined>(undefined)
+  const [calendarOpen, setCalendarOpen] = useState(false)
 
   const resetForm = () => {
     setTitle("")
     setDescription("")
     setType("follow_up")
     setPriority("medium")
-    setDueDate("")
+    setDueDate(undefined)
+    setCalendarOpen(false)
   }
 
   const handleCreate = async () => {
@@ -83,20 +89,15 @@ export function CreateTaskDialog({
       return
     }
 
-    if (!description.trim()) {
-      toast.error("Please enter a task description")
-      return
-    }
-
     try {
       setLoading(true)
 
       const taskData: any = {
         title: title.trim(),
-        description: description.trim(),
+        description: description.trim() || title.trim(),
         type,
         priority,
-        dueDate: dueDate || null,
+        dueDate: dueDate ? dueDate.toISOString() : null,
       }
 
       if (prospect) {
@@ -170,7 +171,7 @@ export function CreateTaskDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
+            <Label htmlFor="description">Description <span className="text-muted-foreground font-normal">(optional)</span></Label>
             <Textarea
               id="description"
               placeholder="Enter task description"
@@ -221,13 +222,32 @@ export function CreateTaskDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="dueDate">Due Date (optional)</Label>
-            <Input
-              id="dueDate"
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-            />
+            <Label>Due Date <span className="text-muted-foreground font-normal">(optional)</span></Label>
+            <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "w-full justify-start text-left font-normal",
+                    !dueDate && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dueDate ? format(dueDate, "PPP") : "Pick a date"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={dueDate}
+                  onSelect={(date) => {
+                    setDueDate(date)
+                    setCalendarOpen(false)
+                  }}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
           </div>
 
           {prospect && (

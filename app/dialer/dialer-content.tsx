@@ -149,7 +149,7 @@ type DialerProspect = {
   sequenceStage?: string
   sequence?: string | null
   sequenceId?: string | null
-  callScript?: string
+  callbackContext?: string | null
   correspondenceHistory?: { date: string; type: string; from: string; summary: string }[]
   pov?: {
     opportunity: string
@@ -2635,18 +2635,29 @@ export default function DialerPage() {
                                   )}
                                 </div>
 
-                                {/* Call Script */}
-                                {prospect.callScript && (
-                                  <div className="p-2 rounded-lg bg-muted/30 border border-border">
-                                    <div className="flex items-start gap-2">
-                                      <FileText className="h-3.5 w-3.5 text-muted-foreground mt-0.5 flex-shrink-0" />
-                                      <div className="flex-1">
-                                        <p className="text-xs font-medium text-foreground mb-1">Call Script</p>
-                                        <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">{prospect.callScript}</p>
+                                {/* Previous Context */}
+                                {prospect.callbackContext && (() => {
+                                  const lines = prospect.callbackContext.split('\n\n').filter(Boolean)
+                                  const callbackReason = lines.find(l => l.startsWith('Callback reason:'))?.replace('Callback reason:', '').trim()
+                                  const lastCallNotes = lines.find(l => l.startsWith('Notes from last call:'))?.replace('Notes from last call:', '').trim()
+                                  if (!callbackReason && !lastCallNotes) return null
+                                  return (
+                                    <div className="p-2 rounded-lg bg-amber-500/5 border border-amber-500/20">
+                                      <div className="flex items-start gap-2">
+                                        <History className="h-3.5 w-3.5 text-amber-500 mt-0.5 flex-shrink-0" />
+                                        <div className="flex-1">
+                                          <p className="text-xs font-medium text-amber-600 dark:text-amber-400 mb-1.5">Previous Context</p>
+                                          {callbackReason && (
+                                            <p className="text-xs text-foreground mb-1"><span className="font-medium">Callback reason:</span> {callbackReason}</p>
+                                          )}
+                                          {lastCallNotes && (
+                                            <p className="text-xs text-muted-foreground leading-relaxed">{lastCallNotes}</p>
+                                          )}
+                                        </div>
                                       </div>
                                     </div>
-                                  </div>
-                                )}
+                                  )
+                                })()}
 
                                 {/* Prior Calls */}
                                 {prospect.priorCalls && prospect.priorCalls.length > 0 && (

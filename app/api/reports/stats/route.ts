@@ -56,6 +56,7 @@ const CONNECTED_OUTCOMES = [
   "connected_referral",
   "connected_not_interested",
   "connected_info_gathered",
+  "callback",
 ]
 
 export const GET = withAuth(async (request: NextRequest, userId: string) => {
@@ -503,7 +504,7 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
 
     // ========== CONVERSATION TO INTRO RATE ==========
     const conversations = calls.filter(c =>
-      c.outcome?.startsWith("connected") && (c.recordingDuration || c.duration || 0) > 60
+      c.outcome && CONNECTED_OUTCOMES.includes(c.outcome) && (c.recordingDuration || c.duration || 0) > 60
     )
     const introsFromConversations = conversations.filter(c => c.outcome === "connected_intro_booked")
     const conversationToIntroRate = conversations.length > 0

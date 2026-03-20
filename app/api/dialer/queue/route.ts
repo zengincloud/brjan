@@ -82,7 +82,6 @@ export const GET = withAuth(async (
                       name: true,
                       type: true,
                       order: true,
-                      callScript: true
                     }
                   }
                 }
@@ -138,7 +137,7 @@ export const GET = withAuth(async (
         sequence: sequence?.name || null,
         sequenceId: sequence?.id || null,
         sequenceStage: currentStep?.name || '',
-        callScript: currentStep?.callScript || task.description || '',
+        callbackContext: extractCallbackContext(task.description),
 
         // POV from prospect
         pov: prospect?.povData || null,
@@ -212,7 +211,7 @@ export const GET = withAuth(async (
         sequence: ps.sequence.name,
         sequenceId: ps.sequenceId,
         sequenceStage: currentStep.name,
-        callScript: currentStep.callScript || '',
+        callbackContext: null,
 
         // POV from prospect
         pov: ps.prospect.povData || null,
@@ -243,6 +242,14 @@ export const GET = withAuth(async (
     )
   }
 })
+
+function extractCallbackContext(description: string | null | undefined): string | null {
+  if (!description) return null
+  if (description.includes('Callback reason:') || description.includes('Notes from last call:')) {
+    return description
+  }
+  return null
+}
 
 function safeTimeAgo(date: Date | string | null | undefined): string {
   if (!date) return 'Unknown'

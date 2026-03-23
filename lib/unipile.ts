@@ -32,7 +32,10 @@ async function unipileFetch(path: string, options: RequestInit = {}) {
  * Returns the URL to redirect the user to.
  */
 export async function createHostedAuth(successRedirectUrl: string, failureRedirectUrl: string) {
-  const data = await unipileFetch('/accounts/hosted', {
+  // Link expires in 1 hour
+  const expiresOn = new Date(Date.now() + 60 * 60 * 1000).toISOString().replace(/\.\d{3}Z$/, '.000Z')
+
+  const data = await unipileFetch('/hosted/accounts/link', {
     method: 'POST',
     body: JSON.stringify({
       type: 'create',
@@ -40,6 +43,7 @@ export async function createHostedAuth(successRedirectUrl: string, failureRedire
       success_redirect_url: successRedirectUrl,
       failure_redirect_url: failureRedirectUrl,
       api_url: BASE_URL,
+      expiresOn,
     }),
   })
   return data as { url: string; id: string }

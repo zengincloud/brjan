@@ -106,18 +106,34 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
             })
           : null
 
-        // If found by LinkedIn URL but with a different threadId, update it rather than duplicate
-        if (existingByLinkedin && existingByLinkedin.linkedinThreadId !== threadId) {
+        // Fallback: match by first name against Chrome extension convos with no LinkedIn URL
+        // (extension often doesn't capture the LinkedIn URL, leaving participantLinkedin null)
+        const firstName = participantName.split(" ")[0]
+        const existingByName = !existingByLinkedin && firstName
+          ? await prisma.linkedInConversation.findFirst({
+              where: {
+                userId,
+                participantLinkedin: null,
+                participantName: { contains: firstName, mode: "insensitive" },
+              },
+            })
+          : null
+
+        const existingToUpdate = existingByLinkedin || existingByName
+
+        // If found by LinkedIn URL or name but with a different threadId, update it rather than duplicate
+        if (existingToUpdate && existingToUpdate.linkedinThreadId !== threadId) {
           await prisma.linkedInConversation.update({
-            where: { id: existingByLinkedin.id },
+            where: { id: existingToUpdate.id },
             data: {
               linkedinThreadId: threadId,
               unipileThreadId: chat.id,
               participantName,
               participantTitle,
               participantAvatar,
-              lastMessageText: chat.last_message?.text || existingByLinkedin.lastMessageText,
-              lastMessageAt: chat.last_message?.created_at ? new Date(chat.last_message.created_at) : existingByLinkedin.lastMessageAt,
+              participantLinkedin,
+              lastMessageText: chat.last_message?.text || existingToUpdate.lastMessageText,
+              lastMessageAt: chat.last_message?.created_at ? new Date(chat.last_message.created_at) : existingToUpdate.lastMessageAt,
               unreadCount: chat.unread_count || 0,
               ...(matchStatus === "auto_matched" ? { matchStatus, prospectId } : {}),
             },
@@ -157,6 +173,30 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
             ...(matchStatus === "auto_matched" ? { matchStatus, prospectId } : {}),
           },
         })
+
+        // Absorb any orphan Chrome extension conversation for the same person
+        // (in case name-based dedup above didn't catch it due to heavily garbled name)
+        if (participantLinkedin) {
+          try {
+            const orphan = await prisma.linkedInConversation.findFirst({
+              where: {
+                userId,
+                participantLinkedin: null,
+                id: { not: conversation.id },
+                participantName: { contains: firstName, mode: "insensitive" },
+              },
+            })
+            if (orphan) {
+              await prisma.linkedInMessage.updateMany({
+                where: { conversationId: orphan.id },
+                data: { conversationId: conversation.id },
+              })
+              await prisma.linkedInConversation.delete({ where: { id: orphan.id } })
+            }
+          } catch {
+            // Don't fail sync if orphan merge fails
+          }
+        }
 
         // Sync last 20 messages
         try {

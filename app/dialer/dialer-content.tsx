@@ -64,11 +64,13 @@ import {
   Globe,
   MapPin,
   Linkedin,
+  Search,
 } from "lucide-react"
 import { SendEmailDialog } from "@/components/send-email-dialog"
 import { Calendar as CalendarIcon, CalendarClock } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import Link from "next/link"
 import { Device, Call as TwilioCall } from "@twilio/voice-sdk"
 import { formatDistanceToNow } from "date-fns"
 import { useUserRole } from "@/hooks/use-user-role"
@@ -203,11 +205,12 @@ export default function DialerPage() {
   const [emailProspect, setEmailProspect] = useState<{ id: string; name: string; email: string; title?: string; company?: string } | null>(null)
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
   const [editingNoteType, setEditingNoteType] = useState<"prospect" | "account" | null>(null)
-  const [apiProspects, setApiProspects] = useState<DialerProspect[]>([])
+  const [apiProspects, setApiProspects] = useSessionState<DialerProspect[]>("dialer_api_prospects", [])
   const [loadingProspects, setLoadingProspects] = useState(true)
   const [fetchedSequences, setFetchedSequences] = useState<{ id: string; name: string }[]>([])
-  const [selectedTimezones, setSelectedTimezones] = useState<string[]>([])
-  const [selectedCallSteps, setSelectedCallSteps] = useState<string[]>([])
+  const [selectedTimezones, setSelectedTimezones] = useSessionState<string[]>("dialer_timezones", [])
+  const [selectedCallSteps, setSelectedCallSteps] = useSessionState<string[]>("dialer_call_steps", [])
+  const [searchQuery, setSearchQuery] = useSessionState<string>("dialer_search", "")
   const [callSummaries, setCallSummaries] = useState<Map<string, {
     summary: string
     emailSubject: string
@@ -416,9 +419,27 @@ export default function DialerPage() {
     { id: "+1 (555) 000-0003", label: "+1 (555) 000-0003 (Support)" },
   ]
 
+  // Track the last sequence we fetched for so we only refetch on actual filter changes
+  const lastFetchedSequenceRef = useRef<string | null>(null)
+
   // Fetch prospects + sequences in parallel
   useEffect(() => {
     const fetchData = async () => {
+      // If session is active and we already have prospects for this sequence, skip refetch (user just navigated back)
+      if (sessionActive && apiProspects.length > 0 && lastFetchedSequenceRef.current === selectedSequence) {
+        setLoadingProspects(false)
+        // Still fetch sequences for the dropdown if needed
+        if (fetchedSequences.length === 0) {
+          try {
+            const seqRes = await fetch("/api/sequences")
+            if (seqRes.ok) {
+              const data = await seqRes.json()
+              setFetchedSequences((data.sequences || []).map((s: any) => ({ id: s.id, name: s.name })))
+            }
+          } catch {}
+        }
+        return
+      }
       try {
         setLoadingProspects(true)
         const params = new URLSearchParams()
@@ -433,6 +454,7 @@ export default function DialerPage() {
           const data = await queueRes.json()
           const queue = data.queue || []
           setApiProspects(queue)
+          lastFetchedSequenceRef.current = selectedSequence
           // Pre-populate prospect notes from DB
           const notes: { [key: string]: string } = {}
           for (const p of queue) {
@@ -532,9 +554,19 @@ export default function DialerPage() {
     return () => clearInterval(interval)
   }, [callSlots])
 
-  // Use API prospects only (filtered to those with phone numbers + timezone filter), then sort
+  // Use API prospects only (filtered to those with phone numbers + search + timezone filter), then sort
   const mockProspects: DialerProspect[] = apiProspects.filter(p => {
     if (!p.phone) return false
+    // Search filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase()
+      const matchesSearch = (p.name || "").toLowerCase().includes(q)
+        || (p.company || "").toLowerCase().includes(q)
+        || (p.phone || "").replace(/\D/g, "").includes(q.replace(/\D/g, ""))
+        || (p.email || "").toLowerCase().includes(q)
+        || (p.title || "").toLowerCase().includes(q)
+      if (!matchesSearch) return false
+    }
     // Timezone filter — keep prospects with no location (only filter out mismatched ones)
     if (selectedTimezones.length > 0) {
       const loc = p.location || (p.accountInfo as any)?.location || null
@@ -1870,18 +1902,29 @@ export default function DialerPage() {
       {/* Prospect Queue */}
         <div>
           <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-lg font-semibold">Call Queue</h2>
+            <div className="flex items-center gap-4">
+              <div>
+                <h2 className="text-lg font-semibold">Call Queue</h2>
               <p className="text-xs text-muted-foreground mt-1">
                 {sessionActive
                   ? `${currentProspectIndex + 1} of ${mockProspects.length} — ${mockProspects.length - currentProspectIndex - 1} remaining`
                   : mockProspects.length > 0
                   ? `${mockProspects.length} prospect${mockProspects.length !== 1 ? "s" : ""} to call`
-                  : selectedTimezones.length > 0 || selectedCallSteps.length > 0
+                  : selectedTimezones.length > 0 || selectedCallSteps.length > 0 || searchQuery.trim()
                     ? "No prospects match the selected filters"
                     : "No prospects in queue"
                 }
               </p>
+              </div>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="Search by name, company, phone..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-8 h-8 w-64 text-sm"
+                />
+              </div>
             </div>
             {sessionActive && (
               <Badge variant="outline" className="border-muted-foreground/30 text-muted-foreground">
@@ -2042,7 +2085,11 @@ export default function DialerPage() {
                           </td>
                           <td className="py-3 px-4">
                             <div className="flex items-center gap-2">
-                              <span className="font-medium">{prospect.name}</span>
+                              {prospect.prospectId ? (
+                                <Link href={`/prospects/${prospect.prospectId}`} onClick={(e) => e.stopPropagation()} className="font-medium hover:text-primary hover:underline">{prospect.name}</Link>
+                              ) : (
+                                <span className="font-medium">{prospect.name}</span>
+                              )}
                               {prospect.linkedin && (
                                 <button
                                   onClick={(e) => { e.stopPropagation(); window.open(prospect.linkedin!, "_blank") }}
@@ -2066,7 +2113,13 @@ export default function DialerPage() {
                             </div>
                           </td>
                           <td className="py-3 px-4">
-                            <div className="text-sm">{prospect.company || "—"}</div>
+                            <div className="text-sm">
+                              {prospect.accountInfo?.id ? (
+                                <Link href={`/accounts/${prospect.accountInfo.id}`} onClick={(e) => e.stopPropagation()} className="hover:text-primary hover:underline">{prospect.company || "—"}</Link>
+                              ) : (
+                                prospect.company || "—"
+                              )}
+                            </div>
                             {prospect.accountInfo?.website && (
                               <a
                                 href={prospect.accountInfo.website.startsWith("http") ? prospect.accountInfo.website : `https://${prospect.accountInfo.website}`}
@@ -2964,7 +3017,11 @@ export default function DialerPage() {
                       {/* Contact Info */}
                       <div className="flex-1 min-w-[200px]">
                         <div className="flex items-center gap-3">
-                          <span className="font-semibold text-sm">{slot.contact.name}</span>
+                          {slot.prospectId ? (
+                            <Link href={`/prospects/${slot.prospectId}`} className="font-semibold text-sm hover:text-primary hover:underline">{slot.contact.name}</Link>
+                          ) : (
+                            <span className="font-semibold text-sm">{slot.contact.name}</span>
+                          )}
                           {slot.contact.linkedin && (
                             <button
                               onClick={(e) => { e.stopPropagation(); window.open(slot.contact!.linkedin!, "_blank") }}
@@ -2988,7 +3045,11 @@ export default function DialerPage() {
                         </div>
                         <div className="flex items-center gap-2 mt-0.5">
                           <Building2 className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-xs text-muted-foreground">{slot.contact.company}</span>
+                          {(slot.contact.accountInfo as any)?.id ? (
+                            <Link href={`/accounts/${(slot.contact.accountInfo as any).id}`} className="text-xs text-muted-foreground hover:text-primary hover:underline">{slot.contact.company}</Link>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">{slot.contact.company}</span>
+                          )}
                           {((slot.contact as any).location || (slot.contact.accountInfo as any)?.location) && (
                             <>
                               <span className="text-xs text-muted-foreground">•</span>

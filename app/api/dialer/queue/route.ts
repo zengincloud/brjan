@@ -118,6 +118,9 @@ export const GET = withAuth(async (
       const sequence = activeSequence?.sequence
       const currentStep = sequence?.steps?.[activeSequence?.currentStep || 0]
 
+      // Skip prospects that aren't in an active sequence (orphan tasks)
+      if (!activeSequence) continue
+
       queueItems.push({
         id: task.id,
         taskId: task.id,

@@ -76,7 +76,7 @@ export default function LinkedInPage() {
   const [sending, setSending] = useState(false)
   const [search, setSearch] = useState("")
   const [sort, setSort] = useState("recent")
-  const [matchFilter, setMatchFilter] = useState("")
+  const [matchFilter, setMatchFilter] = useState("all")
   const [syncing, setSyncing] = useState(false)
   const [connecting, setConnecting] = useState(false)
   const [matchDialogOpen, setMatchDialogOpen] = useState(false)
@@ -98,7 +98,7 @@ export default function LinkedInPage() {
 
   const loadConversations = useCallback(async () => {
     const params = new URLSearchParams({ sort })
-    if (matchFilter) params.set("matchStatus", matchFilter)
+    if (matchFilter && matchFilter !== "all") params.set("matchStatus", matchFilter)
     if (search) params.set("search", search)
     const res = await fetch(`/api/linkedin/conversations?${params}`)
     const data = await res.json()
@@ -269,12 +269,12 @@ export default function LinkedInPage() {
           >
             Review
           </Button>
-          {matchFilter === "unmatched" && (
+          {matchFilter === "unmatched" && matchFilter !== "all" && (
             <Button
               variant="link"
               size="sm"
               className="p-0 h-auto text-muted-foreground"
-              onClick={() => setMatchFilter("")}
+              onClick={() => setMatchFilter("all")}
             >
               Clear filter
             </Button>
@@ -312,7 +312,7 @@ export default function LinkedInPage() {
                   <SelectValue placeholder="All" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All</SelectItem>
+                  <SelectItem value="all">All</SelectItem>
                   <SelectItem value="unmatched">Unmatched</SelectItem>
                   <SelectItem value="auto_matched">Auto matched</SelectItem>
                   <SelectItem value="manually_matched">Manual match</SelectItem>

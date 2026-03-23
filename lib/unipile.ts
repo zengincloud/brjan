@@ -39,6 +39,7 @@ export async function createHostedAuth(successRedirectUrl: string, failureRedire
       providers: ['LINKEDIN'],
       success_redirect_url: successRedirectUrl,
       failure_redirect_url: failureRedirectUrl,
+      api_url: BASE_URL,
     }),
   })
   return data as { url: string; id: string }

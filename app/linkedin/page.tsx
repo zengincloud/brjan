@@ -42,6 +42,7 @@ type Conversation = {
   participantLinkedin?: string
   lastMessageText?: string
   lastMessageAt?: string
+  createdAt: string
   lastMessageDirection?: "inbound" | "outbound" | null
   unreadCount: number
   matchStatus: "auto_matched" | "manually_matched" | "unmatched"
@@ -357,7 +358,7 @@ export default function LinkedInPage() {
                         {displayName(conv)}
                       </span>
                       <span className="text-[11px] text-muted-foreground flex-shrink-0">
-                        {conv.lastMessageAt ? formatConvDate(conv.lastMessageAt) : ""}
+                        {formatConvDate(conv.lastMessageAt || conv.createdAt)}
                       </span>
                     </div>
                     {displaySub(conv) && (

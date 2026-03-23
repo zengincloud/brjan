@@ -129,7 +129,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
         // Sync last 20 messages
         try {
           const msgRes = await getChatMessages(chat.id)
-          const messages = (msgRes.items || msgRes.messages || []).slice(0, 20)
+          const messages = (msgRes.items || msgRes.messages || []).slice(0, 100)
 
           for (const msg of messages) {
             const msgId = msg.id || null

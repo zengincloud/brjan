@@ -100,10 +100,10 @@ export async function getChatMessages(chatId: string, cursor?: string) {
 /**
  * Send a message in an existing chat.
  */
-export async function sendMessage(chatId: string, text: string) {
+export async function sendMessage(chatId: string, text: string, accountId?: string) {
   return unipileFetch(`/chats/${chatId}/messages`, {
     method: 'POST',
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ text, ...(accountId ? { account_id: accountId } : {}) }),
   })
 }
 

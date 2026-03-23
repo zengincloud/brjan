@@ -45,7 +45,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string, contex
 
   // Send via Unipile if connected, otherwise queue for extension
   if (user?.unipileAccountId && conversation.unipileThreadId) {
-    await sendMessage(conversation.unipileThreadId, text.trim())
+    await sendMessage(conversation.unipileThreadId, text.trim(), user.unipileAccountId)
   }
 
   // Save message to DB

@@ -106,10 +106,13 @@ export default function LinkedInPage() {
   const [matchSearch, setMatchSearch] = useState("")
   const [matchProspects, setMatchProspects] = useState<any[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
   const { toast } = useToast()
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight
+    }
   }
 
   const loadStatus = useCallback(async () => {
@@ -412,7 +415,7 @@ export default function LinkedInPage() {
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4">
+            <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4">
               <div className="max-w-2xl mx-auto space-y-1">
                 {messages.map((msg, i) => {
                   const isOut = msg.direction === "outbound"

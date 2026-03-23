@@ -18,9 +18,9 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
 
     const accountId = user.unipileAccountId
 
-    // Fetch all user's existing prospects that have a LinkedIn URL (for matching)
+    // Fetch ALL prospects for matching (URL + name/company fallback)
     const prospects = await prisma.prospect.findMany({
-      where: { userId, linkedin: { not: null } },
+      where: { userId },
       select: { id: true, name: true, company: true, linkedin: true },
     })
 
@@ -55,7 +55,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
     for (const chat of allChats) {
       try {
         // Get attendees to find participant info
-        const attendeesRes = await getChatAttendees(chat.id)
+        const attendeesRes = await getChatAttendees(chat.id, accountId)
         const attendees = attendeesRes.items || attendeesRes.attendees || []
 
         // Find the other participant (not the account owner)
@@ -160,23 +160,27 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
 
         // Sync last 20 messages
         try {
-          const msgRes = await getChatMessages(chat.id)
+          const msgRes = await getChatMessages(chat.id, accountId)
           const messages = (msgRes.items || msgRes.messages || []).slice(0, 20)
 
           for (const msg of messages) {
             const msgId = msg.id || null
-            const isOutbound = msg.is_sender || msg.direction === "outbound"
+            const isOutbound = msg.is_sender || msg.sender_id === null || msg.direction === "outbound"
+            // Unipile uses various field names for timestamps
+            const rawTs = msg.created_at || msg.timestamp || msg.date || msg.sent_at || msg.at
+            const sentAt = rawTs ? new Date(typeof rawTs === "number" ? rawTs * 1000 : rawTs) : new Date()
+            const fallbackId = `${conversation.id}-${rawTs || msg.id || Math.random()}`
 
             await prisma.linkedInMessage.upsert({
-              where: { conversationId_linkedinMsgId: { conversationId: conversation.id, linkedinMsgId: msgId || `${conversation.id}-${msg.created_at}` } },
+              where: { conversationId_linkedinMsgId: { conversationId: conversation.id, linkedinMsgId: msgId || fallbackId } },
               create: {
                 conversationId: conversation.id,
-                linkedinMsgId: msgId,
+                linkedinMsgId: msgId || fallbackId,
                 direction: isOutbound ? "outbound" : "inbound",
                 body: msg.text || msg.body || "",
                 senderName: isOutbound ? "You" : participantName,
                 status: "delivered",
-                sentAt: msg.created_at ? new Date(msg.created_at) : new Date(),
+                sentAt,
               },
               update: {},
             })

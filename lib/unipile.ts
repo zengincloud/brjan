@@ -84,15 +84,18 @@ export async function getChat(chatId: string) {
 /**
  * Get attendees (participants) for a chat.
  */
-export async function getChatAttendees(chatId: string) {
-  return unipileFetch(`/chats/${chatId}/attendees`)
+export async function getChatAttendees(chatId: string, accountId?: string) {
+  const params = new URLSearchParams()
+  if (accountId) params.set('account_id', accountId)
+  return unipileFetch(`/chats/${chatId}/attendees?${params}`)
 }
 
 /**
  * List messages in a chat.
  */
-export async function getChatMessages(chatId: string, cursor?: string) {
+export async function getChatMessages(chatId: string, accountId?: string, cursor?: string) {
   const params = new URLSearchParams({ limit: '50' })
+  if (accountId) params.set('account_id', accountId)
   if (cursor) params.set('cursor', cursor)
   return unipileFetch(`/chats/${chatId}/messages?${params}`)
 }

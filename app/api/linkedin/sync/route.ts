@@ -41,12 +41,9 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
     let allChats: any[] = []
     let cursor: string | undefined
 
-    do {
-      const res = await getChats(accountId, cursor)
-      const items = res.items || res.chats || []
-      allChats = allChats.concat(items)
-      cursor = res.cursor || res.next_cursor
-    } while (cursor && allChats.length < 500) // Safety cap
+    // Only fetch 1 page (50 most recent chats) — sync is fast, not exhaustive
+    const res = await getChats(accountId)
+    allChats = res.items || res.chats || []
 
     let synced = 0
     let matched = 0
@@ -180,36 +177,43 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
           },
         })
 
-        // Absorb any orphan Chrome extension conversation for the same person
-        // (in case name-based dedup above didn't catch it due to heavily garbled name)
-        if (participantLinkedin) {
-          try {
-            const orphan = await prisma.linkedInConversation.findFirst({
-              where: {
-                userId,
-                participantLinkedin: null,
-                id: { not: conversation.id },
-                participantName: { contains: firstName, mode: "insensitive" },
-              },
-            })
-            if (orphan) {
-              await prisma.linkedInMessage.updateMany({
-                where: { conversationId: orphan.id },
-                data: { conversationId: conversation.id },
-              })
-              await prisma.linkedInConversation.delete({ where: { id: orphan.id } })
-            }
-          } catch {
-            // Don't fail sync if orphan merge fails
-          }
-        }
-
         synced++
         if (matchStatus === "auto_matched") matched++
         else unmatched++
       } catch (err) {
         console.error("Error syncing chat:", chat.id, err)
       }
+    }
+
+    // One-time cleanup: merge orphan Chrome extension conversations into matched Unipile ones
+    // Find all conversations with a participantLinkedin set, then absorb any same-name orphans
+    try {
+      const withUrl = await prisma.linkedInConversation.findMany({
+        where: { userId, participantLinkedin: { not: null } },
+        select: { id: true, participantName: true },
+      })
+      for (const conv of withUrl) {
+        const firstName = conv.participantName.split(" ")[0]
+        if (!firstName) continue
+        const orphans = await prisma.linkedInConversation.findMany({
+          where: {
+            userId,
+            participantLinkedin: null,
+            id: { not: conv.id },
+            participantName: { contains: firstName, mode: "insensitive" },
+          },
+          select: { id: true },
+        })
+        for (const orphan of orphans) {
+          await prisma.linkedInMessage.updateMany({
+            where: { conversationId: orphan.id },
+            data: { conversationId: conv.id },
+          })
+          await prisma.linkedInConversation.delete({ where: { id: orphan.id } })
+        }
+      }
+    } catch {
+      // Don't fail if cleanup fails
     }
 
     return NextResponse.json({ synced, matched, unmatched })

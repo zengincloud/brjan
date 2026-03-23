@@ -54,9 +54,15 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
 
     for (const chat of allChats) {
       try {
-        // Get attendees to find participant info
-        const attendeesRes = await getChatAttendees(chat.id, accountId)
-        const attendees = attendeesRes.items || attendeesRes.attendees || []
+        // Try to get attendees from the chat object first (avoids a separate API call per chat)
+        // Unipile sometimes embeds attendees in the chat list response
+        let attendees: any[] = chat.attendees || chat.participants || chat.members || []
+
+        if (attendees.length === 0) {
+          // Fall back to separate API call only if not embedded
+          const attendeesRes = await getChatAttendees(chat.id, accountId)
+          attendees = attendeesRes.items || attendeesRes.attendees || []
+        }
 
         // Find the other participant (not the account owner)
         const participant = attendees.find((a: any) => !a.is_me) || attendees[0]
@@ -196,37 +202,6 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
           } catch {
             // Don't fail sync if orphan merge fails
           }
-        }
-
-        // Sync last 20 messages
-        try {
-          const msgRes = await getChatMessages(chat.id, accountId)
-          const messages = (msgRes.items || msgRes.messages || []).slice(0, 20)
-
-          for (const msg of messages) {
-            const msgId = msg.id || null
-            const isOutbound = msg.is_sender || msg.sender_id === null || msg.direction === "outbound"
-            // Unipile uses various field names for timestamps
-            const rawTs = msg.created_at || msg.timestamp || msg.date || msg.sent_at || msg.at
-            const sentAt = rawTs ? new Date(typeof rawTs === "number" ? rawTs * 1000 : rawTs) : new Date()
-            const fallbackId = `${conversation.id}-${rawTs || msg.id || Math.random()}`
-
-            await prisma.linkedInMessage.upsert({
-              where: { conversationId_linkedinMsgId: { conversationId: conversation.id, linkedinMsgId: msgId || fallbackId } },
-              create: {
-                conversationId: conversation.id,
-                linkedinMsgId: msgId || fallbackId,
-                direction: isOutbound ? "outbound" : "inbound",
-                body: msg.text || msg.body || "",
-                senderName: isOutbound ? "You" : participantName,
-                status: "delivered",
-                sentAt,
-              },
-              update: {},
-            })
-          }
-        } catch {
-          // Don't fail the whole sync if messages fail for one chat
         }
 
         synced++

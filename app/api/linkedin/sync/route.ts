@@ -99,6 +99,11 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
           }
         }
 
+        const rawLastMsgTs = chat.last_message?.created_at || chat.last_message?.timestamp || chat.last_message?.at
+        const lastMessageAt = rawLastMsgTs
+          ? new Date(typeof rawLastMsgTs === "number" ? rawLastMsgTs * 1000 : rawLastMsgTs)
+          : null
+
         const threadId = chat.id
 
         // Check if an existing conversation already exists for this participant
@@ -136,7 +141,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
               participantAvatar,
               participantLinkedin,
               lastMessageText: chat.last_message?.text || existingToUpdate.lastMessageText,
-              lastMessageAt: chat.last_message?.created_at ? new Date(chat.last_message.created_at) : existingToUpdate.lastMessageAt,
+              lastMessageAt: lastMessageAt || existingToUpdate.lastMessageAt,
               unreadCount: chat.unread_count || 0,
               ...(matchStatus === "auto_matched" ? { matchStatus, prospectId } : {}),
             },
@@ -158,7 +163,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
             participantAvatar,
             participantLinkedin,
             lastMessageText: chat.last_message?.text || null,
-            lastMessageAt: chat.last_message?.created_at ? new Date(chat.last_message.created_at) : null,
+            lastMessageAt: lastMessageAt,
             unreadCount: chat.unread_count || 0,
             matchStatus,
             prospectId,
@@ -170,7 +175,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
             participantAvatar,
             participantLinkedin,
             lastMessageText: chat.last_message?.text || null,
-            lastMessageAt: chat.last_message?.created_at ? new Date(chat.last_message.created_at) : null,
+            lastMessageAt: lastMessageAt,
             unreadCount: chat.unread_count || 0,
             // Only update match status if currently unmatched
             ...(matchStatus === "auto_matched" ? { matchStatus, prospectId } : {}),

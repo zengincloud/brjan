@@ -33,8 +33,18 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
       prospect: {
         select: { id: true, name: true, company: true, title: true },
       },
+      messages: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: { direction: true },
+      },
     },
   })
 
-  return NextResponse.json({ conversations })
+  return NextResponse.json({
+    conversations: conversations.map(({ messages, ...c }) => ({
+      ...c,
+      lastMessageDirection: messages?.[0]?.direction ?? null,
+    })),
+  })
 })

@@ -17,7 +17,7 @@ export const GET = withAuth(async (request: NextRequest, userId: string, context
 
   const messages = await prisma.linkedInMessage.findMany({
     where: { conversationId: id },
-    orderBy: { sentAt: "asc" },
+    orderBy: [{ sentAt: "asc" }, { createdAt: "asc" }],
   })
 
   return NextResponse.json({ messages })

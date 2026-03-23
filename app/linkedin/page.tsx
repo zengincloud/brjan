@@ -42,6 +42,7 @@ type Conversation = {
   participantLinkedin?: string
   lastMessageText?: string
   lastMessageAt?: string
+  lastMessageDirection?: "inbound" | "outbound" | null
   unreadCount: number
   matchStatus: "auto_matched" | "manually_matched" | "unmatched"
   tags: string[]
@@ -54,6 +55,7 @@ type Message = {
   body: string
   senderName: string
   sentAt: string
+  createdAt: string
 }
 
 type Stats = {
@@ -150,9 +152,11 @@ export default function LinkedInPage() {
     fetch(`/api/linkedin/conversations/${selectedConversation.id}/messages`)
       .then(r => r.json())
       .then(d => {
-        const sorted = (d.messages || []).sort((a: Message, b: Message) =>
-          new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime()
-        )
+        const sorted = (d.messages || []).sort((a: Message, b: Message) => {
+          const ta = a.sentAt ? new Date(a.sentAt).getTime() : new Date(a.createdAt).getTime()
+          const tb = b.sentAt ? new Date(b.sentAt).getTime() : new Date(b.createdAt).getTime()
+          return ta - tb
+        })
         setMessages(sorted)
         setTimeout(scrollToBottom, 50)
       })
@@ -341,39 +345,33 @@ export default function LinkedInPage() {
                   key={conv.id}
                   onClick={() => setSelectedConversation(conv)}
                   className={cn(
-                    "w-full text-left px-4 py-3 border-b hover:bg-muted/40 transition-colors flex items-start gap-3",
-                    selectedConversation?.id === conv.id && "bg-muted"
+                    "w-full text-left px-4 py-3 border-b hover:bg-muted/40 transition-colors flex items-start gap-3 relative",
+                    selectedConversation?.id === conv.id && "bg-muted",
+                    conv.unreadCount > 0 && "border-l-2 border-l-[#0A66C2] pl-[14px]"
                   )}
                 >
                   <Avatar name={displayName(conv)} src={conv.participantAvatar} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2 mb-0.5">
-                      <span className={cn("text-sm truncate", conv.unreadCount > 0 ? "font-semibold" : "font-medium")}>
+                      <span className={cn("text-sm truncate", conv.unreadCount > 0 ? "font-bold text-foreground" : "font-medium")}>
                         {displayName(conv)}
                       </span>
-                      {conv.lastMessageAt && (
-                        <span className="text-[11px] text-muted-foreground flex-shrink-0">
-                          {formatConvDate(conv.lastMessageAt)}
-                        </span>
-                      )}
+                      <span className="text-[11px] text-muted-foreground flex-shrink-0">
+                        {conv.lastMessageAt ? formatConvDate(conv.lastMessageAt) : ""}
+                      </span>
                     </div>
                     {displaySub(conv) && (
-                      <p className="text-xs text-muted-foreground truncate italic leading-snug">
+                      <p className="text-xs text-muted-foreground truncate italic leading-snug mb-0.5">
                         {displaySub(conv)}
                       </p>
                     )}
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      {conv.unreadCount > 0 && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />
-                      )}
-                      {conv.lastMessageText && (
-                        <p className={cn("text-xs truncate", conv.unreadCount > 0 ? "text-foreground font-medium" : "text-muted-foreground")}>
-                          {conv.lastMessageText}
-                        </p>
-                      )}
-                    </div>
+                    {conv.lastMessageText && (
+                      <p className={cn("text-xs truncate", conv.unreadCount > 0 ? "text-foreground font-medium" : "text-muted-foreground")}>
+                        {conv.lastMessageDirection === "outbound" ? "You: " : ""}{conv.lastMessageText}
+                      </p>
+                    )}
                     {conv.matchStatus === "unmatched" && (
-                      <span className="text-[10px] text-amber-500">unmatched</span>
+                      <span className="text-[10px] text-amber-500 mt-0.5 block">unmatched</span>
                     )}
                   </div>
                 </button>

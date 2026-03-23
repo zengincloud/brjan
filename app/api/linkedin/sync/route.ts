@@ -185,35 +185,46 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       }
     }
 
-    // One-time cleanup: merge orphan Chrome extension conversations into matched Unipile ones
-    // Find all conversations with a participantLinkedin set, then absorb any same-name orphans
+    // Dedup: merge conversations sharing the same participantLinkedin URL
+    // (both Chrome extension + Unipile convos can end up with the same URL set)
     try {
-      const withUrl = await prisma.linkedInConversation.findMany({
+      const allWithUrl = await prisma.linkedInConversation.findMany({
         where: { userId, participantLinkedin: { not: null } },
-        select: { id: true, participantName: true },
+        orderBy: { lastMessageAt: "desc" },
+        select: { id: true, participantLinkedin: true },
       })
-      for (const conv of withUrl) {
-        const firstName = conv.participantName.split(" ")[0]
-        if (!firstName) continue
-        const orphans = await prisma.linkedInConversation.findMany({
-          where: {
-            userId,
-            participantLinkedin: null,
-            id: { not: conv.id },
-            participantName: { contains: firstName, mode: "insensitive" },
-          },
-          select: { id: true },
-        })
-        for (const orphan of orphans) {
+      const seen = new Map<string, string>() // url → primary conv id (most recent first)
+      for (const conv of allWithUrl) {
+        const url = conv.participantLinkedin!
+        if (!seen.has(url)) {
+          seen.set(url, conv.id)
+        } else {
+          const primaryId = seen.get(url)!
           await prisma.linkedInMessage.updateMany({
-            where: { conversationId: orphan.id },
-            data: { conversationId: conv.id },
+            where: { conversationId: conv.id },
+            data: { conversationId: primaryId },
           })
-          await prisma.linkedInConversation.delete({ where: { id: orphan.id } })
+          await prisma.linkedInConversation.delete({ where: { id: conv.id } })
         }
       }
     } catch {
-      // Don't fail if cleanup fails
+      // Don't fail if dedup fails
+    }
+
+    // Clean up any remaining garbled names ("Status is offline" etc.)
+    try {
+      const garbled = await prisma.linkedInConversation.findMany({
+        where: { userId, participantName: { contains: "Status is", mode: "insensitive" } },
+        select: { id: true, participantName: true },
+      })
+      for (const conv of garbled) {
+        await prisma.linkedInConversation.update({
+          where: { id: conv.id },
+          data: { participantName: conv.participantName.replace(/\s+Status is\s.*/i, "").trim() },
+        })
+      }
+    } catch {
+      // Don't fail if name cleanup fails
     }
 
     return NextResponse.json({ synced, matched, unmatched })

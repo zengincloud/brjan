@@ -147,7 +147,10 @@ export default function LinkedInPage() {
     fetch(`/api/linkedin/conversations/${selectedConversation.id}/messages`)
       .then(r => r.json())
       .then(d => {
-        setMessages(d.messages || [])
+        const sorted = (d.messages || []).sort((a: Message, b: Message) =>
+          new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime()
+        )
+        setMessages(sorted)
         setTimeout(scrollToBottom, 50)
       })
   }, [selectedConversation])
@@ -341,35 +344,33 @@ export default function LinkedInPage() {
                 >
                   <Avatar name={displayName(conv)} src={conv.participantAvatar} />
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-1 mb-0.5">
+                    <div className="flex items-center justify-between gap-2 mb-0.5">
                       <span className={cn("text-sm truncate", conv.unreadCount > 0 ? "font-semibold" : "font-medium")}>
                         {displayName(conv)}
                       </span>
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        {conv.unreadCount > 0 && (
-                          <span className="w-4 h-4 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-medium">
-                            {conv.unreadCount}
-                          </span>
-                        )}
-                        {conv.lastMessageAt && (
-                          <span className="text-[11px] text-muted-foreground">
-                            {formatConvDate(conv.lastMessageAt)}
-                          </span>
-                        )}
-                      </div>
+                      {conv.lastMessageAt && (
+                        <span className="text-[11px] text-muted-foreground flex-shrink-0">
+                          {formatConvDate(conv.lastMessageAt)}
+                        </span>
+                      )}
                     </div>
                     {displaySub(conv) && (
-                      <p className="text-xs text-muted-foreground truncate leading-none mb-0.5">
+                      <p className="text-xs text-muted-foreground truncate italic leading-snug">
                         {displaySub(conv)}
                       </p>
                     )}
-                    {conv.lastMessageText && (
-                      <p className={cn("text-xs truncate", conv.unreadCount > 0 ? "text-foreground" : "text-muted-foreground")}>
-                        {conv.lastMessageText}
-                      </p>
-                    )}
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      {conv.unreadCount > 0 && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />
+                      )}
+                      {conv.lastMessageText && (
+                        <p className={cn("text-xs truncate", conv.unreadCount > 0 ? "text-foreground font-medium" : "text-muted-foreground")}>
+                          {conv.lastMessageText}
+                        </p>
+                      )}
+                    </div>
                     {conv.matchStatus === "unmatched" && (
-                      <span className="text-[10px] text-amber-600 dark:text-amber-400">• unmatched</span>
+                      <span className="text-[10px] text-amber-500">unmatched</span>
                     )}
                   </div>
                 </button>

@@ -63,8 +63,11 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
         if (!participant) continue
 
         const participantLinkedin = participant.provider_url || participant.linkedin_url || null
-        const participantName = participant.display_name || participant.name || "Unknown"
-        const participantTitle = participant.headline || participant.title || null
+        // display_name from Unipile can include status/headline ("Name Status is offline Job @ Co")
+        // prefer `name` field; if only display_name, strip everything after "Status is"
+        const rawName = participant.name || participant.display_name || "Unknown"
+        const participantName = rawName.replace(/\s+Status is\s.*/i, "").trim()
+        const participantTitle = participant.headline || participant.occupation || participant.title || null
         const participantAvatar = participant.picture_url || participant.avatar || null
 
         // Try to match to an existing prospect
@@ -93,8 +96,37 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
           }
         }
 
-        // Upsert the conversation using a placeholder linkedinThreadId if none
-        const threadId = chat.id // Use Unipile chat ID as the thread identifier
+        const threadId = chat.id
+
+        // Check if an existing conversation already exists for this participant
+        // (could have been created by Chrome extension with a different threadId)
+        const existingByLinkedin = participantLinkedin
+          ? await prisma.linkedInConversation.findFirst({
+              where: { userId, participantLinkedin },
+            })
+          : null
+
+        // If found by LinkedIn URL but with a different threadId, update it rather than duplicate
+        if (existingByLinkedin && existingByLinkedin.linkedinThreadId !== threadId) {
+          await prisma.linkedInConversation.update({
+            where: { id: existingByLinkedin.id },
+            data: {
+              linkedinThreadId: threadId,
+              unipileThreadId: chat.id,
+              participantName,
+              participantTitle,
+              participantAvatar,
+              lastMessageText: chat.last_message?.text || existingByLinkedin.lastMessageText,
+              lastMessageAt: chat.last_message?.created_at ? new Date(chat.last_message.created_at) : existingByLinkedin.lastMessageAt,
+              unreadCount: chat.unread_count || 0,
+              ...(matchStatus === "auto_matched" ? { matchStatus, prospectId } : {}),
+            },
+          })
+          synced++
+          if (matchStatus === "auto_matched") matched++
+          else unmatched++
+          continue
+        }
 
         const conversation = await prisma.linkedInConversation.upsert({
           where: { userId_linkedinThreadId: { userId, linkedinThreadId: threadId } },
@@ -129,7 +161,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
         // Sync last 20 messages
         try {
           const msgRes = await getChatMessages(chat.id)
-          const messages = (msgRes.items || msgRes.messages || []).slice(0, 100)
+          const messages = (msgRes.items || msgRes.messages || []).slice(0, 20)
 
           for (const msg of messages) {
             const msgId = msg.id || null

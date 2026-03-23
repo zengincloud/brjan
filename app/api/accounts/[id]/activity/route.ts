@@ -82,10 +82,30 @@ export const GET = withAuth(async (request: NextRequest, userId: string, context
       },
     })
 
+    // Fetch LinkedIn campaign activity for account's prospects
+    const linkedInActivity = prospectIds.length > 0
+      ? await prisma.linkedInCampaignProspect.findMany({
+          where: { prospectId: { in: prospectIds } },
+          orderBy: { updatedAt: "desc" },
+          take: 30,
+          select: {
+            id: true,
+            name: true,
+            prospectId: true,
+            status: true,
+            inviteSentAt: true,
+            acceptedAt: true,
+            messageSentAt: true,
+            repliedAt: true,
+            campaign: { select: { name: true } },
+          },
+        })
+      : []
+
     // Merge into a unified activity timeline
     type ActivityItem = {
       id: string
-      type: "call" | "email"
+      type: "call" | "email" | "linkedin"
       contactName: string | null
       detail: string
       time: string
@@ -144,6 +164,47 @@ export const GET = withAuth(async (request: NextRequest, userId: string, context
         emailStatus: email.status,
         subject: email.subject,
       })
+    }
+
+    // LinkedIn activity events (one entry per milestone)
+    for (const li of linkedInActivity) {
+      const contactName = li.prospectId ? prospectNameMap.get(li.prospectId) || li.name : li.name
+      if (li.inviteSentAt) {
+        activity.push({
+          id: `li-invite-${li.id}`,
+          type: "linkedin",
+          contactName,
+          detail: `LinkedIn invite sent — ${li.campaign.name}`,
+          time: li.inviteSentAt.toISOString(),
+        })
+      }
+      if (li.acceptedAt) {
+        activity.push({
+          id: `li-accept-${li.id}`,
+          type: "linkedin",
+          contactName,
+          detail: `LinkedIn invite accepted — ${li.campaign.name}`,
+          time: li.acceptedAt.toISOString(),
+        })
+      }
+      if (li.messageSentAt) {
+        activity.push({
+          id: `li-msg-${li.id}`,
+          type: "linkedin",
+          contactName,
+          detail: `LinkedIn message sent — ${li.campaign.name}`,
+          time: li.messageSentAt.toISOString(),
+        })
+      }
+      if (li.repliedAt) {
+        activity.push({
+          id: `li-reply-${li.id}`,
+          type: "linkedin",
+          contactName,
+          detail: `LinkedIn reply received — ${li.campaign.name}`,
+          time: li.repliedAt.toISOString(),
+        })
+      }
     }
 
     // Sort by time descending

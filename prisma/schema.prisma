@@ -23,10 +23,11 @@ model User {
   workStartTime  String        @default("09:00")
   workEndTime    String        @default("17:00")
   workDays       String        @default("weekdays")
-  organizationId String?
-  organization   Organization? @relation(fields: [organizationId], references: [id])
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  organizationId   String?
+  organization     Organization? @relation(fields: [organizationId], references: [id])
+  unipileAccountId String?       // Unipile account ID after LinkedIn connect
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
 
   tasks            Task[]
   prospects        Prospect[]
@@ -42,6 +43,7 @@ model User {
   trackedEmails    TrackedEmail[]
   linkedInConversations LinkedInConversation[]
   linkedInPendingMessages LinkedInPendingMessage[]
+  linkedInCampaigns LinkedInCampaign[]
 
   @@index([organizationId])
   @@map("users")
@@ -175,6 +177,7 @@ model Prospect {
   prospectSequences ProspectSequence[]
   trackedEmails     TrackedEmail[]
   linkedInConversations LinkedInConversation[]
+  linkedInCampaignProspects LinkedInCampaignProspect[]
 
   @@unique([userId, email])
   @@index([userId])
@@ -589,21 +592,24 @@ model EmailClick {
 // ============================================
 
 model LinkedInConversation {
-  id                String   @id @default(cuid())
-  linkedinThreadId  String   // LinkedIn's internal thread/conversation ID
-  participantName   String
-  participantTitle  String?
-  participantAvatar String?
-  participantLinkedin String? // LinkedIn profile URL
-  lastMessageText   String?  @db.Text
-  lastMessageAt     DateTime?
-  unreadCount       Int      @default(0)
-  prospectId        String?
-  prospect          Prospect? @relation(fields: [prospectId], references: [id], onDelete: SetNull)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  userId            String
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                  String                  @id @default(cuid())
+  linkedinThreadId    String                  // LinkedIn's internal thread/conversation ID (extension)
+  unipileThreadId     String?                 // Unipile chat_id for sending via API
+  participantName     String
+  participantTitle    String?
+  participantAvatar   String?
+  participantLinkedin String?                 // LinkedIn profile URL
+  lastMessageText     String?                 @db.Text
+  lastMessageAt       DateTime?
+  unreadCount         Int                     @default(0)
+  matchStatus         ConversationMatchStatus @default(unmatched)
+  tags                String[]                @default([])
+  prospectId          String?
+  prospect            Prospect?               @relation(fields: [prospectId], references: [id], onDelete: SetNull)
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+  userId              String
+  user                User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   messages LinkedInMessage[]
 
@@ -662,4 +668,76 @@ enum LinkedInPendingStatus {
   sending
   sent
   failed
+}
+
+enum ConversationMatchStatus {
+  auto_matched
+  manually_matched
+  unmatched
+}
+
+enum LinkedInCampaignStatus {
+  draft
+  active
+  paused
+  completed
+}
+
+enum LinkedInCampaignProspectStatus {
+  pending
+  invited
+  accepted
+  messaged
+  replied
+  ignored
+  failed
+}
+
+// ============================================
+// LinkedIn Campaigns (Unipile-powered)
+// ============================================
+
+model LinkedInCampaign {
+  id                String                 @id @default(cuid())
+  userId            String
+  user              User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name              String
+  status            LinkedInCampaignStatus @default(draft)
+  searchFilters     Json                   // { keyword, title, company, industry, location, networkDegree }
+  inviteMessage     String?                @db.Text
+  followUpMessage   String?                @db.Text
+  followUpDelayDays Int                    @default(1)
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  prospects LinkedInCampaignProspect[]
+
+  @@index([userId])
+  @@map("linkedin_campaigns")
+}
+
+model LinkedInCampaignProspect {
+  id                String                          @id @default(cuid())
+  campaignId        String
+  campaign          LinkedInCampaign                @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  userId            String
+  linkedinProfileId String                          // Unipile provider_id
+  name              String
+  company           String?
+  title             String?
+  linkedinUrl       String?
+  prospectId        String?
+  prospect          Prospect?                       @relation(fields: [prospectId], references: [id], onDelete: SetNull)
+  status            LinkedInCampaignProspectStatus  @default(pending)
+  inviteSentAt      DateTime?
+  acceptedAt        DateTime?
+  messageSentAt     DateTime?
+  repliedAt         DateTime?
+  createdAt         DateTime                        @default(now())
+  updatedAt         DateTime                        @updatedAt
+
+  @@unique([campaignId, linkedinProfileId])
+  @@index([userId])
+  @@index([prospectId])
+  @@map("linkedin_campaign_prospects")
 }

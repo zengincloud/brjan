@@ -23,6 +23,9 @@ import {
   Zap,
   Shield,
   MessageSquareText,
+  Linkedin,
+  MessagesSquare,
+  Megaphone,
 } from "lucide-react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { useState } from "react"
@@ -33,6 +36,7 @@ import { useUser } from "@/hooks/use-user"
 
 export function Sidebar({ className }: { className?: string }) {
   const [isActivityOpen, setIsActivityOpen] = useState(false)
+  const [isLinkedInOpen, setIsLinkedInOpen] = useState(false)
   const { user, creditStatus, userRole } = useUser()
   const pathname = usePathname()
 
@@ -50,7 +54,7 @@ export function Sidebar({ className }: { className?: string }) {
   }
 
   return (
-    <div className={cn("bg-sidebar-background pt-4 px-4 flex flex-col gap-4", className)}>
+    <div className={cn("bg-sidebar-background pt-4 px-4 flex flex-col gap-4 h-full overflow-hidden", className)}>
       {/* Logo */}
       <div className="flex items-center gap-2 px-2 py-1">
         <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
@@ -63,7 +67,7 @@ export function Sidebar({ className }: { className?: string }) {
       </div>
 
       {/* Navigation */}
-      <div className="space-y-1">
+      <div className="space-y-1 overflow-y-auto flex-1 min-h-0">
         <Button
           variant="ghost"
           className={cn(
@@ -287,19 +291,72 @@ export function Sidebar({ className }: { className?: string }) {
           </Link>
         </Button>
 
-        <Button
-          variant="ghost"
-          className={cn(
-            "w-full justify-start transition-colors",
-            pathname === "/linkedin-templates" && "bg-accent/10 text-accent hover:bg-accent/15"
-          )}
-          asChild
-        >
-          <Link href="/linkedin-templates">
-            <MessageSquareText className="h-4 w-4 mr-3" />
-            LinkedIn Templates
-          </Link>
-        </Button>
+        <Collapsible open={isLinkedInOpen} onOpenChange={setIsLinkedInOpen}>
+          <CollapsibleTrigger asChild>
+            <Button
+              variant="ghost"
+              className={cn(
+                "w-full justify-start transition-colors",
+                pathname.startsWith("/linkedin") && "bg-accent/10 text-accent hover:bg-accent/15"
+              )}
+            >
+              <Linkedin className="h-4 w-4 mr-3" />
+              LinkedIn
+              <ChevronDown
+                className={cn(
+                  "h-3 w-3 ml-auto transition-transform",
+                  isLinkedInOpen && "rotate-180"
+                )}
+              />
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="ml-4 mt-1 space-y-1 border-l border-border pl-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  "w-full justify-start transition-colors text-sm",
+                  pathname === "/linkedin" && "bg-accent/10 text-accent hover:bg-accent/15"
+                )}
+                asChild
+              >
+                <Link href="/linkedin">
+                  <MessagesSquare className="h-3.5 w-3.5 mr-2.5" />
+                  All Conversations
+                </Link>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  "w-full justify-start transition-colors text-sm",
+                  pathname.startsWith("/linkedin/campaigns") && "bg-accent/10 text-accent hover:bg-accent/15"
+                )}
+                asChild
+              >
+                <Link href="/linkedin/campaigns">
+                  <Megaphone className="h-3.5 w-3.5 mr-2.5" />
+                  Campaigns
+                </Link>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  "w-full justify-start transition-colors text-sm",
+                  pathname === "/linkedin-templates" && "bg-accent/10 text-accent hover:bg-accent/15"
+                )}
+                asChild
+              >
+                <Link href="/linkedin-templates">
+                  <MessageSquareText className="h-3.5 w-3.5 mr-2.5" />
+                  Templates
+                </Link>
+              </Button>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
       </div>
 
       {/* Admin link */}

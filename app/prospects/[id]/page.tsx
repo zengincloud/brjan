@@ -26,6 +26,7 @@ import { CallProspectDialog } from "@/components/call-prospect-dialog"
 import { EditProspectDialog } from "@/components/edit-prospect-dialog"
 import { SendEmailDialog } from "@/components/send-email-dialog"
 import { CorrespondenceSummary } from "@/components/correspondence-summary"
+import { LinkedInProspectSection } from "@/components/linkedin-prospect-section"
 // ProspectPOV replaced with inline simplified view
 import { AddToSequenceDialog } from "@/components/add-to-sequence-dialog"
 import { CreateTaskDialog } from "@/components/create-task-dialog"
@@ -1055,6 +1056,9 @@ export default function ProspectDetailPage() {
           </Button>
         )}
       </div>
+
+      {/* LinkedIn Activity */}
+      <LinkedInProspectSection prospectId={prospect.id} key={`linkedin-${refreshKey}`} />
 
       {/* Call History */}
       <CallHistory prospectId={prospect.id} key={`calls-${refreshKey}`} />

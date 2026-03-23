@@ -79,7 +79,7 @@ type Contact = {
 
 type ActivityItem = {
   id: string
-  type: "call" | "email"
+  type: "call" | "email" | "linkedin"
   contactName: string | null
   detail: string
   time: string
@@ -474,6 +474,8 @@ export default function AccountDetailPage() {
                   <div className="flex items-center gap-2 w-40 shrink-0">
                     {item.type === "call" ? (
                       <Phone className="h-3.5 w-3.5 text-primary shrink-0" />
+                    ) : item.type === "linkedin" ? (
+                      <Linkedin className="h-3.5 w-3.5 text-[#0A66C2] shrink-0" />
                     ) : (
                       <Mail className="h-3.5 w-3.5 text-blue-500 shrink-0" />
                     )}
@@ -487,7 +489,7 @@ export default function AccountDetailPage() {
                         {item.detail.replace("Call — ", "")}
                       </Badge>
                     )}
-                    {item.type === "email" && (
+                    {(item.type === "email" || item.type === "linkedin") && (
                       <span className="text-sm text-muted-foreground truncate">{item.detail}</span>
                     )}
                     {item.type === "call" && item.duration != null && item.duration > 0 && (

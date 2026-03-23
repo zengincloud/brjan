@@ -2976,6 +2976,15 @@ export default function DialerPage() {
                           )}
                           <span className="text-xs text-muted-foreground">•</span>
                           <span className="text-xs text-muted-foreground">{slot.contact.title}</span>
+                          {slot.contact.priorCalls.length > 0 && (
+                            <>
+                              <span className="text-xs text-muted-foreground">•</span>
+                              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                <PhoneCall className="h-3 w-3" />
+                                {slot.contact.priorCalls.length} prior {slot.contact.priorCalls.length === 1 ? "call" : "calls"}
+                              </span>
+                            </>
+                          )}
                         </div>
                         <div className="flex items-center gap-2 mt-0.5">
                           <Building2 className="h-3 w-3 text-muted-foreground" />

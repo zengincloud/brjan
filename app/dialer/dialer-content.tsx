@@ -420,7 +420,8 @@ export default function DialerPage() {
   ]
 
   // Track the last sequence we fetched for so we only refetch on actual filter changes
-  const lastFetchedSequenceRef = useRef<string | null>(null)
+  // Initialize from persisted selectedSequence so navigating back doesn't re-fetch (which would reorder the queue and break currentProspectIndex)
+  const lastFetchedSequenceRef = useRef<string | null>(sessionActive && apiProspects.length > 0 ? selectedSequence : null)
 
   // Fetch prospects + sequences in parallel
   useEffect(() => {
@@ -500,23 +501,36 @@ export default function DialerPage() {
         device.on("registered", () => {
           console.log("Twilio Device registered")
           setDeviceReady(true)
-          setDeviceError(null)
+          // If recovering from an error, notify the user
+          setDeviceError(prev => {
+            if (prev) {
+              toast({
+                title: "Device reconnected",
+                description: "Calling device is ready. Press Resume to continue your session.",
+              })
+            }
+            return null
+          })
         })
 
         device.on("error", (error) => {
           console.error("Twilio Device error:", error)
-          // Don't set deviceError for transient connection errors (31005) - just show a toast
-          const isTransient = error.code === 31005 || error.message?.includes("connection")
-          if (!isTransient) {
-            setDeviceError(error.message || "Device error")
-          }
+          // Mark device as not ready so connectCall won't attempt new calls
+          setDeviceReady(false)
+          setDeviceError(error.message || "Device error")
+          // Pause the session to stop auto-advance from cascading failures
+          setSessionPaused(true)
           toast({
-            title: isTransient ? "Connection issue" : "Device Error",
-            description: isTransient
-              ? "Temporary connection drop. The dialer will reconnect automatically."
-              : (error.message || "Failed to initialize calling device"),
+            title: "Device Error",
+            description: "Calling device lost connection. Attempting to reconnect...",
             variant: "destructive",
           })
+          // Attempt to re-register the device
+          try {
+            device.register()
+          } catch (e) {
+            console.error("Failed to re-register device:", e)
+          }
         })
 
         await device.register()
@@ -1427,6 +1441,26 @@ export default function DialerPage() {
       activeCallRef.current = null
     }
 
+    // Save the call outcome if a call was actually made (so it shows in prior call history)
+    if (slot.callId) {
+      fetch(`/api/calls/${slot.callId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          outcome: "no_answer",
+          notes: slot.notes || "Skipped",
+          endedAt: new Date().toISOString(),
+        }),
+      }).catch(err => console.error("Error saving skipped call:", err))
+    }
+    if (slot.taskId) {
+      fetch(`/api/tasks/${slot.taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "done" }),
+      }).catch(err => console.error("Error completing task on skip:", err))
+    }
+
     // Use ref to always get fresh index (avoids stale closures from setTimeout chains)
     const freshIndex = currentProspectIndexRef.current
     const nextProspect = mockProspects[freshIndex + 1]
@@ -1701,7 +1735,12 @@ export default function DialerPage() {
         </div>
         <div className="flex items-center gap-2">
           {/* Device Status */}
-          {deviceError ? (
+          {deviceError && !deviceReady ? (
+            <Badge variant="destructive" className="flex items-center gap-1">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Reconnecting...
+            </Badge>
+          ) : deviceError && deviceReady ? (
             <Badge variant="destructive" className="flex items-center gap-1">
               <PhoneOff className="h-3 w-3" />
               Device Error

@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { ArrowLeft, Mail, Phone, Linkedin, MapPin, Building, Briefcase, Calendar, Globe, Pencil, Zap, X, ClipboardList, Clock, ExternalLink, UserMinus, Loader2, Star, Plus, Trash2, Check, Sparkles, StickyNote } from "lucide-react"
+import { ArrowLeft, Mail, Phone, Linkedin, MapPin, Building, Briefcase, Calendar, Globe, Pencil, Zap, X, ClipboardList, Clock, ExternalLink, UserMinus, Loader2, Star, Plus, Trash2, Check, Sparkles, StickyNote, Copy } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { formatDistanceToNow, format } from "date-fns"
 import { useUser } from "@/hooks/use-user"
@@ -628,6 +628,13 @@ export default function ProspectDetailPage() {
                               </Badge>
                             )}
                             <button
+                              onClick={() => navigator.clipboard.writeText(email)}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                              title="Copy email"
+                            >
+                              <Copy className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                            </button>
+                            <button
                               onClick={() => { setEditingEmail(email); setEditEmailValue(email) }}
                               className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
                               title="Edit email"
@@ -656,9 +663,18 @@ export default function ProspectDetailPage() {
                 <Phone className="h-5 w-5 text-muted-foreground" />
                 <div>
                   <p className="text-sm text-muted-foreground">Phone</p>
-                  <a href={`tel:${prospect.phone}`} className="text-sm font-medium hover:underline">
-                    {prospect.phone}
-                  </a>
+                  <div className="flex items-center gap-2 group">
+                    <a href={`tel:${prospect.phone}`} className="text-sm font-medium hover:underline">
+                      {prospect.phone}
+                    </a>
+                    <button
+                      onClick={() => navigator.clipboard.writeText(prospect.phone!)}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Copy phone"
+                    >
+                      <Copy className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

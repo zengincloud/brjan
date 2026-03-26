@@ -53,7 +53,7 @@ export function RecordingsList() {
     if (!recording.prospect?.email) return
     setDraftingEmail(true)
     try {
-      const res = await fetch(`/api/calls/${recording.id}/summarize`, { method: "POST" })
+      const res = await fetch(`/api/calls/${recording.id}/draft-email`, { method: "POST" })
       if (res.ok) {
         const data = await res.json()
         const to = encodeURIComponent(data.prospectEmail || recording.prospect.email)

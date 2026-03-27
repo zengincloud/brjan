@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { withAuth } from "@/lib/auth/api-middleware"
-import { formatDistanceToNow } from "date-fns"
+import { formatDistanceToNow, format } from "date-fns"
 
 export const dynamic = 'force-dynamic'
 
@@ -85,7 +85,7 @@ export const GET = withAuth(async (
     ])
 
     const priorCalls = calls.map((c: any) => ({
-      date: safeTimeAgo(c.createdAt),
+      date: safeFormatDate(c.createdAt),
       outcome: c.outcome || 'unknown',
       notes: c.notes || '',
       calledBy: c.user ? `${c.user.firstName || ''} ${c.user.lastName || ''}`.trim() : undefined,
@@ -141,6 +141,17 @@ export const GET = withAuth(async (
     )
   }
 })
+
+function safeFormatDate(date: Date | string | null | undefined): string {
+  if (!date) return 'Unknown'
+  try {
+    const d = typeof date === 'string' ? new Date(date) : date
+    if (isNaN(d.getTime())) return 'Unknown'
+    return format(d, 'MMM d, yyyy')
+  } catch {
+    return 'Unknown'
+  }
+}
 
 function safeTimeAgo(date: Date | string | null | undefined): string {
   if (!date) return 'Unknown'

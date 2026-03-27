@@ -3075,7 +3075,7 @@ export default function DialerPage() {
                           {slot.contact.priorCalls.length > 0 && (
                             <>
                               <span className="text-xs text-muted-foreground">•</span>
-                              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                              <span className="text-xs font-medium text-amber-600 dark:text-amber-400 flex items-center gap-1">
                                 <PhoneCall className="h-3 w-3" />
                                 {slot.contact.priorCalls.length} prior {slot.contact.priorCalls.length === 1 ? "call" : "calls"}
                               </span>
@@ -3097,6 +3097,22 @@ export default function DialerPage() {
                             </>
                           )}
                         </div>
+
+                        {/* Prior call log — always visible */}
+                        {slot.contact.priorCalls.length > 0 && (
+                          <div className="mt-1 space-y-0.5">
+                            {slot.contact.priorCalls.slice(0, 3).map((call, idx) => (
+                              <div key={idx} className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                                <span className="shrink-0 font-medium text-foreground/70">{call.date}:</span>
+                                {call.calledBy && <span className="shrink-0">{call.calledBy}:</span>}
+                                <span className="truncate">{call.notes || call.outcome}</span>
+                              </div>
+                            ))}
+                            {slot.contact.priorCalls.length > 3 && (
+                              <span className="text-[10px] text-muted-foreground">+{slot.contact.priorCalls.length - 3} more</span>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       {/* Phone */}

@@ -194,8 +194,53 @@ export type LinkedInSearchFilters = {
  * Respects whatever LinkedIn subscription the connected account has.
  */
 export async function searchLinkedIn(accountId: string, filters: LinkedInSearchFilters, page = 0) {
+  // Build body per Unipile's schema:
+  // - api: required, "classic" or "sales_navigator"
+  // - company/industry/location/school: arrays of numeric LinkedIn IDs (need lookup)
+  // - text-based searches go in advanced_keywords
+  // - network_distance: array of numbers [1,2,3]
   const body: any = {
-    account_id: accountId,
+    api: 'classic',
+    category: 'people',
+    page,
+  }
+
+  // Free text keyword search
+  if (filters.keyword) body.keywords = filters.keyword
+
+  // Text-based filters go in advanced_keywords (no ID lookup needed)
+  const advancedKeywords: any = {}
+  if (filters.title) advancedKeywords.title = filters.title
+  if (filters.company) advancedKeywords.company = filters.company
+  if (filters.firstName) advancedKeywords.first_name = filters.firstName
+  if (filters.lastName) advancedKeywords.last_name = filters.lastName
+  if (filters.school) advancedKeywords.school = filters.school
+  if (Object.keys(advancedKeywords).length > 0) body.advanced_keywords = advancedKeywords
+
+  // Network distance: Unipile expects numbers [1, 2, 3]
+  if (filters.networkDegree?.length) {
+    const degreeMap: Record<string, number> = { 'F': 1, 'S': 2, 'O': 3 }
+    body.network_distance = filters.networkDegree.map(d => degreeMap[d]).filter(Boolean)
+  }
+
+  // Profile language: array of ISO 639-1 codes
+  if (filters.profileLanguage) body.profile_language = [filters.profileLanguage]
+
+  const params = new URLSearchParams({ account_id: accountId })
+  return unipileFetch(`/linkedin/search?${params}`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+/**
+ * Search LinkedIn using Sales Navigator API.
+ * Requires the connected LinkedIn account to have a Sales Nav subscription.
+ * Supports more filters than classic search.
+ */
+export async function searchLinkedInSalesNav(accountId: string, filters: LinkedInSearchFilters, page = 0) {
+  const body: any = {
+    api: 'sales_navigator',
     category: 'people',
     page,
   }
@@ -208,7 +253,6 @@ export async function searchLinkedIn(accountId: string, filters: LinkedInSearchF
   if (filters.industry) body.industry = { included: [filters.industry] }
   if (filters.location) body.location = filters.location
   if (filters.companyHeadquarters) body.company_headquarters = filters.companyHeadquarters
-  if (filters.networkDegree?.length) body.network = filters.networkDegree
   if (filters.seniorityLevel?.length) body.seniority_level = filters.seniorityLevel
   if (filters.companySize?.length) body.company_size = filters.companySize
   if (filters.companyType) body.company_type = filters.companyType
@@ -222,34 +266,7 @@ export async function searchLinkedIn(accountId: string, filters: LinkedInSearchF
   if (filters.school) body.school = filters.school
   if (filters.changedJobs) body.changed_jobs = true
   if (filters.postedOnLinkedin) body.posted_on_linkedin = true
-
-  // Pass account_id as query param (required by Unipile) AND in body
-  const params = new URLSearchParams({ account_id: accountId })
-  return unipileFetch(`/linkedin/search?${params}`, {
-    method: 'POST',
-    body: JSON.stringify(body),
-  })
-}
-
-/**
- * Fallback: search LinkedIn using classic (non-Sales Navigator) API.
- * Supports fewer filters but works without a Sales Nav subscription.
- */
-export async function searchLinkedInClassic(accountId: string, filters: LinkedInSearchFilters, page = 0) {
-  const body: any = {
-    account_id: accountId,
-    category: 'people',
-    page,
-  }
-
-  if (filters.keyword) body.keywords = filters.keyword
-  if (filters.title) body.title = { included: [filters.title] }
-  if (filters.company) body.company = { included: [filters.company] }
-  if (filters.industry) body.industry = { included: [filters.industry] }
-  if (filters.location) body.location = filters.location
   if (filters.networkDegree?.length) body.network = filters.networkDegree
-  if (filters.seniorityLevel?.length) body.seniority_level = filters.seniorityLevel
-  if (filters.companySize?.length) body.company_size = filters.companySize
 
   const params = new URLSearchParams({ account_id: accountId })
   return unipileFetch(`/linkedin/search?${params}`, {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { withAuth } from "@/lib/auth/api-middleware"
 import { prisma } from "@/lib/prisma"
-import { searchLinkedIn } from "@/lib/unipile"
+import { searchLinkedInSalesNav, searchLinkedIn } from "@/lib/unipile"
 
 export const dynamic = 'force-dynamic'
 
@@ -22,12 +22,12 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
 
     let results
     try {
-      results = await searchLinkedIn(accountId, filters || {}, page)
+      // Try Sales Navigator first (more filters)
+      results = await searchLinkedInSalesNav(accountId, filters || {}, page)
     } catch (err: any) {
-      // If Sales Navigator fails, retry with classic LinkedIn
-      console.warn("[LinkedIn Search API] Sales Nav search failed, trying classic:", err.message)
-      const { searchLinkedInClassic } = await import("@/lib/unipile")
-      results = await searchLinkedInClassic(accountId, filters || {}, page)
+      // Fall back to classic LinkedIn search
+      console.warn("[LinkedIn Search API] Sales Nav failed, trying classic:", err.message)
+      results = await searchLinkedIn(accountId, filters || {}, page)
     }
 
     console.log("[LinkedIn Search API] results count:", results?.items?.length || 0)

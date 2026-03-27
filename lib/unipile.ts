@@ -223,7 +223,9 @@ export async function searchLinkedIn(accountId: string, filters: LinkedInSearchF
   if (filters.changedJobs) body.changed_jobs = true
   if (filters.postedOnLinkedin) body.posted_on_linkedin = true
 
-  return unipileFetch('/linkedin/search', {
+  // Pass account_id as query param (required by Unipile) AND in body
+  const params = new URLSearchParams({ account_id: accountId })
+  return unipileFetch(`/linkedin/search?${params}`, {
     method: 'POST',
     body: JSON.stringify(body),
   })
@@ -249,7 +251,8 @@ export async function searchLinkedInClassic(accountId: string, filters: LinkedIn
   if (filters.seniorityLevel?.length) body.seniority_level = filters.seniorityLevel
   if (filters.companySize?.length) body.company_size = filters.companySize
 
-  return unipileFetch('/linkedin/search', {
+  const params = new URLSearchParams({ account_id: accountId })
+  return unipileFetch(`/linkedin/search?${params}`, {
     method: 'POST',
     body: JSON.stringify(body),
   })

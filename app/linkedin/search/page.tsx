@@ -281,7 +281,7 @@ export default function LinkedInSearchPage() {
         body: JSON.stringify({ filters, page: searchPage }),
       })
       const data = await res.json()
-      console.log("[LinkedIn Search] response:", res.status, data)
+      console.log("[LinkedIn Search] response:", res.status, JSON.stringify(data, null, 2))
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
       const items = data.results?.items || []
       setResults(items)

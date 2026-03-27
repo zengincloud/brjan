@@ -7,7 +7,9 @@ const BASE_URL = process.env.UNIPILE_BASE_URL!
 const API_KEY = process.env.UNIPILE_API_KEY!
 
 async function unipileFetch(path: string, options: RequestInit = {}) {
-  const res = await fetch(`${BASE_URL}/api/v1${path}`, {
+  const url = `${BASE_URL}/api/v1${path}`
+  console.log(`[Unipile] ${options.method || 'GET'} ${url}`, options.body ? `body: ${options.body}` : '')
+  const res = await fetch(url, {
     ...options,
     headers: {
       'X-API-KEY': API_KEY,
@@ -19,6 +21,7 @@ async function unipileFetch(path: string, options: RequestInit = {}) {
 
   if (!res.ok) {
     const body = await res.text()
+    console.error(`[Unipile] ${options.method || 'GET'} ${path} → ${res.status}:`, body)
     throw new Error(`Unipile ${options.method || 'GET'} ${path} → ${res.status}: ${body}`)
   }
 

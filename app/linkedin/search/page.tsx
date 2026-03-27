@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -98,6 +98,37 @@ const COMPANY_TYPE_OPTIONS = [
   { value: "self_employed", label: "Self-employed" },
 ]
 
+const GEOGRAPHY_OPTIONS = [
+  { value: "United States", label: "United States" },
+  { value: "Canada", label: "Canada" },
+  { value: "United Kingdom", label: "United Kingdom" },
+  { value: "Australia", label: "Australia" },
+  { value: "Germany", label: "Germany" },
+  { value: "France", label: "France" },
+  { value: "India", label: "India" },
+  { value: "Singapore", label: "Singapore" },
+  { value: "United Arab Emirates", label: "UAE" },
+  { value: "Israel", label: "Israel" },
+  { value: "Netherlands", label: "Netherlands" },
+  { value: "Ireland", label: "Ireland" },
+  { value: "Sweden", label: "Sweden" },
+  { value: "Switzerland", label: "Switzerland" },
+  { value: "New York", label: "New York" },
+  { value: "San Francisco Bay Area", label: "SF Bay Area" },
+  { value: "Los Angeles", label: "Los Angeles" },
+  { value: "Chicago", label: "Chicago" },
+  { value: "Boston", label: "Boston" },
+  { value: "Austin", label: "Austin" },
+  { value: "Seattle", label: "Seattle" },
+  { value: "Miami", label: "Miami" },
+  { value: "Dallas", label: "Dallas" },
+  { value: "Denver", label: "Denver" },
+  { value: "Atlanta", label: "Atlanta" },
+  { value: "Toronto", label: "Toronto" },
+  { value: "Vancouver", label: "Vancouver" },
+  { value: "London", label: "London" },
+]
+
 const YEARS_OPTIONS = [
   { value: "any", label: "Any" },
   { value: "1", label: "1" },
@@ -129,7 +160,8 @@ export default function LinkedInSearchPage() {
   const [yearsInPositionMax, setYearsInPositionMax] = useState("")
 
   // Personal filters
-  const [geography, setGeography] = useState("")
+  const [geography, setGeography] = useState<string[]>([])
+  const [geographySearch, setGeographySearch] = useState("")
   const [industry, setIndustry] = useState("")
   const [firstName, setFirstName] = useState("")
   const [lastName, setLastName] = useState("")
@@ -168,6 +200,24 @@ export default function LinkedInSearchPage() {
   const [pathOpen, setPathOpen] = useState(false)
   const [updatesOpen, setUpdatesOpen] = useState(false)
 
+  // Auto-search: debounce filter changes and re-search automatically
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const hasSearchedOnce = useRef(false)
+
+  const triggerAutoSearch = useCallback(() => {
+    if (!hasSearchedOnce.current) return // Don't auto-search until first manual search
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current)
+    searchTimeoutRef.current = setTimeout(() => {
+      handleSearchRef.current(0)
+    }, 600)
+  }, [])
+
+  // Watch all filter values for changes
+  useEffect(() => {
+    triggerAutoSearch()
+    return () => { if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current) }
+  }, [keywords, currentCompany, companyHeadcount, pastCompany, companyType, companyHqLocation, functionFilter, currentJobTitle, seniorityLevel, pastJobTitle, yearsInCompanyMin, yearsInCompanyMax, yearsInPositionMin, yearsInPositionMax, geography, industry, firstName, lastName, profileLanguage, yearsOfExperienceMin, yearsOfExperienceMax, school, networkDegree, changedJobs, postedOnLinkedin, triggerAutoSearch])
+
   const buildFilters = useCallback(() => {
     const filters: any = {}
     if (keywords) filters.keyword = keywords
@@ -196,7 +246,7 @@ export default function LinkedInSearchPage() {
         ...(ypMax && { max: parseInt(ypMax) }),
       }
     }
-    if (geography) filters.location = geography
+    if (geography.length) filters.location = geography.join(", ")
     if (industry) filters.industry = industry
     if (firstName) filters.firstName = firstName
     if (lastName) filters.lastName = lastName
@@ -216,8 +266,9 @@ export default function LinkedInSearchPage() {
     return filters
   }, [keywords, currentCompany, companyHeadcount, pastCompany, companyType, companyHqLocation, functionFilter, currentJobTitle, seniorityLevel, pastJobTitle, yearsInCompanyMin, yearsInCompanyMax, yearsInPositionMin, yearsInPositionMax, geography, industry, firstName, lastName, profileLanguage, yearsOfExperienceMin, yearsOfExperienceMax, school, networkDegree, changedJobs, postedOnLinkedin])
 
-  const handleSearch = async (searchPage = 0) => {
+  const handleSearch = useCallback(async (searchPage = 0) => {
     setSearching(true)
+    hasSearchedOnce.current = true
     const filters = buildFilters()
     console.log("[LinkedIn Search] filters:", filters, "page:", searchPage)
     try {
@@ -244,7 +295,11 @@ export default function LinkedInSearchPage() {
     } finally {
       setSearching(false)
     }
-  }
+  }, [buildFilters, toast])
+
+  // Keep a ref so the auto-search timeout always calls the latest version
+  const handleSearchRef = useRef(handleSearch)
+  handleSearchRef.current = handleSearch
 
   const toggleSelect = (id: string) => {
     setSelectedIds(prev => {
@@ -341,7 +396,7 @@ export default function LinkedInSearchPage() {
     setKeywords(""); setCurrentCompany(""); setCompanyHeadcount([]); setPastCompany("")
     setCompanyType("any"); setCompanyHqLocation(""); setFunctionFilter(""); setCurrentJobTitle("")
     setSeniorityLevel([]); setPastJobTitle(""); setYearsInCompanyMin(""); setYearsInCompanyMax("")
-    setYearsInPositionMin(""); setYearsInPositionMax(""); setGeography(""); setIndustry("")
+    setYearsInPositionMin(""); setYearsInPositionMax(""); setGeography([]); setGeographySearch(""); setIndustry("")
     setFirstName(""); setLastName(""); setProfileLanguage(""); setYearsOfExperienceMin("")
     setYearsOfExperienceMax(""); setSchool(""); setNetworkDegree([]); setChangedJobs(false)
     setPostedOnLinkedin(false)
@@ -351,7 +406,7 @@ export default function LinkedInSearchPage() {
     keywords, currentCompany, companyHeadcount.length, pastCompany, companyType !== "any" && companyType, companyHqLocation,
     functionFilter, currentJobTitle, seniorityLevel.length, pastJobTitle,
     yearsInCompanyMin, yearsInCompanyMax, yearsInPositionMin, yearsInPositionMax,
-    geography, industry, firstName, lastName, profileLanguage,
+    geography.length, industry, firstName, lastName, profileLanguage,
     yearsOfExperienceMin, yearsOfExperienceMax, school, networkDegree.length,
     changedJobs, postedOnLinkedin,
   ].filter(Boolean).length
@@ -526,7 +581,40 @@ export default function LinkedInSearchPage() {
           <CollapsibleContent className="space-y-3 pb-3">
             <div>
               <Label className="text-xs">Geography</Label>
-              <Input placeholder="e.g. Toronto, ON" value={geography} onChange={e => setGeography(e.target.value)} className="h-8 text-sm mt-1" />
+              {geography.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1 mb-1.5">
+                  {geography.map(g => (
+                    <Badge key={g} variant="secondary" className="text-xs h-5 gap-1 pr-1">
+                      {GEOGRAPHY_OPTIONS.find(o => o.value === g)?.label || g}
+                      <button onClick={() => setGeography(prev => prev.filter(v => v !== g))} className="hover:text-destructive">
+                        <X className="h-2.5 w-2.5" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              <Input
+                placeholder="Search countries & cities..."
+                value={geographySearch}
+                onChange={e => setGeographySearch(e.target.value)}
+                className="h-8 text-sm mt-1"
+              />
+              {geographySearch && (
+                <div className="border rounded mt-1 max-h-32 overflow-y-auto bg-background shadow-sm">
+                  {GEOGRAPHY_OPTIONS
+                    .filter(opt => !geography.includes(opt.value) && (opt.label.toLowerCase().includes(geographySearch.toLowerCase()) || opt.value.toLowerCase().includes(geographySearch.toLowerCase())))
+                    .map(opt => (
+                      <button
+                        key={opt.value}
+                        onClick={() => { setGeography(prev => [...prev, opt.value]); setGeographySearch("") }}
+                        className="w-full text-left px-2 py-1.5 text-xs hover:bg-muted transition-colors"
+                      >
+                        {opt.label}
+                      </button>
+                    ))
+                  }
+                </div>
+              )}
             </div>
             <div>
               <Label className="text-xs">Industry</Label>

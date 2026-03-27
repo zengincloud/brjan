@@ -202,14 +202,18 @@ export default function LinkedInSearchPage() {
 
   // Auto-search: debounce filter changes and re-search automatically
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const hasSearchedOnce = useRef(false)
+  const isFirstRender = useRef(true)
 
   const triggerAutoSearch = useCallback(() => {
-    if (!hasSearchedOnce.current) return // Don't auto-search until first manual search
+    // Skip the initial mount render
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return
+    }
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current)
     searchTimeoutRef.current = setTimeout(() => {
       handleSearchRef.current(0)
-    }, 600)
+    }, 800)
   }, [])
 
   // Watch all filter values for changes
@@ -268,7 +272,6 @@ export default function LinkedInSearchPage() {
 
   const handleSearch = useCallback(async (searchPage = 0) => {
     setSearching(true)
-    hasSearchedOnce.current = true
     const filters = buildFilters()
     console.log("[LinkedIn Search] filters:", filters, "page:", searchPage)
     try {
@@ -454,7 +457,7 @@ export default function LinkedInSearchPage() {
               <Input placeholder="e.g. Salesforce" value={currentCompany} onChange={e => setCurrentCompany(e.target.value)} className="h-8 text-sm mt-1" />
             </div>
             <div>
-              <Label className="text-xs">Company headcount</Label>
+              <Label className="text-xs">Company headcount <span className="text-muted-foreground font-normal">(Sales Nav)</span></Label>
               <div className="flex flex-wrap gap-1.5 mt-1">
                 {COMPANY_SIZE_OPTIONS.map(opt => (
                   <button

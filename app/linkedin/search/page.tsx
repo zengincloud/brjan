@@ -218,21 +218,28 @@ export default function LinkedInSearchPage() {
 
   const handleSearch = async (searchPage = 0) => {
     setSearching(true)
+    const filters = buildFilters()
+    console.log("[LinkedIn Search] filters:", filters, "page:", searchPage)
     try {
       const res = await fetch("/api/linkedin/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filters: buildFilters(), page: searchPage }),
+        body: JSON.stringify({ filters, page: searchPage }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
+      console.log("[LinkedIn Search] response:", res.status, data)
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
       const items = data.results?.items || []
       setResults(items)
       setTotalResults(data.results?.total || items.length)
       setPage(searchPage)
       setHasSearched(true)
       if (searchPage === 0) setSelectedIds(new Set())
+      if (items.length === 0) {
+        toast({ title: "No results", description: "Try broadening your filters." })
+      }
     } catch (err: any) {
+      console.error("[LinkedIn Search] error:", err)
       toast({ title: "Search failed", description: err.message, variant: "destructive" })
     } finally {
       setSearching(false)

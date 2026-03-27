@@ -227,6 +227,32 @@ export async function searchLinkedIn(accountId: string, filters: LinkedInSearchF
   })
 }
 
+/**
+ * Fallback: search LinkedIn using classic (non-Sales Navigator) API.
+ * Supports fewer filters but works without a Sales Nav subscription.
+ */
+export async function searchLinkedInClassic(accountId: string, filters: LinkedInSearchFilters, page = 0) {
+  const body: any = {
+    account_id: accountId,
+    category: 'people',
+    page,
+  }
+
+  if (filters.keyword) body.keywords = filters.keyword
+  if (filters.title) body.title = { included: [filters.title] }
+  if (filters.company) body.company = { included: [filters.company] }
+  if (filters.industry) body.industry = { included: [filters.industry] }
+  if (filters.location) body.location = filters.location
+  if (filters.networkDegree?.length) body.network = filters.networkDegree
+  if (filters.seniorityLevel?.length) body.seniority_level = filters.seniorityLevel
+  if (filters.companySize?.length) body.company_size = filters.companySize
+
+  return unipileFetch('/linkedin/search', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /**

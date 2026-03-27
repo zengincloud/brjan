@@ -17,8 +17,19 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
     }
 
     const { filters, page = 0 } = await request.json()
-    const results = await searchLinkedIn(user.unipileAccountId, filters || {}, page)
+    console.log("[LinkedIn Search API] filters:", JSON.stringify(filters), "page:", page, "accountId:", user.unipileAccountId)
 
+    let results
+    try {
+      results = await searchLinkedIn(user.unipileAccountId, filters || {}, page)
+    } catch (err: any) {
+      // If Sales Navigator fails, retry with classic LinkedIn
+      console.warn("[LinkedIn Search API] Sales Nav search failed, trying classic:", err.message)
+      const { searchLinkedInClassic } = await import("@/lib/unipile")
+      results = await searchLinkedInClassic(user.unipileAccountId, filters || {}, page)
+    }
+
+    console.log("[LinkedIn Search API] results count:", results?.items?.length || 0)
     return NextResponse.json({ results })
   } catch (error: any) {
     console.error("LinkedIn search error:", error)

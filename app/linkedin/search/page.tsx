@@ -272,6 +272,7 @@ export default function LinkedInSearchPage() {
 
   const handleSearch = useCallback(async (searchPage = 0) => {
     setSearching(true)
+    setResults([]) // Clear stale results immediately
     const filters = buildFilters()
     console.log("[LinkedIn Search] filters:", filters, "page:", searchPage)
     try {

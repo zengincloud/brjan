@@ -205,8 +205,13 @@ export async function searchLinkedIn(accountId: string, filters: LinkedInSearchF
     page,
   }
 
-  // Free text keyword search
-  if (filters.keyword) body.keywords = filters.keyword
+  // Build combined keywords: explicit keywords + location + industry
+  // (location and industry need numeric IDs for dedicated fields, so we fold text into keywords)
+  const keywordParts: string[] = []
+  if (filters.keyword) keywordParts.push(filters.keyword)
+  if (filters.location) keywordParts.push(filters.location)
+  if (filters.industry) keywordParts.push(filters.industry)
+  if (keywordParts.length) body.keywords = keywordParts.join(' ')
 
   // Text-based filters go in advanced_keywords (no ID lookup needed)
   const advancedKeywords: any = {}

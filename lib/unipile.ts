@@ -223,6 +223,22 @@ export async function searchLinkedIn(accountId: string, filters: LinkedInSearchF
     body.network_distance = filters.networkDegree.map(d => degreeMap[d]).filter(Boolean)
   }
 
+  // Company headcount: map letter codes to {min, max} objects per Unipile schema
+  if (filters.companySize?.length) {
+    const sizeMap: Record<string, { min: number; max?: number }> = {
+      'A': { min: 1, max: 1 },
+      'B': { min: 1, max: 10 },
+      'C': { min: 11, max: 50 },
+      'D': { min: 51, max: 200 },
+      'E': { min: 201, max: 500 },
+      'F': { min: 501, max: 1000 },
+      'G': { min: 1001, max: 5000 },
+      'H': { min: 5001, max: 10000 },
+      'I': { min: 10001 },
+    }
+    body.headcount = filters.companySize.map(s => sizeMap[s]).filter(Boolean)
+  }
+
   // Profile language: array of ISO 639-1 codes
   if (filters.profileLanguage) body.profile_language = [filters.profileLanguage]
 

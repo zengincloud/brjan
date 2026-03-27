@@ -193,7 +193,6 @@ export type LinkedInSearchFilters = {
 export async function searchLinkedIn(accountId: string, filters: LinkedInSearchFilters, page = 0) {
   const body: any = {
     account_id: accountId,
-    api: 'sales_navigator',
     category: 'people',
     page,
   }

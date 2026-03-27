@@ -164,12 +164,26 @@ export async function getSentInvitations(accountId: string) {
 export type LinkedInSearchFilters = {
   keyword?: string
   title?: string
+  pastTitle?: string
   company?: string
+  pastCompany?: string
   industry?: string
   location?: string
+  companyHeadquarters?: string
   networkDegree?: ('F' | 'S' | 'O')[] // First, Second, Out-of-network
   seniorityLevel?: string[]
   companySize?: string[]
+  companyType?: string
+  function?: string
+  yearsInCurrentCompany?: { min?: number; max?: number }
+  yearsInCurrentPosition?: { min?: number; max?: number }
+  yearsOfExperience?: { min?: number; max?: number }
+  firstName?: string
+  lastName?: string
+  profileLanguage?: string
+  school?: string
+  changedJobs?: boolean
+  postedOnLinkedin?: boolean
 }
 
 /**
@@ -179,18 +193,33 @@ export type LinkedInSearchFilters = {
 export async function searchLinkedIn(accountId: string, filters: LinkedInSearchFilters, page = 0) {
   const body: any = {
     account_id: accountId,
+    api: 'sales_navigator',
     category: 'people',
     page,
   }
 
   if (filters.keyword) body.keywords = filters.keyword
   if (filters.title) body.title = { included: [filters.title] }
+  if (filters.pastTitle) body.past_title = { included: [filters.pastTitle] }
   if (filters.company) body.company = { included: [filters.company] }
+  if (filters.pastCompany) body.past_company = { included: [filters.pastCompany] }
   if (filters.industry) body.industry = { included: [filters.industry] }
   if (filters.location) body.location = filters.location
+  if (filters.companyHeadquarters) body.company_headquarters = filters.companyHeadquarters
   if (filters.networkDegree?.length) body.network = filters.networkDegree
   if (filters.seniorityLevel?.length) body.seniority_level = filters.seniorityLevel
   if (filters.companySize?.length) body.company_size = filters.companySize
+  if (filters.companyType) body.company_type = filters.companyType
+  if (filters.function) body.function = filters.function
+  if (filters.yearsInCurrentCompany) body.tenure = filters.yearsInCurrentCompany
+  if (filters.yearsInCurrentPosition) body.years_in_position = filters.yearsInCurrentPosition
+  if (filters.yearsOfExperience) body.years_of_experience = filters.yearsOfExperience
+  if (filters.firstName) body.first_name = filters.firstName
+  if (filters.lastName) body.last_name = filters.lastName
+  if (filters.profileLanguage) body.profile_language = filters.profileLanguage
+  if (filters.school) body.school = filters.school
+  if (filters.changedJobs) body.changed_jobs = true
+  if (filters.postedOnLinkedin) body.posted_on_linkedin = true
 
   return unipileFetch('/linkedin/search', {
     method: 'POST',

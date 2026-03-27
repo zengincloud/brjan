@@ -317,6 +317,20 @@ export function Sidebar({ className }: { className?: string }) {
                 size="sm"
                 className={cn(
                   "w-full justify-start transition-colors text-sm",
+                  pathname === "/linkedin/search" && "bg-accent/10 text-accent hover:bg-accent/15"
+                )}
+                asChild
+              >
+                <Link href="/linkedin/search">
+                  <Search className="h-3.5 w-3.5 mr-2.5" />
+                  Search
+                </Link>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  "w-full justify-start transition-colors text-sm",
                   pathname === "/linkedin" && "bg-accent/10 text-accent hover:bg-accent/15"
                 )}
                 asChild

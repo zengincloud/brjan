@@ -99,7 +99,7 @@ const COMPANY_TYPE_OPTIONS = [
 ]
 
 const YEARS_OPTIONS = [
-  { value: "", label: "Any" },
+  { value: "any", label: "Any" },
   { value: "1", label: "1" },
   { value: "2", label: "2" },
   { value: "3", label: "3" },
@@ -115,7 +115,7 @@ export default function LinkedInSearchPage() {
   const [currentCompany, setCurrentCompany] = useState("")
   const [companyHeadcount, setCompanyHeadcount] = useState<string[]>([])
   const [pastCompany, setPastCompany] = useState("")
-  const [companyType, setCompanyType] = useState("")
+  const [companyType, setCompanyType] = useState("any")
   const [companyHqLocation, setCompanyHqLocation] = useState("")
 
   // Role filters
@@ -174,22 +174,26 @@ export default function LinkedInSearchPage() {
     if (currentCompany) filters.company = currentCompany
     if (companyHeadcount.length) filters.companySize = companyHeadcount
     if (pastCompany) filters.pastCompany = pastCompany
-    if (companyType) filters.companyType = companyType
+    if (companyType && companyType !== "any") filters.companyType = companyType
     if (companyHqLocation) filters.companyHeadquarters = companyHqLocation
     if (functionFilter) filters.function = functionFilter
     if (currentJobTitle) filters.title = currentJobTitle
     if (seniorityLevel.length) filters.seniorityLevel = seniorityLevel
     if (pastJobTitle) filters.pastTitle = pastJobTitle
-    if (yearsInCompanyMin || yearsInCompanyMax) {
+    const ycMin = yearsInCompanyMin && yearsInCompanyMin !== "any" ? yearsInCompanyMin : ""
+    const ycMax = yearsInCompanyMax && yearsInCompanyMax !== "any" ? yearsInCompanyMax : ""
+    if (ycMin || ycMax) {
       filters.yearsInCurrentCompany = {
-        ...(yearsInCompanyMin && { min: parseInt(yearsInCompanyMin) }),
-        ...(yearsInCompanyMax && { max: parseInt(yearsInCompanyMax) }),
+        ...(ycMin && { min: parseInt(ycMin) }),
+        ...(ycMax && { max: parseInt(ycMax) }),
       }
     }
-    if (yearsInPositionMin || yearsInPositionMax) {
+    const ypMin = yearsInPositionMin && yearsInPositionMin !== "any" ? yearsInPositionMin : ""
+    const ypMax = yearsInPositionMax && yearsInPositionMax !== "any" ? yearsInPositionMax : ""
+    if (ypMin || ypMax) {
       filters.yearsInCurrentPosition = {
-        ...(yearsInPositionMin && { min: parseInt(yearsInPositionMin) }),
-        ...(yearsInPositionMax && { max: parseInt(yearsInPositionMax) }),
+        ...(ypMin && { min: parseInt(ypMin) }),
+        ...(ypMax && { max: parseInt(ypMax) }),
       }
     }
     if (geography) filters.location = geography
@@ -197,10 +201,12 @@ export default function LinkedInSearchPage() {
     if (firstName) filters.firstName = firstName
     if (lastName) filters.lastName = lastName
     if (profileLanguage) filters.profileLanguage = profileLanguage
-    if (yearsOfExperienceMin || yearsOfExperienceMax) {
+    const yeMin = yearsOfExperienceMin && yearsOfExperienceMin !== "any" ? yearsOfExperienceMin : ""
+    const yeMax = yearsOfExperienceMax && yearsOfExperienceMax !== "any" ? yearsOfExperienceMax : ""
+    if (yeMin || yeMax) {
       filters.yearsOfExperience = {
-        ...(yearsOfExperienceMin && { min: parseInt(yearsOfExperienceMin) }),
-        ...(yearsOfExperienceMax && { max: parseInt(yearsOfExperienceMax) }),
+        ...(yeMin && { min: parseInt(yeMin) }),
+        ...(yeMax && { max: parseInt(yeMax) }),
       }
     }
     if (school) filters.school = school
@@ -326,7 +332,7 @@ export default function LinkedInSearchPage() {
 
   const clearFilters = () => {
     setKeywords(""); setCurrentCompany(""); setCompanyHeadcount([]); setPastCompany("")
-    setCompanyType(""); setCompanyHqLocation(""); setFunctionFilter(""); setCurrentJobTitle("")
+    setCompanyType("any"); setCompanyHqLocation(""); setFunctionFilter(""); setCurrentJobTitle("")
     setSeniorityLevel([]); setPastJobTitle(""); setYearsInCompanyMin(""); setYearsInCompanyMax("")
     setYearsInPositionMin(""); setYearsInPositionMax(""); setGeography(""); setIndustry("")
     setFirstName(""); setLastName(""); setProfileLanguage(""); setYearsOfExperienceMin("")
@@ -335,7 +341,7 @@ export default function LinkedInSearchPage() {
   }
 
   const activeFilterCount = [
-    keywords, currentCompany, companyHeadcount.length, pastCompany, companyType, companyHqLocation,
+    keywords, currentCompany, companyHeadcount.length, pastCompany, companyType !== "any" && companyType, companyHqLocation,
     functionFilter, currentJobTitle, seniorityLevel.length, pastJobTitle,
     yearsInCompanyMin, yearsInCompanyMax, yearsInPositionMin, yearsInPositionMax,
     geography, industry, firstName, lastName, profileLanguage,
@@ -412,7 +418,7 @@ export default function LinkedInSearchPage() {
                   <SelectValue placeholder="Any" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Any</SelectItem>
+                  <SelectItem value="any">Any</SelectItem>
                   {COMPANY_TYPE_OPTIONS.map(opt => (
                     <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                   ))}

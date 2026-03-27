@@ -1855,7 +1855,7 @@ export default function DialerPage() {
         </Card>
         <Card className="border-border bg-card border-green-500/30">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Intros Booked</CardTitle>
+            <CardTitle className="text-sm font-medium">Meetings Booked</CardTitle>
             <CalendarCheck className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>

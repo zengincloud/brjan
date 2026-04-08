@@ -351,8 +351,15 @@ export function CallProspectDialog({
 
   if (!prospect) return null
 
+  const isCallActive = callStatus === "calling" || callStatus === "ringing" || callStatus === "in_progress"
+
+  const handleOpenChange = (value: boolean) => {
+    if (!value && isCallActive) return
+    onOpenChange(value)
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>Call {prospect.name}</DialogTitle>

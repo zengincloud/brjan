@@ -1,6 +1,7 @@
 import { SDRPerformanceChart } from "@/components/sdr-performance-chart"
 import { TaskBoard } from "@/components/task-board"
 import { DashboardOverview } from "@/components/dashboard-overview"
+import { OnboardingChecklist } from "@/components/onboarding-checklist"
 
 export default function DashboardPage() {
   return (
@@ -12,6 +13,7 @@ export default function DashboardPage() {
           <span className="text-sm text-accent font-medium">System Active</span>
         </div>
       </div>
+      <OnboardingChecklist />
       <DashboardOverview />
       <div className="w-full">
         <SDRPerformanceChart />

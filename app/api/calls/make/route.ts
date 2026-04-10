@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { withAuth } from "@/lib/auth/api-middleware"
+import { TRIAL_LIMITS } from "@/lib/trial-limits"
 import twilio from "twilio"
 
 export const dynamic = 'force-dynamic'
@@ -38,6 +39,18 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
         { error: "Missing required field: to" },
         { status: 400 }
       )
+    }
+
+    // Trial plan: enforce 25-call limit
+    const callUser = await prisma.user.findUnique({ where: { id: userId }, select: { tier: true } })
+    if (callUser?.tier === 'trial') {
+      const callCount = await prisma.call.count({ where: { userId } })
+      if (callCount >= TRIAL_LIMITS.calls) {
+        return NextResponse.json(
+          { error: "You've run out of credits. Trial plan allows 25 calls. Upgrade your plan for more." },
+          { status: 403 }
+        )
+      }
     }
 
     // Format phone number to E.164 if needed

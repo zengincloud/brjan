@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { withAuth } from "@/lib/auth/api-middleware"
 import { prisma } from "@/lib/prisma"
 import { checkCredits, deductCredits } from "@/lib/credits"
+import { TRIAL_LIMITS } from "@/lib/trial-limits"
 import { findOrCreateAccount } from "@/lib/account-linking"
 import { normalizeTimezone, getTimezoneFromLocation } from "@/lib/timezone"
 import Papa from "papaparse"
@@ -138,26 +139,42 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       )
     }
 
-    // Check initial credits
-    const creditCheck = await checkCredits(userId)
-    if (!creditCheck.allowed) {
-      return NextResponse.json({ error: creditCheck.error }, { status: 403 })
+    // Trial plan: enforce 10-prospect count limit, trim batch to remaining allowance
+    const bulkUser = await prisma.user.findUnique({ where: { id: userId }, select: { tier: true } })
+    if (bulkUser?.tier === 'trial') {
+      const existing = await prisma.prospect.count({ where: { userId } })
+      const allowed = Math.max(0, TRIAL_LIMITS.prospects - existing)
+      if (allowed === 0) {
+        return NextResponse.json(
+          { error: "You've run out of credits. Trial plan allows 10 prospects. Upgrade your plan for more." },
+          { status: 403 }
+        )
+      }
+      prospects.splice(allowed) // trim to remaining allowance
+    } else {
+      // Paid plans: check initial credits
+      const creditCheck = await checkCredits(userId)
+      if (!creditCheck.allowed) {
+        return NextResponse.json({ error: creditCheck.error }, { status: 403 })
+      }
     }
 
     // Build a cache of company -> accountId to avoid repeated lookups
     const accountCache = new Map<string, string | null>()
 
-    // Insert prospects in batch, checking credits before each
+    // Insert prospects in batch, checking credits before each (paid plans only)
     let created = 0
     const duplicates: string[] = []
     let creditsExhausted = false
 
     for (const prospect of prospects) {
-      // Check if user still has credits
-      const check = await checkCredits(userId)
-      if (!check.allowed) {
-        creditsExhausted = true
-        break
+      // Paid plans: check if user still has credits
+      if (bulkUser?.tier !== 'trial') {
+        const check = await checkCredits(userId)
+        if (!check.allowed) {
+          creditsExhausted = true
+          break
+        }
       }
 
       // Auto-link or create account for company
@@ -184,7 +201,9 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
             ...(accountId && { accountId }),
           },
         })
-        await deductCredits(userId)
+        if (bulkUser?.tier !== 'trial') {
+          await deductCredits(userId)
+        }
         created++
       } catch (error: any) {
         if (error.code === "P2002") {

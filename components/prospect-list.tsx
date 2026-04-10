@@ -20,6 +20,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Label } from "@/components/ui/label"
+import { useUser } from "@/hooks/use-user"
+import { TrialLimitBanner } from "@/components/trial-limit-banner"
+import { TRIAL_LIMITS } from "@/lib/trial-limits"
 
 type Prospect = {
   id: string
@@ -43,6 +46,7 @@ type SequenceOption = {
 export function ProspectList() {
   const router = useRouter()
   const { toast } = useToast()
+  const { user } = useUser()
   const [prospects, setProspects] = useState<Prospect[]>([])
   const [loading, setLoading] = useState(true)
   const [totalCount, setTotalCount] = useState(0)
@@ -272,6 +276,9 @@ export function ProspectList() {
 
   return (
     <div className="space-y-4">
+      {user?.tier === 'trial' && (
+        <TrialLimitBanner current={totalCount} limit={TRIAL_LIMITS.prospects} resourceLabel="prospects" />
+      )}
       <div className="flex flex-col gap-4 md:flex-row md:items-center">
         <div className="relative flex-1">
           <Input

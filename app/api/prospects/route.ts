@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { withAuth } from "@/lib/auth/api-middleware"
 import { checkCredits, deductCredits } from "@/lib/credits"
+import { TRIAL_LIMITS } from "@/lib/trial-limits"
 import { findOrCreateAccount } from "@/lib/account-linking"
 import { pushContact, pushCompany, associateContactToCompany } from "@/lib/hubspot/client"
 import { getValidAccessToken } from "@/lib/hubspot/oauth"
@@ -123,10 +124,21 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       return NextResponse.json({ error: "Name is required" }, { status: 400 })
     }
 
-    // Check credits before creating
-    const creditCheck = await checkCredits(userId)
-    if (!creditCheck.allowed) {
-      return NextResponse.json({ error: creditCheck.error }, { status: 403 })
+    // Trial plan: enforce 10-prospect count limit; paid plans use the credit system
+    const prospectUser = await prisma.user.findUnique({ where: { id: userId }, select: { tier: true } })
+    if (prospectUser?.tier === 'trial') {
+      const prospectCount = await prisma.prospect.count({ where: { userId } })
+      if (prospectCount >= TRIAL_LIMITS.prospects) {
+        return NextResponse.json(
+          { error: "You've run out of credits. Trial plan allows 10 prospects. Upgrade your plan for more." },
+          { status: 403 }
+        )
+      }
+    } else {
+      const creditCheck = await checkCredits(userId)
+      if (!creditCheck.allowed) {
+        return NextResponse.json({ error: creditCheck.error }, { status: 403 })
+      }
     }
 
     // Generate POV data from available information

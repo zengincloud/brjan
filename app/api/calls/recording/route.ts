@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { PrismaClient } from "@prisma/client"
+import { TRIAL_LIMITS } from "@/lib/trial-limits"
 
 export const dynamic = 'force-dynamic'
 
@@ -31,6 +32,17 @@ export async function POST(request: NextRequest) {
 
     // Update call record with recording URL
     if (recordingStatus === "completed") {
+      // Trial plan: silently skip if recording limit reached
+      const callOwner = await prisma.user.findUnique({ where: { id: call.userId }, select: { tier: true } })
+      if (callOwner?.tier === 'trial') {
+        const recCount = await prisma.call.count({
+          where: { userId: call.userId, recordingUrl: { not: null } },
+        })
+        if (recCount >= TRIAL_LIMITS.recordings) {
+          return NextResponse.json({ received: true })
+        }
+      }
+
       await prisma.call.update({
         where: { id: call.id },
         data: {

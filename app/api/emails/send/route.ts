@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { withAuth } from "@/lib/auth/api-middleware"
+import { TRIAL_LIMITS } from "@/lib/trial-limits"
 import sgMail from "@sendgrid/mail"
 import { sendEmailViaGmail } from "@/lib/gmail/send"
 import { advanceSequenceStep } from "@/lib/sequences"
@@ -20,6 +21,17 @@ if (SENDGRID_API_KEY) {
 // POST /api/emails/send - Send an email (Gmail or SendGrid)
 export const POST = withAuth(async (request: NextRequest, userId: string) => {
   try {
+    // Trial plan: email sending not allowed
+    if (!TRIAL_LIMITS.emailsAllowed) {
+      const emailUser = await prisma.user.findUnique({ where: { id: userId }, select: { tier: true } })
+      if (emailUser?.tier === 'trial') {
+        return NextResponse.json(
+          { error: "You've run out of credits. Email sending requires an upgraded plan." },
+          { status: 403 }
+        )
+      }
+    }
+
     const body = await request.json()
     const {
       to,

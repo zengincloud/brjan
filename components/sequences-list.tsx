@@ -46,6 +46,9 @@ import { formatDistanceToNow } from "date-fns"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast"
 import { Trash2 } from "lucide-react"
+import { useUser } from "@/hooks/use-user"
+import { TrialLimitBanner } from "@/components/trial-limit-banner"
+import { TRIAL_LIMITS } from "@/lib/trial-limits"
 
 type Sequence = {
   id: string
@@ -75,6 +78,7 @@ type Sequence = {
 export function SequencesList() {
   const router = useRouter()
   const { toast } = useToast()
+  const { user } = useUser()
   const [searchTerm, setSearchTerm] = useState("")
   const [activeTab, setActiveTab] = useState("all")
   const [sequences, setSequences] = useState<Sequence[]>([])
@@ -224,8 +228,13 @@ export function SequencesList() {
     }
   }
 
+  const isTrialAtLimit = user?.tier === 'trial' && sequences.length >= TRIAL_LIMITS.sequences
+
   return (
     <div className="space-y-6">
+      {user?.tier === 'trial' && (
+        <TrialLimitBanner current={sequences.length} limit={TRIAL_LIMITS.sequences} resourceLabel="sequences" />
+      )}
       {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-1 items-center gap-2">
@@ -254,8 +263,10 @@ export function SequencesList() {
             {processing ? "Processing..." : "Process Sequences"}
           </Button>
           <Button
-            className="gap-2 bg-green-600 hover:bg-green-700 text-white"
+            className="gap-2 bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
             onClick={() => router.push("/sequences/new")}
+            disabled={isTrialAtLimit}
+            title={isTrialAtLimit ? "Trial plan allows 1 sequence. Upgrade for more." : undefined}
           >
             <Plus className="h-4 w-4" />
             Create Sequence

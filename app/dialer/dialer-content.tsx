@@ -76,6 +76,9 @@ import { formatDistanceToNow } from "date-fns"
 import { useUserRole } from "@/hooks/use-user-role"
 import { useSessionState } from "@/hooks/use-session-state"
 import { getLocalTime, getTimezoneAbbr } from "@/lib/timezone"
+import { useUser } from "@/hooks/use-user"
+import { TrialLimitBanner } from "@/components/trial-limit-banner"
+import { TRIAL_LIMITS } from "@/lib/trial-limits"
 
 type CallStatus = "idle" | "ringing" | "connected" | "completed"
 
@@ -179,6 +182,8 @@ type DialerProspect = {
 export default function DialerPage() {
   const { toast } = useToast()
   useUserRole() // Keep hook for auth check
+  const { user } = useUser()
+  const [trialCallCount, setTrialCallCount] = useState<number | null>(null)
   const [sessionActive, setSessionActive] = useSessionState("dialer_session_active", false)
   const [sessionPaused, setSessionPaused] = useSessionState("dialer_session_paused", false)
   const [selectedSequence, setSelectedSequence] = useSessionState<string>("dialer_sequence", "all")
@@ -404,6 +409,17 @@ export default function DialerPage() {
       stopRingingSound()
     }
   }, [stopRingingSound])
+
+  // Fetch call count for trial users to show limit banner
+  useEffect(() => {
+    if (user?.tier !== 'trial') return
+    fetch('/api/calls?pageSize=1')
+      .then(r => r.json())
+      .then(data => {
+        if (typeof data.totalCount === 'number') setTrialCallCount(data.totalCount)
+      })
+      .catch(() => {})
+  }, [user?.tier])
 
   // Available sequences — "All Sequences" + real sequences from DB
   const sequences = [
@@ -1723,6 +1739,9 @@ export default function DialerPage() {
 
   return (
     <div className="space-y-6">
+      {user?.tier === 'trial' && trialCallCount !== null && (
+        <TrialLimitBanner current={trialCallCount} limit={TRIAL_LIMITS.calls} resourceLabel="calls" />
+      )}
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

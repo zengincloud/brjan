@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { withAuth } from "@/lib/auth/api-middleware"
+import { TRIAL_LIMITS } from "@/lib/trial-limits"
 
 export const dynamic = 'force-dynamic'
 
@@ -15,6 +16,18 @@ export const POST = withAuth(async (
 
     if (!name) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 })
+    }
+
+    // Trial plan: enforce 1-sequence limit
+    const seqUser = await prisma.user.findUnique({ where: { id: userId }, select: { tier: true } })
+    if (seqUser?.tier === 'trial') {
+      const seqCount = await prisma.sequence.count({ where: { userId } })
+      if (seqCount >= TRIAL_LIMITS.sequences) {
+        return NextResponse.json(
+          { error: "You've run out of credits. Trial plan allows 1 sequence. Upgrade your plan for more." },
+          { status: 403 }
+        )
+      }
     }
 
     // Create sequence with steps — default to active

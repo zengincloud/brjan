@@ -25,6 +25,9 @@ import {
 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { RichTextEditor } from "@/components/rich-text-editor"
+import { useUser } from "@/hooks/use-user"
+import { TrialLimitBanner } from "@/components/trial-limit-banner"
+import { TRIAL_LIMITS } from "@/lib/trial-limits"
 
 type StepType = "email" | "call" | "linkedin" | "task" | "wait"
 
@@ -52,6 +55,7 @@ type EmailTemplate = {
 export default function NewSequencePage() {
   const router = useRouter()
   const { toast } = useToast()
+  const { user } = useUser()
   const [saving, setSaving] = useState(false)
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
@@ -265,10 +269,14 @@ export default function NewSequencePage() {
               <CardTitle>Add Step</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
+              {user?.tier === 'trial' && (
+                <TrialLimitBanner current={steps.length} limit={TRIAL_LIMITS.sequenceSteps} resourceLabel="steps" className="mb-2" />
+              )}
               <Button
                 onClick={() => addStep("email")}
                 variant="outline"
                 className="w-full justify-start"
+                disabled={user?.tier === 'trial' && steps.length >= TRIAL_LIMITS.sequenceSteps}
               >
                 <Mail className="mr-2 h-4 w-4" />
                 Email
@@ -277,6 +285,7 @@ export default function NewSequencePage() {
                 onClick={() => addStep("call")}
                 variant="outline"
                 className="w-full justify-start"
+                disabled={user?.tier === 'trial' && steps.length >= TRIAL_LIMITS.sequenceSteps}
               >
                 <Phone className="mr-2 h-4 w-4" />
                 Call
@@ -285,6 +294,7 @@ export default function NewSequencePage() {
                 onClick={() => addStep("linkedin")}
                 variant="outline"
                 className="w-full justify-start"
+                disabled={user?.tier === 'trial' && steps.length >= TRIAL_LIMITS.sequenceSteps}
               >
                 <Linkedin className="mr-2 h-4 w-4" />
                 LinkedIn
@@ -293,6 +303,7 @@ export default function NewSequencePage() {
                 onClick={() => addStep("task")}
                 variant="outline"
                 className="w-full justify-start"
+                disabled={user?.tier === 'trial' && steps.length >= TRIAL_LIMITS.sequenceSteps}
               >
                 <ClipboardList className="mr-2 h-4 w-4" />
                 Task

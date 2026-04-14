@@ -363,6 +363,7 @@ enum CallOutcome {
   connected_referral
   connected_not_interested
   connected_info_gathered
+  callback
   voicemail
   no_answer
   busy

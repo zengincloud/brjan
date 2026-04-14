@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { formatDistanceToNow } from 'date-fns'
-import { Globe, Linkedin, Plus, Upload, X, Trash2, Search, MoreHorizontal, FolderInput, Users } from 'lucide-react'
+import { Globe, Linkedin, Plus, Upload, X, Trash2, Search, MoreHorizontal, FolderInput, Users, Phone, Mail, Mic, Sparkles, RefreshCw, UserPlus } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -69,6 +70,37 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
+type ActivityItem = {
+  id: string
+  type: 'call' | 'email' | 'linkedin'
+  contactName: string | null
+  detail: string
+  time: string
+  outcome?: string | null
+  duration?: number | null
+  recordingUrl?: string | null
+  emailStatus?: string | null
+  subject?: string | null
+}
+
+type Contact = {
+  id: string
+  name: string
+  email: string | null
+  title: string | null
+  phone: string | null
+  linkedin: string | null
+  status: string
+}
+
+type POVData = {
+  whatTheyDo?: string
+  specificIndustry?: string
+  exampleUseCase?: string
+  companyIntel?: string
+  [key: string]: any
+}
+
 // ── Detail panel ───────────────────────────────────────────────────────────────
 
 function AccountDetail({
@@ -82,14 +114,54 @@ function AccountDetail({
   onDelete: (a: Account) => void
   onStatusChange: (id: string, status: string) => void
 }) {
-  const [tab, setTab] = useState<'overview' | 'contacts'>('overview')
+  const router = useRouter()
+  const [tab, setTab] = useState<'overview' | 'activity' | 'contacts'>('overview')
+  const [activity, setActivity] = useState<ActivityItem[]>([])
+  const [contacts, setContacts] = useState<Contact[]>([])
+  const [pov, setPov] = useState<POVData | null>(null)
+  const [loadingActivity, setLoadingActivity] = useState(false)
+  const [loadingContacts, setLoadingContacts] = useState(false)
+  const [loadingPov, setLoadingPov] = useState(false)
+
+  useEffect(() => {
+    setActivity([]); setContacts([]); setPov(null)
+
+    setLoadingActivity(true)
+    fetch(`/api/accounts/${account.id}/activity`)
+      .then((r) => r.json()).then((d) => setActivity(d.activity || [])).catch(() => {})
+      .finally(() => setLoadingActivity(false))
+
+    setLoadingContacts(true)
+    fetch(`/api/accounts/${account.id}/contacts`)
+      .then((r) => r.json()).then((d) => setContacts(d.contacts || [])).catch(() => {})
+      .finally(() => setLoadingContacts(false))
+
+    setLoadingPov(true)
+    fetch(`/api/accounts/${account.id}/pov`)
+      .then((r) => r.ok ? r.json() : null).then((d) => d && setPov(d.pov)).catch(() => {})
+      .finally(() => setLoadingPov(false))
+  }, [account.id])
+
+  const OUTCOME_LABELS: Record<string, string> = {
+    connected: 'Connected', connected_intro_booked: 'Intro Booked',
+    connected_referral: 'Referral', connected_not_interested: 'Not Interested',
+    connected_info_gathered: 'Info Gathered', callback: 'Call Back Later',
+    voicemail: 'Voicemail', no_answer: 'No Answer', busy: 'Busy',
+    failed: 'Failed', gatekeeper: 'Gatekeeper',
+  }
+
+  const formatDur = (secs?: number | null) => {
+    if (!secs) return null
+    const m = Math.floor(secs / 60), s = secs % 60
+    return `${m}:${String(s).padStart(2, '0')}`
+  }
 
   const detailRows = [
     { label: 'Industry',    value: account.industry || '—' },
     { label: 'Location',    value: account.location || '—' },
     { label: 'Employees',   value: account.employees?.toLocaleString() || '—' },
     { label: 'Website',     value: account.website
-        ? <a href={account.website.startsWith('http') ? account.website : `https://${account.website}`} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline truncate">{account.website}</a>
+        ? <a href={account.website.startsWith('http') ? account.website : `https://${account.website}`} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">{account.website}</a>
         : '—' },
     { label: 'Status',      value: <StatusBadge status={account.status} /> },
     { label: 'Sequence',    value: account.sequence || '—' },
@@ -97,6 +169,11 @@ function AccountDetail({
     { label: 'Contacts',    value: String(account.contacts ?? 0) },
     { label: 'Last activity', value: account.lastActivity ? formatDistanceToNow(new Date(account.lastActivity), { addSuffix: true }) : '—' },
   ]
+
+  const handleMultithread = () => {
+    const params = new URLSearchParams({ company: account.name, seniorityLevels: JSON.stringify(['VP', 'Director', 'Manager']), autoSearch: 'true' })
+    router.push(`/prospecting/outbound?tab=leads&${params.toString()}`)
+  }
 
   return (
     <div className="flex flex-col h-full border-l border-border">
@@ -128,6 +205,9 @@ function AccountDetail({
             <Linkedin className="h-3.5 w-3.5" /> LinkedIn
           </Button>
         )}
+        <Button size="sm" variant="outline" className="h-7 px-3 text-[12px] gap-1.5" onClick={handleMultithread}>
+          <UserPlus className="h-3.5 w-3.5" /> Multithread
+        </Button>
         <div className="ml-auto">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -153,7 +233,7 @@ function AccountDetail({
 
       {/* Tabs */}
       <div className="flex px-5 border-b border-border shrink-0">
-        {(['overview', 'contacts'] as const).map((t) => (
+        {(['overview', 'activity', 'contacts'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -162,7 +242,8 @@ function AccountDetail({
               tab === t ? 'border-accent text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'
             )}
           >
-            {t}
+            {t}{t === 'activity' && activity.length > 0 ? ` (${activity.length})` : ''}
+            {t === 'contacts' && contacts.length > 0 ? ` (${contacts.length})` : ''}
           </button>
         ))}
       </div>
@@ -170,25 +251,148 @@ function AccountDetail({
       {/* Content */}
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
         {tab === 'overview' && (
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2.5">Details</p>
-            <div className="rounded-lg border border-border overflow-hidden">
-              {detailRows.map(({ label, value }) => (
-                <div key={label} className="flex items-center px-3 py-2 border-b border-border last:border-0">
-                  <span className="text-[12px] text-muted-foreground w-28 shrink-0">{label}</span>
-                  <span className="text-[12px] text-foreground">{value}</span>
-                </div>
-              ))}
+          <>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2.5">Details</p>
+              <div className="rounded-lg border border-border overflow-hidden">
+                {detailRows.map(({ label, value }) => (
+                  <div key={label} className="flex items-center px-3 py-2 border-b border-border last:border-0">
+                    <span className="text-[12px] text-muted-foreground w-28 shrink-0">{label}</span>
+                    <span className="text-[12px] text-foreground">{value}</span>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+
+            {/* POV */}
+            <div>
+              <div className="flex items-center justify-between mb-2.5">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">Point of View</p>
+                <button
+                  onClick={() => {
+                    setLoadingPov(true)
+                    fetch(`/api/accounts/${account.id}/pov?force=true`)
+                      .then((r) => r.ok ? r.json() : null).then((d) => d && setPov(d.pov)).catch(() => {})
+                      .finally(() => setLoadingPov(false))
+                  }}
+                  className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1"
+                >
+                  <RefreshCw className={cn('h-3 w-3', loadingPov && 'animate-spin')} />
+                  {pov ? 'Refresh' : 'Generate'}
+                </button>
+              </div>
+              {loadingPov ? (
+                <p className="text-[12px] text-muted-foreground">Generating...</p>
+              ) : pov ? (
+                <div className="rounded-lg border border-border bg-card p-3 space-y-3">
+                  {pov.whatTheyDo && <div><p className="text-[11px] font-medium text-muted-foreground mb-0.5">What They Do</p><p className="text-[12px] text-foreground leading-relaxed">{pov.whatTheyDo}</p></div>}
+                  {pov.specificIndustry && <div><p className="text-[11px] font-medium text-muted-foreground mb-0.5">Industry</p><p className="text-[12px] text-foreground">{pov.specificIndustry}</p></div>}
+                  {pov.exampleUseCase && <div><p className="text-[11px] font-medium text-muted-foreground mb-0.5">Example Use Case</p><p className="text-[12px] text-foreground leading-relaxed">{pov.exampleUseCase}</p></div>}
+                  {!pov.whatTheyDo && pov.companyIntel && <div><p className="text-[11px] font-medium text-muted-foreground mb-0.5">Company Intel</p><p className="text-[12px] text-foreground leading-relaxed">{pov.companyIntel}</p></div>}
+                </div>
+              ) : (
+                <div className="rounded-lg border border-dashed border-border p-4 text-center">
+                  <Sparkles className="h-5 w-5 mx-auto mb-2 text-muted-foreground/40" />
+                  <p className="text-[12px] text-muted-foreground mb-2">Generate an AI-powered briefing for {account.name}</p>
+                  <Button size="sm" variant="outline" className="h-7 text-[12px]" onClick={() => {
+                    setLoadingPov(true)
+                    fetch(`/api/accounts/${account.id}/pov`)
+                      .then((r) => r.ok ? r.json() : null).then((d) => d && setPov(d.pov)).catch(() => {})
+                      .finally(() => setLoadingPov(false))
+                  }}>
+                    <Sparkles className="h-3.5 w-3.5 mr-1" /> Generate
+                  </Button>
+                </div>
+              )}
+            </div>
+          </>
         )}
+
+        {tab === 'activity' && (
+          <>
+            {loadingActivity ? (
+              <p className="text-[12px] text-muted-foreground py-6 text-center">Loading...</p>
+            ) : activity.length === 0 ? (
+              <div className="flex flex-col items-center py-10 gap-2">
+                <Phone className="h-7 w-7 text-muted-foreground/20" />
+                <p className="text-[12px] text-muted-foreground">No activity recorded yet</p>
+              </div>
+            ) : (
+              <div className="space-y-0 rounded-lg border border-border overflow-hidden">
+                {activity.map((item) => {
+                  const isCall = item.type === 'call'
+                  const isEmail = item.type === 'email'
+                  const isLinkedIn = item.type === 'linkedin'
+                  const isPositive = item.outcome?.startsWith('connected')
+                  const isVM = item.outcome === 'voicemail'
+                  const outcomeLabel = item.outcome ? (OUTCOME_LABELS[item.outcome] ?? item.outcome.replace(/_/g, ' ')) : ''
+                  const dur = formatDur(item.duration)
+                  return (
+                    <div key={item.id} className="flex flex-col gap-1.5 px-3 py-2.5 border-b border-border last:border-0">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {isCall && <Phone className={cn('h-3.5 w-3.5 shrink-0', isPositive ? 'text-accent' : isVM ? 'text-yellow-400' : 'text-muted-foreground')} />}
+                          {isEmail && <Mail className="h-3.5 w-3.5 shrink-0 text-blue-400" />}
+                          {isLinkedIn && <Linkedin className="h-3.5 w-3.5 shrink-0 text-[#0A66C2]" />}
+                          <span className="text-[12px] font-medium text-foreground truncate max-w-[200px]">{item.detail}</span>
+                          {dur && <span className="text-[11px] text-muted-foreground shrink-0">{dur}</span>}
+                        </div>
+                        <span className="text-[11px] text-muted-foreground shrink-0 ml-2">
+                          {formatDistanceToNow(new Date(item.time), { addSuffix: true })}
+                        </span>
+                      </div>
+                      {item.contactName && (
+                        <p className="text-[11px] text-muted-foreground pl-5">{item.contactName}</p>
+                      )}
+                      {isCall && item.recordingUrl && (
+                        <div className="pl-5">
+                          <audio controls className="h-7 w-full" src={`/api/calls/${item.id}/recording`} />
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </>
+        )}
+
         {tab === 'contacts' && (
-          <div className="flex flex-col items-center justify-center py-12 gap-2">
-            <Users className="h-8 w-8 text-muted-foreground/30" />
-            <p className="text-[12px] text-muted-foreground">
-              {account.contacts > 0 ? `${account.contacts} contact${account.contacts > 1 ? 's' : ''}` : 'No contacts yet'}
-            </p>
-          </div>
+          <>
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">Contacts</p>
+              <Button size="sm" variant="outline" className="h-7 text-[12px]" onClick={handleMultithread}>
+                <UserPlus className="h-3.5 w-3.5 mr-1" /> Find More
+              </Button>
+            </div>
+            {loadingContacts ? (
+              <p className="text-[12px] text-muted-foreground py-4 text-center">Loading...</p>
+            ) : contacts.length === 0 ? (
+              <div className="flex flex-col items-center py-10 gap-2">
+                <Users className="h-7 w-7 text-muted-foreground/20" />
+                <p className="text-[12px] text-muted-foreground">No contacts linked yet</p>
+              </div>
+            ) : (
+              <div className="space-y-0 rounded-lg border border-border overflow-hidden">
+                {contacts.map((c) => (
+                  <div key={c.id} className="flex items-center gap-3 px-3 py-2.5 border-b border-border last:border-0">
+                    <div className={cn('w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold text-white shrink-0', getAvatarColor(c.name))}>
+                      {c.name.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-medium truncate">{c.name}</p>
+                      <p className="text-[11px] text-muted-foreground truncate">{c.title || c.email || '—'}</p>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {c.email && <a href={`mailto:${c.email}`} className="p-1 text-muted-foreground hover:text-foreground"><Mail className="h-3.5 w-3.5" /></a>}
+                      {c.phone && <a href={`tel:${c.phone}`} className="p-1 text-muted-foreground hover:text-foreground"><Phone className="h-3.5 w-3.5" /></a>}
+                      {c.linkedin && <a href={c.linkedin} target="_blank" rel="noopener noreferrer" className="p-1 text-muted-foreground hover:text-foreground"><Linkedin className="h-3.5 w-3.5" /></a>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

@@ -124,6 +124,17 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
+type CallRecord = {
+  id: string
+  outcome?: string | null
+  duration?: number | null
+  recordingDuration?: number | null
+  recordingUrl?: string | null
+  notes?: string | null
+  createdAt: string
+  startedAt?: string | null
+}
+
 // ── Detail panel ───────────────────────────────────────────────────────────────
 
 function ProspectDetail({
@@ -140,6 +151,18 @@ function ProspectDetail({
   onDelete: (p: Prospect) => void
 }) {
   const [tab, setTab] = useState<'overview' | 'activity'>('overview')
+  const [calls, setCalls] = useState<CallRecord[]>([])
+  const [loadingCalls, setLoadingCalls] = useState(false)
+
+  useEffect(() => {
+    setCalls([])
+    setLoadingCalls(true)
+    fetch(`/api/calls?prospectId=${prospect.id}&limit=20`)
+      .then((r) => r.json())
+      .then((d) => setCalls(d.calls || []))
+      .catch(() => {})
+      .finally(() => setLoadingCalls(false))
+  }, [prospect.id])
 
   let povParsed: any = null
   try { povParsed = typeof prospect.povData === 'string' ? JSON.parse(prospect.povData) : prospect.povData } catch {}
@@ -154,6 +177,26 @@ function ProspectDetail({
     { label: 'Step', value: prospect.sequenceStep || '—' },
     { label: 'Last activity', value: prospect.lastActivity ? formatDistanceToNow(new Date(prospect.lastActivity), { addSuffix: true }) : '—' },
   ]
+
+  const OUTCOME_LABELS: Record<string, string> = {
+    connected: 'Connected',
+    connected_intro_booked: 'Intro Booked',
+    connected_referral: 'Referral',
+    connected_not_interested: 'Not Interested',
+    connected_info_gathered: 'Info Gathered',
+    callback: 'Call Back Later',
+    voicemail: 'Voicemail',
+    no_answer: 'No Answer',
+    busy: 'Busy',
+    failed: 'Failed',
+    gatekeeper: 'Gatekeeper',
+  }
+
+  const formatDuration = (secs?: number | null) => {
+    if (!secs) return null
+    const m = Math.floor(secs / 60), s = secs % 60
+    return `${m}:${String(s).padStart(2, '0')}`
+  }
 
   return (
     <div className="flex flex-col h-full border-l border-border">
@@ -217,7 +260,7 @@ function ProspectDetail({
               tab === t ? 'border-accent text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'
             )}
           >
-            {t}
+            {t}{t === 'activity' && calls.length > 0 ? ` (${calls.length})` : ''}
           </button>
         ))}
       </div>
@@ -237,25 +280,69 @@ function ProspectDetail({
                 ))}
               </div>
             </div>
-            {povParsed && (
+            {povParsed && Object.keys(povParsed).length > 0 && (
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2.5">AI Research</p>
-                <div className="rounded-lg border border-border bg-card p-3 space-y-2">
-                  {Object.entries(povParsed).slice(0, 6).map(([k, v]) => (
-                    <div key={k}>
-                      <p className="text-[11px] font-medium text-muted-foreground capitalize">{k.replace(/_/g, ' ')}</p>
-                      <p className="text-[12px] text-foreground">{String(v)}</p>
-                    </div>
+                <div className="rounded-lg border border-border bg-card p-3 space-y-3">
+                  {Object.entries(povParsed).map(([k, v]) => (
+                    typeof v === 'string' ? (
+                      <div key={k}>
+                        <p className="text-[11px] font-medium text-muted-foreground capitalize mb-0.5">{k.replace(/_/g, ' ')}</p>
+                        <p className="text-[12px] text-foreground leading-relaxed">{v}</p>
+                      </div>
+                    ) : null
                   ))}
                 </div>
               </div>
             )}
           </>
         )}
+
         {tab === 'activity' && (
-          <div className="flex items-center justify-center py-12">
-            <p className="text-[12px] text-muted-foreground">No activity recorded yet.</p>
-          </div>
+          <>
+            {loadingCalls ? (
+              <p className="text-[12px] text-muted-foreground py-6 text-center">Loading...</p>
+            ) : calls.length === 0 ? (
+              <div className="flex flex-col items-center py-10 gap-2">
+                <Phone className="h-7 w-7 text-muted-foreground/20" />
+                <p className="text-[12px] text-muted-foreground">No calls recorded yet</p>
+                <Button size="sm" variant="outline" onClick={() => onCall(prospect)} className="h-7 text-[12px] mt-1">
+                  <Phone className="h-3.5 w-3.5 mr-1" /> Make a call
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-0 rounded-lg border border-border overflow-hidden">
+                {calls.map((call) => {
+                  const label = call.outcome ? (OUTCOME_LABELS[call.outcome] ?? call.outcome.replace(/_/g, ' ')) : 'Call'
+                  const dur = formatDuration(call.recordingDuration || call.duration)
+                  const isPositive = call.outcome?.startsWith('connected')
+                  const isVM = call.outcome === 'voicemail'
+                  return (
+                    <div key={call.id} className="flex flex-col gap-1.5 px-3 py-2.5 border-b border-border last:border-0">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Phone className={cn('h-3.5 w-3.5 shrink-0', isPositive ? 'text-accent' : isVM ? 'text-yellow-400' : 'text-muted-foreground')} />
+                          <span className={cn('text-[12px] font-medium', isPositive ? 'text-accent' : 'text-foreground')}>{label}</span>
+                          {dur && <span className="text-[11px] text-muted-foreground">{dur}</span>}
+                        </div>
+                        <span className="text-[11px] text-muted-foreground">
+                          {formatDistanceToNow(new Date(call.startedAt || call.createdAt), { addSuffix: true })}
+                        </span>
+                      </div>
+                      {call.notes && (
+                        <p className="text-[12px] text-muted-foreground leading-relaxed pl-5">{call.notes}</p>
+                      )}
+                      {call.recordingUrl && (
+                        <div className="pl-5">
+                          <audio controls className="h-7 w-full" src={`/api/calls/${call.id}/recording`} />
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

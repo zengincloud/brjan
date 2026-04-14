@@ -14,19 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import {
-  User,
-  Bell,
-  Phone,
-  Mail,
-  Shield,
-  Zap,
-  CreditCard,
-  Settings as SettingsIcon,
-  Building2,
-  Users,
-} from "lucide-react"
+import { Zap } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
 import { GmailIntegration } from "@/components/settings/gmail-integration"
@@ -189,57 +177,45 @@ export default function SettingsPage() {
     }
   }
 
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Settings</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Manage your account settings and preferences
-        </p>
-      </div>
+  const navItems = [
+    { id: "profile", label: "Profile" },
+    { id: "organization", label: "Organization" },
+    { id: "team", label: "Team" },
+    { id: "notifications", label: "Notifications" },
+    { id: "calling", label: "Calling" },
+    { id: "email", label: "Email" },
+    { id: "integrations", label: "Integrations" },
+    { id: "security", label: "Security" },
+    { id: "billing", label: "Billing" },
+  ]
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="bg-secondary/30">
-          <TabsTrigger value="profile">
-            <User className="h-4 w-4 mr-2" />
-            Profile
-          </TabsTrigger>
-          <TabsTrigger value="organization">
-            <Building2 className="h-4 w-4 mr-2" />
-            Organization
-          </TabsTrigger>
-          <TabsTrigger value="team">
-            <Users className="h-4 w-4 mr-2" />
-            Team
-          </TabsTrigger>
-          <TabsTrigger value="notifications">
-            <Bell className="h-4 w-4 mr-2" />
-            Notifications
-          </TabsTrigger>
-          <TabsTrigger value="calling">
-            <Phone className="h-4 w-4 mr-2" />
-            Calling
-          </TabsTrigger>
-          <TabsTrigger value="email">
-            <Mail className="h-4 w-4 mr-2" />
-            Email
-          </TabsTrigger>
-          <TabsTrigger value="integrations">
-            <Zap className="h-4 w-4 mr-2" />
-            Integrations
-          </TabsTrigger>
-          <TabsTrigger value="security">
-            <Shield className="h-4 w-4 mr-2" />
-            Security
-          </TabsTrigger>
-          <TabsTrigger value="billing">
-            <CreditCard className="h-4 w-4 mr-2" />
-            Billing
-          </TabsTrigger>
-        </TabsList>
+  return (
+    <div className="flex -m-5 min-h-full">
+      {/* Left Sidebar */}
+      <aside className="w-52 shrink-0 border-r border-border">
+        <h1 className="text-2xl font-semibold px-4 pt-6 pb-4">Settings</h1>
+        <nav className="flex flex-col gap-0.5">
+          {navItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setActiveTab(item.id)}
+              className={`text-left px-4 py-2 text-sm rounded-md mx-2 transition-colors ${
+                activeTab === item.id
+                  ? "bg-secondary text-foreground font-medium"
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </nav>
+      </aside>
+
+      {/* Main Content */}
+      <div className="flex-1 px-10 py-6 space-y-6 overflow-y-auto">
 
         {/* Profile Tab */}
-        <TabsContent value="profile" className="space-y-4">
+        {activeTab === "profile" && <div className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>Profile Information</CardTitle>
@@ -355,20 +331,20 @@ export default function SettingsPage() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
+        </div>}
 
         {/* Organization Tab */}
-        <TabsContent value="organization" className="space-y-4">
+        {activeTab === "organization" && <div className="space-y-4">
           <OrganizationSettings />
-        </TabsContent>
+        </div>}
 
         {/* Team Tab */}
-        <TabsContent value="team" className="space-y-4">
+        {activeTab === "team" && <div className="space-y-4">
           <TeamSettings />
-        </TabsContent>
+        </div>}
 
         {/* Notifications Tab */}
-        <TabsContent value="notifications" className="space-y-4">
+        {activeTab === "notifications" && <div className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>Email Notifications</CardTitle>
@@ -449,10 +425,10 @@ export default function SettingsPage() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
+        </div>}
 
         {/* Calling Tab */}
-        <TabsContent value="calling" className="space-y-4">
+        {activeTab === "calling" && <div className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>Call Recording</CardTitle>
@@ -546,10 +522,10 @@ export default function SettingsPage() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
+        </div>}
 
         {/* Email Tab */}
-        <TabsContent value="email" className="space-y-4">
+        {activeTab === "email" && <div className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>Email Signature</CardTitle>
@@ -640,10 +616,10 @@ export default function SettingsPage() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
+        </div>}
 
         {/* Integrations Tab */}
-        <TabsContent value="integrations" className="space-y-4">
+        {activeTab === "integrations" && <div className="space-y-4">
           <GmailIntegration />
           <HubspotIntegration />
 
@@ -714,10 +690,10 @@ export default function SettingsPage() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
+        </div>}
 
         {/* Security Tab */}
-        <TabsContent value="security" className="space-y-4">
+        {activeTab === "security" && <div className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>Password</CardTitle>
@@ -804,10 +780,10 @@ export default function SettingsPage() {
               </Button>
             </CardContent>
           </Card>
-        </TabsContent>
+        </div>}
 
         {/* Billing Tab */}
-        <TabsContent value="billing" className="space-y-4">
+        {activeTab === "billing" && <div className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>Current Plan</CardTitle>
@@ -875,8 +851,9 @@ export default function SettingsPage() {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+        </div>}
+
+      </div>
     </div>
   )
 }

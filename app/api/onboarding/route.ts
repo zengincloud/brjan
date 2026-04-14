@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 export const POST = withAuth(async (request: NextRequest, userId: string) => {
   try {
     const body = await request.json()
-    const { firstName, lastName, organizationName } = body
+    const { firstName, lastName, organizationName, jobRole, usageType, primaryGoal } = body
 
     if (!firstName || !firstName.trim()) {
       return NextResponse.json({ error: 'First name is required' }, { status: 400 })
@@ -36,6 +36,9 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
         firstName: firstName.trim(),
         lastName: lastName?.trim() || undefined,
         organizationName: organizationName?.trim() || undefined,
+        ...(jobRole && { jobRole }),
+        ...(usageType && { usageType }),
+        ...(primaryGoal && { primaryGoal }),
       },
     })
 

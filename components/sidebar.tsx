@@ -1,13 +1,11 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
 import {
   BarChart3,
   Calendar,
   ChevronDown,
   HomeIcon,
-  LayoutDashboard,
   Mail,
   Phone,
   Search,
@@ -26,6 +24,8 @@ import {
   Linkedin,
   MessagesSquare,
   Megaphone,
+  Users,
+  CircleDot,
 } from "lucide-react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { useState } from "react"
@@ -33,6 +33,51 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
 import { useUser } from "@/hooks/use-user"
+
+function NavItem({
+  href,
+  icon: Icon,
+  label,
+  active,
+  badge,
+  indent = false,
+}: {
+  href: string
+  icon: React.ElementType
+  label: string
+  active: boolean
+  badge?: string
+  indent?: boolean
+}) {
+  return (
+    <Link
+      href={href}
+      className={cn(
+        "flex items-center gap-2.5 px-2 py-1.5 rounded-md text-[13px] transition-colors select-none",
+        indent && "ml-3",
+        active
+          ? "bg-white/10 text-white font-medium"
+          : "text-white/55 hover:text-white/85 hover:bg-white/[0.05]"
+      )}
+    >
+      <Icon className={cn("h-[15px] w-[15px] shrink-0", active ? "text-white" : "text-white/40")} />
+      <span className="flex-1 leading-none">{label}</span>
+      {badge && (
+        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30 leading-none">
+          {badge}
+        </span>
+      )}
+    </Link>
+  )
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="px-2 pt-4 pb-1 text-[11px] font-medium text-white/30 uppercase tracking-wider select-none">
+      {children}
+    </p>
+  )
+}
 
 export function Sidebar({ className }: { className?: string }) {
   const [isActivityOpen, setIsActivityOpen] = useState(false)
@@ -53,389 +98,134 @@ export function Sidebar({ className }: { className?: string }) {
     return user?.email || ""
   }
 
+  const creditsRemaining = creditStatus?.creditsTotal === -1
+    ? null
+    : creditStatus?.creditsRemaining ?? null
+
   return (
-    <div className={cn("bg-sidebar-background pt-4 px-4 flex flex-col gap-4 h-full overflow-hidden", className)}>
-      {/* Logo */}
-      <div className="flex items-center gap-2 px-2 py-1">
-        <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
-          <Zap className="h-4 w-4 text-accent-foreground" />
-        </div>
-        <div className="font-semibold flex items-baseline">
-          <span className="text-foreground">boilerroom</span>
-          <span className="text-accent">.ai</span>
-        </div>
+    <div className={cn("flex flex-col h-full bg-sidebar-background overflow-hidden", className)}>
+
+      {/* Workspace header */}
+      <div className="px-3 pt-4 pb-2">
+        <button className="flex items-center gap-2.5 w-full px-2 py-1.5 rounded-md hover:bg-white/[0.05] transition-colors group">
+          <div className="w-6 h-6 rounded-md bg-[hsl(100,78%,44%)] flex items-center justify-center shrink-0">
+            <Zap className="h-3.5 w-3.5 text-white" />
+          </div>
+          <span className="text-[13px] font-medium text-white/90 flex-1 text-left leading-none">
+            boilerroom
+          </span>
+          <ChevronDown className="h-3.5 w-3.5 text-white/30 group-hover:text-white/50 transition-colors" />
+        </button>
       </div>
 
-      {/* Navigation */}
-      <div className="space-y-1 overflow-y-auto flex-1 min-h-0">
-        <Button
-          variant="ghost"
-          className={cn(
-            "w-full justify-start transition-colors",
-            pathname === "/" && "bg-accent/10 text-accent hover:bg-accent/15"
-          )}
-          asChild
-        >
-          <Link href="/">
-            <HomeIcon className="h-4 w-4 mr-3" />
-            Dashboard
-          </Link>
-        </Button>
+      {/* Scrollable nav */}
+      <nav className="flex-1 px-3 overflow-y-auto min-h-0 space-y-0.5">
+        <NavItem href="/" icon={HomeIcon} label="Dashboard" active={pathname === "/"} />
+        <NavItem href="/prospecting" icon={Search} label="Prospecting" active={pathname.startsWith("/prospecting")} />
+        <NavItem href="/prospects" icon={Users2} label="Prospects" active={pathname === "/prospects"} />
+        <NavItem href="/accounts" icon={Building2} label="Accounts" active={pathname === "/accounts"} />
 
-        <Button
-          variant="ghost"
-          className={cn(
-            "w-full justify-start transition-colors",
-            pathname.includes("/prospecting") && "bg-accent/10 text-accent hover:bg-accent/15"
-          )}
-          asChild
-        >
-          <Link href="/prospecting">
-            <Search className="h-4 w-4 mr-3" />
-            Prospecting
-          </Link>
-        </Button>
+        <SectionLabel>Outreach</SectionLabel>
+        <NavItem href="/dialer" icon={Phone} label="Dialer" active={pathname === "/dialer"} />
+        <NavItem href="/emailer" icon={Send} label="Emailer" active={pathname === "/emailer"} />
+        <NavItem href="/sequences" icon={Zap} label="Sequences" active={pathname === "/sequences"} />
+        <NavItem href="/scheduler" icon={CalendarClock} label="Scheduler" active={pathname === "/scheduler"} />
+        <NavItem href="/tasks" icon={CheckSquare} label="Tasks" active={pathname === "/tasks"} />
 
-        <Button
-          variant="ghost"
-          className={cn(
-            "w-full justify-start transition-colors",
-            pathname === "/prospects" && "bg-accent/10 text-accent hover:bg-accent/15"
-          )}
-          asChild
-        >
-          <Link href="/prospects">
-            <Users2 className="h-4 w-4 mr-3" />
-            Prospects
-          </Link>
-        </Button>
-
-        <Button
-          variant="ghost"
-          className={cn(
-            "w-full justify-start transition-colors",
-            pathname === "/accounts" && "bg-accent/10 text-accent hover:bg-accent/15"
-          )}
-          asChild
-        >
-          <Link href="/accounts">
-            <Building2 className="h-4 w-4 mr-3" />
-            Accounts
-          </Link>
-        </Button>
-
-        <Button
-          variant="ghost"
-          className={cn(
-            "w-full justify-start transition-colors",
-            pathname === "/sequences" && "bg-accent/10 text-accent hover:bg-accent/15"
-          )}
-          asChild
-        >
-          <Link href="/sequences">
-            <Mail className="h-4 w-4 mr-3" />
-            Sequences
-          </Link>
-        </Button>
-
-        <Button
-          variant="ghost"
-          className={cn(
-            "w-full justify-start transition-colors",
-            pathname === "/tasks" && "bg-accent/10 text-accent hover:bg-accent/15"
-          )}
-          asChild
-        >
-          <Link href="/tasks">
-            <CheckSquare className="h-4 w-4 mr-3" />
-            Tasks
-          </Link>
-        </Button>
-
-        <Button
-          variant="ghost"
-          className={cn(
-            "w-full justify-start transition-colors",
-            pathname === "/emailer" && "bg-accent/10 text-accent hover:bg-accent/15"
-          )}
-          asChild
-        >
-          <Link href="/emailer">
-            <Send className="h-4 w-4 mr-3" />
-            Emailer
-          </Link>
-        </Button>
-
-        <Button
-          variant="ghost"
-          className={cn(
-            "w-full justify-start transition-colors",
-            pathname === "/dialer" && "bg-accent/10 text-accent hover:bg-accent/15"
-          )}
-          asChild
-        >
-          <Link href="/dialer">
-            <Phone className="h-4 w-4 mr-3" />
-            Dialer
-          </Link>
-        </Button>
-
-        <Button
-          variant="ghost"
-          className={cn(
-            "w-full justify-start transition-colors",
-            pathname === "/scheduler" && "bg-accent/10 text-accent hover:bg-accent/15"
-          )}
-          asChild
-        >
-          <Link href="/scheduler">
-            <CalendarClock className="h-4 w-4 mr-3" />
-            Scheduler
-          </Link>
-        </Button>
-
-        {/* Activity Section */}
-        <Collapsible open={isActivityOpen} onOpenChange={setIsActivityOpen} className="space-y-1">
+        <SectionLabel>Activity</SectionLabel>
+        <Collapsible open={isActivityOpen} onOpenChange={setIsActivityOpen}>
           <CollapsibleTrigger asChild>
-            <Button variant="ghost" className="w-full justify-between">
-              <div className="flex items-center">
-                <BarChart3 className="h-4 w-4 mr-3" />
-                Activity
-              </div>
-              <ChevronDown
-                className={cn("h-4 w-4 transition-transform duration-200", isActivityOpen ? "rotate-180" : "")}
-              />
-            </Button>
+            <button className="flex items-center gap-2.5 w-full px-2 py-1.5 rounded-md text-[13px] text-white/55 hover:text-white/85 hover:bg-white/[0.05] transition-colors select-none">
+              <BarChart3 className="h-[15px] w-[15px] shrink-0 text-white/40" />
+              <span className="flex-1 text-left leading-none">Activity</span>
+              <ChevronDown className={cn("h-3.5 w-3.5 transition-transform text-white/30", isActivityOpen && "rotate-180")} />
+            </button>
           </CollapsibleTrigger>
-          <CollapsibleContent className="space-y-1">
-            <Button
-              variant="ghost"
-              className={cn(
-                "w-full justify-start pl-9 text-muted-foreground hover:text-foreground",
-                pathname === "/activity/emails" && "bg-accent/10 text-accent"
-              )}
-              asChild
-            >
-              <Link href="/activity/emails">
-                <Mail className="h-4 w-4 mr-3" />
-                Emails Delivered
-              </Link>
-            </Button>
-            <Button
-              variant="ghost"
-              className={cn(
-                "w-full justify-start pl-9 text-muted-foreground hover:text-foreground",
-                pathname === "/activity/calls" && "bg-accent/10 text-accent"
-              )}
-              asChild
-            >
-              <Link href="/activity/calls">
-                <PhoneCall className="h-4 w-4 mr-3" />
-                Calls Made
-              </Link>
-            </Button>
-            <Button
-              variant="ghost"
-              className={cn(
-                "w-full justify-start pl-9 text-muted-foreground hover:text-foreground",
-                pathname === "/activity/meetings" && "bg-accent/10 text-accent"
-              )}
-              asChild
-            >
-              <Link href="/activity/meetings">
-                <Calendar className="h-4 w-4 mr-3" />
-                Meetings Had
-              </Link>
-            </Button>
-            <Button
-              variant="ghost"
-              className={cn(
-                "w-full justify-start pl-9 text-muted-foreground hover:text-foreground",
-                pathname === "/activity/tasks" && "bg-accent/10 text-accent"
-              )}
-              asChild
-            >
-              <Link href="/activity/tasks">
-                <CheckSquare className="h-4 w-4 mr-3" />
-                Tasks Done
-              </Link>
-            </Button>
+          <CollapsibleContent className="mt-0.5 space-y-0.5">
+            <NavItem href="/activity/emails" icon={Mail} label="Emails Delivered" active={pathname === "/activity/emails"} indent />
+            <NavItem href="/activity/calls" icon={PhoneCall} label="Calls Made" active={pathname === "/activity/calls"} indent />
+            <NavItem href="/activity/meetings" icon={Calendar} label="Meetings Had" active={pathname === "/activity/meetings"} indent />
+            <NavItem href="/activity/tasks" icon={CheckSquare} label="Tasks Done" active={pathname === "/activity/tasks"} indent />
           </CollapsibleContent>
         </Collapsible>
+        <NavItem href="/recordings" icon={Mic} label="Call Recordings" active={pathname === "/recordings"} />
+        <NavItem href="/reports" icon={FileBarChart} label="Reports" active={pathname === "/reports"} />
 
-        <Button
-          variant="ghost"
-          className={cn(
-            "w-full justify-start transition-colors",
-            pathname === "/recordings" && "bg-accent/10 text-accent hover:bg-accent/15"
-          )}
-          asChild
-        >
-          <Link href="/recordings">
-            <Mic className="h-4 w-4 mr-3" />
-            <span className="flex-1 text-left">Call Recordings</span>
-          </Link>
-        </Button>
-
-        <Button
-          variant="ghost"
-          className={cn(
-            "w-full justify-start transition-colors",
-            pathname === "/reports" && "bg-accent/10 text-accent hover:bg-accent/15"
-          )}
-          asChild
-        >
-          <Link href="/reports">
-            <FileBarChart className="h-4 w-4 mr-3" />
-            Reports
-          </Link>
-        </Button>
-
+        <SectionLabel>LinkedIn</SectionLabel>
         <Collapsible open={isLinkedInOpen} onOpenChange={setIsLinkedInOpen}>
           <CollapsibleTrigger asChild>
-            <Button
-              variant="ghost"
-              className={cn(
-                "w-full justify-start transition-colors",
-                pathname.startsWith("/linkedin") && "bg-accent/10 text-accent hover:bg-accent/15"
-              )}
-            >
-              <Linkedin className="h-4 w-4 mr-3" />
-              LinkedIn
-              <ChevronDown
-                className={cn(
-                  "h-3 w-3 ml-auto transition-transform",
-                  isLinkedInOpen && "rotate-180"
-                )}
-              />
-            </Button>
+            <button className={cn(
+              "flex items-center gap-2.5 w-full px-2 py-1.5 rounded-md text-[13px] transition-colors select-none",
+              pathname.startsWith("/linkedin")
+                ? "bg-white/10 text-white font-medium"
+                : "text-white/55 hover:text-white/85 hover:bg-white/[0.05]"
+            )}>
+              <Linkedin className="h-[15px] w-[15px] shrink-0 text-white/40" />
+              <span className="flex-1 text-left leading-none">LinkedIn</span>
+              <ChevronDown className={cn("h-3.5 w-3.5 transition-transform text-white/30", isLinkedInOpen && "rotate-180")} />
+            </button>
           </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div className="ml-4 mt-1 space-y-1 border-l border-border pl-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                className={cn(
-                  "w-full justify-start transition-colors text-sm",
-                  pathname === "/linkedin/search" && "bg-accent/10 text-accent hover:bg-accent/15"
-                )}
-                asChild
-              >
-                <Link href="/linkedin/search">
-                  <Search className="h-3.5 w-3.5 mr-2.5" />
-                  Search
-                </Link>
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className={cn(
-                  "w-full justify-start transition-colors text-sm",
-                  pathname === "/linkedin" && "bg-accent/10 text-accent hover:bg-accent/15"
-                )}
-                asChild
-              >
-                <Link href="/linkedin">
-                  <MessagesSquare className="h-3.5 w-3.5 mr-2.5" />
-                  All Conversations
-                </Link>
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className={cn(
-                  "w-full justify-start transition-colors text-sm",
-                  pathname.startsWith("/linkedin/campaigns") && "bg-accent/10 text-accent hover:bg-accent/15"
-                )}
-                asChild
-              >
-                <Link href="/linkedin/campaigns">
-                  <Megaphone className="h-3.5 w-3.5 mr-2.5" />
-                  Campaigns
-                </Link>
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className={cn(
-                  "w-full justify-start transition-colors text-sm",
-                  pathname === "/linkedin-templates" && "bg-accent/10 text-accent hover:bg-accent/15"
-                )}
-                asChild
-              >
-                <Link href="/linkedin-templates">
-                  <MessageSquareText className="h-3.5 w-3.5 mr-2.5" />
-                  Templates
-                </Link>
-              </Button>
-            </div>
+          <CollapsibleContent className="mt-0.5 space-y-0.5">
+            <NavItem href="/linkedin/search" icon={Search} label="Search" active={pathname === "/linkedin/search"} indent />
+            <NavItem href="/linkedin" icon={MessagesSquare} label="All Conversations" active={pathname === "/linkedin"} indent />
+            <NavItem href="/linkedin/campaigns" icon={Megaphone} label="Campaigns" active={pathname.startsWith("/linkedin/campaigns")} indent />
+            <NavItem href="/linkedin-templates" icon={MessageSquareText} label="Templates" active={pathname === "/linkedin-templates"} indent />
           </CollapsibleContent>
         </Collapsible>
-      </div>
 
-      {/* Admin link */}
-      {userRole === "super_admin" && (
-        <div className="mt-auto">
-          <Button
-            variant="ghost"
-            className={cn(
-              "w-full justify-start transition-colors",
-              pathname.startsWith("/admin") && "bg-accent/10 text-accent hover:bg-accent/15"
-            )}
-            asChild
-          >
-            <Link href="/admin">
-              <Shield className="h-4 w-4 mr-3" />
-              Admin
-            </Link>
-          </Button>
-        </div>
-      )}
-
-      {/* User Profile Card — pinned to bottom */}
-      <Link
-        href="/settings"
-        className={cn(
-          "block px-4 py-3 border-t border-border transition-colors hover:bg-secondary/50 cursor-pointer",
-          !userRole?.includes("super_admin") && "mt-auto",
-          pathname === "/settings" && "bg-secondary/50"
+        {userRole === "super_admin" && (
+          <>
+            <SectionLabel>Admin</SectionLabel>
+            <NavItem href="/admin" icon={Shield} label="Admin" active={pathname.startsWith("/admin")} />
+          </>
         )}
-      >
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full bg-accent/20 flex items-center justify-center shrink-0">
-            <span className="text-sm font-semibold text-accent">{getInitials()}</span>
+      </nav>
+
+      {/* Bottom section */}
+      <div className="px-3 pb-3 pt-2 border-t border-white/[0.06] space-y-1.5">
+        {/* Credits indicator */}
+        {creditsRemaining !== null && (
+          <div className="flex items-center gap-2 px-2 py-1">
+            <CircleDot className="h-3.5 w-3.5 text-white/30 shrink-0" />
+            <span className="text-[12px] text-white/40">
+              {creditsRemaining} credits remaining
+            </span>
+          </div>
+        )}
+
+        {/* Upgrade button (trial users) */}
+        {user?.tier === 'trial' && (
+          <Link
+            href="/settings?tab=billing"
+            className="flex items-center justify-center w-full py-2 px-3 rounded-lg bg-[hsl(100,78%,44%)] hover:bg-[hsl(100,78%,38%)] text-white text-[13px] font-semibold transition-colors shadow-[0_0_16px_hsl(100,78%,44%,0.25)]"
+          >
+            Upgrade Plan
+          </Link>
+        )}
+
+        {/* Invite Team / Settings row */}
+        <Link
+          href="/settings?tab=team"
+          className="flex items-center justify-center w-full py-2 px-3 rounded-lg text-white/50 hover:text-white/80 hover:bg-white/[0.05] text-[13px] transition-colors"
+        >
+          <Users className="h-3.5 w-3.5 mr-2 shrink-0" />
+          Invite Team
+        </Link>
+
+        {/* User row */}
+        <Link
+          href="/settings"
+          className="flex items-center gap-2.5 px-2 py-2 rounded-md hover:bg-white/[0.05] transition-colors group"
+        >
+          <div className="w-6 h-6 rounded-full bg-accent/20 flex items-center justify-center shrink-0">
+            <span className="text-[10px] font-bold text-accent leading-none">{getInitials()}</span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-foreground truncate">{getDisplayName()}</p>
-            {creditStatus && (
-              <p className="text-[11px] text-muted-foreground">
-                {creditStatus.creditsTotal === -1
-                  ? "Unlimited"
-                  : `${creditStatus.label} \u00B7 ${creditStatus.creditsRemaining} credits left`
-                }
-              </p>
-            )}
+            <p className="text-[12px] font-medium text-white/80 truncate leading-none">{getDisplayName()}</p>
           </div>
-          <Settings className="h-4 w-4 text-muted-foreground shrink-0" />
-        </div>
-        {creditStatus && creditStatus.creditsTotal !== -1 && (
-          <div className="mt-2 ml-12">
-            <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
-              <div
-                className={cn(
-                  "h-full rounded-full transition-all",
-                  creditStatus.creditsUsed / creditStatus.creditsTotal >= 0.9
-                    ? "bg-red-500"
-                    : creditStatus.creditsUsed / creditStatus.creditsTotal >= 0.7
-                      ? "bg-yellow-500"
-                      : "bg-accent"
-                )}
-                style={{ width: `${Math.min((creditStatus.creditsUsed / creditStatus.creditsTotal) * 100, 100)}%` }}
-              />
-            </div>
-          </div>
-        )}
-      </Link>
+          <Settings className="h-3.5 w-3.5 text-white/20 group-hover:text-white/40 transition-colors shrink-0" />
+        </Link>
+      </div>
     </div>
   )
 }

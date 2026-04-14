@@ -3,6 +3,7 @@ import { withAuth, resolveRealUser } from '@/lib/auth/api-middleware'
 import { prisma } from '@/lib/prisma'
 import { cookies } from 'next/headers'
 import { getCreditStatus } from '@/lib/credits'
+import { createClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,8 +36,8 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    // Fetch impersonation status and credit status in parallel
-    const [impersonationResult, creditStatus] = await Promise.all([
+    // Fetch impersonation status, credit status, and Supabase metadata in parallel
+    const [impersonationResult, creditStatus, supabaseUser] = await Promise.all([
       (async () => {
         const realUser = await resolveRealUser()
         if (realUser && realUser.role === 'super_admin' && realUser.id !== userId) {
@@ -47,9 +48,22 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
         return false
       })(),
       getCreditStatus(userId).catch(() => null),
+      (async () => {
+        const supabase = await createClient()
+        const { data } = await supabase.auth.getUser()
+        return data.user
+      })(),
     ])
 
-    return NextResponse.json({ user, isImpersonating: impersonationResult, creditStatus })
+    const metadata = supabaseUser?.user_metadata ?? {}
+    const userWithMeta = {
+      ...user,
+      jobRole: metadata.jobRole ?? null,
+      usageType: metadata.usageType ?? null,
+      primaryGoal: metadata.primaryGoal ?? null,
+    }
+
+    return NextResponse.json({ user: userWithMeta, isImpersonating: impersonationResult, creditStatus })
   } catch (error) {
     console.error('Error fetching user:', error)
     return NextResponse.json(

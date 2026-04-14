@@ -16,6 +16,9 @@ interface UserData {
   workEndTime: string | null
   workDays: string | null
   createdAt: string
+  jobRole: string | null
+  usageType: 'personal' | 'team' | null
+  primaryGoal: string | null
 }
 
 interface CreditStatus {

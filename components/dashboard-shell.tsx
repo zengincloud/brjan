@@ -29,7 +29,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
 
   // Auth pages that should not have the dashboard shell
-  const authPages = ['/login', '/signup', '/reset-password', '/auth/callback']
+  const authPages = ['/login', '/signup', '/reset-password', '/auth/callback', '/onboarding']
   const isAuthPage = authPages.some(page => pathname?.startsWith(page))
 
   if (isAuthPage) {

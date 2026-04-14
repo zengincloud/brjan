@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { formatDistanceToNow } from 'date-fns'
-import { Phone, Mail, Linkedin, Plus, Upload, X, Pencil, Trash2, Zap, Search, MoreHorizontal, Send, StickyNote, Star, Copy, ChevronDown, ChevronRight } from 'lucide-react'
+import { Phone, Mail, Linkedin, Plus, Upload, X, Pencil, Trash2, Zap, Search, MoreHorizontal, Send, StickyNote, Star, Copy, ChevronDown, ChevronRight, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -37,6 +37,27 @@ type Prospect = {
 }
 
 type SequenceOption = { id: string; name: string }
+
+// ── Custom checkbox ────────────────────────────────────────────────────────────
+
+function Cb({ checked, onChange }: { checked: boolean; onChange: () => void }) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={checked}
+      onClick={onChange}
+      className={cn(
+        'w-[15px] h-[15px] rounded-[3px] border transition-colors shrink-0 flex items-center justify-center',
+        checked
+          ? 'bg-[hsl(100,78%,44%)] border-[hsl(100,78%,44%)]'
+          : 'border-border bg-transparent hover:border-muted-foreground/60'
+      )}
+    >
+      {checked && <Check className="h-2.5 w-2.5 text-white stroke-[3]" />}
+    </button>
+  )
+}
 
 // ── Score ──────────────────────────────────────────────────────────────────────
 
@@ -462,6 +483,31 @@ function ProspectDetail({
   const [newNote, setNewNote] = useState('')
   const [savingNote, setSavingNote] = useState(false)
   const [removingSequence, setRemovingSequence] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editForm, setEditForm] = useState({ name: prospect.name, title: prospect.title || '', company: prospect.company || '', status: prospect.status })
+  const [isSaving, setIsSaving] = useState(false)
+
+  const handleSave = async () => {
+    setIsSaving(true)
+    try {
+      const res = await fetch(`/api/prospects/${prospect.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: editForm.name, title: editForm.title, company: editForm.company, status: editForm.status }),
+      })
+      if (res.ok) {
+        toast({ title: 'Saved' })
+        setIsEditing(false)
+        onRefreshProspect()
+      } else {
+        toast({ title: 'Error', description: 'Failed to save', variant: 'destructive' })
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to save', variant: 'destructive' })
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
   useEffect(() => {
     setCalls([])
@@ -562,18 +608,87 @@ function ProspectDetail({
     <div className="flex flex-col h-full border-l border-border">
       {/* Header */}
       <div className="flex items-start justify-between px-5 pt-5 pb-4 border-b border-border shrink-0">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
           <Avatar name={prospect.name} size="lg" />
-          <div>
-            <h2 className="text-[14px] font-semibold leading-tight">{prospect.name}</h2>
-            <p className="text-[12px] text-muted-foreground mt-0.5">
-              {[prospect.title, prospect.company].filter(Boolean).join(' · ') || prospect.email}
-            </p>
-          </div>
+          {isEditing ? (
+            <div className="flex flex-col gap-1.5 min-w-0 flex-1 pr-2">
+              <Input
+                value={editForm.name}
+                onChange={(e) => setEditForm(f => ({ ...f, name: e.target.value }))}
+                className="h-7 text-[13px] font-semibold px-2"
+                placeholder="Name"
+              />
+              <div className="flex gap-1.5">
+                <Input
+                  value={editForm.title}
+                  onChange={(e) => setEditForm(f => ({ ...f, title: e.target.value }))}
+                  className="h-6 text-[12px] px-2"
+                  placeholder="Title"
+                />
+                <Input
+                  value={editForm.company}
+                  onChange={(e) => setEditForm(f => ({ ...f, company: e.target.value }))}
+                  className="h-6 text-[12px] px-2"
+                  placeholder="Company"
+                />
+              </div>
+              <select
+                value={editForm.status}
+                onChange={(e) => setEditForm(f => ({ ...f, status: e.target.value }))}
+                className="h-6 text-[12px] px-2 rounded-md border border-border bg-background text-foreground"
+              >
+                <option value="new_lead">New Lead</option>
+                <option value="contacted">Contacted</option>
+                <option value="in_sequence">In Sequence</option>
+                <option value="qualified">Qualified</option>
+                <option value="customer">Customer</option>
+                <option value="not_interested">Not Interested</option>
+                <option value="churned">Churned</option>
+              </select>
+            </div>
+          ) : (
+            <div>
+              <h2 className="text-[14px] font-semibold leading-tight">{prospect.name}</h2>
+              <p className="text-[12px] text-muted-foreground mt-0.5">
+                {[prospect.title, prospect.company].filter(Boolean).join(' · ') || prospect.email}
+              </p>
+            </div>
+          )}
         </div>
-        <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors p-1 -mr-1 -mt-1">
-          <X className="h-4 w-4" />
-        </button>
+        <div className="flex items-center gap-1 shrink-0 -mt-1 -mr-1">
+          {isEditing ? (
+            <>
+              <button
+                onClick={handleSave}
+                disabled={isSaving}
+                className="p-1.5 rounded hover:bg-accent/10 text-accent transition-colors disabled:opacity-50"
+                title="Save"
+              >
+                <Check className="h-4 w-4 stroke-[2.5]" />
+              </button>
+              <button
+                onClick={() => { setIsEditing(false); setEditForm({ name: prospect.name, title: prospect.title || '', company: prospect.company || '', status: prospect.status }) }}
+                className="p-1.5 rounded hover:bg-muted/50 text-muted-foreground transition-colors"
+                title="Cancel"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => { setEditForm({ name: prospect.name, title: prospect.title || '', company: prospect.company || '', status: prospect.status }); setIsEditing(true) }}
+                className="p-1.5 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+                title="Edit"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+              <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors p-1.5">
+                <X className="h-4 w-4" />
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Actions */}
@@ -606,10 +721,6 @@ function ProspectDetail({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => onEdit(prospect)}>
-                <Pencil className="h-4 w-4 mr-2" /> Edit
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => onDelete(prospect)} className="text-destructive focus:text-destructive">
                 <Trash2 className="h-4 w-4 mr-2" /> Delete
               </DropdownMenuItem>
@@ -981,11 +1092,9 @@ export default function ProspectsPage() {
                 <thead className="sticky top-0 bg-background z-10">
                   <tr>
                     <th className="px-4 py-2.5 border-b border-border w-10">
-                      <input
-                        type="checkbox"
+                      <Cb
                         checked={selectedRows.length === filteredProspects.length && filteredProspects.length > 0}
                         onChange={toggleAll}
-                        className="h-3.5 w-3.5 rounded accent-[hsl(100,78%,44%)]"
                       />
                     </th>
                     <Th>Contact</Th>
@@ -1031,12 +1140,7 @@ export default function ProspectsPage() {
                         >
                           {/* Checkbox */}
                           <td className="px-4 py-2.5 w-10" onClick={(e) => { e.stopPropagation(); toggleRow(p.id) }}>
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={() => toggleRow(p.id)}
-                              className="h-3.5 w-3.5 rounded accent-[hsl(100,78%,44%)]"
-                            />
+                            <Cb checked={isChecked} onChange={() => toggleRow(p.id)} />
                           </td>
 
                           {/* Contact */}

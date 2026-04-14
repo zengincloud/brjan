@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { formatDistanceToNow } from 'date-fns'
-import { Globe, Linkedin, Plus, Upload, X, Trash2, Search, MoreHorizontal, FolderInput, Users, Phone, Mail, Mic, Sparkles, RefreshCw, UserPlus } from 'lucide-react'
+import { Globe, Linkedin, Plus, Upload, X, Trash2, Search, MoreHorizontal, FolderInput, Users, Phone, Mail, Sparkles, RefreshCw, UserPlus, Check } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -27,6 +27,27 @@ type Account = {
   sequenceStep?: string | null
   lastActivity: string
   contacts: number
+}
+
+// ── Custom checkbox ────────────────────────────────────────────────────────────
+
+function Cb({ checked, onChange }: { checked: boolean; onChange: () => void }) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={checked}
+      onClick={onChange}
+      className={cn(
+        'w-[15px] h-[15px] rounded-[3px] border transition-colors shrink-0 flex items-center justify-center',
+        checked
+          ? 'bg-[hsl(100,78%,44%)] border-[hsl(100,78%,44%)]'
+          : 'border-border bg-transparent hover:border-muted-foreground/60'
+      )}
+    >
+      {checked && <Check className="h-2.5 w-2.5 text-white stroke-[3]" />}
+    </button>
+  )
 }
 
 // ── Avatar ─────────────────────────────────────────────────────────────────────
@@ -551,11 +572,9 @@ export default function AccountsPage() {
                 <thead className="sticky top-0 bg-background z-10">
                   <tr>
                     <th className="px-4 py-2.5 border-b border-border w-10">
-                      <input
-                        type="checkbox"
+                      <Cb
                         checked={selectedRows.length === filteredAccounts.length && filteredAccounts.length > 0}
                         onChange={toggleAll}
-                        className="h-3.5 w-3.5 rounded accent-[hsl(100,78%,44%)]"
                       />
                     </th>
                     <Th>Account</Th>
@@ -599,12 +618,7 @@ export default function AccountsPage() {
                         >
                           {/* Checkbox */}
                           <td className="px-4 py-2.5 w-10" onClick={(e) => { e.stopPropagation(); toggleRow(a.id) }}>
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={() => toggleRow(a.id)}
-                              className="h-3.5 w-3.5 rounded accent-[hsl(100,78%,44%)]"
-                            />
+                            <Cb checked={isChecked} onChange={() => toggleRow(a.id)} />
                           </td>
 
                           {/* Account */}

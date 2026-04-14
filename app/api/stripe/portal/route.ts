@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { withAuth } from '@/lib/auth/api-middleware'
 import { prisma } from '@/lib/prisma'
-import { stripe } from '@/lib/stripe'
+import { getStripe } from '@/lib/stripe'
 
 export const POST = withAuth(async (request: NextRequest, userId: string) => {
   try {
@@ -16,7 +16,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 
-    const session = await stripe.billingPortal.sessions.create({
+    const session = await getStripe().billingPortal.sessions.create({
       customer: user.stripeCustomerId,
       return_url: `${baseUrl}/settings?tab=billing`,
     })

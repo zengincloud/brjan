@@ -18,6 +18,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { TrialLimitBanner } from '@/components/trial-limit-banner'
 import { TRIAL_LIMITS } from '@/lib/trial-limits'
+import { ProspectStatusBoxes } from '@/components/prospect-status-boxes'
 
 type Prospect = {
   id: string
@@ -32,48 +33,52 @@ type Prospect = {
   sequenceStep?: string | null
   lastActivity: string
   povData?: any
-  wizaData?: any
 }
 
 type SequenceOption = { id: string; name: string }
 
-// ── Score helpers ──────────────────────────────────────────────────────────────
+// ── Score ──────────────────────────────────────────────────────────────────────
 
-function getScore(status: string): 'high' | 'medium' | 'low' {
-  if (['qualified', 'meeting_scheduled'].includes(status)) return 'high'
-  if (['contacted', 'in_sequence'].includes(status)) return 'medium'
-  return 'low'
+function getScore(status: string): 'High' | 'Medium' | 'Low' {
+  if (['qualified', 'meeting_scheduled'].includes(status)) return 'High'
+  if (['contacted', 'in_sequence'].includes(status)) return 'Medium'
+  return 'Low'
 }
 
-function ScoreBars({ score }: { score: 'high' | 'medium' | 'low' }) {
+function ScoreCell({ status }: { status: string }) {
+  const score = getScore(status)
   const bars = [
     { active: true },
-    { active: score === 'medium' || score === 'high' },
-    { active: score === 'high' },
+    { active: score === 'Medium' || score === 'High' },
+    { active: score === 'High' },
   ]
+  const textColor =
+    score === 'High' ? 'text-[hsl(100,78%,44%)]' :
+    score === 'Medium' ? 'text-yellow-400' :
+    'text-muted-foreground'
+
   return (
-    <div className="flex items-end gap-[3px]">
-      {bars.map((bar, i) => (
-        <div
-          key={i}
-          className={cn(
-            'w-[3px] rounded-sm',
-            bar.active
-              ? score === 'high'
-                ? 'bg-[hsl(100,78%,44%)]'
-                : score === 'medium'
-                ? 'bg-yellow-400'
-                : 'bg-muted-foreground/40'
-              : 'bg-muted-foreground/20'
-          )}
-          style={{ height: `${8 + i * 4}px` }}
-        />
-      ))}
+    <div className="flex items-center gap-2">
+      <div className="flex items-end gap-[3px]">
+        {bars.map((bar, i) => (
+          <div
+            key={i}
+            className={cn(
+              'w-[3px] rounded-sm',
+              bar.active
+                ? score === 'High' ? 'bg-[hsl(100,78%,44%)]' : score === 'Medium' ? 'bg-yellow-400' : 'bg-muted-foreground/50'
+                : 'bg-muted-foreground/20'
+            )}
+            style={{ height: `${8 + i * 4}px` }}
+          />
+        ))}
+      </div>
+      <span className={cn('text-[13px]', textColor)}>{score}</span>
     </div>
   )
 }
 
-// ── Avatar helpers ─────────────────────────────────────────────────────────────
+// ── Avatar ─────────────────────────────────────────────────────────────────────
 
 const AVATAR_COLORS = [
   'bg-indigo-500', 'bg-cyan-600', 'bg-emerald-600',
@@ -82,7 +87,7 @@ const AVATAR_COLORS = [
 
 function getInitials(name: string) {
   const parts = name.trim().split(' ')
-  if (parts.length === 1) return parts[0][0]?.toUpperCase() ?? '?'
+  if (parts.length === 1) return (parts[0][0] ?? '?').toUpperCase()
   return ((parts[0][0] ?? '') + (parts[parts.length - 1][0] ?? '')).toUpperCase()
 }
 
@@ -93,7 +98,7 @@ function getAvatarColor(name: string) {
 }
 
 function Avatar({ name, size = 'sm' }: { name: string; size?: 'sm' | 'lg' }) {
-  const cls = size === 'lg' ? 'w-10 h-10 text-sm' : 'w-7 h-7 text-[11px]'
+  const cls = size === 'lg' ? 'w-10 h-10 text-sm' : 'w-6 h-6 text-[11px]'
   return (
     <div className={cn('rounded-full flex items-center justify-center font-semibold text-white shrink-0', getAvatarColor(name), cls)}>
       {getInitials(name)}
@@ -101,7 +106,7 @@ function Avatar({ name, size = 'sm' }: { name: string; size?: 'sm' | 'lg' }) {
   )
 }
 
-// ── Status label ───────────────────────────────────────────────────────────────
+// ── Status badge ───────────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: string }) {
   const colorMap: Record<string, string> = {
@@ -136,6 +141,9 @@ function ProspectDetail({
 }) {
   const [tab, setTab] = useState<'overview' | 'activity'>('overview')
 
+  let povParsed: any = null
+  try { povParsed = typeof prospect.povData === 'string' ? JSON.parse(prospect.povData) : prospect.povData } catch {}
+
   const detailRows = [
     { label: 'Email', value: prospect.email },
     { label: 'Phone', value: prospect.phone || '—' },
@@ -147,17 +155,14 @@ function ProspectDetail({
     { label: 'Last activity', value: prospect.lastActivity ? formatDistanceToNow(new Date(prospect.lastActivity), { addSuffix: true }) : '—' },
   ]
 
-  let povParsed: any = null
-  try { povParsed = typeof prospect.povData === 'string' ? JSON.parse(prospect.povData) : prospect.povData } catch {}
-
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full border-l border-border">
       {/* Header */}
       <div className="flex items-start justify-between px-5 pt-5 pb-4 border-b border-border shrink-0">
         <div className="flex items-center gap-3">
           <Avatar name={prospect.name} size="lg" />
           <div>
-            <h2 className="text-[14px] font-semibold text-foreground leading-tight">{prospect.name}</h2>
+            <h2 className="text-[14px] font-semibold leading-tight">{prospect.name}</h2>
             <p className="text-[12px] text-muted-foreground mt-0.5">
               {[prospect.title, prospect.company].filter(Boolean).join(' · ') || prospect.email}
             </p>
@@ -168,7 +173,7 @@ function ProspectDetail({
         </button>
       </div>
 
-      {/* Action buttons */}
+      {/* Actions */}
       <div className="flex items-center gap-2 px-5 py-3 border-b border-border shrink-0">
         <Button size="sm" variant="outline" onClick={() => onCall(prospect)} className="h-7 px-3 text-[12px] gap-1.5">
           <Phone className="h-3.5 w-3.5" /> Call
@@ -202,13 +207,13 @@ function ProspectDetail({
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-0 px-5 border-b border-border shrink-0">
+      <div className="flex px-5 border-b border-border shrink-0">
         {(['overview', 'activity'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={cn(
-              'px-0 mr-5 py-2.5 text-[12px] font-medium capitalize border-b-2 transition-colors',
+              'mr-5 py-2.5 text-[12px] font-medium capitalize border-b-2 -mb-px transition-colors',
               tab === t ? 'border-accent text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'
             )}
           >
@@ -217,14 +222,13 @@ function ProspectDetail({
         ))}
       </div>
 
-      {/* Tab content */}
+      {/* Content */}
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
         {tab === 'overview' && (
           <>
-            {/* Details grid */}
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2.5">Details</p>
-              <div className="space-y-0 rounded-lg border border-border overflow-hidden">
+              <div className="rounded-lg border border-border overflow-hidden">
                 {detailRows.map(({ label, value }) => (
                   <div key={label} className="flex items-center px-3 py-2 border-b border-border last:border-0">
                     <span className="text-[12px] text-muted-foreground w-24 shrink-0">{label}</span>
@@ -233,8 +237,6 @@ function ProspectDetail({
                 ))}
               </div>
             </div>
-
-            {/* AI Research */}
             {povParsed && (
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2.5">AI Research</p>
@@ -250,14 +252,23 @@ function ProspectDetail({
             )}
           </>
         )}
-
         {tab === 'activity' && (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
+          <div className="flex items-center justify-center py-12">
             <p className="text-[12px] text-muted-foreground">No activity recorded yet.</p>
           </div>
         )}
       </div>
     </div>
+  )
+}
+
+// ── Table header cell ──────────────────────────────────────────────────────────
+
+function Th({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <th className={cn('px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 border-b border-border whitespace-nowrap', className)}>
+      {children}
+    </th>
   )
 }
 
@@ -276,8 +287,8 @@ export default function ProspectsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedProspect, setSelectedProspect] = useState<Prospect | null>(null)
   const [selectedRows, setSelectedRows] = useState<string[]>([])
-
   const [sequences, setSequences] = useState<SequenceOption[]>([])
+
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
@@ -294,7 +305,7 @@ export default function ProspectsPage() {
       if (!append) setLoading(true)
       const params = new URLSearchParams({ page: String(loadPage), pageSize: String(pageSize) })
       const res = await fetch(`/api/prospects?${params}`)
-      if (!res.ok) throw new Error('Failed to load prospects')
+      if (!res.ok) throw new Error()
       const data = await res.json()
       if (append) {
         setProspects((prev) => [...prev, ...data.prospects])
@@ -320,30 +331,18 @@ export default function ProspectsPage() {
     } catch {}
   }, [])
 
-  useEffect(() => {
-    loadProspects()
-    loadSequences()
-  }, [loadProspects, loadSequences])
+  useEffect(() => { loadProspects(); loadSequences() }, [loadProspects, loadSequences])
 
   const filteredProspects = prospects.filter((p) => {
     const q = searchTerm.toLowerCase()
-    return (
-      !q ||
-      (p.name?.toLowerCase() ?? '').includes(q) ||
-      (p.company?.toLowerCase() ?? '').includes(q) ||
-      (p.email?.toLowerCase() ?? '').includes(q)
-    )
+    return !q || (p.name?.toLowerCase() ?? '').includes(q) || (p.company?.toLowerCase() ?? '').includes(q) || (p.email?.toLowerCase() ?? '').includes(q)
   })
 
-  const handleEditProspect = (p: Prospect) => {
-    setEditingProspect(p)
-    setEditDialogOpen(true)
-  }
+  const toggleRow = (id: string) =>
+    setSelectedRows((prev) => prev.includes(id) ? prev.filter((r) => r !== id) : [...prev, id])
 
-  const handleCallProspect = (p: Prospect) => {
-    setCallingProspect(p)
-    setCallDialogOpen(true)
-  }
+  const toggleAll = () =>
+    setSelectedRows((prev) => prev.length === filteredProspects.length ? [] : filteredProspects.map((p) => p.id))
 
   const confirmDelete = (ids: string[], label: string) => {
     setDeleteTarget({ ids, label })
@@ -354,17 +353,13 @@ export default function ProspectsPage() {
     if (!deleteTarget) return
     try {
       setDeleting(true)
-      const results = await Promise.all(
-        deleteTarget.ids.map((id) => fetch(`/api/prospects/${id}`, { method: 'DELETE' }))
-      )
+      const results = await Promise.all(deleteTarget.ids.map((id) => fetch(`/api/prospects/${id}`, { method: 'DELETE' })))
       const failed = results.filter((r) => !r.ok).length
       if (failed > 0) {
         toast({ title: 'Error', description: `Failed to delete ${failed} prospect${failed > 1 ? 's' : ''}`, variant: 'destructive' })
       } else {
         toast({ title: 'Deleted', description: `${deleteTarget.ids.length === 1 ? deleteTarget.label : `${deleteTarget.ids.length} prospects`} deleted` })
-        if (selectedProspect && deleteTarget.ids.includes(selectedProspect.id)) {
-          setSelectedProspect(null)
-        }
+        if (selectedProspect && deleteTarget.ids.includes(selectedProspect.id)) setSelectedProspect(null)
       }
       setSelectedRows((prev) => prev.filter((id) => !deleteTarget.ids.includes(id)))
       setProspects((prev) => prev.filter((p) => !deleteTarget.ids.includes(p.id)))
@@ -377,184 +372,230 @@ export default function ProspectsPage() {
     }
   }
 
-  const toggleRow = (id: string) => {
-    setSelectedRows((prev) => prev.includes(id) ? prev.filter((r) => r !== id) : [...prev, id])
-  }
-
-  const toggleAll = () => {
-    setSelectedRows((prev) => prev.length === filteredProspects.length ? [] : filteredProspects.map((p) => p.id))
-  }
+  // When detail panel is open, only show Contact + Score + Company columns
+  const compact = !!selectedProspect
 
   return (
     <>
-      {/* Break out of shell padding, fill viewport */}
       <div className="-m-5 flex flex-col" style={{ height: 'calc(100vh - 3rem)' }}>
+        {/* Stats row */}
+        <div className="px-5 pt-4 shrink-0">
+          {user?.tier === 'trial' && (
+            <div className="mb-3">
+              <TrialLimitBanner current={totalCount} limit={TRIAL_LIMITS.prospects} resourceLabel="prospects" />
+            </div>
+          )}
+          <ProspectStatusBoxes />
+        </div>
 
-        {/* Trial banner */}
-        {user?.tier === 'trial' && (
-          <div className="px-5 pt-4 shrink-0">
-            <TrialLimitBanner current={totalCount} limit={TRIAL_LIMITS.prospects} resourceLabel="prospects" />
-          </div>
-        )}
+        <div className="flex flex-1 overflow-hidden mt-4">
 
-        <div className="flex flex-1 overflow-hidden">
-          {/* ── Left panel ──────────────────────────────────────────────── */}
-          <div
-            className={cn(
-              'flex flex-col border-r border-border overflow-hidden shrink-0 transition-all duration-200',
-              selectedProspect ? 'w-[360px]' : 'flex-1'
-            )}
-          >
+          {/* ── Table panel ───────────────────────────────────────────────── */}
+          <div className={cn('flex flex-col overflow-hidden transition-all duration-200', compact ? 'w-[400px] shrink-0' : 'flex-1')}>
+
             {/* Toolbar */}
-            <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border shrink-0">
-              <div className="relative flex-1">
+            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border shrink-0">
+              <div className="relative flex-1 max-w-xs">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
-                  placeholder="Search prospects..."
+                  placeholder="Search..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-8 h-8 text-[13px]"
                 />
               </div>
+
               {selectedRows.length > 0 ? (
                 <div className="flex items-center gap-1.5">
                   <Badge variant="secondary" className="text-[12px]">{selectedRows.length} selected</Badge>
                   <Button size="sm" variant="outline" onClick={() => setSequenceDialogOpen(true)} className="h-8 text-[12px]">
                     <Zap className="h-3.5 w-3.5 mr-1" /> Sequence
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => confirmDelete(selectedRows, `${selectedRows.length} prospects`)}
-                    className="h-8 text-[12px] text-destructive hover:text-destructive"
-                  >
+                  <Button size="sm" variant="outline" onClick={() => confirmDelete(selectedRows, `${selectedRows.length} prospects`)} className="h-8 text-[12px] text-destructive hover:text-destructive">
                     <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => setSelectedRows([])} className="h-8 text-[12px]">Clear</Button>
                 </div>
               ) : (
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 ml-auto">
                   <Button size="sm" variant="outline" onClick={() => setUploadDialogOpen(true)} className="h-8 text-[12px]">
-                    <Upload className="h-3.5 w-3.5 mr-1" /> CSV
+                    <Upload className="h-3.5 w-3.5 mr-1" /> Upload CSV
                   </Button>
                   <Button size="sm" onClick={() => setAddDialogOpen(true)} className="h-8 text-[12px]">
-                    <Plus className="h-3.5 w-3.5 mr-1" /> Add
+                    <Plus className="h-3.5 w-3.5 mr-1" /> Add Prospect
                   </Button>
                 </div>
               )}
             </div>
 
-            {/* Column headers */}
-            <div className="flex items-center px-3 py-2 border-b border-border shrink-0">
-              <div className="w-7 mr-3 shrink-0">
-                <input
-                  type="checkbox"
-                  checked={selectedRows.length === filteredProspects.length && filteredProspects.length > 0}
-                  onChange={toggleAll}
-                  className="h-3.5 w-3.5 rounded accent-[hsl(100,78%,44%)]"
-                />
-              </div>
-              <span className="flex-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">Contact</span>
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 mr-1">Score</span>
-            </div>
+            {/* Table */}
+            <div className="flex-1 overflow-auto">
+              <table className="w-full border-collapse">
+                <thead className="sticky top-0 bg-background z-10">
+                  <tr>
+                    <th className="px-4 py-2.5 border-b border-border w-10">
+                      <input
+                        type="checkbox"
+                        checked={selectedRows.length === filteredProspects.length && filteredProspects.length > 0}
+                        onChange={toggleAll}
+                        className="h-3.5 w-3.5 rounded accent-[hsl(100,78%,44%)]"
+                      />
+                    </th>
+                    <Th>Contact</Th>
+                    <Th>Score</Th>
+                    {!compact && <Th>Company</Th>}
+                    {!compact && <Th>Email</Th>}
+                    {!compact && <Th>Title</Th>}
+                    {!compact && <Th>Status</Th>}
+                    {!compact && <Th>Sequence</Th>}
+                    {!compact && <Th>Last Activity</Th>}
+                    <Th className="w-10" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={compact ? 4 : 10} className="text-center py-12 text-[13px] text-muted-foreground">
+                        Loading...
+                      </td>
+                    </tr>
+                  ) : filteredProspects.length === 0 ? (
+                    <tr>
+                      <td colSpan={compact ? 4 : 10} className="text-center py-12">
+                        <p className="text-[13px] text-muted-foreground mb-3">No prospects found</p>
+                        <Button size="sm" onClick={() => setAddDialogOpen(true)} className="text-[12px] h-8">
+                          <Plus className="h-3.5 w-3.5 mr-1" /> Add prospect
+                        </Button>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredProspects.map((p) => {
+                      const isSelected = selectedProspect?.id === p.id
+                      const isChecked = selectedRows.includes(p.id)
 
-            {/* List */}
-            <div className="flex-1 overflow-y-auto">
-              {loading ? (
-                <div className="flex items-center justify-center py-12">
-                  <p className="text-[13px] text-muted-foreground">Loading...</p>
-                </div>
-              ) : filteredProspects.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 gap-2">
-                  <p className="text-[13px] text-muted-foreground">No prospects found</p>
-                  <Button size="sm" onClick={() => setAddDialogOpen(true)} className="text-[12px] h-8">
-                    <Plus className="h-3.5 w-3.5 mr-1" /> Add prospect
-                  </Button>
-                </div>
-              ) : (
-                <>
-                  {filteredProspects.map((p) => {
-                    const score = getScore(p.status)
-                    const isSelected = selectedProspect?.id === p.id
-                    const isChecked = selectedRows.includes(p.id)
-
-                    return (
-                      <div
-                        key={p.id}
-                        onClick={() => setSelectedProspect(isSelected ? null : p)}
-                        className={cn(
-                          'flex items-center px-3 py-2.5 border-b border-border/60 cursor-pointer transition-colors group',
-                          isSelected ? 'bg-accent/10' : 'hover:bg-muted/40'
-                        )}
-                      >
-                        {/* Checkbox */}
-                        <div
-                          className="w-7 mr-3 shrink-0"
-                          onClick={(e) => { e.stopPropagation(); toggleRow(p.id) }}
+                      return (
+                        <tr
+                          key={p.id}
+                          onClick={() => setSelectedProspect(isSelected ? null : p)}
+                          className={cn(
+                            'border-b border-border/60 cursor-pointer transition-colors group',
+                            isSelected ? 'bg-accent/5' : 'hover:bg-muted/30'
+                          )}
                         >
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() => toggleRow(p.id)}
-                            className="h-3.5 w-3.5 rounded accent-[hsl(100,78%,44%)]"
-                          />
-                        </div>
+                          {/* Checkbox */}
+                          <td className="px-4 py-2.5 w-10" onClick={(e) => { e.stopPropagation(); toggleRow(p.id) }}>
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => toggleRow(p.id)}
+                              className="h-3.5 w-3.5 rounded accent-[hsl(100,78%,44%)]"
+                            />
+                          </td>
 
-                        {/* Avatar */}
-                        <div className="mr-2.5 shrink-0">
-                          <Avatar name={p.name} />
-                        </div>
+                          {/* Contact */}
+                          <td className="px-4 py-2.5">
+                            <div className="flex items-center gap-2.5">
+                              <Avatar name={p.name} />
+                              <span className="text-[13px] font-medium text-foreground whitespace-nowrap">{p.name}</span>
+                            </div>
+                          </td>
 
-                        {/* Name + subtitle */}
-                        <div className="flex-1 min-w-0">
-                          <p className={cn('text-[13px] font-medium truncate leading-tight', isSelected ? 'text-foreground' : 'text-foreground/90')}>
-                            {p.name}
-                          </p>
-                          <p className="text-[11px] text-muted-foreground truncate mt-0.5">
-                            {[p.title, p.company].filter(Boolean).join(' · ') || p.email}
-                          </p>
-                        </div>
+                          {/* Score */}
+                          <td className="px-4 py-2.5">
+                            <ScoreCell status={p.status} />
+                          </td>
 
-                        {/* Score bars */}
-                        <div className="ml-3 shrink-0">
-                          <ScoreBars score={score} />
-                        </div>
-                      </div>
-                    )
-                  })}
+                          {/* Full columns — hidden in compact mode */}
+                          {!compact && (
+                            <td className="px-4 py-2.5 text-[13px] text-foreground/80 whitespace-nowrap">
+                              {p.company || '—'}
+                            </td>
+                          )}
+                          {!compact && (
+                            <td className="px-4 py-2.5 text-[13px] text-foreground/70 whitespace-nowrap">
+                              {p.email}
+                            </td>
+                          )}
+                          {!compact && (
+                            <td className="px-4 py-2.5 text-[13px] text-foreground/70 whitespace-nowrap">
+                              {p.title || '—'}
+                            </td>
+                          )}
+                          {!compact && (
+                            <td className="px-4 py-2.5">
+                              <StatusBadge status={p.status} />
+                            </td>
+                          )}
+                          {!compact && (
+                            <td className="px-4 py-2.5 text-[13px] text-foreground/70 whitespace-nowrap max-w-[160px] truncate">
+                              {p.sequence || '—'}
+                            </td>
+                          )}
+                          {!compact && (
+                            <td className="px-4 py-2.5 text-[13px] text-muted-foreground whitespace-nowrap">
+                              {p.lastActivity ? formatDistanceToNow(new Date(p.lastActivity), { addSuffix: true }) : '—'}
+                            </td>
+                          )}
 
-                  {/* Load more */}
-                  {prospects.length < totalCount && (
-                    <div className="flex justify-center py-3">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); loadProspects(page + 1, true) }}
-                        className="text-[12px] text-muted-foreground hover:text-foreground underline"
-                      >
-                        Load more ({prospects.length} of {totalCount})
-                      </button>
-                    </div>
+                          {/* Row actions */}
+                          <td className="px-2 py-2.5 w-10" onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <MoreHorizontal className="h-3.5 w-3.5" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => { setEditingProspect(p); setEditDialogOpen(true) }}>
+                                  <Pencil className="h-4 w-4 mr-2" /> Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => { setCallingProspect(p); setCallDialogOpen(true) }}>
+                                  <Phone className="h-4 w-4 mr-2" /> Call
+                                </DropdownMenuItem>
+                                {p.linkedin && (
+                                  <DropdownMenuItem onClick={() => window.open(p.linkedin!, '_blank')}>
+                                    <Linkedin className="h-4 w-4 mr-2" /> LinkedIn
+                                  </DropdownMenuItem>
+                                )}
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={() => confirmDelete([p.id], p.name)} className="text-destructive focus:text-destructive">
+                                  <Trash2 className="h-4 w-4 mr-2" /> Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </td>
+                        </tr>
+                      )
+                    })
                   )}
-                </>
+                </tbody>
+              </table>
+
+              {/* Load more */}
+              {prospects.length < totalCount && (
+                <div className="flex justify-center py-4 border-t border-border">
+                  <button
+                    onClick={() => loadProspects(page + 1, true)}
+                    className="text-[12px] text-muted-foreground hover:text-foreground underline"
+                  >
+                    Load more ({prospects.length} of {totalCount})
+                  </button>
+                </div>
               )}
             </div>
           </div>
 
-          {/* ── Right panel ─────────────────────────────────────────────── */}
+          {/* ── Detail panel ──────────────────────────────────────────────── */}
           {selectedProspect && (
             <div className="flex-1 overflow-hidden">
               <ProspectDetail
                 prospect={selectedProspect}
                 onClose={() => setSelectedProspect(null)}
-                onEdit={(p) => { setSelectedProspect(p); handleEditProspect(p) }}
-                onCall={handleCallProspect}
+                onEdit={(p) => { setEditingProspect(p); setEditDialogOpen(true) }}
+                onCall={(p) => { setCallingProspect(p); setCallDialogOpen(true) }}
                 onDelete={(p) => confirmDelete([p.id], p.name)}
               />
             </div>
-          )}
-
-          {/* Empty right panel state */}
-          {!selectedProspect && (
-            <div className="hidden" />
           )}
         </div>
       </div>
@@ -566,28 +607,14 @@ export default function ProspectsPage() {
         open={editDialogOpen}
         onOpenChange={setEditDialogOpen}
         prospect={editingProspect}
-        onProspectUpdated={() => {
-          loadProspects()
-          if (editingProspect && selectedProspect?.id === editingProspect.id) {
-            setSelectedProspect(null)
-          }
-        }}
+        onProspectUpdated={() => { loadProspects(); if (editingProspect && selectedProspect?.id === editingProspect.id) setSelectedProspect(null) }}
       />
-      <CallProspectDialog
-        open={callDialogOpen}
-        onOpenChange={setCallDialogOpen}
-        prospect={callingProspect}
-        onCallCompleted={loadProspects}
-      />
+      <CallProspectDialog open={callDialogOpen} onOpenChange={setCallDialogOpen} prospect={callingProspect} onCallCompleted={loadProspects} />
       <AddToSequenceDialog
         open={sequenceDialogOpen}
         onOpenChange={setSequenceDialogOpen}
         prospectIds={selectedRows}
-        prospectName={
-          selectedRows.length === 1
-            ? prospects.find((p) => p.id === selectedRows[0])?.name || 'Prospect'
-            : `${selectedRows.length} prospects`
-        }
+        prospectName={selectedRows.length === 1 ? prospects.find((p) => p.id === selectedRows[0])?.name || 'Prospect' : `${selectedRows.length} prospects`}
         onSequenceAdded={() => { setSelectedRows([]); loadProspects() }}
       />
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -600,11 +627,7 @@ export default function ProspectsPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              disabled={deleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
+            <AlertDialogAction onClick={handleDelete} disabled={deleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               {deleting ? 'Deleting...' : 'Delete'}
             </AlertDialogAction>
           </AlertDialogFooter>

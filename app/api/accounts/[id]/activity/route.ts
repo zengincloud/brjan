@@ -55,6 +55,9 @@ export const GET = withAuth(async (request: NextRequest, userId: string, context
         prospect: {
           select: { name: true },
         },
+        user: {
+          select: { firstName: true, lastName: true, email: true },
+        },
       },
     })
 
@@ -114,6 +117,8 @@ export const GET = withAuth(async (request: NextRequest, userId: string, context
       recordingUrl?: string | null
       emailStatus?: string | null
       subject?: string | null
+      sdrName?: string | null
+      notes?: string | null
     }
 
     const activity: ActivityItem[] = []
@@ -135,6 +140,11 @@ export const GET = withAuth(async (request: NextRequest, userId: string, context
       }
       const outcomeText = call.outcome ? (outcomeLabels[call.outcome] || call.outcome.replace(/_/g, " ")) : call.status
 
+      const callUser = (call as any).user
+      const sdrName = callUser
+        ? [callUser.firstName, callUser.lastName].filter(Boolean).join(" ") || callUser.email
+        : null
+
       activity.push({
         id: call.id,
         type: "call",
@@ -144,6 +154,8 @@ export const GET = withAuth(async (request: NextRequest, userId: string, context
         outcome: call.outcome,
         duration: call.recordingDuration || call.duration,
         recordingUrl: call.recordingUrl,
+        sdrName,
+        notes: call.notes ?? null,
       })
     }
 

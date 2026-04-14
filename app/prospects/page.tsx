@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { formatDistanceToNow } from 'date-fns'
-import { Phone, Mail, Linkedin, Plus, Upload, X, Pencil, Trash2, Zap, Search, MoreHorizontal } from 'lucide-react'
+import { Phone, Mail, Linkedin, Plus, Upload, X, Pencil, Trash2, Zap, Search, MoreHorizontal, Send, StickyNote } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -124,6 +124,14 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
+type NoteEntry = {
+  id: string
+  text: string
+  date: string
+  initials: string
+  userId: string
+}
+
 type CallRecord = {
   id: string
   outcome?: string | null
@@ -133,6 +141,10 @@ type CallRecord = {
   notes?: string | null
   createdAt: string
   startedAt?: string | null
+  from?: string | null
+  transcription?: string | null
+  transcriptionStatus?: string | null
+  user?: { firstName?: string | null; lastName?: string | null; email?: string | null } | null
 }
 
 // ── Detail panel ───────────────────────────────────────────────────────────────
@@ -143,16 +155,26 @@ function ProspectDetail({
   onEdit,
   onCall,
   onDelete,
+  onAddToSequence,
+  onRefreshProspect,
 }: {
   prospect: Prospect
   onClose: () => void
   onEdit: (p: Prospect) => void
   onCall: (p: Prospect) => void
   onDelete: (p: Prospect) => void
+  onAddToSequence: (p: Prospect) => void
+  onRefreshProspect: () => void
 }) {
-  const [tab, setTab] = useState<'overview' | 'activity'>('overview')
+  const { toast } = useToast()
+  const [tab, setTab] = useState<'overview' | 'activity' | 'notes'>('overview')
   const [calls, setCalls] = useState<CallRecord[]>([])
   const [loadingCalls, setLoadingCalls] = useState(false)
+  const [notes, setNotes] = useState<NoteEntry[]>([])
+  const [loadingNotes, setLoadingNotes] = useState(false)
+  const [newNote, setNewNote] = useState('')
+  const [savingNote, setSavingNote] = useState(false)
+  const [removingSequence, setRemovingSequence] = useState(false)
 
   useEffect(() => {
     setCalls([])
@@ -162,7 +184,69 @@ function ProspectDetail({
       .then((d) => setCalls(d.calls || []))
       .catch(() => {})
       .finally(() => setLoadingCalls(false))
+
+    setNotes([])
+    setLoadingNotes(true)
+    fetch(`/api/prospects/${prospect.id}/notes`)
+      .then((r) => r.json())
+      .then((d) => setNotes(d.notes || []))
+      .catch(() => {})
+      .finally(() => setLoadingNotes(false))
   }, [prospect.id])
+
+  const handleAddNote = async () => {
+    if (!newNote.trim()) return
+    setSavingNote(true)
+    try {
+      const res = await fetch(`/api/prospects/${prospect.id}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: newNote.trim() }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setNotes(data.notes || [])
+        setNewNote('')
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to save note', variant: 'destructive' })
+    } finally {
+      setSavingNote(false)
+    }
+  }
+
+  const handleDeleteNote = async (noteId: string) => {
+    try {
+      const res = await fetch(`/api/prospects/${prospect.id}/notes`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ noteId }),
+      })
+      const data = await res.json()
+      if (res.ok) setNotes(data.notes || [])
+    } catch {
+      toast({ title: 'Error', description: 'Failed to delete note', variant: 'destructive' })
+    }
+  }
+
+  const handleRemoveFromSequence = async () => {
+    setRemovingSequence(true)
+    try {
+      const res = await fetch(`/api/prospects/${prospect.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sequence: null, sequenceStep: null }),
+      })
+      if (res.ok) {
+        toast({ title: 'Removed from sequence' })
+        onRefreshProspect()
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to remove from sequence', variant: 'destructive' })
+    } finally {
+      setRemovingSequence(false)
+    }
+  }
 
   let povParsed: any = null
   try { povParsed = typeof prospect.povData === 'string' ? JSON.parse(prospect.povData) : prospect.povData } catch {}
@@ -217,7 +301,7 @@ function ProspectDetail({
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-2 px-5 py-3 border-b border-border shrink-0">
+      <div className="flex items-center gap-2 px-5 py-3 border-b border-border shrink-0 flex-wrap">
         <Button size="sm" variant="outline" onClick={() => onCall(prospect)} className="h-7 px-3 text-[12px] gap-1.5">
           <Phone className="h-3.5 w-3.5" /> Call
         </Button>
@@ -227,6 +311,15 @@ function ProspectDetail({
         {prospect.linkedin && (
           <Button size="sm" variant="outline" className="h-7 px-3 text-[12px] gap-1.5" onClick={() => window.open(prospect.linkedin!, '_blank')}>
             <Linkedin className="h-3.5 w-3.5" /> LinkedIn
+          </Button>
+        )}
+        {prospect.sequence ? (
+          <Button size="sm" variant="outline" onClick={handleRemoveFromSequence} disabled={removingSequence} className="h-7 px-3 text-[12px] gap-1.5 text-muted-foreground">
+            <Zap className="h-3.5 w-3.5" /> {removingSequence ? 'Removing...' : `In: ${prospect.sequence}`}
+          </Button>
+        ) : (
+          <Button size="sm" variant="outline" onClick={() => onAddToSequence(prospect)} className="h-7 px-3 text-[12px] gap-1.5">
+            <Zap className="h-3.5 w-3.5" /> Add to Sequence
           </Button>
         )}
         <div className="ml-auto">
@@ -251,7 +344,7 @@ function ProspectDetail({
 
       {/* Tabs */}
       <div className="flex px-5 border-b border-border shrink-0">
-        {(['overview', 'activity'] as const).map((t) => (
+        {(['overview', 'activity', 'notes'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -260,7 +353,8 @@ function ProspectDetail({
               tab === t ? 'border-accent text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'
             )}
           >
-            {t}{t === 'activity' && calls.length > 0 ? ` (${calls.length})` : ''}
+            {t === 'activity' && calls.length > 0 ? `activity (${calls.length})` :
+             t === 'notes' && notes.length > 0 ? `notes (${notes.length})` : t}
           </button>
         ))}
       </div>
@@ -311,35 +405,146 @@ function ProspectDetail({
                 </Button>
               </div>
             ) : (
-              <div className="space-y-0 rounded-lg border border-border overflow-hidden">
+              <div className="space-y-3">
                 {calls.map((call) => {
                   const label = call.outcome ? (OUTCOME_LABELS[call.outcome] ?? call.outcome.replace(/_/g, ' ')) : 'Call'
                   const dur = formatDuration(call.recordingDuration || call.duration)
                   const isPositive = call.outcome?.startsWith('connected')
                   const isVM = call.outcome === 'voicemail'
+                  const isNoAnswer = ['no_answer', 'busy', 'failed'].includes(call.outcome ?? '')
+                  const callDate = new Date(call.startedAt || call.createdAt)
+                  const sdrName = call.user
+                    ? [call.user.firstName, call.user.lastName].filter(Boolean).join(' ') || call.user.email || 'Unknown'
+                    : 'Unknown'
+
                   return (
-                    <div key={call.id} className="flex flex-col gap-1.5 px-3 py-2.5 border-b border-border last:border-0">
-                      <div className="flex items-center justify-between">
+                    <div key={call.id} className="rounded-lg border border-border overflow-hidden">
+                      {/* Call header */}
+                      <div className={cn(
+                        'flex items-center justify-between px-3 py-2.5',
+                        isPositive ? 'bg-accent/5' : isVM ? 'bg-yellow-500/5' : isNoAnswer ? 'bg-muted/30' : 'bg-muted/20'
+                      )}>
                         <div className="flex items-center gap-2">
-                          <Phone className={cn('h-3.5 w-3.5 shrink-0', isPositive ? 'text-accent' : isVM ? 'text-yellow-400' : 'text-muted-foreground')} />
-                          <span className={cn('text-[12px] font-medium', isPositive ? 'text-accent' : 'text-foreground')}>{label}</span>
-                          {dur && <span className="text-[11px] text-muted-foreground">{dur}</span>}
+                          <Phone className={cn(
+                            'h-3.5 w-3.5 shrink-0',
+                            isPositive ? 'text-accent' : isVM ? 'text-yellow-400' : 'text-muted-foreground'
+                          )} />
+                          <span className={cn(
+                            'text-[13px] font-semibold',
+                            isPositive ? 'text-accent' : isVM ? 'text-yellow-400' : 'text-foreground'
+                          )}>
+                            {label}
+                          </span>
+                          {dur && (
+                            <span className="text-[11px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                              {dur}
+                            </span>
+                          )}
                         </div>
                         <span className="text-[11px] text-muted-foreground">
-                          {formatDistanceToNow(new Date(call.startedAt || call.createdAt), { addSuffix: true })}
+                          {formatDistanceToNow(callDate, { addSuffix: true })}
                         </span>
                       </div>
-                      {call.notes && (
-                        <p className="text-[12px] text-muted-foreground leading-relaxed pl-5">{call.notes}</p>
-                      )}
-                      {call.recordingUrl && (
-                        <div className="pl-5">
-                          <audio controls className="h-7 w-full" src={`/api/calls/${call.id}/recording`} />
+
+                      {/* Call meta */}
+                      <div className="px-3 py-2 border-t border-border/60 space-y-1.5">
+                        <div className="flex items-center gap-4 flex-wrap">
+                          <span className="text-[11px] text-muted-foreground">
+                            <span className="text-foreground/60">SDR</span>{' '}
+                            <span className="font-medium text-foreground">{sdrName}</span>
+                          </span>
+                          <span className="text-[11px] text-muted-foreground">
+                            <span className="text-foreground/60">Date</span>{' '}
+                            <span className="font-medium text-foreground">
+                              {callDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </span>
+                          </span>
+                          <span className="text-[11px] text-muted-foreground">
+                            <span className="text-foreground/60">Time</span>{' '}
+                            <span className="font-medium text-foreground">
+                              {callDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                            </span>
+                          </span>
                         </div>
-                      )}
+
+                        {call.notes && (
+                          <p className="text-[12px] text-foreground/80 leading-relaxed border-t border-border/60 pt-1.5 mt-1.5">
+                            {call.notes}
+                          </p>
+                        )}
+
+                        {call.recordingUrl && (
+                          <div className="border-t border-border/60 pt-2 mt-1">
+                            <p className="text-[11px] text-muted-foreground mb-1.5">Recording</p>
+                            <audio controls className="h-8 w-full" src={`/api/calls/${call.id}/recording`} />
+                          </div>
+                        )}
+
+                        {call.transcription && (
+                          <div className="border-t border-border/60 pt-2 mt-1">
+                            <p className="text-[11px] text-muted-foreground mb-1">Transcript</p>
+                            <p className="text-[12px] text-foreground/70 leading-relaxed line-clamp-4">{call.transcription}</p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )
                 })}
+              </div>
+            )}
+          </>
+        )}
+        {tab === 'notes' && (
+          <>
+            {/* Add note */}
+            <div className="rounded-lg border border-border overflow-hidden">
+              <textarea
+                value={newNote}
+                onChange={(e) => setNewNote(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleAddNote() }}
+                placeholder="Add a note... (⌘↵ to save)"
+                className="w-full px-3 py-2.5 text-[13px] bg-transparent resize-none outline-none text-foreground placeholder:text-muted-foreground/50 min-h-[80px]"
+              />
+              <div className="flex justify-end px-3 py-2 border-t border-border">
+                <Button size="sm" onClick={handleAddNote} disabled={savingNote || !newNote.trim()} className="h-7 text-[12px] gap-1.5">
+                  <Send className="h-3.5 w-3.5" /> {savingNote ? 'Saving...' : 'Add note'}
+                </Button>
+              </div>
+            </div>
+
+            {/* Notes list */}
+            {loadingNotes ? (
+              <p className="text-[12px] text-muted-foreground py-4 text-center">Loading...</p>
+            ) : notes.length === 0 ? (
+              <div className="flex flex-col items-center py-8 gap-2">
+                <StickyNote className="h-7 w-7 text-muted-foreground/20" />
+                <p className="text-[12px] text-muted-foreground">No notes yet</p>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {notes.map((note) => (
+                  <div key={note.id} className="rounded-lg border border-border p-3 group">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-5 h-5 rounded-full bg-accent/20 flex items-center justify-center text-[10px] font-semibold text-accent">
+                          {note.initials}
+                        </div>
+                        <span className="text-[11px] text-muted-foreground">
+                          {new Date(note.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          {' · '}
+                          {new Date(note.date).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteNote(note.id)}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <p className="text-[13px] text-foreground leading-relaxed whitespace-pre-wrap">{note.text}</p>
+                  </div>
+                ))}
               </div>
             )}
           </>
@@ -681,6 +886,8 @@ export default function ProspectsPage() {
                 onEdit={(p) => { setEditingProspect(p); setEditDialogOpen(true) }}
                 onCall={(p) => { setCallingProspect(p); setCallDialogOpen(true) }}
                 onDelete={(p) => confirmDelete([p.id], p.name)}
+                onAddToSequence={(p) => { setSelectedRows([p.id]); setSequenceDialogOpen(true) }}
+                onRefreshProspect={loadProspects}
               />
             </div>
           )}

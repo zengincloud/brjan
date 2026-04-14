@@ -81,6 +81,8 @@ type ActivityItem = {
   recordingUrl?: string | null
   emailStatus?: string | null
   subject?: string | null
+  sdrName?: string | null
+  notes?: string | null
 }
 
 type Contact = {
@@ -344,7 +346,15 @@ function AccountDetail({
                       {item.contactName && (
                         <p className="text-[11px] text-muted-foreground pl-5">{item.contactName}</p>
                       )}
-                      {isCall && item.recordingUrl && (
+                      {isCall && item.sdrName && (
+                      <p className="text-[11px] text-muted-foreground pl-5">
+                        <span className="text-foreground/50">SDR</span> {item.sdrName}
+                      </p>
+                    )}
+                    {isCall && item.notes && (
+                      <p className="text-[12px] text-foreground/70 leading-relaxed pl-5">{item.notes}</p>
+                    )}
+                    {isCall && item.recordingUrl && (
                         <div className="pl-5">
                           <audio controls className="h-7 w-full" src={`/api/calls/${item.id}/recording`} />
                         </div>

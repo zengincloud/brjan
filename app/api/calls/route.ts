@@ -74,6 +74,14 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
               title: true,
             },
           },
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
         },
       }),
       prisma.call.count({ where: whereClause }),

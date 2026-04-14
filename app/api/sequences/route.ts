@@ -19,8 +19,8 @@ export const POST = withAuth(async (
     }
 
     // Trial plan: enforce 1-sequence limit
-    const seqUser = await prisma.user.findUnique({ where: { id: userId }, select: { tier: true } })
-    if (seqUser?.tier === 'trial') {
+    const seqUser = await prisma.user.findUnique({ where: { id: userId }, select: { tier: true, role: true } })
+    if (seqUser?.tier === 'trial' && seqUser?.role !== 'super_admin') {
       const seqCount = await prisma.sequence.count({ where: { userId } })
       if (seqCount >= TRIAL_LIMITS.sequences) {
         return NextResponse.json(

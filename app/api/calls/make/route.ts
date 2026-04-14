@@ -42,8 +42,8 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
     }
 
     // Trial plan: enforce 25-call limit
-    const callUser = await prisma.user.findUnique({ where: { id: userId }, select: { tier: true } })
-    if (callUser?.tier === 'trial') {
+    const callUser = await prisma.user.findUnique({ where: { id: userId }, select: { tier: true, role: true } })
+    if (callUser?.tier === 'trial' && callUser?.role !== 'super_admin') {
       const callCount = await prisma.call.count({ where: { userId } })
       if (callCount >= TRIAL_LIMITS.calls) {
         return NextResponse.json(

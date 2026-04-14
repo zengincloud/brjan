@@ -32,8 +32,8 @@ export const POST = withAuth<{ params: { id: string } }>(async (
     }
 
     // Trial plan: enforce 5-step limit per sequence
-    const stepUser = await prisma.user.findUnique({ where: { id: userId }, select: { tier: true } })
-    if (stepUser?.tier === 'trial' && sequence.steps.length >= TRIAL_LIMITS.sequenceSteps) {
+    const stepUser = await prisma.user.findUnique({ where: { id: userId }, select: { tier: true, role: true } })
+    if (stepUser?.tier === 'trial' && stepUser?.role !== 'super_admin' && sequence.steps.length >= TRIAL_LIMITS.sequenceSteps) {
       return NextResponse.json(
         { error: "You've run out of credits. Trial plan allows 5 steps per sequence. Upgrade your plan for more." },
         { status: 403 }

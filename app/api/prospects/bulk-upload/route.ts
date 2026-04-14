@@ -140,8 +140,8 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
     }
 
     // Trial plan: enforce 10-prospect count limit, trim batch to remaining allowance
-    const bulkUser = await prisma.user.findUnique({ where: { id: userId }, select: { tier: true } })
-    if (bulkUser?.tier === 'trial') {
+    const bulkUser = await prisma.user.findUnique({ where: { id: userId }, select: { tier: true, role: true } })
+    if (bulkUser?.tier === 'trial' && bulkUser?.role !== 'super_admin') {
       const existing = await prisma.prospect.count({ where: { userId } })
       const allowed = Math.max(0, TRIAL_LIMITS.prospects - existing)
       if (allowed === 0) {

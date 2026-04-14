@@ -23,8 +23,8 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
   try {
     // Trial plan: email sending not allowed
     if (!TRIAL_LIMITS.emailsAllowed) {
-      const emailUser = await prisma.user.findUnique({ where: { id: userId }, select: { tier: true } })
-      if (emailUser?.tier === 'trial') {
+      const emailUser = await prisma.user.findUnique({ where: { id: userId }, select: { tier: true, role: true } })
+      if (emailUser?.tier === 'trial' && emailUser?.role !== 'super_admin') {
         return NextResponse.json(
           { error: "You've run out of credits. Email sending requires an upgraded plan." },
           { status: 403 }

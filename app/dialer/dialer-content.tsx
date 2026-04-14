@@ -412,7 +412,7 @@ export default function DialerPage() {
 
   // Fetch call count for trial users to show limit banner
   useEffect(() => {
-    if (user?.tier !== 'trial') return
+    if (user?.tier !== 'trial' || user?.role === 'super_admin') return
     fetch('/api/calls?pageSize=1')
       .then(r => r.json())
       .then(data => {
@@ -1739,7 +1739,7 @@ export default function DialerPage() {
 
   return (
     <div className="space-y-6">
-      {user?.tier === 'trial' && trialCallCount !== null && (
+      {user?.tier === 'trial' && user?.role !== 'super_admin' && trialCallCount !== null && (
         <TrialLimitBanner current={trialCallCount} limit={TRIAL_LIMITS.calls} resourceLabel="calls" />
       )}
       {/* Header */}

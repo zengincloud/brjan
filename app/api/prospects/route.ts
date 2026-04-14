@@ -125,8 +125,8 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
     }
 
     // Trial plan: enforce 10-prospect count limit; paid plans use the credit system
-    const prospectUser = await prisma.user.findUnique({ where: { id: userId }, select: { tier: true } })
-    if (prospectUser?.tier === 'trial') {
+    const prospectUser = await prisma.user.findUnique({ where: { id: userId }, select: { tier: true, role: true } })
+    if (prospectUser?.tier === 'trial' && prospectUser?.role !== 'super_admin') {
       const prospectCount = await prisma.prospect.count({ where: { userId } })
       if (prospectCount >= TRIAL_LIMITS.prospects) {
         return NextResponse.json(

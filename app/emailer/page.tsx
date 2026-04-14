@@ -12,7 +12,7 @@ export default function EmailerPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-xl font-semibold">Emailer</h1>
-      {user?.tier === 'trial' && (
+      {user?.tier === 'trial' && user?.role !== 'super_admin' && (
         <div className="flex items-center justify-between rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
           <div className="flex items-center gap-2">
             <XCircle className="h-4 w-4 shrink-0" />

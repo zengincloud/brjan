@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { formatDistanceToNow } from 'date-fns'
-import { Phone, Mail, Linkedin, Plus, Upload, X, Pencil, Trash2, Zap, Search, MoreHorizontal, Send, StickyNote } from 'lucide-react'
+import { Phone, Mail, Linkedin, Plus, Upload, X, Pencil, Trash2, Zap, Search, MoreHorizontal, Send, StickyNote, Star, Copy, ChevronDown, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -33,6 +33,7 @@ type Prospect = {
   sequenceStep?: string | null
   lastActivity: string
   povData?: any
+  wizaData?: any
 }
 
 type SequenceOption = { id: string; name: string }
@@ -121,6 +122,292 @@ function StatusBadge({ status }: { status: string }) {
     <span className={cn('px-2 py-0.5 rounded-full text-[11px] font-medium', colorMap[status] ?? 'bg-secondary text-muted-foreground')}>
       {status.replace(/_/g, ' ')}
     </span>
+  )
+}
+
+// ── Contact info helpers ───────────────────────────────────────────────────────
+
+function copyToClipboard(text: string) {
+  navigator.clipboard.writeText(text).catch(() => {})
+}
+
+function EmailRow({
+  email,
+  isPrimary,
+  onSetPrimary,
+  onCall,
+}: {
+  email: string
+  isPrimary: boolean
+  onSetPrimary: (email: string) => void
+  onCall?: () => void
+}) {
+  return (
+    <div className="flex items-center gap-2 group py-1.5">
+      <button
+        onClick={() => !isPrimary && onSetPrimary(email)}
+        title={isPrimary ? 'Primary email' : 'Set as primary'}
+        className="shrink-0"
+      >
+        <Star className={cn('h-3.5 w-3.5', isPrimary ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground/30 hover:text-yellow-400 cursor-pointer')} />
+      </button>
+      <a href={`mailto:${email}`} className="text-[13px] text-foreground hover:underline flex-1 truncate">{email}</a>
+      {isPrimary && <span className="text-[10px] bg-secondary text-muted-foreground px-1.5 py-0.5 rounded shrink-0">Primary</span>}
+      <button onClick={() => copyToClipboard(email)} title="Copy" className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+        <Copy className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+      </button>
+    </div>
+  )
+}
+
+function PhoneRow({
+  number,
+  type,
+  isPrimary,
+  onSetPrimary,
+  onCall,
+}: {
+  number: string
+  type?: string
+  isPrimary: boolean
+  onSetPrimary: (number: string) => void
+  onCall: (number: string) => void
+}) {
+  return (
+    <div className="flex items-center gap-2 group py-1.5">
+      <button onClick={() => !isPrimary && onSetPrimary(number)} title={isPrimary ? 'Primary' : 'Set as primary'} className="shrink-0">
+        <Star className={cn('h-3.5 w-3.5', isPrimary ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground/30 hover:text-yellow-400 cursor-pointer')} />
+      </button>
+      <button
+        onClick={() => onCall(number)}
+        className="text-[13px] text-foreground hover:text-accent hover:underline flex-1 text-left truncate"
+        title="Click to call"
+      >
+        {number}
+      </button>
+      {type && <span className="text-[10px] bg-secondary text-muted-foreground px-1.5 py-0.5 rounded capitalize shrink-0">{type}</span>}
+      {isPrimary && <span className="text-[10px] bg-secondary text-muted-foreground px-1.5 py-0.5 rounded shrink-0">Primary</span>}
+      <button onClick={() => onCall(number)} title="Call" className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+        <Phone className="h-3 w-3 text-muted-foreground hover:text-accent" />
+      </button>
+      <button onClick={() => copyToClipboard(number)} title="Copy" className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+        <Copy className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+      </button>
+    </div>
+  )
+}
+
+// ── Overview tab (extracted to avoid closure issues with hooks) ────────────────
+
+function OverviewTab({ prospect, povParsed, onCall, onRefresh, toast }: {
+  prospect: Prospect
+  povParsed: any
+  onCall: (p: Prospect) => void
+  onRefresh: () => void
+  toast: any
+}) {
+  const [emailsExpanded, setEmailsExpanded] = useState(false)
+  const [phonesExpanded, setPhonesExpanded] = useState(false)
+  const [settingPrimary, setSettingPrimary] = useState(false)
+
+  const wiza = prospect.wizaData || {}
+
+  // Build unified email list
+  const allEmails: { email: string; isPrimary: boolean }[] = []
+  const seenEmails = new Set<string>()
+  if (prospect.email) {
+    allEmails.push({ email: prospect.email, isPrimary: true })
+    seenEmails.add(prospect.email.toLowerCase())
+  }
+  if (Array.isArray(wiza.emails)) {
+    for (const e of wiza.emails) {
+      const addr = typeof e === 'string' ? e : e?.email || ''
+      if (addr && !seenEmails.has(addr.toLowerCase())) {
+        allEmails.push({ email: addr, isPrimary: false })
+        seenEmails.add(addr.toLowerCase())
+      }
+    }
+  }
+
+  // Build unified phone list
+  const allPhones: { number: string; type?: string; isPrimary: boolean }[] = []
+  const seenPhones = new Set<string>()
+  if (prospect.phone) {
+    allPhones.push({ number: prospect.phone, isPrimary: true })
+    seenPhones.add(prospect.phone.replace(/\D/g, ''))
+  }
+  if (Array.isArray(wiza.phones)) {
+    for (const p of wiza.phones) {
+      const num = p?.number || ''
+      const normalized = num.replace(/\D/g, '')
+      if (normalized && !seenPhones.has(normalized)) {
+        allPhones.push({ number: num, type: p?.type, isPrimary: false })
+        seenPhones.add(normalized)
+      }
+    }
+  }
+
+  const extraEmails = allEmails.filter(e => !e.isPrimary)
+  const extraPhones = allPhones.filter(p => !p.isPrimary)
+
+  const handleSetPrimaryEmail = async (email: string) => {
+    setSettingPrimary(true)
+    try {
+      const res = await fetch(`/api/prospects/${prospect.id}/emails`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+      if (res.ok) { toast({ title: 'Primary email updated' }); onRefresh() }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to update primary email', variant: 'destructive' })
+    } finally { setSettingPrimary(false) }
+  }
+
+  const handleSetPrimaryPhone = async (number: string) => {
+    setSettingPrimary(true)
+    try {
+      const res = await fetch(`/api/prospects/${prospect.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: prospect.name, email: prospect.email, phone: number }),
+      })
+      if (res.ok) { toast({ title: 'Primary phone updated' }); onRefresh() }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to update primary phone', variant: 'destructive' })
+    } finally { setSettingPrimary(false) }
+  }
+
+  const handleCallNumber = (number: string) => {
+    onCall({ ...prospect, phone: number })
+  }
+
+  const plainRows = [
+    { label: 'Company', value: prospect.company || '—' },
+    { label: 'Title', value: prospect.title || '—' },
+    { label: 'Status', value: <StatusBadge status={prospect.status} /> },
+    { label: 'Sequence', value: prospect.sequence || '—' },
+    { label: 'Step', value: prospect.sequenceStep || '—' },
+    { label: 'Last activity', value: prospect.lastActivity ? formatDistanceToNow(new Date(prospect.lastActivity), { addSuffix: true }) : '—' },
+  ]
+
+  return (
+    <>
+      <div>
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2.5">Contact Info</p>
+        <div className="rounded-lg border border-border overflow-hidden">
+          {/* Emails */}
+          <div className="px-3 py-1 border-b border-border">
+            <div className="flex items-center gap-2 mb-0.5">
+              <span className="text-[12px] text-muted-foreground w-20 shrink-0">Email</span>
+              <div className="flex-1 min-w-0">
+                {allEmails.length === 0 ? (
+                  <span className="text-[13px] text-muted-foreground/50 italic">—</span>
+                ) : (
+                  <EmailRow
+                    email={allEmails[0].email}
+                    isPrimary={true}
+                    onSetPrimary={handleSetPrimaryEmail}
+                  />
+                )}
+              </div>
+            </div>
+            {extraEmails.length > 0 && (
+              <>
+                <button
+                  onClick={() => setEmailsExpanded(v => !v)}
+                  className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors ml-20 mb-1"
+                >
+                  {emailsExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                  {extraEmails.length} more email{extraEmails.length > 1 ? 's' : ''} found
+                </button>
+                {emailsExpanded && (
+                  <div className="ml-20 mb-1 space-y-0 border-t border-border/60 pt-1">
+                    {extraEmails.map(e => (
+                      <EmailRow
+                        key={e.email}
+                        email={e.email}
+                        isPrimary={false}
+                        onSetPrimary={handleSetPrimaryEmail}
+                      />
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Phones */}
+          <div className="px-3 py-1 border-b border-border">
+            <div className="flex items-center gap-2 mb-0.5">
+              <span className="text-[12px] text-muted-foreground w-20 shrink-0">Phone</span>
+              <div className="flex-1 min-w-0">
+                {allPhones.length === 0 ? (
+                  <span className="text-[13px] text-muted-foreground/50 italic">—</span>
+                ) : (
+                  <PhoneRow
+                    number={allPhones[0].number}
+                    type={allPhones[0].type}
+                    isPrimary={true}
+                    onSetPrimary={handleSetPrimaryPhone}
+                    onCall={handleCallNumber}
+                  />
+                )}
+              </div>
+            </div>
+            {extraPhones.length > 0 && (
+              <>
+                <button
+                  onClick={() => setPhonesExpanded(v => !v)}
+                  className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors ml-20 mb-1"
+                >
+                  {phonesExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                  {extraPhones.length} more number{extraPhones.length > 1 ? 's' : ''} found
+                </button>
+                {phonesExpanded && (
+                  <div className="ml-20 mb-1 border-t border-border/60 pt-1">
+                    {extraPhones.map(p => (
+                      <PhoneRow
+                        key={p.number}
+                        number={p.number}
+                        type={p.type}
+                        isPrimary={false}
+                        onSetPrimary={handleSetPrimaryPhone}
+                        onCall={handleCallNumber}
+                      />
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Plain rows */}
+          {plainRows.map(({ label, value }) => (
+            <div key={label} className="flex items-center px-3 py-2 border-b border-border last:border-0">
+              <span className="text-[12px] text-muted-foreground w-24 shrink-0">{label}</span>
+              <span className="text-[12px] text-foreground">{value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {povParsed && Object.keys(povParsed).length > 0 && (
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2.5">AI Research</p>
+          <div className="rounded-lg border border-border bg-card p-3 space-y-3">
+            {Object.entries(povParsed).map(([k, v]) =>
+              typeof v === 'string' ? (
+                <div key={k}>
+                  <p className="text-[11px] font-medium text-muted-foreground capitalize mb-0.5">{k.replace(/_/g, ' ')}</p>
+                  <p className="text-[12px] text-foreground leading-relaxed">{v}</p>
+                </div>
+              ) : null
+            )}
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 
@@ -251,17 +538,6 @@ function ProspectDetail({
   let povParsed: any = null
   try { povParsed = typeof prospect.povData === 'string' ? JSON.parse(prospect.povData) : prospect.povData } catch {}
 
-  const detailRows = [
-    { label: 'Email', value: prospect.email },
-    { label: 'Phone', value: prospect.phone || '—' },
-    { label: 'Company', value: prospect.company || '—' },
-    { label: 'Title', value: prospect.title || '—' },
-    { label: 'Status', value: <StatusBadge status={prospect.status} /> },
-    { label: 'Sequence', value: prospect.sequence || '—' },
-    { label: 'Step', value: prospect.sequenceStep || '—' },
-    { label: 'Last activity', value: prospect.lastActivity ? formatDistanceToNow(new Date(prospect.lastActivity), { addSuffix: true }) : '—' },
-  ]
-
   const OUTCOME_LABELS: Record<string, string> = {
     connected: 'Connected',
     connected_intro_booked: 'Intro Booked',
@@ -362,34 +638,13 @@ function ProspectDetail({
       {/* Content */}
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
         {tab === 'overview' && (
-          <>
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2.5">Details</p>
-              <div className="rounded-lg border border-border overflow-hidden">
-                {detailRows.map(({ label, value }) => (
-                  <div key={label} className="flex items-center px-3 py-2 border-b border-border last:border-0">
-                    <span className="text-[12px] text-muted-foreground w-24 shrink-0">{label}</span>
-                    <span className="text-[12px] text-foreground">{value}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            {povParsed && Object.keys(povParsed).length > 0 && (
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2.5">AI Research</p>
-                <div className="rounded-lg border border-border bg-card p-3 space-y-3">
-                  {Object.entries(povParsed).map(([k, v]) => (
-                    typeof v === 'string' ? (
-                      <div key={k}>
-                        <p className="text-[11px] font-medium text-muted-foreground capitalize mb-0.5">{k.replace(/_/g, ' ')}</p>
-                        <p className="text-[12px] text-foreground leading-relaxed">{v}</p>
-                      </div>
-                    ) : null
-                  ))}
-                </div>
-              </div>
-            )}
-          </>
+          <OverviewTab
+            prospect={prospect}
+            povParsed={povParsed}
+            onCall={onCall}
+            onRefresh={onRefreshProspect}
+            toast={toast}
+          />
         )}
 
         {tab === 'activity' && (

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { withAuth, resolveRealUser } from '@/lib/auth/api-middleware'
 import { prisma } from '@/lib/prisma'
 import { cookies } from 'next/headers'
-import { getCreditStatus } from '@/lib/credits'
+import { TIER_CONFIG, type TierKey } from '@/lib/tier-config'
 import { createClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
@@ -29,6 +29,8 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
         workEndTime: true,
         workDays: true,
         createdAt: true,
+        creditsUsed: true,
+        creditsResetAt: true,
       },
     })
 
@@ -36,8 +38,8 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    // Fetch impersonation status, credit status, and Supabase metadata in parallel
-    const [impersonationResult, creditStatus, supabaseUser] = await Promise.all([
+    // Fetch impersonation status and Supabase metadata in parallel (no extra DB call needed)
+    const [impersonationResult, supabaseUser] = await Promise.all([
       (async () => {
         const realUser = await resolveRealUser()
         if (realUser && realUser.role === 'super_admin' && realUser.id !== userId) {
@@ -47,7 +49,6 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
         }
         return false
       })(),
-      getCreditStatus(userId).catch(() => null),
       (async () => {
         const supabase = await createClient()
         const { data } = await supabase.auth.getUser()
@@ -55,9 +56,43 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
       })(),
     ])
 
+    // Compute credit status from already-fetched user (no extra DB roundtrip)
+    let creditStatus: ReturnType<typeof computeCreditStatus> | null = null
+    try {
+      creditStatus = computeCreditStatus(user)
+      // Lazy reset: if paid tier and past reset date, reset in background (don't await)
+      if (user.tier !== 'trial' && user.role !== 'super_admin' && user.creditsResetAt && new Date() > user.creditsResetAt) {
+        const nextReset = new Date()
+        nextReset.setDate(nextReset.getDate() + 30)
+        prisma.user.update({ where: { id: userId }, data: { creditsUsed: 0, creditsResetAt: nextReset } }).catch(() => {})
+        creditStatus.creditsUsed = 0
+        creditStatus.creditsRemaining = creditStatus.creditsTotal
+      }
+    } catch {
+      creditStatus = null
+    }
+
+    function computeCreditStatus(u: typeof user) {
+      if (!u) return null
+      if (u.role === 'super_admin') {
+        return { tier: 'super_admin', label: 'Super Admin', creditsUsed: 0, creditsTotal: -1, creditsRemaining: -1, resetsAt: null }
+      }
+      const tier = u.tier as TierKey
+      const total = TIER_CONFIG[tier].credits
+      return {
+        tier: u.tier,
+        label: TIER_CONFIG[tier].label,
+        creditsUsed: u.creditsUsed,
+        creditsTotal: total,
+        creditsRemaining: total - u.creditsUsed,
+        resetsAt: u.creditsResetAt,
+      }
+    }
+
     const metadata = supabaseUser?.user_metadata ?? {}
+    const { creditsUsed: _cu, creditsResetAt: _cr, ...userFields } = user
     const userWithMeta = {
-      ...user,
+      ...userFields,
       jobRole: metadata.jobRole ?? null,
       usageType: metadata.usageType ?? null,
       primaryGoal: metadata.primaryGoal ?? null,

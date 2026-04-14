@@ -196,7 +196,7 @@ export function Sidebar({ className }: { className?: string }) {
         {/* Upgrade button (trial users) */}
         {user?.tier === 'trial' && (
           <Link
-            href="/settings?tab=billing"
+            href="/upgrade"
             className="flex items-center justify-center w-full py-2 px-3 rounded-lg bg-[hsl(100,78%,44%)] hover:bg-[hsl(100,78%,38%)] text-white text-[13px] font-semibold transition-colors shadow-[0_0_16px_hsl(100,78%,44%,0.25)]"
           >
             Upgrade Plan

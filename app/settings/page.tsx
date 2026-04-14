@@ -34,6 +34,28 @@ import { HubspotIntegration } from "@/components/settings/hubspot-integration"
 import { OrganizationSettings } from "@/components/settings/organization-settings"
 import { TeamSettings } from "@/components/settings/team-settings"
 
+function ManageSubscriptionButton() {
+  const [loading, setLoading] = useState(false)
+  const handleClick = async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/stripe/portal', { method: 'POST' })
+      const data = await res.json()
+      if (data.url) window.location.href = data.url
+      else toast.error('Could not open billing portal')
+    } catch {
+      toast.error('Something went wrong')
+    } finally {
+      setLoading(false)
+    }
+  }
+  return (
+    <Button variant="outline" className="w-full" onClick={handleClick} disabled={loading}>
+      {loading ? 'Opening...' : 'Manage Subscription'}
+    </Button>
+  )
+}
+
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState("profile")
   const [currentPassword, setCurrentPassword] = useState("")
@@ -832,12 +854,21 @@ export default function SettingsPage() {
                         )}
                         {creditStatus.tier === "trial" && (
                           <p className="text-xs text-muted-foreground">
-                            Trial credits do not reset. Contact us to upgrade your plan.
+                            Trial credits do not reset. Upgrade to get more.
                           </p>
                         )}
                       </>
                     )}
                   </div>
+
+                  {/* Upgrade / Manage buttons */}
+                  {creditStatus.tier === "trial" ? (
+                    <Button className="w-full bg-[hsl(100,78%,44%)] hover:bg-[hsl(100,78%,38%)] text-white shadow-[0_0_16px_hsl(100,78%,44%,0.25)]" asChild>
+                      <a href="/upgrade">Upgrade Plan</a>
+                    </Button>
+                  ) : (
+                    <ManageSubscriptionButton />
+                  )}
                 </>
               ) : (
                 <div className="text-sm text-muted-foreground">Loading plan info...</div>

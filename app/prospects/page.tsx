@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { formatDistanceToNow } from 'date-fns'
-import { Phone, Mail, Linkedin, Plus, Upload, X, Pencil, Trash2, Zap, Search, MoreHorizontal, Send, StickyNote, Star, Copy, ChevronDown, ChevronRight, Check } from 'lucide-react'
+import { Phone, Mail, Linkedin, Plus, Upload, X, Pencil, Trash2, Zap, Search, MoreHorizontal, Send, StickyNote, Copy, ChevronDown, ChevronRight, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -155,26 +155,32 @@ function copyToClipboard(text: string) {
 function EmailRow({
   email,
   isPrimary,
+  isEditing,
   onSetPrimary,
-  onCall,
 }: {
   email: string
   isPrimary: boolean
+  isEditing?: boolean
   onSetPrimary: (email: string) => void
-  onCall?: () => void
 }) {
+  const [val, setVal] = useState(email)
   return (
     <div className="flex items-center gap-2 group py-1.5">
       <button
-        onClick={() => !isPrimary && onSetPrimary(email)}
-        title={isPrimary ? 'Primary email' : 'Set as primary'}
-        className="shrink-0"
-      >
-        <Star className={cn('h-3.5 w-3.5', isPrimary ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground/30 hover:text-yellow-400 cursor-pointer')} />
-      </button>
-      <a href={`mailto:${email}`} className="text-[13px] text-foreground hover:underline flex-1 truncate">{email}</a>
-      {isPrimary && <span className="text-[10px] bg-secondary text-muted-foreground px-1.5 py-0.5 rounded shrink-0">Primary</span>}
-      <button onClick={() => copyToClipboard(email)} title="Copy" className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+        onClick={() => !isPrimary && isEditing && onSetPrimary(email)}
+        title={isPrimary ? 'Primary' : isEditing ? 'Set as primary' : ''}
+        className={cn('shrink-0 w-2 h-2 rounded-full transition-colors', isPrimary ? 'bg-[hsl(100,78%,44%)]' : isEditing ? 'bg-border hover:bg-muted-foreground/50 cursor-pointer' : 'bg-border')}
+      />
+      {isEditing ? (
+        <input
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+          className="text-[13px] text-foreground flex-1 min-w-0 bg-transparent border-b border-border focus:border-accent outline-none"
+        />
+      ) : (
+        <a href={`mailto:${email}`} className="text-[13px] text-foreground hover:underline flex-1 truncate">{email}</a>
+      )}
+      <button onClick={() => copyToClipboard(isEditing ? val : email)} title="Copy" className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
         <Copy className="h-3 w-3 text-muted-foreground hover:text-foreground" />
       </button>
     </div>
@@ -185,33 +191,47 @@ function PhoneRow({
   number,
   type,
   isPrimary,
+  isEditing,
   onSetPrimary,
   onCall,
 }: {
   number: string
   type?: string
   isPrimary: boolean
+  isEditing?: boolean
   onSetPrimary: (number: string) => void
   onCall: (number: string) => void
 }) {
+  const [val, setVal] = useState(number)
   return (
     <div className="flex items-center gap-2 group py-1.5">
-      <button onClick={() => !isPrimary && onSetPrimary(number)} title={isPrimary ? 'Primary' : 'Set as primary'} className="shrink-0">
-        <Star className={cn('h-3.5 w-3.5', isPrimary ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground/30 hover:text-yellow-400 cursor-pointer')} />
-      </button>
       <button
-        onClick={() => onCall(number)}
-        className="text-[13px] text-foreground hover:text-accent hover:underline flex-1 text-left truncate"
-        title="Click to call"
-      >
-        {number}
-      </button>
+        onClick={() => !isPrimary && isEditing && onSetPrimary(number)}
+        title={isPrimary ? 'Primary' : isEditing ? 'Set as primary' : ''}
+        className={cn('shrink-0 w-2 h-2 rounded-full transition-colors', isPrimary ? 'bg-[hsl(100,78%,44%)]' : isEditing ? 'bg-border hover:bg-muted-foreground/50 cursor-pointer' : 'bg-border')}
+      />
+      {isEditing ? (
+        <input
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+          className="text-[13px] text-foreground flex-1 min-w-0 bg-transparent border-b border-border focus:border-accent outline-none"
+        />
+      ) : (
+        <button
+          onClick={() => onCall(number)}
+          className="text-[13px] text-foreground hover:text-accent hover:underline flex-1 text-left truncate"
+          title="Click to call"
+        >
+          {number}
+        </button>
+      )}
       {type && <span className="text-[10px] bg-secondary text-muted-foreground px-1.5 py-0.5 rounded capitalize shrink-0">{type}</span>}
-      {isPrimary && <span className="text-[10px] bg-secondary text-muted-foreground px-1.5 py-0.5 rounded shrink-0">Primary</span>}
-      <button onClick={() => onCall(number)} title="Call" className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-        <Phone className="h-3 w-3 text-muted-foreground hover:text-accent" />
-      </button>
-      <button onClick={() => copyToClipboard(number)} title="Copy" className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+      {!isEditing && (
+        <button onClick={() => onCall(number)} title="Call" className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+          <Phone className="h-3 w-3 text-muted-foreground hover:text-accent" />
+        </button>
+      )}
+      <button onClick={() => copyToClipboard(isEditing ? val : number)} title="Copy" className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
         <Copy className="h-3 w-3 text-muted-foreground hover:text-foreground" />
       </button>
     </div>
@@ -220,9 +240,10 @@ function PhoneRow({
 
 // ── Overview tab (extracted to avoid closure issues with hooks) ────────────────
 
-function OverviewTab({ prospect, povParsed, onCall, onRefresh, toast }: {
+function OverviewTab({ prospect, povParsed, isEditing, onCall, onRefresh, toast }: {
   prospect: Prospect
   povParsed: any
+  isEditing?: boolean
   onCall: (p: Prospect) => void
   onRefresh: () => void
   toast: any
@@ -328,6 +349,7 @@ function OverviewTab({ prospect, povParsed, onCall, onRefresh, toast }: {
                   <EmailRow
                     email={allEmails[0].email}
                     isPrimary={true}
+                    isEditing={isEditing}
                     onSetPrimary={handleSetPrimaryEmail}
                   />
                 )}
@@ -335,20 +357,23 @@ function OverviewTab({ prospect, povParsed, onCall, onRefresh, toast }: {
             </div>
             {extraEmails.length > 0 && (
               <>
-                <button
-                  onClick={() => setEmailsExpanded(v => !v)}
-                  className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors ml-20 mb-1"
-                >
-                  {emailsExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                  {extraEmails.length} more email{extraEmails.length > 1 ? 's' : ''} found
-                </button>
-                {emailsExpanded && (
+                {!isEditing && (
+                  <button
+                    onClick={() => setEmailsExpanded(v => !v)}
+                    className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors ml-20 mb-1"
+                  >
+                    {emailsExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                    {extraEmails.length} more email{extraEmails.length > 1 ? 's' : ''} found
+                  </button>
+                )}
+                {(emailsExpanded || isEditing) && (
                   <div className="ml-20 mb-1 space-y-0 border-t border-border/60 pt-1">
                     {extraEmails.map(e => (
                       <EmailRow
                         key={e.email}
                         email={e.email}
                         isPrimary={false}
+                        isEditing={isEditing}
                         onSetPrimary={handleSetPrimaryEmail}
                       />
                     ))}
@@ -370,6 +395,7 @@ function OverviewTab({ prospect, povParsed, onCall, onRefresh, toast }: {
                     number={allPhones[0].number}
                     type={allPhones[0].type}
                     isPrimary={true}
+                    isEditing={isEditing}
                     onSetPrimary={handleSetPrimaryPhone}
                     onCall={handleCallNumber}
                   />
@@ -378,14 +404,16 @@ function OverviewTab({ prospect, povParsed, onCall, onRefresh, toast }: {
             </div>
             {extraPhones.length > 0 && (
               <>
-                <button
-                  onClick={() => setPhonesExpanded(v => !v)}
-                  className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors ml-20 mb-1"
-                >
-                  {phonesExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                  {extraPhones.length} more number{extraPhones.length > 1 ? 's' : ''} found
-                </button>
-                {phonesExpanded && (
+                {!isEditing && (
+                  <button
+                    onClick={() => setPhonesExpanded(v => !v)}
+                    className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors ml-20 mb-1"
+                  >
+                    {phonesExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                    {extraPhones.length} more number{extraPhones.length > 1 ? 's' : ''} found
+                  </button>
+                )}
+                {(phonesExpanded || isEditing) && (
                   <div className="ml-20 mb-1 border-t border-border/60 pt-1">
                     {extraPhones.map(p => (
                       <PhoneRow
@@ -393,6 +421,7 @@ function OverviewTab({ prospect, povParsed, onCall, onRefresh, toast }: {
                         number={p.number}
                         type={p.type}
                         isPrimary={false}
+                        isEditing={isEditing}
                         onSetPrimary={handleSetPrimaryPhone}
                         onCall={handleCallNumber}
                       />
@@ -752,6 +781,7 @@ function ProspectDetail({
           <OverviewTab
             prospect={prospect}
             povParsed={povParsed}
+            isEditing={isEditing}
             onCall={onCall}
             onRefresh={onRefreshProspect}
             toast={toast}

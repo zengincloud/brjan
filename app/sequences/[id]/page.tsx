@@ -308,7 +308,7 @@ export default function SequenceDetailPage() {
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1">
-          <h1 className="text-3xl font-bold">{sequence.name}</h1>
+          <h1 className="text-xl font-semibold">{sequence.name}</h1>
           {sequence.description && (
             <p className="text-muted-foreground">{sequence.description}</p>
           )}
@@ -346,7 +346,7 @@ export default function SequenceDetailPage() {
             <CardTitle className="text-sm font-medium">Total Prospects</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{sequence.prospectSequences.length}</div>
+            <div className="text-xl font-semibold">{sequence.prospectSequences.length}</div>
           </CardContent>
         </Card>
         <Card>
@@ -354,7 +354,7 @@ export default function SequenceDetailPage() {
             <CardTitle className="text-sm font-medium">Active</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-accent">
+            <div className="text-xl font-semibold text-accent">
               {sequence.prospectSequences.filter((ps) => ps.status === "active").length}
             </div>
           </CardContent>
@@ -364,7 +364,7 @@ export default function SequenceDetailPage() {
             <CardTitle className="text-sm font-medium">Completed</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-xl font-semibold">
               {sequence.prospectSequences.filter((ps) => ps.status === "completed").length}
             </div>
           </CardContent>
@@ -374,7 +374,7 @@ export default function SequenceDetailPage() {
             <CardTitle className="text-sm font-medium">Total Steps</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{sequence.steps.length}</div>
+            <div className="text-xl font-semibold">{sequence.steps.length}</div>
           </CardContent>
         </Card>
       </div>

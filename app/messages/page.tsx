@@ -220,7 +220,7 @@ export default function MessagesPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <h1 className="text-3xl font-bold">Messages</h1>
+          <h1 className="text-xl font-semibold">Messages</h1>
           {totalUnread > 0 && (
             <Badge variant="default" className="bg-green-500 text-white">
               {totalUnread}

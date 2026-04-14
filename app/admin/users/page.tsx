@@ -181,7 +181,7 @@ export default function AdminUsersPage() {
           <Button variant="ghost" size="icon"><ArrowLeft className="h-4 w-4" /></Button>
         </Link>
         <div className="flex-1">
-          <h1 className="text-3xl font-bold">Users</h1>
+          <h1 className="text-xl font-semibold">Users</h1>
           <p className="text-muted-foreground">Manage all platform users</p>
         </div>
       </div>

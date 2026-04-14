@@ -12,7 +12,7 @@ export default function CallRecordingsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <h1 className="text-3xl font-bold">Call Recordings</h1>
+          <h1 className="text-xl font-semibold">Call Recordings</h1>
           <Badge variant="outline" className="text-xs bg-primary/10 text-primary">
             Beta
           </Badge>

@@ -800,7 +800,7 @@ export default function SettingsPage() {
                       {creditStatus.creditsTotal === -1 ? (
                         <span className="text-sm font-medium text-primary">Unlimited</span>
                       ) : (
-                        <span className="text-2xl font-bold text-primary">
+                        <span className="text-xl font-semibold text-primary">
                           {creditStatus.creditsRemaining}
                           <span className="text-sm font-normal text-muted-foreground"> credits left</span>
                         </span>

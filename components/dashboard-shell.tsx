@@ -172,7 +172,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
       <div className="flex-1 flex flex-col overflow-hidden">
         <ImpersonationBanner />
         {/* Top Header */}
-        <header className="h-14 border-b border-border px-4 flex items-center justify-between gap-4 bg-card/50 backdrop-blur-sm">
+        <header className="h-12 border-b border-border px-4 flex items-center justify-between gap-4 bg-card/50 backdrop-blur-sm">
           <div className="flex items-center flex-1 gap-4">
             <Button
               variant="ghost"
@@ -360,7 +360,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
         </Dialog>
 
         {/* Main Content Area */}
-        <main className="flex-1 overflow-auto p-6">{children}</main>
+        <main className="flex-1 overflow-auto p-5">{children}</main>
       </div>
     </div>
   )

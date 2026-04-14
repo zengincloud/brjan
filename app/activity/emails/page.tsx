@@ -87,7 +87,7 @@ export default function EmailsDeliveredPage() {
   if (loading) {
     return (
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold">Emails Delivered</h1>
+        <h1 className="text-xl font-semibold">Emails Delivered</h1>
         <Card>
           <CardContent className="py-12 flex justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -100,7 +100,7 @@ export default function EmailsDeliveredPage() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Emails Delivered</h1>
+        <h1 className="text-xl font-semibold">Emails Delivered</h1>
         <DateRangePicker date={date} setDate={setDate} />
       </div>
 
@@ -139,15 +139,15 @@ export default function EmailsDeliveredPage() {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="text-center">
-              <h3 className="text-2xl font-bold text-blue-600">{totalSent}</h3>
+              <h3 className="text-xl font-semibold text-blue-600">{totalSent}</h3>
               <p className="text-sm text-gray-600">Emails Sent</p>
             </div>
             <div className="text-center">
-              <h3 className="text-2xl font-bold text-green-600">{openRate}%</h3>
+              <h3 className="text-xl font-semibold text-green-600">{openRate}%</h3>
               <p className="text-sm text-gray-600">Open Rate</p>
             </div>
             <div className="text-center">
-              <h3 className="text-2xl font-bold text-yellow-600">{clickRate}%</h3>
+              <h3 className="text-xl font-semibold text-yellow-600">{clickRate}%</h3>
               <p className="text-sm text-gray-600">Click-through Rate</p>
             </div>
           </div>

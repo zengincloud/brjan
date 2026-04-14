@@ -392,7 +392,7 @@ function TasksContent() {
     return (
       <div className="space-y-6">
         <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold">Tasks</h1>
+          <h1 className="text-xl font-semibold">Tasks</h1>
         </div>
         <Card>
           <CardContent className="py-12">
@@ -408,7 +408,7 @@ function TasksContent() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Tasks</h1>
+        <h1 className="text-xl font-semibold">Tasks</h1>
       </div>
 
       <Card>
@@ -570,7 +570,7 @@ export default function TasksPage() {
       fallback={
         <div className="space-y-6">
           <div className="flex justify-between items-center">
-            <h1 className="text-3xl font-bold">Tasks</h1>
+            <h1 className="text-xl font-semibold">Tasks</h1>
           </div>
           <Card>
             <CardContent className="py-12">

@@ -488,7 +488,7 @@ export default function ProspectDetailPage() {
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
+          <h1 className="text-xl font-semibold flex items-center gap-2">
             {prospect.name}
             {prospect.linkedin && (
               <a href={prospect.linkedin} target="_blank" rel="noopener noreferrer" title="View LinkedIn Profile">

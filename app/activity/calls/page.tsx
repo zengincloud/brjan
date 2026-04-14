@@ -119,7 +119,7 @@ export default function CallsMadePage() {
   if (loading) {
     return (
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold">Calls Made</h1>
+        <h1 className="text-xl font-semibold">Calls Made</h1>
         <Card>
           <CardContent className="py-12 flex justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -132,7 +132,7 @@ export default function CallsMadePage() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Calls Made</h1>
+        <h1 className="text-xl font-semibold">Calls Made</h1>
         <DateRangePicker date={date} setDate={setDate} />
       </div>
 
@@ -171,19 +171,19 @@ export default function CallsMadePage() {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="text-center">
-              <h3 className="text-2xl font-bold text-blue-400">{totalCalls}</h3>
+              <h3 className="text-xl font-semibold text-blue-400">{totalCalls}</h3>
               <p className="text-sm text-gray-400">Total Calls</p>
             </div>
             <div className="text-center">
-              <h3 className="text-2xl font-bold text-green-400">{connectionRate}%</h3>
+              <h3 className="text-xl font-semibold text-green-400">{connectionRate}%</h3>
               <p className="text-sm text-gray-400">Connection Rate</p>
             </div>
             <div className="text-center">
-              <h3 className="text-2xl font-bold text-yellow-400">{avgDurationStr}</h3>
+              <h3 className="text-xl font-semibold text-yellow-400">{avgDurationStr}</h3>
               <p className="text-sm text-gray-400">Average Call Duration</p>
             </div>
             <div className="text-center">
-              <h3 className="text-2xl font-bold text-purple-400">{positiveRate}%</h3>
+              <h3 className="text-xl font-semibold text-purple-400">{positiveRate}%</h3>
               <p className="text-sm text-gray-400">Positive Outcome Rate</p>
             </div>
           </div>

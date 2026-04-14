@@ -260,7 +260,7 @@ export default function EditSequencePage() {
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
-          <h1 className="text-3xl font-bold">Edit Sequence</h1>
+          <h1 className="text-xl font-semibold">Edit Sequence</h1>
           <p className="text-muted-foreground">Update your outreach workflow</p>
         </div>
         <Button onClick={saveSequence} disabled={saving} className="ml-auto">

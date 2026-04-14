@@ -58,7 +58,7 @@ export default function AdminDashboard() {
     <div className="container mx-auto py-8 px-4">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+          <h1 className="text-xl font-semibold">Admin Dashboard</h1>
           <p className="text-muted-foreground">Platform overview and management</p>
         </div>
         <div className="flex gap-2">
@@ -85,7 +85,7 @@ export default function AdminDashboard() {
             <Building2 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.totalOrgs || 0}</div>
+            <div className="text-xl font-semibold">{stats?.totalOrgs || 0}</div>
           </CardContent>
         </Card>
         <Card>
@@ -94,7 +94,7 @@ export default function AdminDashboard() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.totalUsers || 0}</div>
+            <div className="text-xl font-semibold">{stats?.totalUsers || 0}</div>
             {stats?.recentUsers ? (
               <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
                 <UserPlus className="h-3 w-3" />
@@ -109,7 +109,7 @@ export default function AdminDashboard() {
             <Phone className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.totalCalls || 0}</div>
+            <div className="text-xl font-semibold">{stats?.totalCalls || 0}</div>
             {stats?.recentCalls ? (
               <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
                 <TrendingUp className="h-3 w-3" />
@@ -124,7 +124,7 @@ export default function AdminDashboard() {
             <Mail className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.totalEmails || 0}</div>
+            <div className="text-xl font-semibold">{stats?.totalEmails || 0}</div>
             {stats?.recentEmails ? (
               <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
                 <TrendingUp className="h-3 w-3" />

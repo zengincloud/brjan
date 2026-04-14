@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DateRangePicker } from "@/components/date-range-picker"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Phone, UserCheck, TrendingUp, CalendarCheck, MessageSquare, ArrowUp, ArrowDown } from "lucide-react"
+import { Phone, UserCheck, TrendingUp, CalendarCheck, MessageSquare, ArrowUp, ArrowDown, AlertCircle } from "lucide-react"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 import type { DateRange } from "react-day-picker"
 import { addDays, startOfWeek, endOfWeek, subWeeks } from "date-fns"
@@ -65,7 +65,7 @@ function formatHour(h: number): string {
 export default function ReportsPage() {
   const [timePreset, setTimePreset] = useState("last_30")
   const [date, setDate] = useState<DateRange | undefined>(getPresetRange("last_30"))
-  const { stats, isLoading } = useReportStats(date)
+  const { stats, isLoading, error } = useReportStats(date)
 
   const handlePresetChange = (value: string) => {
     setTimePreset(value)
@@ -104,7 +104,7 @@ export default function ReportsPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Reports</h1>
+          <h1 className="text-xl font-semibold">Reports</h1>
           <p className="text-muted-foreground">Track what matters</p>
         </div>
         <div className="flex items-center gap-2">
@@ -126,6 +126,14 @@ export default function ReportsPage() {
         </div>
       </div>
 
+      {/* Error state */}
+      {!isLoading && error && (
+        <div className="flex items-center gap-3 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span>Failed to load report data. Please refresh the page and try again.</span>
+        </div>
+      )}
+
       {/* Summary Cards */}
       {isLoading ? (
         <div className="grid gap-4 md:grid-cols-5">
@@ -133,7 +141,7 @@ export default function ReportsPage() {
             <Card key={i}><CardContent className="pt-6"><Skeleton className="h-8 w-16" /><Skeleton className="h-4 w-24 mt-2" /></CardContent></Card>
           ))}
         </div>
-      ) : overview && (
+      ) : !error && overview && (
         <div className="grid gap-4 md:grid-cols-5">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -142,7 +150,7 @@ export default function ReportsPage() {
             </CardHeader>
             <CardContent>
               <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-bold">{overview.totalCalls}</span>
+                <span className="text-xl font-semibold">{overview.totalCalls}</span>
                 <StatChange current={overview.totalCalls} previous={overview.prevTotalCalls} />
               </div>
             </CardContent>
@@ -154,7 +162,7 @@ export default function ReportsPage() {
             </CardHeader>
             <CardContent>
               <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-bold text-primary">{overview.connectRate}%</span>
+                <span className="text-xl font-semibold text-primary">{overview.connectRate}%</span>
                 <StatChange current={overview.connectRate} previous={overview.prevConnectRate} suffix="%" />
               </div>
               <p className="text-xs text-muted-foreground mt-1">connect rate</p>
@@ -166,7 +174,7 @@ export default function ReportsPage() {
               <MessageSquare className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{overview.totalConversations}</div>
+              <div className="text-xl font-semibold">{overview.totalConversations}</div>
               <p className="text-xs text-muted-foreground mt-1">calls &gt; 1 min</p>
             </CardContent>
           </Card>
@@ -176,7 +184,7 @@ export default function ReportsPage() {
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{overview.conversationToIntroRate}%</div>
+              <div className="text-xl font-semibold">{overview.conversationToIntroRate}%</div>
               <p className="text-xs text-muted-foreground mt-1">{overview.totalIntrosFromConversations} of {overview.totalConversations}</p>
             </CardContent>
           </Card>
@@ -187,7 +195,7 @@ export default function ReportsPage() {
             </CardHeader>
             <CardContent>
               <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-bold text-green-500">{overview.meetingsBooked}</span>
+                <span className="text-xl font-semibold text-green-500">{overview.meetingsBooked}</span>
                 <StatChange current={overview.meetingsBooked} previous={overview.prevMeetingsBooked} />
               </div>
             </CardContent>
@@ -195,8 +203,17 @@ export default function ReportsPage() {
         </div>
       )}
 
+      {/* Empty state */}
+      {!isLoading && !error && stats && stats.overview.totalCalls === 0 && stats.overview.totalEmailsSent === 0 && (
+        <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground">
+          <TrendingUp className="h-12 w-12 mb-4 opacity-30" />
+          <p className="text-base font-medium">No activity yet for this period</p>
+          <p className="text-sm mt-1">Make calls and send emails to see your stats here.</p>
+        </div>
+      )}
+
       {/* Connect Rate Trend */}
-      {!isLoading && stats?.conversion?.connectRateTrend && stats.conversion.connectRateTrend.length > 1 && (
+      {!isLoading && !error && stats?.conversion?.connectRateTrend && stats.conversion.connectRateTrend.length > 1 && stats.overview.totalCalls > 0 && (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Connect Rate Over Time</CardTitle>
@@ -223,7 +240,7 @@ export default function ReportsPage() {
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Best Time to Call Heatmap */}
-        {!isLoading && heatmapData.length > 0 && (
+        {!isLoading && !error && heatmapData.filter(e => e.calls > 0).length > 0 && (
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Best Time to Call</CardTitle>
@@ -277,7 +294,7 @@ export default function ReportsPage() {
         )}
 
         {/* Call Outcome Breakdown */}
-        {!isLoading && stats?.callPerformance?.outcomeBreakdown && (
+        {!isLoading && !error && stats?.callPerformance?.outcomeBreakdown && stats.overview.totalCalls > 0 && (
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Call Outcomes</CardTitle>
@@ -325,7 +342,7 @@ export default function ReportsPage() {
       </div>
 
       {/* Sequence Performance */}
-      {!isLoading && stats?.sequencePerformance && stats.sequencePerformance.length > 0 && (
+      {!isLoading && !error && stats?.sequencePerformance && stats.sequencePerformance.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Sequence Performance</CardTitle>
@@ -372,7 +389,7 @@ export default function ReportsPage() {
       )}
 
       {/* Activity by Day */}
-      {!isLoading && stats?.activityByDay && stats.activityByDay.length > 1 && (
+      {!isLoading && !error && stats?.activityByDay && stats.activityByDay.length > 1 && stats.overview.totalCalls > 0 && (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Daily Activity</CardTitle>

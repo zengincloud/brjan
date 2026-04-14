@@ -1842,7 +1842,7 @@ export default function DialerPage() {
             <Phone className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalCalls}</div>
+            <div className="text-xl font-semibold">{stats.totalCalls}</div>
           </CardContent>
         </Card>
         <Card className="border-primary/20 bg-primary/5">
@@ -1851,7 +1851,7 @@ export default function DialerPage() {
             <UserCheck className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-primary">{stats.connected}</div>
+            <div className="text-xl font-semibold text-primary">{stats.connected}</div>
           </CardContent>
         </Card>
         <Card className="border-border bg-card">
@@ -1860,7 +1860,7 @@ export default function DialerPage() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalCalls > 0 ? Math.round((stats.connected / stats.totalCalls) * 100) : 0}%</div>
+            <div className="text-xl font-semibold">{stats.totalCalls > 0 ? Math.round((stats.connected / stats.totalCalls) * 100) : 0}%</div>
           </CardContent>
         </Card>
         <Card className="border-border bg-card">
@@ -1869,7 +1869,7 @@ export default function DialerPage() {
             <MessageSquare className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalCalls > 0 ? Math.round((stats.conversations / stats.totalCalls) * 100) : 0}%</div>
+            <div className="text-xl font-semibold">{stats.totalCalls > 0 ? Math.round((stats.conversations / stats.totalCalls) * 100) : 0}%</div>
           </CardContent>
         </Card>
         <Card className="border-border bg-card border-green-500/30">
@@ -1878,7 +1878,7 @@ export default function DialerPage() {
             <CalendarCheck className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-500">{stats.introsBooked}</div>
+            <div className="text-xl font-semibold text-green-500">{stats.introsBooked}</div>
           </CardContent>
         </Card>
       </div>

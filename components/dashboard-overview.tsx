@@ -42,15 +42,15 @@ export function DashboardOverview() {
             <CardContent className="p-4">
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">{stat.label}</p>
-                  <p className="text-2xl font-bold mt-1">{stat.value}</p>
+                  <p className="text-[12px] text-muted-foreground">{stat.label}</p>
+                  <p className="text-xl font-semibold mt-1">{stat.value}</p>
                   <div className="flex items-center gap-1 mt-1">
                     <TrendingUp className="w-3 h-3 text-accent" />
-                    <span className="text-xs text-accent">{stat.change}</span>
+                    <span className="text-[11px] text-accent">{stat.change}</span>
                   </div>
                 </div>
-                <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center">
-                  <stat.icon className="w-5 h-5 text-accent" />
+                <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center">
+                  <stat.icon className="w-4 h-4 text-accent" />
                 </div>
               </div>
             </CardContent>

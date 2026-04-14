@@ -210,7 +210,7 @@ export default function SchedulerPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Scheduler</h1>
+        <h1 className="text-xl font-semibold">Scheduler</h1>
         <Button>
           <Plus className="h-4 w-4 mr-2" />
           Create Meeting

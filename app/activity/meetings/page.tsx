@@ -46,7 +46,7 @@ export default function MeetingsHadPage() {
   if (loading) {
     return (
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold">Meetings</h1>
+        <h1 className="text-xl font-semibold">Meetings</h1>
         <Card>
           <CardContent className="py-12 flex justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -58,7 +58,7 @@ export default function MeetingsHadPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Meetings</h1>
+      <h1 className="text-xl font-semibold">Meetings</h1>
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
@@ -116,15 +116,15 @@ export default function MeetingsHadPage() {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="text-center">
-              <h3 className="text-2xl font-bold text-blue-600">{meetings.length}</h3>
+              <h3 className="text-xl font-semibold text-blue-600">{meetings.length}</h3>
               <p className="text-sm text-gray-600">Total Meetings</p>
             </div>
             <div className="text-center">
-              <h3 className="text-2xl font-bold text-green-600">--</h3>
+              <h3 className="text-xl font-semibold text-green-600">--</h3>
               <p className="text-sm text-gray-600">Meeting Attendance Rate</p>
             </div>
             <div className="text-center">
-              <h3 className="text-2xl font-bold text-yellow-600">--</h3>
+              <h3 className="text-xl font-semibold text-yellow-600">--</h3>
               <p className="text-sm text-gray-600">Average Meeting Rating</p>
             </div>
           </div>

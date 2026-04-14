@@ -98,7 +98,7 @@ export default function AdminOrganizationsPage() {
           <Button variant="ghost" size="icon"><ArrowLeft className="h-4 w-4" /></Button>
         </Link>
         <div className="flex-1">
-          <h1 className="text-3xl font-bold">Organizations</h1>
+          <h1 className="text-xl font-semibold">Organizations</h1>
           <p className="text-muted-foreground">Manage all organizations on the platform</p>
         </div>
         <Button onClick={() => setCreateOpen(true)}>

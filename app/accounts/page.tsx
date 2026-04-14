@@ -1,12 +1,508 @@
-import { AccountList } from "@/components/account-list"
-import { AccountStatusBoxes } from "@/components/account-status-boxes"
+'use client'
+
+import { useState, useEffect, useCallback } from 'react'
+import { formatDistanceToNow } from 'date-fns'
+import { Globe, Linkedin, Plus, Upload, X, Trash2, Search, MoreHorizontal, FolderInput, Users } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { useToast } from '@/components/ui/use-toast'
+import { UploadAccountsDialog } from '@/components/upload-accounts-dialog'
+import { AddAccountDialog } from '@/components/add-account-dialog'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { AccountStatusBoxes } from '@/components/account-status-boxes'
+
+type Account = {
+  id: string
+  name: string
+  industry?: string | null
+  location?: string | null
+  website?: string | null
+  linkedin?: string | null
+  employees?: number | null
+  status: string
+  sequence?: string | null
+  sequenceStep?: string | null
+  lastActivity: string
+  contacts: number
+}
+
+// ── Avatar ─────────────────────────────────────────────────────────────────────
+
+const AVATAR_COLORS = [
+  'bg-indigo-500', 'bg-cyan-600', 'bg-emerald-600',
+  'bg-amber-500', 'bg-rose-500', 'bg-violet-600', 'bg-pink-600',
+]
+
+function getAvatarColor(name: string) {
+  let hash = 0
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) & 0xffffffff
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
+}
+
+function AccountAvatar({ name, size = 'sm' }: { name: string; size?: 'sm' | 'lg' }) {
+  const initials = name.trim().slice(0, 2).toUpperCase()
+  const cls = size === 'lg' ? 'w-10 h-10 text-sm' : 'w-6 h-6 text-[11px]'
+  return (
+    <div className={cn('rounded-md flex items-center justify-center font-semibold text-white shrink-0', getAvatarColor(name), cls)}>
+      {initials}
+    </div>
+  )
+}
+
+// ── Status badge ───────────────────────────────────────────────────────────────
+
+function StatusBadge({ status }: { status: string }) {
+  const colorMap: Record<string, string> = {
+    new_lead:    'bg-secondary text-muted-foreground',
+    contacted:   'bg-blue-500/10 text-blue-400',
+    in_sequence: 'bg-yellow-500/10 text-yellow-400',
+    qualified:   'bg-accent/10 text-accent',
+    customer:    'bg-purple-500/10 text-purple-400',
+    churned:     'bg-red-500/10 text-red-400',
+  }
+  return (
+    <span className={cn('px-2 py-0.5 rounded-full text-[11px] font-medium', colorMap[status] ?? 'bg-secondary text-muted-foreground')}>
+      {status.replace(/_/g, ' ')}
+    </span>
+  )
+}
+
+// ── Detail panel ───────────────────────────────────────────────────────────────
+
+function AccountDetail({
+  account,
+  onClose,
+  onDelete,
+  onStatusChange,
+}: {
+  account: Account
+  onClose: () => void
+  onDelete: (a: Account) => void
+  onStatusChange: (id: string, status: string) => void
+}) {
+  const [tab, setTab] = useState<'overview' | 'contacts'>('overview')
+
+  const detailRows = [
+    { label: 'Industry',    value: account.industry || '—' },
+    { label: 'Location',    value: account.location || '—' },
+    { label: 'Employees',   value: account.employees?.toLocaleString() || '—' },
+    { label: 'Website',     value: account.website
+        ? <a href={account.website.startsWith('http') ? account.website : `https://${account.website}`} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline truncate">{account.website}</a>
+        : '—' },
+    { label: 'Status',      value: <StatusBadge status={account.status} /> },
+    { label: 'Sequence',    value: account.sequence || '—' },
+    { label: 'Step',        value: account.sequenceStep || '—' },
+    { label: 'Contacts',    value: String(account.contacts ?? 0) },
+    { label: 'Last activity', value: account.lastActivity ? formatDistanceToNow(new Date(account.lastActivity), { addSuffix: true }) : '—' },
+  ]
+
+  return (
+    <div className="flex flex-col h-full border-l border-border">
+      {/* Header */}
+      <div className="flex items-start justify-between px-5 pt-5 pb-4 border-b border-border shrink-0">
+        <div className="flex items-center gap-3">
+          <AccountAvatar name={account.name} size="lg" />
+          <div>
+            <h2 className="text-[14px] font-semibold leading-tight">{account.name}</h2>
+            <p className="text-[12px] text-muted-foreground mt-0.5">
+              {[account.industry, account.location].filter(Boolean).join(' · ') || 'No details'}
+            </p>
+          </div>
+        </div>
+        <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors p-1 -mr-1 -mt-1">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center gap-2 px-5 py-3 border-b border-border shrink-0">
+        {account.website && (
+          <Button size="sm" variant="outline" className="h-7 px-3 text-[12px] gap-1.5" onClick={() => window.open(account.website!.startsWith('http') ? account.website! : `https://${account.website}`, '_blank')}>
+            <Globe className="h-3.5 w-3.5" /> Website
+          </Button>
+        )}
+        {account.linkedin && (
+          <Button size="sm" variant="outline" className="h-7 px-3 text-[12px] gap-1.5" onClick={() => window.open(account.linkedin!, '_blank')}>
+            <Linkedin className="h-3.5 w-3.5" /> LinkedIn
+          </Button>
+        )}
+        <div className="ml-auto">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="ghost" className="h-7 w-7 p-0">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => onStatusChange(account.id, 'qualified')}>
+                <FolderInput className="h-4 w-4 mr-2" /> Mark as Qualified
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onStatusChange(account.id, 'customer')}>
+                <FolderInput className="h-4 w-4 mr-2" /> Mark as Customer
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => onDelete(account)} className="text-destructive focus:text-destructive">
+                <Trash2 className="h-4 w-4 mr-2" /> Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex px-5 border-b border-border shrink-0">
+        {(['overview', 'contacts'] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={cn(
+              'mr-5 py-2.5 text-[12px] font-medium capitalize border-b-2 -mb-px transition-colors',
+              tab === t ? 'border-accent text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'
+            )}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+        {tab === 'overview' && (
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2.5">Details</p>
+            <div className="rounded-lg border border-border overflow-hidden">
+              {detailRows.map(({ label, value }) => (
+                <div key={label} className="flex items-center px-3 py-2 border-b border-border last:border-0">
+                  <span className="text-[12px] text-muted-foreground w-28 shrink-0">{label}</span>
+                  <span className="text-[12px] text-foreground">{value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {tab === 'contacts' && (
+          <div className="flex flex-col items-center justify-center py-12 gap-2">
+            <Users className="h-8 w-8 text-muted-foreground/30" />
+            <p className="text-[12px] text-muted-foreground">
+              {account.contacts > 0 ? `${account.contacts} contact${account.contacts > 1 ? 's' : ''}` : 'No contacts yet'}
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Table header cell ──────────────────────────────────────────────────────────
+
+function Th({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <th className={cn('px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 border-b border-border whitespace-nowrap', className)}>
+      {children}
+    </th>
+  )
+}
+
+// ── Main page ──────────────────────────────────────────────────────────────────
 
 export default function AccountsPage() {
+  const { toast } = useToast()
+
+  const [accounts, setAccounts] = useState<Account[]>([])
+  const [loading, setLoading] = useState(true)
+  const [totalCount, setTotalCount] = useState(0)
+  const [page, setPage] = useState(1)
+  const pageSize = 50
+
+  const [searchTerm, setSearchTerm] = useState('')
+  const [selectedAccount, setSelectedAccount] = useState<Account | null>(null)
+  const [selectedRows, setSelectedRows] = useState<string[]>([])
+
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
+  const [addDialogOpen, setAddDialogOpen] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<Account | null>(null)
+  const [deleting, setDeleting] = useState(false)
+
+  const loadAccounts = useCallback(async (loadPage = 1, append = false) => {
+    try {
+      if (!append) setLoading(true)
+      const params = new URLSearchParams({ page: String(loadPage), pageSize: String(pageSize) })
+      const res = await fetch(`/api/accounts?${params}`)
+      if (!res.ok) throw new Error()
+      const data = await res.json()
+      if (append) {
+        setAccounts((prev) => [...prev, ...data.accounts])
+      } else {
+        setAccounts(data.accounts)
+      }
+      setTotalCount(data.totalCount || 0)
+      setPage(loadPage)
+    } catch {
+      toast({ title: 'Error', description: 'Failed to load accounts', variant: 'destructive' })
+    } finally {
+      setLoading(false)
+    }
+  }, [toast])
+
+  useEffect(() => { loadAccounts() }, [loadAccounts])
+
+  const filteredAccounts = accounts.filter((a) => {
+    const q = searchTerm.toLowerCase()
+    return !q || (a.name?.toLowerCase() ?? '').includes(q) || (a.industry?.toLowerCase() ?? '').includes(q) || (a.location?.toLowerCase() ?? '').includes(q)
+  })
+
+  const toggleRow = (id: string) =>
+    setSelectedRows((prev) => prev.includes(id) ? prev.filter((r) => r !== id) : [...prev, id])
+
+  const toggleAll = () =>
+    setSelectedRows((prev) => prev.length === filteredAccounts.length ? [] : filteredAccounts.map((a) => a.id))
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return
+    try {
+      setDeleting(true)
+      const res = await fetch(`/api/accounts/${deleteTarget.id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error()
+      toast({ title: 'Deleted', description: `${deleteTarget.name} deleted` })
+      if (selectedAccount?.id === deleteTarget.id) setSelectedAccount(null)
+      setAccounts((prev) => prev.filter((a) => a.id !== deleteTarget.id))
+    } catch {
+      toast({ title: 'Error', description: 'Failed to delete account', variant: 'destructive' })
+    } finally {
+      setDeleting(false)
+      setDeleteDialogOpen(false)
+      setDeleteTarget(null)
+    }
+  }
+
+  const handleStatusChange = async (accountId: string, status: string) => {
+    try {
+      const res = await fetch(`/api/accounts/${accountId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      })
+      if (!res.ok) throw new Error()
+      toast({ title: 'Status updated' })
+      setAccounts((prev) => prev.map((a) => a.id === accountId ? { ...a, status } : a))
+      if (selectedAccount?.id === accountId) setSelectedAccount((prev) => prev ? { ...prev, status } : prev)
+    } catch {
+      toast({ title: 'Error', description: 'Failed to update status', variant: 'destructive' })
+    }
+  }
+
+  const compact = !!selectedAccount
+
   return (
-    <div className="space-y-6">
-      <h1 className="text-xl font-semibold">Accounts</h1>
-      <AccountStatusBoxes />
-      <AccountList />
-    </div>
+    <>
+      <div className="-m-5 flex flex-col" style={{ height: 'calc(100vh - 3rem)' }}>
+
+        {/* Stats row */}
+        <div className="px-5 pt-4 shrink-0">
+          <AccountStatusBoxes />
+        </div>
+
+        <div className="flex flex-1 overflow-hidden mt-4">
+
+          {/* ── Table panel ─────────────────────────────────────────────── */}
+          <div className={cn('flex flex-col overflow-hidden transition-all duration-200', compact ? 'w-[400px] shrink-0' : 'flex-1')}>
+
+            {/* Toolbar */}
+            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border shrink-0">
+              <div className="relative flex-1 max-w-xs">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="Search accounts..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-8 h-8 text-[13px]"
+                />
+              </div>
+              <div className="flex items-center gap-1.5 ml-auto">
+                <Button size="sm" variant="outline" onClick={() => setUploadDialogOpen(true)} className="h-8 text-[12px]">
+                  <Upload className="h-3.5 w-3.5 mr-1" /> Upload CSV
+                </Button>
+                <Button size="sm" onClick={() => setAddDialogOpen(true)} className="h-8 text-[12px]">
+                  <Plus className="h-3.5 w-3.5 mr-1" /> Add Account
+                </Button>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div className="flex-1 overflow-auto">
+              <table className="w-full border-collapse">
+                <thead className="sticky top-0 bg-background z-10">
+                  <tr>
+                    <th className="px-4 py-2.5 border-b border-border w-10">
+                      <input
+                        type="checkbox"
+                        checked={selectedRows.length === filteredAccounts.length && filteredAccounts.length > 0}
+                        onChange={toggleAll}
+                        className="h-3.5 w-3.5 rounded accent-[hsl(100,78%,44%)]"
+                      />
+                    </th>
+                    <Th>Account</Th>
+                    {!compact && <Th>Industry</Th>}
+                    {!compact && <Th>Location</Th>}
+                    {!compact && <Th>Employees</Th>}
+                    {!compact && <Th>Status</Th>}
+                    {!compact && <Th>Last Activity</Th>}
+                    <Th className="w-10" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={compact ? 3 : 8} className="text-center py-12 text-[13px] text-muted-foreground">
+                        Loading...
+                      </td>
+                    </tr>
+                  ) : filteredAccounts.length === 0 ? (
+                    <tr>
+                      <td colSpan={compact ? 3 : 8} className="text-center py-12">
+                        <p className="text-[13px] text-muted-foreground mb-3">No accounts found</p>
+                        <Button size="sm" onClick={() => setAddDialogOpen(true)} className="text-[12px] h-8">
+                          <Plus className="h-3.5 w-3.5 mr-1" /> Add account
+                        </Button>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredAccounts.map((a) => {
+                      const isSelected = selectedAccount?.id === a.id
+                      const isChecked = selectedRows.includes(a.id)
+
+                      return (
+                        <tr
+                          key={a.id}
+                          onClick={() => setSelectedAccount(isSelected ? null : a)}
+                          className={cn(
+                            'border-b border-border/60 cursor-pointer transition-colors group',
+                            isSelected ? 'bg-accent/5' : 'hover:bg-muted/30'
+                          )}
+                        >
+                          {/* Checkbox */}
+                          <td className="px-4 py-2.5 w-10" onClick={(e) => { e.stopPropagation(); toggleRow(a.id) }}>
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => toggleRow(a.id)}
+                              className="h-3.5 w-3.5 rounded accent-[hsl(100,78%,44%)]"
+                            />
+                          </td>
+
+                          {/* Account */}
+                          <td className="px-4 py-2.5">
+                            <div className="flex items-center gap-2.5">
+                              <AccountAvatar name={a.name} />
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[13px] font-medium text-foreground whitespace-nowrap">{a.name}</span>
+                                  {a.linkedin && (
+                                    <a href={a.linkedin} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+                                      <Linkedin className="h-3.5 w-3.5 text-[#0A66C2] opacity-70 hover:opacity-100" />
+                                    </a>
+                                  )}
+                                </div>
+                                {a.website && !compact && (
+                                  <a
+                                    href={a.website.startsWith('http') ? a.website : `https://${a.website}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="text-[11px] text-muted-foreground hover:text-accent truncate block max-w-[160px]"
+                                  >
+                                    {a.website}
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+
+                          {!compact && <td className="px-4 py-2.5 text-[13px] text-foreground/70 whitespace-nowrap">{a.industry || '—'}</td>}
+                          {!compact && <td className="px-4 py-2.5 text-[13px] text-foreground/70 whitespace-nowrap">{a.location || '—'}</td>}
+                          {!compact && <td className="px-4 py-2.5 text-[13px] text-foreground/70 whitespace-nowrap">{a.employees?.toLocaleString() || '—'}</td>}
+                          {!compact && <td className="px-4 py-2.5"><StatusBadge status={a.status} /></td>}
+                          {!compact && <td className="px-4 py-2.5 text-[13px] text-muted-foreground whitespace-nowrap">{a.lastActivity ? formatDistanceToNow(new Date(a.lastActivity), { addSuffix: true }) : '—'}</td>}
+
+                          {/* Row actions */}
+                          <td className="px-2 py-2.5 w-10" onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <MoreHorizontal className="h-3.5 w-3.5" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handleStatusChange(a.id, 'qualified')}>
+                                  <FolderInput className="h-4 w-4 mr-2" /> Mark as Qualified
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleStatusChange(a.id, 'customer')}>
+                                  <FolderInput className="h-4 w-4 mr-2" /> Mark as Customer
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={() => { setDeleteTarget(a); setDeleteDialogOpen(true) }} className="text-destructive focus:text-destructive">
+                                  <Trash2 className="h-4 w-4 mr-2" /> Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </td>
+                        </tr>
+                      )
+                    })
+                  )}
+                </tbody>
+              </table>
+
+              {/* Load more */}
+              {accounts.length < totalCount && (
+                <div className="flex justify-center py-4 border-t border-border">
+                  <button
+                    onClick={() => loadAccounts(page + 1, true)}
+                    className="text-[12px] text-muted-foreground hover:text-foreground underline"
+                  >
+                    Load more ({accounts.length} of {totalCount})
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ── Detail panel ────────────────────────────────────────────── */}
+          {selectedAccount && (
+            <div className="flex-1 overflow-hidden">
+              <AccountDetail
+                account={selectedAccount}
+                onClose={() => setSelectedAccount(null)}
+                onDelete={(a) => { setDeleteTarget(a); setDeleteDialogOpen(true) }}
+                onStatusChange={handleStatusChange}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Dialogs */}
+      <UploadAccountsDialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen} onUploadComplete={loadAccounts} />
+      <AddAccountDialog open={addDialogOpen} onOpenChange={setAddDialogOpen} onAccountAdded={loadAccounts} />
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Account</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {deleteTarget?.name}? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={deleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deleting ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }

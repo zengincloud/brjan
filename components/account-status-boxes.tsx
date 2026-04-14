@@ -1,16 +1,16 @@
 "use client"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useUserRole } from "@/hooks/use-user-role"
 import { useDashboardStats } from "@/hooks/use-dashboard-stats"
+import { cn } from "@/lib/utils"
 
 const demoStatusData = [
-  { label: "Total", value: 125, color: "bg-blue-100 text-blue-800" },
-  { label: "New", value: 42, color: "bg-gray-100 text-gray-800" },
-  { label: "In Sequence", value: 38, color: "bg-yellow-100 text-yellow-800" },
-  { label: "Engaged", value: 25, color: "bg-green-100 text-green-800" },
-  { label: "Opportunity", value: 15, color: "bg-purple-100 text-purple-800" },
-  { label: "Closed", value: 5, color: "bg-red-100 text-red-800" },
+  { label: "Total",       value: 125, dot: "bg-blue-400" },
+  { label: "New",         value: 42,  dot: "bg-muted-foreground/40" },
+  { label: "In Sequence", value: 38,  dot: "bg-yellow-400" },
+  { label: "Contacted",   value: 25,  dot: "bg-emerald-400" },
+  { label: "Customer",    value: 15,  dot: "bg-purple-400" },
+  { label: "Churned",     value: 5,   dot: "bg-rose-400" },
 ]
 
 export function AccountStatusBoxes() {
@@ -21,25 +21,24 @@ export function AccountStatusBoxes() {
   const statusData = isSuperAdmin
     ? demoStatusData
     : [
-        { label: "Total", value: as?.total ?? 0, color: "bg-blue-100 text-blue-800" },
-        { label: "New", value: as?.new_lead ?? 0, color: "bg-gray-100 text-gray-800" },
-        { label: "In Sequence", value: as?.in_sequence ?? 0, color: "bg-yellow-100 text-yellow-800" },
-        { label: "Contacted", value: as?.contacted ?? 0, color: "bg-green-100 text-green-800" },
-        { label: "Customer", value: as?.customer ?? 0, color: "bg-purple-100 text-purple-800" },
-        { label: "Churned", value: as?.churned ?? 0, color: "bg-red-100 text-red-800" },
+        { label: "Total",       value: as?.total       ?? 0, dot: "bg-blue-400" },
+        { label: "New",         value: as?.new_lead    ?? 0, dot: "bg-muted-foreground/40" },
+        { label: "In Sequence", value: as?.in_sequence ?? 0, dot: "bg-yellow-400" },
+        { label: "Contacted",   value: as?.contacted   ?? 0, dot: "bg-emerald-400" },
+        { label: "Customer",    value: as?.customer    ?? 0, dot: "bg-purple-400" },
+        { label: "Churned",     value: as?.churned     ?? 0, dot: "bg-rose-400" },
       ]
 
   return (
-    <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
-      {statusData.map((status) => (
-        <Card key={status.label} className={status.color}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{status.label}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{status.value}</div>
-          </CardContent>
-        </Card>
+    <div className="grid grid-cols-3 md:grid-cols-6 divide-x divide-border border border-border rounded-lg overflow-hidden bg-card">
+      {statusData.map((s) => (
+        <div key={s.label} className="flex flex-col gap-1 px-4 py-3">
+          <div className="flex items-center gap-1.5">
+            <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", s.dot)} />
+            <span className="text-[11px] text-muted-foreground truncate">{s.label}</span>
+          </div>
+          <span className="text-xl font-semibold text-foreground leading-none">{s.value}</span>
+        </div>
       ))}
     </div>
   )

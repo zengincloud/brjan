@@ -145,7 +145,47 @@ export default function UpgradePage() {
       </div>
 
       {/* Plan cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-4xl">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 w-full max-w-5xl">
+
+        {/* Trial card — always visible, non-interactive */}
+        <div className={cn(
+          'relative flex flex-col rounded-2xl border p-6',
+          user?.tier === 'trial' ? 'border-white/20 bg-white/5' : 'border-border bg-card opacity-60'
+        )}>
+          {user?.tier === 'trial' && (
+            <div className="absolute -top-3 right-5">
+              <span className="px-3 py-1 rounded-full text-xs font-semibold bg-white/15 text-white/70 border border-white/20">
+                Current plan
+              </span>
+            </div>
+          )}
+          <div className="mb-5">
+            <h2 className="text-lg font-bold text-foreground">Trial</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Try before you commit</p>
+          </div>
+          <div className="mb-5">
+            <span className="text-4xl font-bold text-foreground">Free</span>
+            <p className="text-xs text-muted-foreground mt-1">no credit card needed</p>
+          </div>
+          <div className="w-full py-2.5 rounded-lg border border-border text-center text-sm font-medium text-muted-foreground mb-5 cursor-default">
+            {user?.tier === 'trial' ? 'Active' : 'Expired'}
+          </div>
+          <ul className="space-y-2.5 flex-1">
+            {[
+              '25 credits total',
+              '10 prospects',
+              '25 calls',
+              '1 sequence (5 steps)',
+              '1 call recording',
+              'No email sending',
+            ].map((f) => (
+              <li key={f} className="flex items-center gap-2.5 text-sm text-foreground/60">
+                <Check className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                {f}
+              </li>
+            ))}
+          </ul>
+        </div>
         {PLANS.map((plan) => {
           const price = billing === 'monthly' ? plan.monthlyPrice : plan.yearlyPrice
           const originalPrice = plan.monthlyPrice

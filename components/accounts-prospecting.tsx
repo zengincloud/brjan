@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Fragment } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -535,192 +535,147 @@ export function AccountsProspecting() {
 
             {isLoading ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
-                <Loader2 className="h-12 w-12 text-muted-foreground mb-4 animate-spin" />
-                <h3 className="text-[13px] font-medium mb-2">Searching...</h3>
-                <p className="text-muted-foreground">Finding companies that match your criteria</p>
+                <Loader2 className="h-8 w-8 text-muted-foreground mb-3 animate-spin" />
+                <p className="text-[13px] font-medium">Searching...</p>
+                <p className="text-[12px] text-muted-foreground mt-1">Finding companies that match your criteria</p>
               </div>
             ) : searchResults.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
-                <Building2 className="h-12 w-12 text-muted-foreground mb-4" />
-                <h3 className="text-[13px] font-medium mb-2">No companies found</h3>
-                <p className="text-muted-foreground max-w-md">
-                  Try adjusting your search criteria or filters to find companies that match your prospecting needs.
-                </p>
+                <Building2 className="h-8 w-8 text-muted-foreground mb-3" />
+                <p className="text-[13px] font-medium">No companies found</p>
+                <p className="text-[12px] text-muted-foreground mt-1 max-w-xs">Try adjusting your search criteria or filters.</p>
               </div>
             ) : (
-              <div className="space-y-4">
-                {searchResults.map((company) => {
-                  const isExpanded = expandedCards.has(company.id)
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr>
+                      <th className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 border-b border-border whitespace-nowrap">Name</th>
+                      <th className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 border-b border-border whitespace-nowrap">Industry</th>
+                      <th className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 border-b border-border whitespace-nowrap">Location</th>
+                      <th className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 border-b border-border whitespace-nowrap">Employees</th>
+                      <th className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 border-b border-border whitespace-nowrap">Buying Signals</th>
+                      <th className="px-4 py-2.5 border-b border-border w-28" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {searchResults.map((company) => {
+                      const isExpanded = expandedCards.has(company.id)
 
-                  return (
-                    <Card key={company.id} className="cursor-pointer hover:shadow-md transition-shadow">
-                      <CardContent className="p-6">
-                        <div className="space-y-4">
-                          {/* Preview Card (Always Visible) */}
-                          <div className="flex items-start justify-between">
-                            <div
-                              className="space-y-2 flex-1"
-                              onClick={() => toggleExpanded(company.id)}
-                            >
-                              <div className="flex items-center gap-2">
-                                <h3 className="font-semibold text-[13px]">{toTitleCase(company.name)}</h3>
-                                {company.verified && <Badge className="bg-primary/20 text-primary">Verified</Badge>}
+                      return (
+                        <Fragment key={company.id}>
+                          <tr
+                            className="border-b border-border/60 cursor-pointer transition-colors hover:bg-muted/30"
+                            onClick={() => toggleExpanded(company.id)}
+                          >
+                            {/* Name */}
+                            <td className="px-4 py-2.5">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[13px] font-medium text-foreground whitespace-nowrap">{toTitleCase(company.name)}</span>
+                                {company.verified && <span className="text-[10px] text-primary">✓</span>}
+                                {company.linkedin && (
+                                  <a href={company.linkedin} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+                                    <LinkedinIcon className="h-3.5 w-3.5 text-[#0A66C2] opacity-70 hover:opacity-100" />
+                                  </a>
+                                )}
+                                {company.website && (
+                                  <a href={company.website} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+                                    <Globe className="h-3.5 w-3.5 text-muted-foreground opacity-70 hover:opacity-100" />
+                                  </a>
+                                )}
                               </div>
                               {company.description && (
-                                <p className="text-sm text-muted-foreground line-clamp-2">{company.description}</p>
+                                <p className="text-[12px] text-muted-foreground truncate max-w-[220px]">{company.description}</p>
                               )}
-                              <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                                <div className="flex items-center gap-1">
-                                  <Building2 className="h-4 w-4" />
-                                  {toTitleCase(company.industry)}
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <Globe className="h-4 w-4" />
-                                  {toTitleCase(company.location)}
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <Users className="h-4 w-4" />
-                                  {company.employees?.toLocaleString()} employees
-                                </div>
-                              </div>
-                              {company.buyingSignals && company.buyingSignals.length > 0 && (
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  {company.buyingSignals.map((signal, idx) => (
-                                    <Badge key={idx} variant="outline" className="text-xs">
+                            </td>
+                            {/* Industry */}
+                            <td className="px-4 py-2.5">
+                              <span className="text-[13px] text-muted-foreground">{toTitleCase(company.industry) || '—'}</span>
+                            </td>
+                            {/* Location */}
+                            <td className="px-4 py-2.5">
+                              <span className="text-[13px] text-muted-foreground whitespace-nowrap">{toTitleCase(company.location) || '—'}</span>
+                            </td>
+                            {/* Employees */}
+                            <td className="px-4 py-2.5">
+                              <span className="text-[13px] text-muted-foreground whitespace-nowrap">
+                                {company.employees ? company.employees.toLocaleString() : '—'}
+                              </span>
+                            </td>
+                            {/* Buying Signals */}
+                            <td className="px-4 py-2.5 max-w-[200px]">
+                              {company.buyingSignals && company.buyingSignals.length > 0 ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {company.buyingSignals.slice(0, 2).map((signal, idx) => (
+                                    <span key={idx} className="px-1.5 py-0.5 rounded text-[11px] bg-secondary text-muted-foreground border border-border">
                                       {signal}
-                                    </Badge>
+                                    </span>
                                   ))}
+                                  {company.buyingSignals.length > 2 && (
+                                    <span className="text-[11px] text-muted-foreground">+{company.buyingSignals.length - 2}</span>
+                                  )}
                                 </div>
+                              ) : (
+                                <span className="text-[13px] text-muted-foreground">—</span>
                               )}
-                            </div>
-                            <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => toggleExpanded(company.id)}
-                                title={isExpanded ? "Show less" : "Show more"}
-                              >
-                                {isExpanded ? (
-                                  <ChevronUp className="h-4 w-4" />
-                                ) : (
-                                  <ChevronDown className="h-4 w-4" />
-                                )}
-                              </Button>
-                              {company.linkedin && (
-                                <Button variant="outline" size="sm" asChild>
-                                  <a href={company.linkedin} target="_blank" rel="noopener noreferrer">
-                                    <LinkedinIcon className="mr-2 h-4 w-4" />
-                                    LinkedIn
-                                  </a>
+                            </td>
+                            {/* Actions */}
+                            <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center gap-1">
+                                <Button size="sm" className="h-7 text-[12px]" onClick={() => handleAddToAccounts(company)}>
+                                  + Add
                                 </Button>
-                              )}
-                              {company.website && (
-                                <Button variant="outline" size="sm" asChild>
-                                  <a href={company.website} target="_blank" rel="noopener noreferrer">
-                                    <Globe className="mr-2 h-4 w-4" />
-                                    Website
-                                  </a>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  onClick={() => toggleExpanded(company.id)}
+                                >
+                                  {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                                 </Button>
-                              )}
-                              <Button size="sm" onClick={() => handleAddToAccounts(company)}>
-                                Add to Accounts
-                              </Button>
-                            </div>
-                          </div>
-
-                          {/* Expanded Details */}
-                          {isExpanded && (
-                            <>
-                              <Separator />
-                              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
-                                {/* Intent */}
-                                <div className="space-y-3">
-                                  <h4 className="font-medium text-sm flex items-center gap-2">
-                                    <Target className="h-4 w-4" />
-                                    Intent Signals
-                                  </h4>
-                                  <div className="space-y-2 text-sm text-muted-foreground pl-6">
-                                    <div className="flex items-start gap-2">
-                                      <TrendingUp className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                                      <div>
-                                        <p className="font-medium text-foreground">Recent Funding</p>
-                                        <p className="text-xs">Series B: $25M raised 3 months ago</p>
-                                      </div>
-                                    </div>
-                                    <div className="flex items-start gap-2">
-                                      <DollarSign className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
-                                      <div>
-                                        <p className="font-medium text-foreground">Tech Stack Expansion</p>
-                                        <p className="text-xs">Added 3 new tools in last quarter</p>
-                                      </div>
-                                    </div>
-                                    <div className="flex items-start gap-2">
-                                      <Users className="h-4 w-4 text-purple-500 mt-0.5 flex-shrink-0" />
-                                      <div>
-                                        <p className="font-medium text-foreground">Hiring Spree</p>
-                                        <p className="text-xs">25+ open positions in Sales & Ops</p>
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {/* Past Conversations */}
-                                <div className="space-y-3">
-                                  <h4 className="font-medium text-sm flex items-center gap-2">
-                                    <MessageSquare className="h-4 w-4" />
-                                    Past Conversations
-                                  </h4>
-                                  <div className="space-y-2 text-sm text-muted-foreground pl-6">
-                                    <div className="border-l-2 border-primary/30 pl-3 py-1">
-                                      <p className="text-xs text-muted-foreground mb-1">Nov 15, 2025</p>
-                                      <p className="font-medium text-foreground">Initial Discovery Call</p>
-                                      <p className="text-xs">Discussed scaling challenges with John Smith (VP Sales)</p>
-                                    </div>
-                                    <div className="border-l-2 border-muted pl-3 py-1">
-                                      <p className="text-xs text-muted-foreground mb-1">Oct 3, 2025</p>
-                                      <p className="font-medium text-foreground">Product Demo Request</p>
-                                      <p className="text-xs">Maria Garcia (Director of Ops) attended webinar</p>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {/* POV */}
-                                <div className="space-y-3">
-                                  <h4 className="font-medium text-sm flex items-center gap-2">
-                                    <Lightbulb className="h-4 w-4" />
-                                    Point of View
-                                  </h4>
-                                  <div className="text-sm text-muted-foreground bg-muted/30 p-4 rounded-lg">
-                                    <p className="mb-2">
-                                      <strong className="text-foreground">Opportunity:</strong> Recent funding and aggressive hiring
-                                      indicate {toTitleCase(company.name)} is in rapid growth mode and likely experiencing operational scaling challenges.
-                                    </p>
-                                    <p className="mb-2">
-                                      <strong className="text-foreground">Industry Context:</strong> In the {company.industry || "their"} space, companies like
-                                      {" "}{toTitleCase(company.name)} are currently facing challenges around AI adoption, workforce efficiency, and maintaining
-                                      competitive advantage during market shifts. With increasing pressure to do more with less and demonstrate clear ROI
-                                      on technology investments, this is something they're likely worried about. Automation and intelligent workflows are
-                                      hot topics right now as companies seek to scale without proportional cost increases.
-                                    </p>
-                                    <p className="mb-2">
-                                      <strong className="text-foreground">How to Help:</strong> Your platform's automation capabilities
-                                      can help them scale their {(company.industry || "business").toLowerCase()} operations without proportional headcount increases.
-                                    </p>
-                                    <p>
-                                      <strong className="text-foreground">Angle:</strong> Lead with ROI case studies from similar-sized
-                                      companies. Emphasize time-to-value and ease of implementation given their rapid growth timeline.
-                                      Focus on VP of Sales/Ops who owns scaling challenges.
-                                    </p>
-                                  </div>
-                                </div>
                               </div>
-                            </>
+                            </td>
+                          </tr>
+                          {isExpanded && (
+                            <tr className="border-b border-border/60 bg-muted/10">
+                              <td colSpan={6} className="px-6 py-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                  <div className="space-y-2">
+                                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">Company Details</p>
+                                    <div className="space-y-1.5 text-[12px] text-muted-foreground">
+                                      {company.founded && <p>Founded: {company.founded}</p>}
+                                      {company.size && <p>Size: {company.size}</p>}
+                                      {company.revenue && <p>Revenue: ${company.revenue.toLocaleString()}</p>}
+                                      {company.technologies && company.technologies.length > 0 && (
+                                        <div>
+                                          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-1">Technologies</p>
+                                          <div className="flex flex-wrap gap-1">
+                                            {company.technologies.map((tech, idx) => (
+                                              <span key={idx} className="px-1.5 py-0.5 rounded text-[11px] bg-secondary text-muted-foreground border border-border">{tech}</span>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">Point of View</p>
+                                    <p className="text-[12px] text-muted-foreground leading-relaxed">
+                                      <strong className="text-foreground">Opportunity:</strong> Recent funding and aggressive hiring indicate {toTitleCase(company.name)} is in rapid growth mode and likely experiencing operational scaling challenges.
+                                    </p>
+                                    <p className="text-[12px] text-muted-foreground leading-relaxed">
+                                      <strong className="text-foreground">Angle:</strong> Lead with ROI case studies from similar-sized companies. Emphasize time-to-value given their growth timeline.
+                                    </p>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
                           )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )
-                })}
+                        </Fragment>
+                      )
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
           </CardContent>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Fragment } from "react"
 import { useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -1690,380 +1690,228 @@ export function LeadsProspecting() {
 
             {isLoading ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
-                <Loader2 className="h-12 w-12 text-muted-foreground mb-4 animate-spin" />
-                <h3 className="text-[13px] font-medium mb-2">Searching...</h3>
-                <p className="text-muted-foreground">Finding leads that match your criteria</p>
+                <Loader2 className="h-8 w-8 text-muted-foreground mb-3 animate-spin" />
+                <p className="text-[13px] font-medium">Searching...</p>
+                <p className="text-[12px] text-muted-foreground mt-1">Finding leads that match your criteria</p>
               </div>
             ) : searchResults.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
-                <User className="h-12 w-12 text-muted-foreground mb-4" />
-                <h3 className="text-[13px] font-medium mb-2">No leads found</h3>
-                <p className="text-muted-foreground max-w-md">
-                  Try adjusting your search criteria or filters to find leads that match your prospecting needs.
-                </p>
+                <User className="h-8 w-8 text-muted-foreground mb-3" />
+                <p className="text-[13px] font-medium">No leads found</p>
+                <p className="text-[12px] text-muted-foreground mt-1 max-w-xs">Try adjusting your search criteria or filters.</p>
               </div>
             ) : (
-              <div className="space-y-4">
-                {searchResults.map((lead) => {
-                  const isExpanded = expandedCards.has(lead.id)
-                  // Get primary email (from current company) and phone
-                  // Safely extract email strings (handle both string[] and object[] cases)
-                  const rawPrimary = lead.emails?.[0]
-                  const primaryEmail = (typeof rawPrimary === 'string' ? rawPrimary : (rawPrimary as any)?.email) || lead.email
-                  const otherEmails = (lead.emails?.slice(1) || []).map(e =>
-                    typeof e === 'string' ? e : (e as any)?.email || ''
-                  ).filter(Boolean)
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr>
+                      <th className="px-4 py-2.5 w-10 border-b border-border">
+                        <Checkbox
+                          checked={selectedProspects.length === searchResults.length && searchResults.length > 0}
+                          onCheckedChange={selectAllProspects}
+                          id="select-all"
+                        />
+                      </th>
+                      <th className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 border-b border-border whitespace-nowrap">Name</th>
+                      <th className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 border-b border-border whitespace-nowrap">Job Title</th>
+                      <th className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 border-b border-border whitespace-nowrap">Company</th>
+                      <th className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 border-b border-border whitespace-nowrap">Emails</th>
+                      <th className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 border-b border-border whitespace-nowrap">Phone Numbers</th>
+                      <th className="px-4 py-2.5 border-b border-border w-28" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {searchResults.map((lead) => {
+                      const isExpanded = expandedCards.has(lead.id)
+                      const rawPrimary = lead.emails?.[0]
+                      const primaryEmail = (typeof rawPrimary === 'string' ? rawPrimary : (rawPrimary as any)?.email) || lead.email
+                      const revealed = revealedContacts[lead.id]
+                      const displayEmail = revealed?.emails?.[0]?.email || revealed?.email || primaryEmail
+                      const displayPhone = revealed?.phones?.[0]?.prettyNumber || revealed?.phones?.[0]?.number || revealed?.phone || lead.phone
 
-                  return (
-                    <Card key={lead.id} className="cursor-pointer hover:shadow-md transition-shadow">
-                      <CardContent className="p-6">
-                        <div className="space-y-4">
-                          {/* Preview Card (Always Visible) */}
-                          <div className="flex items-start justify-between">
-                            <div className="flex items-start gap-3 flex-1">
-                              <div onClick={(e) => e.stopPropagation()}>
-                                <Checkbox
-                                  checked={selectedProspects.includes(lead.id)}
-                                  onCheckedChange={() => toggleProspectSelection(lead.id)}
-                                  className="mt-1"
-                                />
-                              </div>
-                              <div
-                                className="space-y-2 flex-1"
-                                onClick={() => toggleExpanded(lead.id)}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <h3 className="font-semibold text-[13px]">{toTitleCase(lead.name)}</h3>
-                                  {getBuyerIntentBadge(lead.buyerIntent)}
-                                </div>
-                              <p className="text-muted-foreground">{toTitleCase(lead.title)}</p>
-                              <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                                <div className="flex items-center gap-1">
-                                  <Building2 className="h-4 w-4" />
-                                  {toTitleCase(lead.company)}
-                                </div>
-                                {lead.location && (
-                                  <div className="flex items-center gap-1">
-                                    <MapPin className="h-4 w-4" />
-                                    {toTitleCase(lead.location)}
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* Contact Info - Revealed or Reveal Button */}
-                              {revealedContacts[lead.id] || primaryEmail || lead.phone ? (
-                                <div className="flex flex-col gap-2 text-sm">
-                                  {(revealedContacts[lead.id]?.emails?.length || revealedContacts[lead.id]?.email || primaryEmail) && (
-                                    <>
-                                      {revealedContacts[lead.id]?.emails?.length ? (
-                                        revealedContacts[lead.id].emails.map((e, idx) => (
-                                          <div key={idx} className="flex items-center gap-2">
-                                            <Mail className="h-3 w-3 text-green-500" />
-                                            <span className="text-muted-foreground">{e.email}</span>
-                                            <Badge variant="secondary" className="text-xs h-5">
-                                              {e.type === "work" ? "Work" : e.type === "personal" ? "Personal" : e.type}
-                                            </Badge>
-                                            {e.status === "valid" && (
-                                              <Badge className="bg-green-500/20 text-green-500 text-xs h-5">Verified</Badge>
-                                            )}
-                                            {e.status === "risky" && (
-                                              <Badge className="bg-yellow-500/20 text-yellow-500 text-xs h-5">Risky</Badge>
-                                            )}
-                                          </div>
-                                        ))
-                                      ) : revealedContacts[lead.id]?.email ? (
-                                        <div className="flex items-center gap-2">
-                                          <Mail className="h-3 w-3 text-green-500" />
-                                          <span className="text-muted-foreground">{revealedContacts[lead.id].email}</span>
-                                          {revealedContacts[lead.id].emailType && (
-                                            <Badge variant="secondary" className="text-xs h-5">
-                                              {revealedContacts[lead.id].emailType === "work" ? "Work" : revealedContacts[lead.id].emailType === "personal" ? "Personal" : revealedContacts[lead.id].emailType}
-                                            </Badge>
-                                          )}
-                                          {revealedContacts[lead.id].emailStatus === "valid" && (
-                                            <Badge className="bg-green-500/20 text-green-500 text-xs h-5">Verified</Badge>
-                                          )}
-                                        </div>
-                                      ) : primaryEmail ? (
-                                        <div className="flex items-center gap-2">
-                                          <Mail className="h-3 w-3 text-muted-foreground" />
-                                          <span className="text-muted-foreground">{primaryEmail}</span>
-                                          <Badge variant="secondary" className="text-xs h-5">Email</Badge>
-                                        </div>
-                                      ) : null}
-                                    </>
-                                  )}
-                                  {(revealedContacts[lead.id]?.phones?.length || revealedContacts[lead.id]?.phone || lead.phone) && (
-                                    <>
-                                      {revealedContacts[lead.id]?.phones?.length ? (
-                                        revealedContacts[lead.id].phones.map((p, idx) => (
-                                          <div key={idx} className="flex items-center gap-2 text-muted-foreground">
-                                            <Phone className="h-3 w-3 text-green-500" />
-                                            <span>{p.prettyNumber || p.number}</span>
-                                            <Badge variant="secondary" className="text-xs h-5">
-                                              {p.type === "mobile" ? "Mobile" : "Phone"}
-                                            </Badge>
-                                          </div>
-                                        ))
-                                      ) : revealedContacts[lead.id]?.phone ? (
-                                        <div className="flex items-center gap-2 text-muted-foreground">
-                                          <Phone className="h-3 w-3 text-green-500" />
-                                          <span>{revealedContacts[lead.id].phone}</span>
-                                          <Badge variant="secondary" className="text-xs h-5">Phone</Badge>
-                                        </div>
-                                      ) : lead.phone ? (
-                                        <div className="flex items-center gap-2 text-muted-foreground">
-                                          <Phone className="h-3 w-3" />
-                                          <span>{lead.phone}</span>
-                                        </div>
-                                      ) : null}
-                                    </>
-                                  )}
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-3 text-sm mt-1">
-                                  <div className="flex items-center gap-1.5 text-muted-foreground">
-                                    <Mail className="h-3 w-3" />
-                                    <Phone className="h-3 w-3" />
-                                    <span className="text-xs">Contact info hidden</span>
-                                  </div>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-7 text-xs"
-                                    disabled={revealingContacts.has(lead.id)}
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      handleReveal(lead)
-                                    }}
-                                  >
-                                    {revealingContacts.has(lead.id) ? (
-                                      <>
-                                        <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                                        Revealing...
-                                      </>
-                                    ) : (
-                                      "Click to Reveal"
-                                    )}
-                                  </Button>
-                                </div>
-                              )}
-                              </div>
-                            </div>
-                            <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => toggleExpanded(lead.id)}
-                                title={isExpanded ? "Show less" : "Show more"}
-                              >
-                                {isExpanded ? (
-                                  <ChevronUp className="h-4 w-4" />
-                                ) : (
-                                  <ChevronDown className="h-4 w-4" />
-                                )}
-                              </Button>
-                              {lead.linkedin && (
-                                <Button variant="outline" size="sm" asChild>
-                                  <a href={lead.linkedin} target="_blank" rel="noopener noreferrer">
-                                    <LinkedinIcon className="mr-2 h-4 w-4" />
-                                    LinkedIn
+                      return (
+                        <Fragment key={lead.id}>
+                          <tr
+                            className="border-b border-border/60 cursor-pointer transition-colors hover:bg-muted/30"
+                            onClick={() => toggleExpanded(lead.id)}
+                          >
+                            {/* Checkbox */}
+                            <td className="px-4 py-2.5 w-10" onClick={(e) => { e.stopPropagation(); toggleProspectSelection(lead.id) }}>
+                              <Checkbox
+                                checked={selectedProspects.includes(lead.id)}
+                                onCheckedChange={() => toggleProspectSelection(lead.id)}
+                              />
+                            </td>
+                            {/* Name */}
+                            <td className="px-4 py-2.5">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[13px] font-medium text-foreground whitespace-nowrap">{toTitleCase(lead.name)}</span>
+                                {lead.linkedin && (
+                                  <a href={lead.linkedin} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+                                    <LinkedinIcon className="h-3.5 w-3.5 text-[#0A66C2] opacity-70 hover:opacity-100" />
                                   </a>
+                                )}
+                              </div>
+                            </td>
+                            {/* Job Title */}
+                            <td className="px-4 py-2.5 max-w-[200px]">
+                              <span className="text-[13px] text-muted-foreground truncate block">{toTitleCase(lead.title) || '—'}</span>
+                            </td>
+                            {/* Company */}
+                            <td className="px-4 py-2.5">
+                              <span className="text-[13px] text-foreground whitespace-nowrap">{toTitleCase(lead.company) || '—'}</span>
+                            </td>
+                            {/* Emails */}
+                            <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
+                              {displayEmail ? (
+                                <span className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
+                                  <Mail className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                                  {displayEmail}
+                                </span>
+                              ) : (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 text-[12px] gap-1.5"
+                                  disabled={revealingContacts.has(lead.id)}
+                                  onClick={() => handleReveal(lead)}
+                                >
+                                  {revealingContacts.has(lead.id) ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <Mail className="h-3 w-3 text-green-500" />
+                                  )}
+                                  Access email
                                 </Button>
                               )}
-                              <Button size="sm" onClick={() => handleAddToProspects(lead)}>
-                                Add to Prospects
-                              </Button>
-                            </div>
-                          </div>
-
-                          {/* Expanded Details */}
+                            </td>
+                            {/* Phone */}
+                            <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
+                              {displayPhone ? (
+                                <span className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
+                                  <Phone className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                                  {displayPhone}
+                                </span>
+                              ) : (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 text-[12px] gap-1.5"
+                                  disabled={revealingContacts.has(lead.id)}
+                                  onClick={() => handleReveal(lead)}
+                                >
+                                  {revealingContacts.has(lead.id) ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <Phone className="h-3 w-3" />
+                                  )}
+                                  Access mobile
+                                </Button>
+                              )}
+                            </td>
+                            {/* Actions */}
+                            <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center gap-1">
+                                <Button size="sm" className="h-7 text-[12px]" onClick={() => handleAddToProspects(lead)}>
+                                  + Add
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  onClick={() => toggleExpanded(lead.id)}
+                                >
+                                  {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
                           {isExpanded && (
-                            <>
-                              <Separator />
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-                                {/* Contact Info */}
-                                <div className="space-y-3">
-                                  <h4 className="font-medium text-sm flex items-center gap-2">
-                                    <Mail className="h-4 w-4" />
-                                    Contact Information
-                                  </h4>
-                                  <div className="space-y-2 text-sm text-muted-foreground pl-6">
-                                    {revealedContacts[lead.id] ? (
-                                      <>
-                                        {revealedContacts[lead.id].emails?.length ? (
-                                          revealedContacts[lead.id].emails.map((e, idx) => (
-                                            <div key={idx} className="flex items-center gap-2">
-                                              <Mail className="h-3 w-3 text-green-500" />
+                            <tr className="border-b border-border/60 bg-muted/10">
+                              <td colSpan={7} className="px-6 py-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                  <div className="space-y-2">
+                                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">Contact Details</p>
+                                    <div className="space-y-1.5">
+                                      {revealed ? (
+                                        <>
+                                          {revealed.emails?.map((e, idx) => (
+                                            <div key={idx} className="flex items-center gap-2 text-[13px]">
+                                              <Mail className="h-3.5 w-3.5 text-green-500 shrink-0" />
                                               <span>{e.email}</span>
-                                              <Badge variant="secondary" className="text-xs h-5">{e.type}</Badge>
-                                              {e.status === "valid" && <Badge className="bg-green-500/20 text-green-500 text-xs h-5">Verified</Badge>}
+                                              <span className="text-[11px] text-muted-foreground">{e.type}</span>
+                                              {e.status === 'valid' && <span className="text-[11px] text-green-500">verified</span>}
                                             </div>
-                                          ))
-                                        ) : revealedContacts[lead.id].email ? (
-                                          <div className="flex items-center gap-2">
-                                            <Mail className="h-3 w-3 text-green-500" />
-                                            <span>{revealedContacts[lead.id].email}</span>
-                                            {revealedContacts[lead.id].emailType && (
-                                              <Badge variant="secondary" className="text-xs h-5">{revealedContacts[lead.id].emailType}</Badge>
-                                            )}
-                                            {revealedContacts[lead.id].emailStatus === "valid" && <Badge className="bg-green-500/20 text-green-500 text-xs h-5">Verified</Badge>}
-                                          </div>
-                                        ) : null}
-                                        {revealedContacts[lead.id].phones?.length ? (
-                                          revealedContacts[lead.id].phones.map((p, idx) => (
-                                            <div key={idx} className="flex items-center gap-2">
-                                              <Phone className="h-3 w-3 text-green-500" />
+                                          ))}
+                                          {!revealed.emails?.length && revealed.email && (
+                                            <div className="flex items-center gap-2 text-[13px]">
+                                              <Mail className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                                              <span>{revealed.email}</span>
+                                            </div>
+                                          )}
+                                          {revealed.phones?.map((p, idx) => (
+                                            <div key={idx} className="flex items-center gap-2 text-[13px]">
+                                              <Phone className="h-3.5 w-3.5 text-green-500 shrink-0" />
                                               <span>{p.prettyNumber || p.number}</span>
-                                              <Badge variant="secondary" className="text-xs h-5">{p.type}</Badge>
+                                              <span className="text-[11px] text-muted-foreground">{p.type}</span>
                                             </div>
-                                          ))
-                                        ) : revealedContacts[lead.id].phone ? (
-                                          <div className="flex items-center gap-2">
-                                            <Phone className="h-3 w-3 text-green-500" />
-                                            <span>{revealedContacts[lead.id].phone}</span>
-                                            <Badge variant="secondary" className="text-xs h-5">Phone</Badge>
-                                          </div>
-                                        ) : null}
-                                        {!revealedContacts[lead.id].emails?.length && !revealedContacts[lead.id].email && !revealedContacts[lead.id].phones?.length && !revealedContacts[lead.id].phone && (
-                                          <p>No contact details found after reveal</p>
-                                        )}
-                                      </>
-                                    ) : primaryEmail || lead.phone ? (
-                                      <>
-                                        {primaryEmail && (
-                                          <div className="flex items-center gap-2">
-                                            <Mail className="h-3 w-3" />
-                                            <span>{primaryEmail}</span>
-                                          </div>
-                                        )}
-                                        {otherEmails.map((email, idx) => (
-                                          <div key={idx} className="flex items-center gap-2">
-                                            <Mail className="h-3 w-3" />
-                                            <span>{email}</span>
-                                            <Badge variant="secondary" className="text-xs h-5">Personal</Badge>
-                                          </div>
-                                        ))}
-                                        {lead.phone && (
-                                          <div className="flex items-center gap-2">
-                                            <Phone className="h-3 w-3" />
-                                            <span>{lead.phone}</span>
-                                          </div>
-                                        )}
-                                      </>
-                                    ) : (
-                                      <div className="flex items-center gap-2">
-                                        <span>Not revealed yet</span>
+                                          ))}
+                                          {!revealed.phones?.length && revealed.phone && (
+                                            <div className="flex items-center gap-2 text-[13px]">
+                                              <Phone className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                                              <span>{revealed.phone}</span>
+                                            </div>
+                                          )}
+                                          {!revealed.emails?.length && !revealed.email && !revealed.phones?.length && !revealed.phone && (
+                                            <p className="text-[12px] text-muted-foreground">No contact details found</p>
+                                          )}
+                                        </>
+                                      ) : (
                                         <Button
                                           variant="outline"
                                           size="sm"
-                                          className="h-7 text-xs"
+                                          className="h-7 text-[12px]"
                                           disabled={revealingContacts.has(lead.id)}
                                           onClick={() => handleReveal(lead)}
                                         >
                                           {revealingContacts.has(lead.id) ? (
-                                            <>
-                                              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                                              Revealing...
-                                            </>
-                                          ) : (
-                                            "Reveal Contact"
-                                          )}
+                                            <><Loader2 className="mr-1 h-3 w-3 animate-spin" />Revealing...</>
+                                          ) : 'Reveal Contact'}
                                         </Button>
-                                      </div>
-                                    )}
+                                      )}
+                                    </div>
                                   </div>
-                                </div>
-
-                                {/* Company Details */}
-                                <div className="space-y-3">
-                                  <h4 className="font-medium text-sm flex items-center gap-2">
-                                    <Building2 className="h-4 w-4" />
-                                    Company Details
-                                  </h4>
-                                  <div className="space-y-2 text-sm text-muted-foreground pl-6">
-                                    {revealedContacts[lead.id] ? (
-                                      <>
-                                        {revealedContacts[lead.id].companyIndustry && (
-                                          <p>Industry: {revealedContacts[lead.id].companyIndustry}</p>
-                                        )}
-                                        {revealedContacts[lead.id].companySizeRange && (
-                                          <p>Size: {revealedContacts[lead.id].companySizeRange} employees</p>
-                                        )}
-                                        {revealedContacts[lead.id].companyDomain && (
-                                          <p>Website: {revealedContacts[lead.id].companyDomain}</p>
-                                        )}
-                                      </>
-                                    ) : (
-                                      <>
-                                        {lead.industry && <p>Industry: {lead.industry}</p>}
-                                        {lead.companySize && <p>Size: {lead.companySize}</p>}
-                                      </>
-                                    )}
-                                  </div>
-                                </div>
-
-                                {/* POV / Context Blurb */}
-                                <div className="space-y-3 md:col-span-2">
-                                  <h4 className="font-medium text-sm flex items-center gap-2">
-                                    <TrendingUp className="h-4 w-4" />
-                                    Point of View
-                                  </h4>
-                                  <div className="text-sm text-muted-foreground bg-muted/30 p-4 rounded-lg">
-                                    <p className="mb-2">
-                                      <strong className="text-foreground">Opportunity:</strong> {toTitleCase(lead.name)} is a {toTitleCase(lead.title)} at {toTitleCase(lead.company)},
-                                      a {lead.companySize} company in the {lead.industry} industry. Based on their seniority level ({lead.seniorityLevel}),
-                                      they likely have decision-making authority. As a {toTitleCase(lead.title)}, their job entails overseeing team performance, driving strategic initiatives, and managing
-                                      key stakeholder relationships. With {getBuyerIntentText(lead.buyerIntent)}, they may be actively evaluating solutions.
-                                    </p>
-                                    <p className="mb-2">
-                                      <strong className="text-foreground">Industry Context:</strong> In the {lead.industry} space, companies like {toTitleCase(lead.company)} are
-                                      currently facing challenges around digital transformation and data security. With increasing regulatory compliance requirements
-                                      and pressure to modernize legacy systems, this is something they're likely worried about. Market consolidation and
-                                      the need for scalable, AI-driven solutions are hot topics right now.
-                                    </p>
-                                    <p className="mb-2">
-                                      <strong className="text-foreground">How to Help:</strong> Your platform can help {toTitleCase(lead.name)} address operational efficiency, team productivity,
-                                      and scalable processes while delivering measurable ROI on new investments. Their background suggests they value data-driven solutions.
-                                    </p>
-                                    <p>
-                                      <strong className="text-foreground">Angle:</strong> Lead with ROI metrics and case studies from similar companies in the {lead.industry} space.
-                                      Emphasize quick time-to-value and ease of implementation. Focus on how your solution addresses their key priorities: efficiency gains,
-                                      cost reduction, and competitive advantage.
+                                  <div className="space-y-2">
+                                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">Point of View</p>
+                                    <p className="text-[12px] text-muted-foreground leading-relaxed">
+                                      <strong className="text-foreground">Opportunity:</strong> {toTitleCase(lead.name)} is a {toTitleCase(lead.title)} at {toTitleCase(lead.company)}{lead.companySize ? `, a ${lead.companySize} company` : ''}{lead.industry ? ` in the ${lead.industry} industry` : ''}. {lead.seniorityLevel ? `Based on their seniority (${lead.seniorityLevel}), they likely have decision-making authority.` : ''} {getBuyerIntentText(lead.buyerIntent) ? `With ${getBuyerIntentText(lead.buyerIntent)}, they may be actively evaluating solutions.` : ''}
                                     </p>
                                   </div>
                                 </div>
-                              </div>
-
-                              {/* Add to Sequence Button */}
-                              <Separator />
-                              <div className="flex justify-end">
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button>
-                                      Add to Sequence
-                                      <ChevronDown className="ml-2 h-4 w-4" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                                    {sequences.map((sequence) => (
-                                      <DropdownMenuItem
-                                        key={sequence.id}
-                                        onClick={() => handleAddToSequence(lead, sequence.id)}
-                                      >
-                                        {sequence.name}
-                                      </DropdownMenuItem>
-                                    ))}
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </div>
-                            </>
+                                <div className="flex justify-end gap-2 mt-4">
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button size="sm" className="h-7 text-[12px]">
+                                        Add to Sequence <ChevronDown className="ml-1.5 h-3 w-3" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                      {sequences.map((sequence) => (
+                                        <DropdownMenuItem key={sequence.id} onClick={() => handleAddToSequence(lead, sequence.id)}>
+                                          {sequence.name}
+                                        </DropdownMenuItem>
+                                      ))}
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </div>
+                              </td>
+                            </tr>
                           )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )
-                })}
+                        </Fragment>
+                      )
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
           </CardContent>

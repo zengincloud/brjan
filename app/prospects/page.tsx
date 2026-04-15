@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, ElementType } from 'react'
 import { formatDistanceToNow } from 'date-fns'
-import { Phone, Mail, Linkedin, Plus, Upload, X, Pencil, Trash2, Zap, Search, MoreHorizontal, Send, StickyNote, Copy, ChevronDown, ChevronRight, Check, SlidersHorizontal, Settings2, RotateCcw, MapPin, Building2, Briefcase, User, GraduationCap } from 'lucide-react'
+import { Phone, Mail, Linkedin, Plus, Upload, X, Pencil, Trash2, Zap, Search, MoreHorizontal, Send, StickyNote, Copy, ChevronDown, ChevronRight, Check, SlidersHorizontal, Settings2, RotateCcw, MapPin, Building2, Briefcase, User, GraduationCap, Sparkles, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -35,6 +35,7 @@ type Prospect = {
   lastActivity: string
   povData?: any
   wizaData?: any
+  accountId?: string | null
 }
 
 type SequenceOption = { id: string; name: string }
@@ -241,9 +242,11 @@ function PhoneRow({
 
 // ── Overview tab (extracted to avoid closure issues with hooks) ────────────────
 
-function OverviewTab({ prospect, povParsed, isEditing, onCall, onRefresh, toast }: {
+function OverviewTab({ prospect, pov, loadingPov, onRefreshPov, isEditing, onCall, onRefresh, toast }: {
   prospect: Prospect
-  povParsed: any
+  pov: any
+  loadingPov: boolean
+  onRefreshPov: () => void
   isEditing?: boolean
   onCall: (p: Prospect) => void
   onRefresh: () => void
@@ -443,19 +446,36 @@ function OverviewTab({ prospect, povParsed, isEditing, onCall, onRefresh, toast 
         </div>
       </div>
 
-      {povParsed && Object.keys(povParsed).length > 0 && (
+      {prospect.accountId && (
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2.5">AI Research</p>
-          <div className="rounded-lg border border-border bg-card p-3 space-y-3">
-            {Object.entries(povParsed).map(([k, v]) =>
-              typeof v === 'string' ? (
-                <div key={k}>
-                  <p className="text-[11px] font-medium text-muted-foreground capitalize mb-0.5">{k.replace(/_/g, ' ')}</p>
-                  <p className="text-[12px] text-foreground leading-relaxed">{v}</p>
-                </div>
-              ) : null
-            )}
+          <div className="flex items-center justify-between mb-2.5">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">Point of View</p>
+            <button
+              onClick={onRefreshPov}
+              className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1"
+            >
+              <RefreshCw className={cn('h-3 w-3', loadingPov && 'animate-spin')} />
+              {pov ? 'Refresh' : 'Generate'}
+            </button>
           </div>
+          {loadingPov ? (
+            <p className="text-[12px] text-muted-foreground">Generating...</p>
+          ) : pov ? (
+            <div className="rounded-lg border border-border bg-card p-3 space-y-3">
+              {pov.whatTheyDo && <div><p className="text-[11px] font-medium text-muted-foreground mb-0.5">What They Do</p><p className="text-[12px] text-foreground leading-relaxed">{pov.whatTheyDo}</p></div>}
+              {pov.specificIndustry && <div><p className="text-[11px] font-medium text-muted-foreground mb-0.5">Industry</p><p className="text-[12px] text-foreground">{pov.specificIndustry}</p></div>}
+              {pov.exampleUseCase && <div><p className="text-[11px] font-medium text-muted-foreground mb-0.5">Example Use Case</p><p className="text-[12px] text-foreground leading-relaxed">{pov.exampleUseCase}</p></div>}
+              {!pov.whatTheyDo && pov.companyIntel && <div><p className="text-[11px] font-medium text-muted-foreground mb-0.5">Company Intel</p><p className="text-[12px] text-foreground leading-relaxed">{pov.companyIntel}</p></div>}
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed border-border p-4 text-center">
+              <Sparkles className="h-5 w-5 mx-auto mb-2 text-muted-foreground/40" />
+              <p className="text-[12px] text-muted-foreground mb-2">Generate an AI-powered briefing for {prospect.company}</p>
+              <Button size="sm" variant="outline" className="h-7 text-[12px]" onClick={onRefreshPov}>
+                <Sparkles className="h-3.5 w-3.5 mr-1" /> Generate
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </>
@@ -513,6 +533,8 @@ function ProspectDetail({
   const [newNote, setNewNote] = useState('')
   const [savingNote, setSavingNote] = useState(false)
   const [removingSequence, setRemovingSequence] = useState(false)
+  const [pov, setPov] = useState<any>(null)
+  const [loadingPov, setLoadingPov] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editForm, setEditForm] = useState({ name: prospect.name, title: prospect.title || '', company: prospect.company || '', status: prospect.status })
   const [isSaving, setIsSaving] = useState(false)
@@ -555,7 +577,17 @@ function ProspectDetail({
       .then((d) => setNotes(d.notes || []))
       .catch(() => {})
       .finally(() => setLoadingNotes(false))
-  }, [prospect.id])
+
+    setPov(null)
+    if (prospect.accountId) {
+      setLoadingPov(true)
+      fetch(`/api/accounts/${prospect.accountId}/pov`)
+        .then((r) => r.ok ? r.json() : null)
+        .then((d) => d && setPov(d.pov))
+        .catch(() => {})
+        .finally(() => setLoadingPov(false))
+    }
+  }, [prospect.id, prospect.accountId])
 
   const handleAddNote = async () => {
     if (!newNote.trim()) return
@@ -611,8 +643,6 @@ function ProspectDetail({
     }
   }
 
-  let povParsed: any = null
-  try { povParsed = typeof prospect.povData === 'string' ? JSON.parse(prospect.povData) : prospect.povData } catch {}
 
   const OUTCOME_LABELS: Record<string, string> = {
     connected: 'Connected',
@@ -781,7 +811,17 @@ function ProspectDetail({
         {tab === 'overview' && (
           <OverviewTab
             prospect={prospect}
-            povParsed={povParsed}
+            pov={pov}
+            loadingPov={loadingPov}
+            onRefreshPov={() => {
+              if (!prospect.accountId) return
+              setLoadingPov(true)
+              fetch(`/api/accounts/${prospect.accountId}/pov?force=true`)
+                .then((r) => r.ok ? r.json() : null)
+                .then((d) => d && setPov(d.pov))
+                .catch(() => {})
+                .finally(() => setLoadingPov(false))
+            }}
             isEditing={isEditing}
             onCall={onCall}
             onRefresh={onRefreshProspect}

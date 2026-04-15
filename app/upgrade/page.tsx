@@ -6,7 +6,6 @@ import Link from 'next/link'
 import { Check, Zap, Shield, Headphones } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUser } from '@/hooks/use-user'
-import { STRIPE_PRICES } from '@/lib/stripe'
 
 const PLANS = [
   {
@@ -72,18 +71,12 @@ export default function UpgradePage() {
   const router = useRouter()
 
   const handleUpgrade = async (planKey: 'starter' | 'pro' | 'pro_max') => {
-    const priceId = STRIPE_PRICES[planKey][billing]
-    if (!priceId) {
-      alert('This plan is not yet configured. Please contact support.')
-      return
-    }
-
     setLoading(planKey)
     try {
       const res = await fetch('/api/stripe/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ priceId }),
+        body: JSON.stringify({ planKey, billing }),
       })
       const data = await res.json()
       if (data.url) {

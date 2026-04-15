@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { withAuth } from '@/lib/auth/api-middleware'
 import { prisma } from '@/lib/prisma'
-import { getStripe } from '@/lib/stripe'
+import { getStripe, STRIPE_PRICES } from '@/lib/stripe'
 
 export const POST = withAuth(async (request: NextRequest, userId: string) => {
   try {
-    const { priceId } = await request.json()
+    const body = await request.json()
+
+    // Support both direct priceId and planKey+billing
+    let priceId: string | undefined = body.priceId
+    if (!priceId && body.planKey && body.billing) {
+      priceId = STRIPE_PRICES[body.planKey as keyof typeof STRIPE_PRICES]?.[body.billing as 'monthly' | 'yearly']
+    }
 
     if (!priceId) {
       return NextResponse.json({ error: 'Price ID is required' }, { status: 400 })

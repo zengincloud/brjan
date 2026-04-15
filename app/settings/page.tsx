@@ -22,6 +22,7 @@ import { HubspotIntegration } from "@/components/settings/hubspot-integration"
 import { OrganizationSettings } from "@/components/settings/organization-settings"
 import { TeamSettings } from "@/components/settings/team-settings"
 import { DeliverabilitySettings } from "@/components/settings/deliverability-settings"
+import { CallingSettings } from "@/components/settings/calling-settings"
 
 function ManageSubscriptionButton() {
   const [loading, setLoading] = useState(false)
@@ -48,6 +49,7 @@ function ManageSubscriptionButton() {
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState("profile")
   const [deliverabilityOpen, setDeliverabilityOpen] = useState(true)
+  const [callingOpen, setCallingOpen] = useState(true)
   const [currentPassword, setCurrentPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
@@ -199,6 +201,13 @@ export default function SettingsPage() {
     { id: "deliverability-mailboxes", label: "Mailboxes" },
   ]
 
+  const callingItems = [
+    { id: "calling-overview", label: "Overview" },
+    { id: "calling-numbers", label: "Numbers" },
+    { id: "calling-voicemail", label: "Voicemail" },
+    { id: "calling-compliance", label: "Compliance" },
+  ]
+
   const navBtn = (id: string, label: string) => (
     <button
       key={id}
@@ -236,6 +245,37 @@ export default function SettingsPage() {
             {deliverabilityOpen && (
               <div className="ml-3 flex flex-col gap-0.5 mt-0.5">
                 {deliverabilityItems.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => setActiveTab(item.id)}
+                    className={`text-left px-4 py-1.5 text-sm rounded-md mx-2 transition-colors ${
+                      activeTab === item.id
+                        ? "bg-secondary text-foreground font-medium"
+                        : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Calling Suite group */}
+          <div className="mt-1">
+            <button
+              onClick={() => setCallingOpen((o) => !o)}
+              className="w-full flex items-center justify-between px-4 py-2 text-sm rounded-md mx-2 text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
+              style={{ width: "calc(100% - 16px)" }}
+            >
+              <span>Calling suite</span>
+              {callingOpen
+                ? <ChevronUp className="h-3.5 w-3.5" />
+                : <ChevronDown className="h-3.5 w-3.5" />}
+            </button>
+            {callingOpen && (
+              <div className="ml-3 flex flex-col gap-0.5 mt-0.5">
+                {callingItems.map((item) => (
                   <button
                     key={item.id}
                     onClick={() => setActiveTab(item.id)}
@@ -580,6 +620,20 @@ export default function SettingsPage() {
         )}
         {activeTab === "deliverability-mailboxes" && (
           <DeliverabilitySettings tab="mailboxes" />
+        )}
+
+        {/* Calling Suite Tabs */}
+        {activeTab === "calling-overview" && (
+          <CallingSettings tab="overview" />
+        )}
+        {activeTab === "calling-numbers" && (
+          <CallingSettings tab="numbers" />
+        )}
+        {activeTab === "calling-voicemail" && (
+          <CallingSettings tab="voicemail" />
+        )}
+        {activeTab === "calling-compliance" && (
+          <CallingSettings tab="compliance" />
         )}
 
         {/* Integrations Tab */}

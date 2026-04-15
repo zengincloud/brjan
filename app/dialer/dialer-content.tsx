@@ -1,7 +1,6 @@
 "use client"
 
 import React, { useEffect, useState, useRef, useCallback } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -1738,42 +1737,31 @@ export default function DialerPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {user?.tier === 'trial' && user?.role !== 'super_admin' && trialCallCount !== null && (
         <TrialLimitBanner current={trialCallCount} limit={TRIAL_LIMITS.calls} resourceLabel="calls" />
       )}
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">
-            Power Dialer
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Dial prospects one at a time
-          </p>
-        </div>
+        <h1 className="text-[15px] font-semibold text-foreground">Power Dialer</h1>
         <div className="flex items-center gap-2">
           {/* Device Status */}
           {deviceError && !deviceReady ? (
-            <Badge variant="destructive" className="flex items-center gap-1">
-              <Loader2 className="h-3 w-3 animate-spin" />
-              Reconnecting...
-            </Badge>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-red-500/10 text-red-400 border border-red-500/20">
+              <Loader2 className="h-3 w-3 animate-spin" /> Reconnecting...
+            </span>
           ) : deviceError && deviceReady ? (
-            <Badge variant="destructive" className="flex items-center gap-1">
-              <PhoneOff className="h-3 w-3" />
-              Device Error
-            </Badge>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-red-500/10 text-red-400 border border-red-500/20">
+              <PhoneOff className="h-3 w-3" /> Device Error
+            </span>
           ) : deviceReady ? (
-            <Badge variant="outline" className="flex items-center gap-1 border-green-500/50 text-green-600">
-              <Phone className="h-3 w-3" />
-              Ready
-            </Badge>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-[hsl(100,78%,44%,0.1)] text-[hsl(100,78%,44%)] border border-[hsl(100,78%,44%,0.2)]">
+              <span className="w-1.5 h-1.5 rounded-full bg-[hsl(100,78%,44%)]" /> Ready
+            </span>
           ) : (
-            <Badge variant="outline" className="flex items-center gap-1">
-              <Loader2 className="h-3 w-3 animate-spin" />
-              Initializing...
-            </Badge>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-secondary text-muted-foreground border border-border">
+              <Loader2 className="h-3 w-3 animate-spin" /> Initializing...
+            </span>
           )}
 
           {!sessionActive ? (
@@ -1789,14 +1777,14 @@ export default function DialerPage() {
             <>
               {/* Active call controls */}
               {callSlots.some(s => s.status === "ringing" || s.status === "connected") && (
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/30">
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[hsl(100,78%,44%,0.1)] border border-[hsl(100,78%,44%,0.25)]">
                   <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                    <span className="text-sm font-medium">
+                    <div className="w-2 h-2 rounded-full bg-[hsl(100,78%,44%)] animate-pulse" />
+                    <span className="text-[13px] font-semibold tabular-nums">
                       {String(Math.floor(callDuration / 60)).padStart(2, '0')}:{String(callDuration % 60).padStart(2, '0')}
                     </span>
                   </div>
-                  <div className="border-l border-primary/30 h-5 mx-1" />
+                  <div className="border-l border-[hsl(100,78%,44%,0.3)] h-5 mx-1" />
                   <Button
                     size="sm"
                     variant={isMuted ? "secondary" : "ghost"}
@@ -1835,65 +1823,33 @@ export default function DialerPage() {
       </div>
 
       {/* Stats Bar */}
-      <div className="grid gap-4 md:grid-cols-5">
-        <Card className="border-border bg-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Calls</CardTitle>
-            <Phone className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl font-semibold">{stats.totalCalls}</div>
-          </CardContent>
-        </Card>
-        <Card className="border-primary/20 bg-primary/5">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Connected</CardTitle>
-            <UserCheck className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl font-semibold text-primary">{stats.connected}</div>
-          </CardContent>
-        </Card>
-        <Card className="border-border bg-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Connect Rate</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl font-semibold">{stats.totalCalls > 0 ? Math.round((stats.connected / stats.totalCalls) * 100) : 0}%</div>
-          </CardContent>
-        </Card>
-        <Card className="border-border bg-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Conversation Rate</CardTitle>
-            <MessageSquare className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl font-semibold">{stats.totalCalls > 0 ? Math.round((stats.conversations / stats.totalCalls) * 100) : 0}%</div>
-          </CardContent>
-        </Card>
-        <Card className="border-border bg-card border-green-500/30">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Meetings Booked</CardTitle>
-            <CalendarCheck className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl font-semibold text-green-500">{stats.introsBooked}</div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-5 divide-x divide-border border border-border rounded-lg overflow-hidden bg-card">
+        {[
+          { label: 'Total Calls', value: stats.totalCalls, dot: 'bg-muted-foreground/40' },
+          { label: 'Connected', value: stats.connected, dot: 'bg-[hsl(100,78%,44%)]' },
+          { label: 'Connect Rate', value: `${stats.totalCalls > 0 ? Math.round((stats.connected / stats.totalCalls) * 100) : 0}%`, dot: 'bg-blue-400' },
+          { label: 'Conversation Rate', value: `${stats.totalCalls > 0 ? Math.round((stats.conversations / stats.totalCalls) * 100) : 0}%`, dot: 'bg-purple-400' },
+          { label: 'Meetings Booked', value: stats.introsBooked, dot: 'bg-[hsl(100,78%,44%)]' },
+        ].map((s) => (
+          <div key={s.label} className="flex flex-col gap-1 px-4 py-3">
+            <div className="flex items-center gap-1.5">
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${s.dot}`} />
+              <span className="text-[11px] text-muted-foreground truncate">{s.label}</span>
+            </div>
+            <span className="text-xl font-semibold text-foreground leading-none">{s.value}</span>
+          </div>
+        ))}
       </div>
 
 
       {/* Session Configuration */}
       {!sessionActive && (
-        <Card className="border-border bg-card">
-          <CardHeader className="pb-4">
-            <div className="flex items-center gap-2">
-              <Settings className="h-4 w-4 text-muted-foreground" />
-              <CardTitle className="text-base">Session Settings</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
+        <div className="rounded-lg border border-border bg-card px-5 py-4">
+          <div className="flex items-center gap-2 mb-4">
+            <Settings className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-[13px] font-medium text-foreground">Session Settings</span>
+          </div>
+          <div>
             <div className="grid gap-4 md:grid-cols-3">
               <div className="space-y-2">
                 <Label htmlFor="sequence-select" className="text-sm">Sequence</Label>
@@ -1953,26 +1909,26 @@ export default function DialerPage() {
               </div>
 
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
       {/* Prospect Queue */}
         <div>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
               <div>
-                <h2 className="text-lg font-semibold">Call Queue</h2>
-              <p className="text-xs text-muted-foreground mt-1">
-                {sessionActive
-                  ? `${currentProspectIndex + 1} of ${mockProspects.length} — ${mockProspects.length - currentProspectIndex - 1} remaining`
-                  : mockProspects.length > 0
-                  ? `${mockProspects.length} prospect${mockProspects.length !== 1 ? "s" : ""} to call`
-                  : selectedTimezones.length > 0 || selectedCallSteps.length > 0 || searchQuery.trim()
-                    ? "No prospects match the selected filters"
-                    : "No prospects in queue"
-                }
-              </p>
+                <h2 className="text-[13px] font-semibold text-foreground">Call Queue</h2>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  {sessionActive
+                    ? `${currentProspectIndex + 1} of ${mockProspects.length} — ${mockProspects.length - currentProspectIndex - 1} remaining`
+                    : mockProspects.length > 0
+                    ? `${mockProspects.length} prospect${mockProspects.length !== 1 ? "s" : ""} to call`
+                    : selectedTimezones.length > 0 || selectedCallSteps.length > 0 || searchQuery.trim()
+                      ? "No prospects match the selected filters"
+                      : "No prospects in queue"
+                  }
+                </p>
               </div>
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -1980,26 +1936,26 @@ export default function DialerPage() {
                   placeholder="Search by name, company, phone..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-8 h-8 w-64 text-sm"
+                  className="pl-8 h-8 w-56 text-[12px]"
                 />
               </div>
             </div>
             {sessionActive && (
-              <Badge variant="outline" className="border-muted-foreground/30 text-muted-foreground">
-                <Phone className="h-3 w-3 mr-1" />
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-secondary text-muted-foreground border border-border">
+                <Phone className="h-3 w-3" />
                 {selectedPhone}
-              </Badge>
+              </span>
             )}
           </div>
-          <div className="border rounded-lg overflow-hidden">
+          <div className="border border-border rounded-lg overflow-hidden bg-card">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b bg-muted/50">
-                    <th className="text-left py-2.5 px-4 font-medium text-muted-foreground text-xs">#</th>
-                    <th className="text-left py-2.5 px-4 font-medium text-muted-foreground text-xs">Name</th>
-                    <th className="text-left py-2.5 px-4 font-medium text-muted-foreground text-xs">Company</th>
-                    <th className="text-left py-2.5 px-4 font-medium text-muted-foreground text-xs">
+                  <tr className="border-b border-border bg-background">
+                    <th className="text-left py-2.5 px-4 font-medium text-muted-foreground text-[11px]">#</th>
+                    <th className="text-left py-2.5 px-4 font-medium text-muted-foreground text-[11px]">Name</th>
+                    <th className="text-left py-2.5 px-4 font-medium text-muted-foreground text-[11px]">Company</th>
+                    <th className="text-left py-2.5 px-4 font-medium text-muted-foreground text-[11px]">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <button className="flex items-center gap-1 hover:text-foreground transition-colors">
@@ -2039,7 +1995,7 @@ export default function DialerPage() {
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </th>
-                    <th className="text-left py-2.5 px-4 font-medium text-muted-foreground text-xs">
+                    <th className="text-left py-2.5 px-4 font-medium text-muted-foreground text-[11px]">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <button className="flex items-center gap-1 hover:text-foreground transition-colors">
@@ -2081,8 +2037,8 @@ export default function DialerPage() {
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </th>
-                    <th className="text-left py-2.5 px-4 font-medium text-muted-foreground text-xs">Insights</th>
-                    <th className="text-right py-2.5 px-4 font-medium text-muted-foreground text-xs w-10"></th>
+                    <th className="text-left py-2.5 px-4 font-medium text-muted-foreground text-[11px]">Insights</th>
+                    <th className="text-right py-2.5 px-4 font-medium text-muted-foreground text-[11px] w-10"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2108,12 +2064,12 @@ export default function DialerPage() {
                     return (
                       <React.Fragment key={prospect.id}>
                         <tr
-                          className={`border-b last:border-0 transition-colors group cursor-pointer ${
+                          className={`border-b border-border/60 last:border-0 transition-colors group cursor-pointer ${
                             isCurrentCall
-                              ? "bg-primary/10 border-l-2 border-l-primary"
+                              ? "bg-accent/5 border-l-2 border-l-[hsl(100,78%,44%)]"
                               : isAlreadyCalled
-                              ? "opacity-40 bg-muted/10"
-                              : "hover:bg-muted/30"
+                              ? "opacity-40"
+                              : "hover:bg-muted/20"
                           }`}
                           onClick={() => {
                             setExpandedQueueRows(prev => {
@@ -2191,9 +2147,9 @@ export default function DialerPage() {
                             )}
                           </td>
                           <td className="py-3 px-4">
-                            <Badge variant="outline" className="text-xs">
+                            <span className="inline-flex px-2 py-0.5 rounded-full text-[11px] font-medium bg-secondary text-muted-foreground">
                               {prospect.sequenceStage || "—"}
-                            </Badge>
+                            </span>
                             {prospect.sequence && (
                               <div className="text-[10px] text-muted-foreground mt-0.5 truncate max-w-[140px]">{prospect.sequence}</div>
                             )}
@@ -2285,10 +2241,9 @@ export default function DialerPage() {
                                     <div className="flex items-center gap-2 flex-wrap">
                                       {activeSlot.status === "ringing" && (
                                         <>
-                                          <Badge className="bg-primary/20 text-primary border-0 animate-pulse">
-                                            <PhoneCall className="h-3 w-3 mr-1" />
-                                            Ringing
-                                          </Badge>
+                                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-secondary text-muted-foreground border border-border animate-pulse">
+                                            <PhoneCall className="h-3 w-3" /> Ringing
+                                          </span>
                                           {activeSlot.startTime && <CallTimer startTime={activeSlot.startTime} />}
                                           <Button size="sm" variant="destructive" onClick={(e) => { e.stopPropagation(); endCall() }} className="h-7 px-2">
                                             <PhoneOff className="h-3 w-3" />
@@ -2297,10 +2252,9 @@ export default function DialerPage() {
                                       )}
                                       {activeSlot.status === "connected" && (
                                         <>
-                                          <Badge className="bg-primary text-primary-foreground border-0">
-                                            <PhoneCall className="h-3 w-3 mr-1" />
-                                            Connected
-                                          </Badge>
+                                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-[hsl(100,78%,44%,0.12)] text-[hsl(100,78%,44%)] border border-[hsl(100,78%,44%,0.2)]">
+                                            <PhoneCall className="h-3 w-3" /> Connected
+                                          </span>
                                           {activeSlot.startTime && <CallTimer startTime={activeSlot.startTime} />}
                                           <Button size="sm" variant={isMuted ? "secondary" : "outline"} onClick={(e) => { e.stopPropagation(); toggleMute() }} className="h-7 px-2" title={isMuted ? "Unmute" : "Mute"}>
                                             {isMuted ? <MicOff className="h-3 w-3" /> : <Mic className="h-3 w-3" />}
@@ -2311,15 +2265,14 @@ export default function DialerPage() {
                                         </>
                                       )}
                                       {activeSlot.status === "completed" && (
-                                        <Badge variant="outline" className="border-muted-foreground/50">
-                                          Completed {activeSlot.finalDuration ? `• ${String(Math.floor(activeSlot.finalDuration / 60)).padStart(2, '0')}:${String(activeSlot.finalDuration % 60).padStart(2, '0')}` : ""}
-                                        </Badge>
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-secondary text-muted-foreground border border-border">
+                                          Completed {activeSlot.finalDuration ? `· ${String(Math.floor(activeSlot.finalDuration / 60)).padStart(2, '0')}:${String(activeSlot.finalDuration % 60).padStart(2, '0')}` : ""}
+                                        </span>
                                       )}
                                       {activeSlot.status === "idle" && (
-                                        <Badge variant="outline" className="animate-pulse">
-                                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                                          Dialing...
-                                        </Badge>
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-secondary text-muted-foreground border border-border animate-pulse">
+                                          <Loader2 className="h-3 w-3 animate-spin" /> Dialing...
+                                        </span>
                                       )}
                                     </div>
 

@@ -10,7 +10,6 @@ import { Search, ChevronDown, ChevronUp, Building2, Briefcase, User, BarChart, A
 import { Collapsible } from "@/components/ui/collapsible"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
-import { Slider } from "@/components/ui/slider"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
@@ -1204,7 +1203,8 @@ export function LeadsProspecting() {
     (geography || cities.length ? 1 : 0) +
     seniorityLevels.length +
     industries.length +
-    (headcountRange[0] !== 10 || headcountRange[1] < 10000 ? 1 : 0) +
+    (headcountSelected ? 1 : 0) +
+    (revenue ? 1 : 0) +
     (buyerIntent !== "all" ? 1 : 0)
   )
 
@@ -1422,27 +1422,65 @@ export function LeadsProspecting() {
                 <FilterSectionRow icon={Briefcase} label="Industry"
                   isOpen={openFilter === 'industry'} onToggle={() => setOpenFilter(openFilter === 'industry' ? null : 'industry')}
                   hasValue={industries.length > 0} onClear={() => setIndustries([])}>
-                  <div className="space-y-1.5">
-                    {["Technology", "Financial Services", "Healthcare", "Manufacturing", "Retail"].map((ind) => (
-                      <div key={ind} className="flex items-center gap-2">
-                        <Checkbox id={`ind-${ind}`} checked={industries.includes(ind)} onCheckedChange={() => toggleIndustry(ind)} />
-                        <Label htmlFor={`ind-${ind}`} className="text-[12px] font-normal">{ind}</Label>
-                      </div>
-                    ))}
-                  </div>
+                  <Select value={industries[0] || ""} onValueChange={(v) => setIndustries(v ? [v] : [])}>
+                    <SelectTrigger className="h-8 text-[12px]"><SelectValue placeholder="Industry" /></SelectTrigger>
+                    <SelectContent>
+                      {["Technology", "Software & SaaS", "Financial Services", "Banking", "Healthcare", "Pharmaceuticals", "Manufacturing", "Retail & E-Commerce", "Real Estate", "Education", "Media & Entertainment", "Telecommunications", "Transportation & Logistics", "Energy & Utilities", "Government", "Non-Profit", "Legal Services", "Consulting", "Marketing & Advertising", "Other"].map((ind) => (
+                        <SelectItem key={ind} value={ind} className="text-[12px]">{ind}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select defaultValue="naics">
+                    <SelectTrigger className="h-8 text-[12px]"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="naics" className="text-[12px]">NAICS</SelectItem>
+                      <SelectItem value="sic" className="text-[12px]">SIC</SelectItem>
+                      <SelectItem value="isic" className="text-[12px]">ISIC</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input placeholder="Search by NAICS code" className="h-8 text-[12px]" />
                 </FilterSectionRow>
 
                 <FilterSectionRow icon={Users} label="Headcount"
                   isOpen={openFilter === 'headcount'} onToggle={() => setOpenFilter(openFilter === 'headcount' ? null : 'headcount')}
-                  hasValue={headcountRange[0] !== 10 || headcountRange[1] < 10000} onClear={() => setHeadcountRange([10, 10000])}>
-                  <div className="pt-1">
-                    <div className="flex justify-between text-[11px] text-muted-foreground mb-1">
-                      <span>{headcountRange[0] === 10 ? 'Any' : headcountRange[0].toLocaleString()}</span>
-                      <span>{headcountRange[1] >= 10000 ? '10,000+' : headcountRange[1].toLocaleString()}</span>
-                    </div>
-                    <Slider value={headcountRange.map(v => v >= 10000 ? 1000 : Math.round(v / 10))} min={1} max={1000} step={1}
-                      onValueChange={(vals) => setHeadcountRange(vals.map(v => v >= 1000 ? 10000 : v * 10))} className="my-3" />
-                  </div>
+                  hasValue={!!headcountSelected} onClear={() => { setHeadcountSelected(""); setHeadcountRange([10, 10000]) }}>
+                  <Select value={headcountSelected} onValueChange={(v) => {
+                    setHeadcountSelected(v)
+                    const map: Record<string, [number, number]> = {
+                      "1-10": [1, 10], "11-50": [11, 50], "51-200": [51, 200],
+                      "201-500": [201, 500], "501-1000": [501, 1000],
+                      "1001-5000": [1001, 5000], "5001-10000": [5001, 10000], "10001+": [10001, 1000000],
+                    }
+                    setHeadcountRange(map[v] ?? [10, 10000])
+                  }}>
+                    <SelectTrigger className="h-8 text-[12px]"><SelectValue placeholder="Company Headcount" /></SelectTrigger>
+                    <SelectContent>
+                      {["1-10", "11-50", "51-200", "201-500", "501-1000", "1001-5000", "5001-10000", "10001+"].map((r) => (
+                        <SelectItem key={r} value={r} className="text-[12px]">{r}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select>
+                    <SelectTrigger className="h-8 text-[12px]"><SelectValue placeholder="Headcount Annual Growth" /></SelectTrigger>
+                    <SelectContent>
+                      {["Shrinking (< 0%)", "Flat (0–5%)", "Growing (5–20%)", "Fast Growing (20–50%)", "Hyper Growth (50%+)"].map((r) => (
+                        <SelectItem key={r} value={r} className="text-[12px]">{r}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FilterSectionRow>
+
+                <FilterSectionRow icon={DollarSign} label="Revenue"
+                  isOpen={openFilter === 'revenue'} onToggle={() => setOpenFilter(openFilter === 'revenue' ? null : 'revenue')}
+                  hasValue={!!revenue} onClear={() => setRevenue("")}>
+                  <Select value={revenue} onValueChange={setRevenue}>
+                    <SelectTrigger className="h-8 text-[12px]"><SelectValue placeholder="Select revenue range" /></SelectTrigger>
+                    <SelectContent>
+                      {["$0–$1M", "$1M–$10M", "$10M–$25M", "$25M–$50M", "$50M–$100M", "$100M–$250M", "$250M–$500M", "$500M–$1B", "$1B+"].map((r) => (
+                        <SelectItem key={r} value={r} className="text-[12px]">{r}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </FilterSectionRow>
 
               </div>

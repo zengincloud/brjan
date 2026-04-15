@@ -5,7 +5,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import {
   Select,
@@ -186,7 +185,6 @@ export default function SettingsPage() {
     { id: "organization", label: "Organization" },
     { id: "team", label: "Team" },
     { id: "notifications", label: "Notifications" },
-    { id: "calling", label: "Calling" },
   ]
 
   const bottomNavItems = [
@@ -506,103 +504,6 @@ export default function SettingsPage() {
                   <Label>AI Insights</Label>
                   <p className="text-sm text-muted-foreground">
                     Show notifications for AI-generated insights
-                  </p>
-                </div>
-                <Switch defaultChecked />
-              </div>
-            </CardContent>
-          </Card>
-        </div>}
-
-        {/* Calling Tab */}
-        {activeTab === "calling" && <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Call Recording</CardTitle>
-              <CardDescription>Configure call recording settings</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Auto-Record Calls</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Automatically record all outbound calls
-                  </p>
-                </div>
-                <Switch defaultChecked />
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Recording Announcement</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Play announcement that call is being recorded
-                  </p>
-                </div>
-                <Switch defaultChecked />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="recordingRetention">Recording Retention Period</Label>
-                <Select defaultValue="90">
-                  <SelectTrigger id="recordingRetention">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="30">30 days</SelectItem>
-                    <SelectItem value="90">90 days</SelectItem>
-                    <SelectItem value="180">180 days</SelectItem>
-                    <SelectItem value="365">1 year</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Dialer Settings</CardTitle>
-              <CardDescription>Customize your dialing experience</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="defaultMode">Default Dial Mode</Label>
-                <Select defaultValue="parallel">
-                  <SelectTrigger id="defaultMode">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="single">Single Call</SelectItem>
-                    <SelectItem value="parallel">Parallel Dialing</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="parallelSlots">Parallel Dial Slots</Label>
-                <Select defaultValue="2">
-                  <SelectTrigger id="parallelSlots">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">1 slot</SelectItem>
-                    <SelectItem value="2">2 slots</SelectItem>
-                    <SelectItem value="3">3 slots</SelectItem>
-                    <SelectItem value="4">4 slots</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Local Presence</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Use local area codes when calling prospects
-                  </p>
-                </div>
-                <Switch defaultChecked />
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Voicemail Drop</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Enable one-click voicemail drops
                   </p>
                 </div>
                 <Switch defaultChecked />

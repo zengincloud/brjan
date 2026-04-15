@@ -47,7 +47,7 @@ export function TrialLimitBanner({ current, limit, resourceLabel, className }: T
         className="ml-4 shrink-0 h-7 text-xs border-current"
         asChild
       >
-        <Link href="/settings?tab=billing">Upgrade</Link>
+        <Link href="/upgrade">Upgrade</Link>
       </Button>
     </div>
   )

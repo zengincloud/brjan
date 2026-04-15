@@ -228,11 +228,11 @@ export function SequencesList() {
     }
   }
 
-  const isTrialAtLimit = user?.tier === 'trial' && sequences.length >= TRIAL_LIMITS.sequences
+  const isTrialAtLimit = user?.tier === 'trial' && user?.role !== 'super_admin' && sequences.length >= TRIAL_LIMITS.sequences
 
   return (
     <div className="space-y-6">
-      {user?.tier === 'trial' && (
+      {user?.tier === 'trial' && user?.role !== 'super_admin' && (
         <TrialLimitBanner current={sequences.length} limit={TRIAL_LIMITS.sequences} resourceLabel="sequences" />
       )}
       {/* Header */}

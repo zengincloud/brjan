@@ -276,7 +276,7 @@ export function ProspectList() {
 
   return (
     <div className="space-y-4">
-      {user?.tier === 'trial' && (
+      {user?.tier === 'trial' && user?.role !== 'super_admin' && (
         <TrialLimitBanner current={totalCount} limit={TRIAL_LIMITS.prospects} resourceLabel="prospects" />
       )}
       <div className="flex flex-col gap-4 md:flex-row md:items-center">

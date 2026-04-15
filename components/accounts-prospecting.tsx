@@ -290,7 +290,7 @@ export function AccountsProspecting() {
               onClick={() => setIsCompanyAttributesOpen(!isCompanyAttributesOpen)}
             >
               <div className="flex items-center justify-between">
-                <CardTitle className="text-md flex items-center">
+                <CardTitle className="text-[13px] font-semibold flex items-center">
                   <Building2 className="h-4 w-4 mr-2" />
                   Company Attributes
                 </CardTitle>
@@ -430,7 +430,7 @@ export function AccountsProspecting() {
           <Card>
             <CardHeader className="py-3 cursor-pointer" onClick={() => setIsSpotlightOpen(!isSpotlightOpen)}>
               <div className="flex items-center justify-between">
-                <CardTitle className="text-md flex items-center">
+                <CardTitle className="text-[13px] font-semibold flex items-center">
                   <Zap className="h-4 w-4 mr-2" />
                   Spotlight
                 </CardTitle>
@@ -505,7 +505,7 @@ export function AccountsProspecting() {
         {/* Right Side - Results */}
         <Card>
           <CardHeader>
-            <CardTitle>Search Results</CardTitle>
+            <CardTitle className="text-[13px] font-semibold">Search Results</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between mb-6">
@@ -536,13 +536,13 @@ export function AccountsProspecting() {
             {isLoading ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <Loader2 className="h-12 w-12 text-muted-foreground mb-4 animate-spin" />
-                <h3 className="text-lg font-medium mb-2">Searching...</h3>
+                <h3 className="text-[13px] font-medium mb-2">Searching...</h3>
                 <p className="text-muted-foreground">Finding companies that match your criteria</p>
               </div>
             ) : searchResults.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <Building2 className="h-12 w-12 text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-2">No companies found</h3>
+                <h3 className="text-[13px] font-medium mb-2">No companies found</h3>
                 <p className="text-muted-foreground max-w-md">
                   Try adjusting your search criteria or filters to find companies that match your prospecting needs.
                 </p>
@@ -563,7 +563,7 @@ export function AccountsProspecting() {
                               onClick={() => toggleExpanded(company.id)}
                             >
                               <div className="flex items-center gap-2">
-                                <h3 className="font-semibold text-lg">{toTitleCase(company.name)}</h3>
+                                <h3 className="font-semibold text-[13px]">{toTitleCase(company.name)}</h3>
                                 {company.verified && <Badge className="bg-primary/20 text-primary">Verified</Badge>}
                               </div>
                               {company.description && (

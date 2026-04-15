@@ -1161,7 +1161,7 @@ export function LeadsProspecting() {
           <Card>
             <CardHeader className="py-3 cursor-pointer" onClick={() => setIsCompanyOpen(!isCompanyOpen)}>
               <div className="flex items-center justify-between">
-                <CardTitle className="text-md flex items-center">
+                <CardTitle className="text-[13px] font-semibold flex items-center">
                   <Building2 className="h-4 w-4 mr-2" />
                   Company
                 </CardTitle>
@@ -1218,7 +1218,7 @@ export function LeadsProspecting() {
           <Card>
             <CardHeader className="py-3 cursor-pointer" onClick={() => setIsRoleOpen(!isRoleOpen)}>
               <div className="flex items-center justify-between">
-                <CardTitle className="text-md flex items-center">
+                <CardTitle className="text-[13px] font-semibold flex items-center">
                   <Briefcase className="h-4 w-4 mr-2" />
                   Role
                 </CardTitle>
@@ -1314,7 +1314,7 @@ export function LeadsProspecting() {
           <Card>
             <CardHeader className="py-3 cursor-pointer" onClick={() => setIsPersonalOpen(!isPersonalOpen)}>
               <div className="flex items-center justify-between">
-                <CardTitle className="text-md flex items-center">
+                <CardTitle className="text-[13px] font-semibold flex items-center">
                   <User className="h-4 w-4 mr-2" />
                   Personal
                 </CardTitle>
@@ -1410,7 +1410,7 @@ export function LeadsProspecting() {
           <Card>
             <CardHeader className="py-3 cursor-pointer" onClick={() => setIsBuyerIntentOpen(!isBuyerIntentOpen)}>
               <div className="flex items-center justify-between">
-                <CardTitle className="text-md flex items-center">
+                <CardTitle className="text-[13px] font-semibold flex items-center">
                   <BarChart className="h-4 w-4 mr-2" />
                   Buyer Intent
                 </CardTitle>
@@ -1454,7 +1454,7 @@ export function LeadsProspecting() {
           <Card>
             <CardHeader className="py-3 cursor-pointer" onClick={() => setIsExclusionsOpen(!isExclusionsOpen)}>
               <div className="flex items-center justify-between">
-                <CardTitle className="text-md flex items-center">
+                <CardTitle className="text-[13px] font-semibold flex items-center">
                   <Ban className="h-4 w-4 mr-2" />
                   Exclusions
                   {(excludedNames.length > 0 || excludedCompanies.length > 0 || excludedTitles.length > 0 || excludedIndustries.length > 0) && (
@@ -1578,7 +1578,7 @@ export function LeadsProspecting() {
         {/* Right Side - Results */}
         <Card>
           <CardHeader>
-            <CardTitle>Search Results</CardTitle>
+            <CardTitle className="text-[13px] font-semibold">Search Results</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between mb-6">
@@ -1691,13 +1691,13 @@ export function LeadsProspecting() {
             {isLoading ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <Loader2 className="h-12 w-12 text-muted-foreground mb-4 animate-spin" />
-                <h3 className="text-lg font-medium mb-2">Searching...</h3>
+                <h3 className="text-[13px] font-medium mb-2">Searching...</h3>
                 <p className="text-muted-foreground">Finding leads that match your criteria</p>
               </div>
             ) : searchResults.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <User className="h-12 w-12 text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-2">No leads found</h3>
+                <h3 className="text-[13px] font-medium mb-2">No leads found</h3>
                 <p className="text-muted-foreground max-w-md">
                   Try adjusting your search criteria or filters to find leads that match your prospecting needs.
                 </p>
@@ -1733,7 +1733,7 @@ export function LeadsProspecting() {
                                 onClick={() => toggleExpanded(lead.id)}
                               >
                                 <div className="flex items-center gap-2">
-                                  <h3 className="font-semibold text-lg">{toTitleCase(lead.name)}</h3>
+                                  <h3 className="font-semibold text-[13px]">{toTitleCase(lead.name)}</h3>
                                   {getBuyerIntentBadge(lead.buyerIntent)}
                                 </div>
                               <p className="text-muted-foreground">{toTitleCase(lead.title)}</p>

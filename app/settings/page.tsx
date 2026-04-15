@@ -14,13 +14,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Zap } from "lucide-react"
+import { ChevronDown, ChevronUp, Zap } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
 import { GmailIntegration } from "@/components/settings/gmail-integration"
 import { HubspotIntegration } from "@/components/settings/hubspot-integration"
 import { OrganizationSettings } from "@/components/settings/organization-settings"
 import { TeamSettings } from "@/components/settings/team-settings"
+import { DeliverabilitySettings } from "@/components/settings/deliverability-settings"
 
 function ManageSubscriptionButton() {
   const [loading, setLoading] = useState(false)
@@ -46,6 +47,7 @@ function ManageSubscriptionButton() {
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState("profile")
+  const [deliverabilityOpen, setDeliverabilityOpen] = useState(true)
   const [currentPassword, setCurrentPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
@@ -177,17 +179,39 @@ export default function SettingsPage() {
     }
   }
 
-  const navItems = [
+  const topNavItems = [
     { id: "profile", label: "Profile" },
     { id: "organization", label: "Organization" },
     { id: "team", label: "Team" },
     { id: "notifications", label: "Notifications" },
     { id: "calling", label: "Calling" },
-    { id: "email", label: "Email" },
+  ]
+
+  const bottomNavItems = [
     { id: "integrations", label: "Integrations" },
     { id: "security", label: "Security" },
     { id: "billing", label: "Billing" },
   ]
+
+  const deliverabilityItems = [
+    { id: "deliverability-overview", label: "Overview" },
+    { id: "deliverability-domains", label: "Domains" },
+    { id: "deliverability-mailboxes", label: "Mailboxes" },
+  ]
+
+  const navBtn = (id: string, label: string) => (
+    <button
+      key={id}
+      onClick={() => setActiveTab(id)}
+      className={`text-left px-4 py-2 text-sm rounded-md mx-2 transition-colors ${
+        activeTab === id
+          ? "bg-secondary text-foreground font-medium"
+          : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+      }`}
+    >
+      {label}
+    </button>
+  )
 
   return (
     <div className="flex -m-5 min-h-full">
@@ -195,19 +219,42 @@ export default function SettingsPage() {
       <aside className="w-52 shrink-0 border-r border-border">
         <h1 className="text-2xl font-semibold px-4 pt-6 pb-4">Settings</h1>
         <nav className="flex flex-col gap-0.5">
-          {navItems.map((item) => (
+          {topNavItems.map((item) => navBtn(item.id, item.label))}
+
+          {/* Deliverability Suite group */}
+          <div className="mt-1">
             <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`text-left px-4 py-2 text-sm rounded-md mx-2 transition-colors ${
-                activeTab === item.id
-                  ? "bg-secondary text-foreground font-medium"
-                  : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
-              }`}
+              onClick={() => setDeliverabilityOpen((o) => !o)}
+              className="w-full flex items-center justify-between px-4 py-2 text-sm rounded-md mx-2 text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
+              style={{ width: "calc(100% - 16px)" }}
             >
-              {item.label}
+              <span>Deliverability suite</span>
+              {deliverabilityOpen
+                ? <ChevronUp className="h-3.5 w-3.5" />
+                : <ChevronDown className="h-3.5 w-3.5" />}
             </button>
-          ))}
+            {deliverabilityOpen && (
+              <div className="ml-3 flex flex-col gap-0.5 mt-0.5">
+                {deliverabilityItems.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => setActiveTab(item.id)}
+                    className={`text-left px-4 py-1.5 text-sm rounded-md mx-2 transition-colors ${
+                      activeTab === item.id
+                        ? "bg-secondary text-foreground font-medium"
+                        : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="mt-1">
+            {bottomNavItems.map((item) => navBtn(item.id, item.label))}
+          </div>
         </nav>
       </aside>
 
@@ -524,99 +571,16 @@ export default function SettingsPage() {
           </Card>
         </div>}
 
-        {/* Email Tab */}
-        {activeTab === "email" && <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Email Signature</CardTitle>
-              <CardDescription>Customize your email signature</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="signature">Signature</Label>
-                <Textarea
-                  id="signature"
-                  rows={6}
-                  defaultValue={profile.firstName ? `Best regards,\n${profile.firstName} ${profile.lastName}` : ""}
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Include Signature in Replies</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Add signature to email replies
-                  </p>
-                </div>
-                <Switch defaultChecked />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Email Tracking</CardTitle>
-              <CardDescription>Control tracking and analytics</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Open Tracking</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Track when recipients open your emails
-                  </p>
-                </div>
-                <Switch defaultChecked />
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Link Tracking</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Track when recipients click links
-                  </p>
-                </div>
-                <Switch defaultChecked />
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Reply Tracking</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Get notified immediately when prospects reply
-                  </p>
-                </div>
-                <Switch defaultChecked />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Sending Limits</CardTitle>
-              <CardDescription>Configure daily sending limits</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="dailyLimit">Daily Email Limit</Label>
-                <Input id="dailyLimit" type="number" defaultValue="200" />
-                <p className="text-xs text-muted-foreground">
-                  Maximum emails to send per day (recommended: 200-400)
-                </p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="warmupSchedule">Warmup Schedule</Label>
-                <Select defaultValue="standard">
-                  <SelectTrigger id="warmupSchedule">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="off">No Warmup</SelectItem>
-                    <SelectItem value="standard">Standard (14 days)</SelectItem>
-                    <SelectItem value="conservative">Conservative (21 days)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
-        </div>}
+        {/* Deliverability Suite Tabs */}
+        {activeTab === "deliverability-overview" && (
+          <DeliverabilitySettings tab="overview" />
+        )}
+        {activeTab === "deliverability-domains" && (
+          <DeliverabilitySettings tab="domains" />
+        )}
+        {activeTab === "deliverability-mailboxes" && (
+          <DeliverabilitySettings tab="mailboxes" />
+        )}
 
         {/* Integrations Tab */}
         {activeTab === "integrations" && <div className="space-y-4">

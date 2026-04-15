@@ -4,14 +4,12 @@ import { useState } from "react"
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
@@ -22,10 +20,11 @@ import {
 } from "@/components/ui/select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
-import { Loader2, ClipboardList, Flame, ThumbsUp, MousePointerClick, Clock, Linkedin, CalendarClock, CalendarIcon } from "lucide-react"
+import { Loader2, Flame, ThumbsUp, MousePointerClick, Clock, Linkedin, CalendarClock, CalendarIcon, Clock3, Sparkles } from "lucide-react"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
+import { useUser } from "@/hooks/use-user"
 
 type TaskType = "hot_lead" | "interested" | "website_visit" | "follow_up" | "linkedin" | "other"
 type Priority = "high" | "medium" | "low"
@@ -66,12 +65,14 @@ export function CreateTaskDialog({
   prospect,
   onTaskCreated,
 }: CreateTaskDialogProps) {
+  const { user } = useUser()
   const [loading, setLoading] = useState(false)
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
   const [type, setType] = useState<TaskType>("follow_up")
   const [priority, setPriority] = useState<Priority>("medium")
   const [dueDate, setDueDate] = useState<Date | undefined>(undefined)
+  const [dueTime, setDueTime] = useState("")
   const [calendarOpen, setCalendarOpen] = useState(false)
 
   const resetForm = () => {
@@ -80,6 +81,7 @@ export function CreateTaskDialog({
     setType("follow_up")
     setPriority("medium")
     setDueDate(undefined)
+    setDueTime("")
     setCalendarOpen(false)
   }
 
@@ -92,12 +94,22 @@ export function CreateTaskDialog({
     try {
       setLoading(true)
 
+      let dueDatetime: string | null = null
+      if (dueDate) {
+        const d = new Date(dueDate)
+        if (dueTime) {
+          const [hours, minutes] = dueTime.split(":").map(Number)
+          d.setHours(hours, minutes, 0, 0)
+        }
+        dueDatetime = d.toISOString()
+      }
+
       const taskData: any = {
         title: title.trim(),
         description: description.trim() || title.trim(),
         type,
         priority,
-        dueDate: dueDate ? dueDate.toISOString() : null,
+        dueDate: dueDatetime,
       }
 
       if (prospect) {
@@ -141,60 +153,55 @@ export function CreateTaskDialog({
     }
   }
 
+  const assigneeName = user
+    ? [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email
+    : "You"
+
   return (
     <Dialog open={open} onOpenChange={(isOpen) => {
       if (!isOpen) resetForm()
       onOpenChange(isOpen)
     }}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <ClipboardList className="h-5 w-5" />
-            Create Task
-          </DialogTitle>
-          <DialogDescription>
-            {prospect
-              ? `Create a new task for ${prospect.name}`
-              : "Create a new task"}
-          </DialogDescription>
+      <DialogContent className="sm:max-w-[560px]">
+        <DialogHeader className="pb-2">
+          <DialogTitle className="text-[15px] font-semibold">New task</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="title">Title</Label>
-            <Input
-              id="title"
-              placeholder="Enter task title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
+        <div className="space-y-3">
+          {/* Associated with */}
+          <div className="space-y-1.5">
+            <label className="text-[12px] font-medium text-foreground">
+              Associated with <span className="text-red-500">*</span>
+            </label>
+            {prospect ? (
+              <div className="flex items-center h-9 px-3 rounded-md border border-border bg-muted/40 text-[13px]">
+                {prospect.name}{prospect.company ? ` · ${prospect.company}` : ""}
+              </div>
+            ) : (
+              <Select disabled>
+                <SelectTrigger className="text-[13px] h-9 text-muted-foreground">
+                  <SelectValue placeholder="Select..." />
+                </SelectTrigger>
+                <SelectContent />
+              </Select>
+            )}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="description">Description <span className="text-muted-foreground font-normal">(optional)</span></Label>
-            <Textarea
-              id="description"
-              placeholder="Enter task description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="type">Type</Label>
+          {/* Type + Title */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-[12px] font-medium text-foreground">Type</label>
               <Select value={type} onValueChange={(v) => setType(v as TaskType)}>
-                <SelectTrigger id="type">
+                <SelectTrigger className="text-[13px] h-9">
                   <SelectValue placeholder="Select type" />
                 </SelectTrigger>
                 <SelectContent>
                   {taskTypeOptions.map((option) => {
                     const Icon = option.icon
                     return (
-                      <SelectItem key={option.value} value={option.value}>
+                      <SelectItem key={option.value} value={option.value} className="text-[13px]">
                         <div className="flex items-center gap-2">
-                          <Icon className="h-4 w-4" />
+                          <Icon className="h-3.5 w-3.5" />
                           <span>{option.label}</span>
                         </div>
                       </SelectItem>
@@ -203,83 +210,142 @@ export function CreateTaskDialog({
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-1.5">
+              <label className="text-[12px] font-medium text-foreground">
+                Title <span className="text-red-500">*</span>
+              </label>
+              <Input
+                placeholder="Enter title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="text-[13px] h-9"
+              />
+            </div>
+          </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="priority">Priority</Label>
+          {/* Description */}
+          <div className="space-y-1.5">
+            <label className="text-[12px] font-medium text-foreground">Description</label>
+            <Textarea
+              placeholder="Add description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+              className="text-[13px] resize-none"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 text-[12px] gap-1.5 text-muted-foreground"
+              onClick={() => {}}
+            >
+              <Sparkles className="h-3 w-3" />
+              Add snippet
+            </Button>
+          </div>
+
+          {/* Due date + Due time */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-[12px] font-medium text-foreground">Due date</label>
+              <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal text-[13px] h-9",
+                      !dueDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-3.5 w-3.5" />
+                    {dueDate ? format(dueDate, "MM / dd / yyyy") : "MM / DD / YYYY"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={dueDate}
+                    onSelect={(date) => {
+                      setDueDate(date)
+                      setCalendarOpen(false)
+                    }}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[12px] font-medium text-foreground flex items-center gap-1">
+                Due time
+                <span className="text-muted-foreground/60 cursor-help" title="Time is in your local timezone">ⓘ</span>
+              </label>
+              <div className="relative">
+                <Clock3 className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                <Input
+                  type="time"
+                  value={dueTime}
+                  onChange={(e) => setDueTime(e.target.value)}
+                  className="text-[13px] h-9 pl-8"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Priority + Assignee */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-[12px] font-medium text-foreground">Priority</label>
               <Select value={priority} onValueChange={(v) => setPriority(v as Priority)}>
-                <SelectTrigger id="priority">
+                <SelectTrigger className="text-[13px] h-9">
                   <SelectValue placeholder="Select priority" />
                 </SelectTrigger>
                 <SelectContent>
                   {priorityOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
+                    <SelectItem key={option.value} value={option.value} className="text-[13px]">
                       {option.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Due Date <span className="text-muted-foreground font-normal">(optional)</span></Label>
-            <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    "w-full justify-start text-left font-normal",
-                    !dueDate && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {dueDate ? format(dueDate, "PPP") : "Pick a date"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={dueDate}
-                  onSelect={(date) => {
-                    setDueDate(date)
-                    setCalendarOpen(false)
-                  }}
-                  initialFocus
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
-
-          {prospect && (
-            <div className="p-3 rounded-lg bg-muted/50 border">
-              <p className="text-xs font-medium text-muted-foreground mb-2">Linked Contact</p>
-              <div className="text-sm">
-                <p className="font-medium">{prospect.name}</p>
-                {prospect.title && prospect.company && (
-                  <p className="text-muted-foreground text-xs">
-                    {prospect.title} at {prospect.company}
-                  </p>
-                )}
-              </div>
+            <div className="space-y-1.5">
+              <label className="text-[12px] font-medium text-foreground">Assignee</label>
+              <Select defaultValue="me" disabled>
+                <SelectTrigger className="text-[13px] h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="me" className="text-[13px]">
+                    {assigneeName} (You)
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          )}
+          </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+        <DialogFooter className="pt-2">
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={loading}
+            className="text-[13px] h-8"
+          >
             Cancel
           </Button>
-          <Button onClick={handleCreate} disabled={loading}>
+          <Button
+            onClick={handleCreate}
+            disabled={loading}
+            className="text-[13px] h-8 bg-yellow-400 hover:bg-yellow-500 text-yellow-950 font-medium"
+          >
             {loading ? (
               <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
                 Creating...
               </>
             ) : (
-              <>
-                <ClipboardList className="h-4 w-4 mr-2" />
-                Create Task
-              </>
+              "Create task"
             )}
           </Button>
         </DialogFooter>

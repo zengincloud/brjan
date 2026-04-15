@@ -98,6 +98,31 @@ const sequences = [
   { id: "new-lead", name: "New Lead Welcome" },
 ]
 
+const FUNDING_AMOUNTS = [
+  { value: "100k", label: "$100K" }, { value: "500k", label: "$500K" },
+  { value: "1m", label: "$1M" }, { value: "5m", label: "$5M" },
+  { value: "10m", label: "$10M" }, { value: "25m", label: "$25M" },
+  { value: "50m", label: "$50M" }, { value: "100m", label: "$100M" },
+  { value: "500m", label: "$500M" }, { value: "1b", label: "$1B+" },
+]
+const FUNDING_STAGES = ["Pre-Seed", "Seed", "Series A", "Series B", "Series C", "Series D", "Series E-J", "Other"]
+const FUNDING_TYPES_LIST = ["Angel", "Venture Capital", "Grant", "Debt Financing", "Private Equity", "Crowdfunding", "Other"]
+
+function RoundToggle({ value, onChange }: { value: "last_round" | "any_round"; onChange: (v: "last_round" | "any_round") => void }) {
+  return (
+    <div className="flex gap-1">
+      <button onClick={() => onChange("last_round")}
+        className={`text-[11px] px-2.5 py-1 rounded-md font-medium transition-colors ${value === "last_round" ? "bg-violet-600 text-white" : "border border-border text-foreground bg-background hover:bg-muted/50"}`}>
+        Last Round
+      </button>
+      <button onClick={() => onChange("any_round")}
+        className={`text-[11px] px-2.5 py-1 rounded-md font-medium transition-colors ${value === "any_round" ? "bg-violet-600 text-white" : "border border-border text-foreground bg-background hover:bg-muted/50"}`}>
+        Any Round
+      </button>
+    </div>
+  )
+}
+
 // ── Filter section row ─────────────────────────────────────────────────────────
 
 function FilterSectionRow({ icon: Icon, label, isOpen, onToggle, hasValue, onClear, children }: {
@@ -257,6 +282,18 @@ export function LeadsProspecting() {
   // Revenue + headcount UI state
   const [revenue, setRevenue] = useState("")
   const [headcountSelected, setHeadcountSelected] = useState("")
+
+  // Funding filters
+  const [fundingDateType, setFundingDateType] = useState<"last_round" | "any_round">("last_round")
+  const [fundingDateRange, setFundingDateRange] = useState("all_times")
+  const [lastFundingFrom, setLastFundingFrom] = useState("")
+  const [lastFundingTo, setLastFundingTo] = useState("")
+  const [totalFundingFrom, setTotalFundingFrom] = useState("")
+  const [totalFundingTo, setTotalFundingTo] = useState("")
+  const [fundingStageType, setFundingStageType] = useState<"last_round" | "any_round">("last_round")
+  const [fundingStages, setFundingStages] = useState<string[]>([])
+  const [fundingTypeRound, setFundingTypeRound] = useState<"last_round" | "any_round">("last_round")
+  const [fundingTypes, setFundingTypes] = useState<string[]>([])
 
   // Exclusion filters
   const [excludedNames, setExcludedNames] = useState<string[]>([])
@@ -586,6 +623,14 @@ export function LeadsProspecting() {
     setHeadcountRange([10, 10000])
     setHeadcountSelected("")
     setRevenue("")
+    setFundingDateType("last_round")
+    setFundingDateRange("all_times")
+    setLastFundingFrom(""); setLastFundingTo("")
+    setTotalFundingFrom(""); setTotalFundingTo("")
+    setFundingStageType("last_round")
+    setFundingStages([])
+    setFundingTypeRound("last_round")
+    setFundingTypes([])
     // Clear exclusions
     setExcludedNames([])
     setExcludedNameInput("")
@@ -1169,6 +1214,9 @@ export function LeadsProspecting() {
     )
   }
 
+  const toggleFundingStage = (s: string) => setFundingStages(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s])
+  const toggleFundingType = (t: string) => setFundingTypes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t])
+
   const getBuyerIntentBadge = (intent: string) => {
     switch (intent) {
       case "high":
@@ -1205,6 +1253,7 @@ export function LeadsProspecting() {
     industries.length +
     (headcountSelected ? 1 : 0) +
     (revenue ? 1 : 0) +
+    (fundingStages.length || fundingTypes.length || lastFundingFrom || totalFundingFrom ? 1 : 0) +
     (buyerIntent !== "all" ? 1 : 0)
   )
 
@@ -1481,6 +1530,84 @@ export function LeadsProspecting() {
                       ))}
                     </SelectContent>
                   </Select>
+                </FilterSectionRow>
+
+                <FilterSectionRow icon={TrendingUp} label="Funding"
+                  isOpen={openFilter === 'funding'} onToggle={() => setOpenFilter(openFilter === 'funding' ? null : 'funding')}
+                  hasValue={!!(fundingStages.length || fundingTypes.length || lastFundingFrom || totalFundingFrom)}
+                  onClear={() => { setFundingStages([]); setFundingTypes([]); setLastFundingFrom(""); setLastFundingTo(""); setTotalFundingFrom(""); setTotalFundingTo(""); setFundingDateRange("all_times") }}>
+
+                  {/* Funding date */}
+                  <p className="text-[11px] text-muted-foreground font-medium">Select funding date</p>
+                  <RoundToggle value={fundingDateType} onChange={setFundingDateType} />
+                  <Select value={fundingDateRange} onValueChange={setFundingDateRange}>
+                    <SelectTrigger className="h-8 text-[12px]"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {[["all_times","All times"],["30d","Last 30 days"],["90d","Last 90 days"],["6m","Last 6 months"],["1y","Last year"],["2y","Last 2 years"]].map(([v,l]) => (
+                        <SelectItem key={v} value={v} className="text-[12px]">{l}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {/* Last funding amount */}
+                  <p className="text-[11px] text-muted-foreground font-medium mt-1">Select last funding amount</p>
+                  <div className="flex items-center gap-1.5">
+                    <Select value={lastFundingFrom} onValueChange={setLastFundingFrom}>
+                      <SelectTrigger className="h-8 text-[12px] flex-1"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {FUNDING_AMOUNTS.map(a => <SelectItem key={a.value} value={a.value} className="text-[12px]">{a.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <span className="text-[11px] text-muted-foreground shrink-0">to</span>
+                    <Select value={lastFundingTo} onValueChange={setLastFundingTo}>
+                      <SelectTrigger className="h-8 text-[12px] flex-1"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {FUNDING_AMOUNTS.map(a => <SelectItem key={a.value} value={a.value} className="text-[12px]">{a.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Total funding amount */}
+                  <p className="text-[11px] text-muted-foreground font-medium mt-1">Select total funding amount</p>
+                  <div className="flex items-center gap-1.5">
+                    <Select value={totalFundingFrom} onValueChange={setTotalFundingFrom}>
+                      <SelectTrigger className="h-8 text-[12px] flex-1"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {FUNDING_AMOUNTS.map(a => <SelectItem key={a.value} value={a.value} className="text-[12px]">{a.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <span className="text-[11px] text-muted-foreground shrink-0">to</span>
+                    <Select value={totalFundingTo} onValueChange={setTotalFundingTo}>
+                      <SelectTrigger className="h-8 text-[12px] flex-1"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {FUNDING_AMOUNTS.map(a => <SelectItem key={a.value} value={a.value} className="text-[12px]">{a.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Funding stage */}
+                  <p className="text-[11px] text-muted-foreground font-medium mt-1">Select funding stage</p>
+                  <RoundToggle value={fundingStageType} onChange={setFundingStageType} />
+                  <div className="space-y-1.5 mt-1">
+                    {FUNDING_STAGES.map(s => (
+                      <div key={s} className="flex items-center gap-2">
+                        <Checkbox id={`fs-${s}`} checked={fundingStages.includes(s)} onCheckedChange={() => toggleFundingStage(s)} className="h-3.5 w-3.5" />
+                        <Label htmlFor={`fs-${s}`} className="text-[12px] font-normal cursor-pointer">{s}</Label>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Funding type */}
+                  <p className="text-[11px] text-muted-foreground font-medium mt-2">Select funding type</p>
+                  <RoundToggle value={fundingTypeRound} onChange={setFundingTypeRound} />
+                  <div className="space-y-1.5 mt-1">
+                    {FUNDING_TYPES_LIST.map(t => (
+                      <div key={t} className="flex items-center gap-2">
+                        <Checkbox id={`ft-${t}`} checked={fundingTypes.includes(t)} onCheckedChange={() => toggleFundingType(t)} className="h-3.5 w-3.5" />
+                        <Label htmlFor={`ft-${t}`} className="text-[12px] font-normal cursor-pointer">{t}</Label>
+                      </div>
+                    ))}
+                  </div>
                 </FilterSectionRow>
 
               </div>

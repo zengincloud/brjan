@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, ElementType } from 'react'
 import { formatDistanceToNow } from 'date-fns'
-import { Globe, Linkedin, Plus, Upload, X, Trash2, Search, MoreHorizontal, FolderInput, Users, Phone, Mail, Sparkles, RefreshCw, UserPlus, Check } from 'lucide-react'
+import { Globe, Linkedin, Plus, Upload, X, Trash2, Search, MoreHorizontal, FolderInput, Users, Phone, Mail, Sparkles, RefreshCw, UserPlus, Check, SlidersHorizontal, Settings2, RotateCcw, MapPin, Building2, Briefcase } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -12,6 +12,7 @@ import { UploadAccountsDialog } from '@/components/upload-accounts-dialog'
 import { AddAccountDialog } from '@/components/add-account-dialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { AccountStatusBoxes } from '@/components/account-status-boxes'
 
 type Account = {
@@ -430,6 +431,159 @@ function AccountDetail({
   )
 }
 
+// ── Column definitions ─────────────────────────────────────────────────────────
+
+type ColDef = { key: string; label: string }
+
+const ACCOUNT_COLS: ColDef[] = [
+  { key: 'contacts',    label: 'Contacts' },
+  { key: 'location',   label: 'HQ Location' },
+  { key: 'industry',   label: 'Industry' },
+  { key: 'employees',  label: 'Headcount' },
+  { key: 'status',     label: 'Status' },
+  { key: 'lastActivity', label: 'Last Activity' },
+  { key: 'sequence',   label: 'Sequence' },
+]
+
+const DEFAULT_ACCOUNT_COLS = new Set(['industry', 'location', 'employees', 'status', 'lastActivity'])
+
+// ── Filter row ─────────────────────────────────────────────────────────────────
+
+function FilterRow({ icon: Icon, label, value, onSet, onClear }: {
+  icon: ElementType
+  label: string
+  value: string
+  onSet: (v: string) => void
+  onClear: () => void
+}) {
+  const [adding, setAdding] = useState(false)
+  const [inputVal, setInputVal] = useState('')
+
+  if (value) {
+    return (
+      <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-accent/10 group">
+        <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <span className="text-[12px] flex-1 truncate">
+          <span className="text-muted-foreground">{label}: </span>
+          <span className="font-medium">{value}</span>
+        </span>
+        <button onClick={onClear} className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity">
+          <X className="h-3 w-3" />
+        </button>
+      </div>
+    )
+  }
+
+  if (adding) {
+    return (
+      <div className="flex items-center gap-2 px-2 py-1">
+        <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <input
+          autoFocus
+          value={inputVal}
+          onChange={(e) => setInputVal(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && inputVal.trim()) { onSet(inputVal.trim()); setAdding(false); setInputVal('') }
+            if (e.key === 'Escape') { setAdding(false); setInputVal('') }
+          }}
+          onBlur={() => { if (inputVal.trim()) onSet(inputVal.trim()); setAdding(false); setInputVal('') }}
+          className="text-[12px] flex-1 bg-transparent border-b border-accent outline-none text-foreground placeholder:text-muted-foreground/50"
+          placeholder={`Filter by ${label.toLowerCase()}…`}
+        />
+        <button onClick={() => { setAdding(false); setInputVal('') }} className="text-muted-foreground hover:text-foreground">
+          <X className="h-3 w-3" />
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <button
+      onClick={() => setAdding(true)}
+      className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-foreground/80 hover:bg-muted/50 transition-colors"
+    >
+      <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+      <span className="text-[13px] flex-1 text-left">{label}</span>
+      <Plus className="h-3.5 w-3.5 text-muted-foreground" />
+    </button>
+  )
+}
+
+// ── Column settings dialog ──────────────────────────────────────────────────────
+
+function AccountColumnSettings({ open, onOpenChange, visibleColumns, onSave }: {
+  open: boolean
+  onOpenChange: (o: boolean) => void
+  visibleColumns: Set<string>
+  onSave: (cols: Set<string>) => void
+}) {
+  const [draft, setDraft] = useState<Set<string>>(new Set(visibleColumns))
+
+  useEffect(() => { if (open) setDraft(new Set(visibleColumns)) }, [open, visibleColumns])
+
+  const toggle = (key: string) =>
+    setDraft((prev) => { const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next })
+
+  const orderedVisible = ACCOUNT_COLS.filter((c) => draft.has(c.key))
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <div className="flex items-center gap-2">
+            <Settings2 className="h-4 w-4 text-muted-foreground" />
+            <DialogTitle>Company Column Settings</DialogTitle>
+          </div>
+          <p className="text-[13px] text-muted-foreground mt-0.5">Select the columns you want to see.</p>
+        </DialogHeader>
+
+        <div className="flex gap-8 pt-2">
+          {/* Left: checkboxes */}
+          <div className="flex-1">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-3">Columns</p>
+            <div className="space-y-2.5">
+              {ACCOUNT_COLS.map((col) => (
+                <label key={col.key} className="flex items-center gap-2.5 cursor-pointer">
+                  <Cb checked={draft.has(col.key)} onChange={() => toggle(col.key)} />
+                  <span className="text-[13px]">{col.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Right: ordered list */}
+          <div className="flex-1">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-3">Column Order</p>
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-muted/50">
+                <span className="text-[12px] text-muted-foreground w-4 shrink-0">1</span>
+                <span className="text-[13px] text-muted-foreground flex-1">Company</span>
+              </div>
+              {orderedVisible.map((col, i) => (
+                <div key={col.key} className="flex items-center gap-3 px-3 py-2 rounded-lg border border-border">
+                  <span className="text-[12px] text-muted-foreground w-4 shrink-0">{i + 2}</span>
+                  <span className="text-[13px] flex-1">{col.label}</span>
+                  <button onClick={() => toggle(col.key)} className="text-muted-foreground hover:text-foreground">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter className="mt-4">
+          <Button variant="ghost" size="sm" onClick={() => setDraft(new Set(DEFAULT_ACCOUNT_COLS))} className="mr-auto gap-1.5">
+            <RotateCcw className="h-3.5 w-3.5" /> Reset to defaults
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button size="sm" onClick={() => { onSave(draft); onOpenChange(false) }}>Save Changes</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ── Table header cell ──────────────────────────────────────────────────────────
 
 function Th({ children, className }: { children: React.ReactNode; className?: string }) {
@@ -461,6 +615,11 @@ export default function AccountsPage() {
   const [deleteTarget, setDeleteTarget] = useState<Account | null>(null)
   const [deleting, setDeleting] = useState(false)
 
+  const [showFilters, setShowFilters] = useState(false)
+  const [filters, setFilters] = useState({ name: '', location: '', industry: '', employees: '', status: '' })
+  const [columnSettingsOpen, setColumnSettingsOpen] = useState(false)
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set(DEFAULT_ACCOUNT_COLS))
+
   const loadAccounts = useCallback(async (loadPage = 1, append = false) => {
     try {
       if (!append) setLoading(true)
@@ -486,8 +645,15 @@ export default function AccountsPage() {
 
   const filteredAccounts = accounts.filter((a) => {
     const q = searchTerm.toLowerCase()
-    return !q || (a.name?.toLowerCase() ?? '').includes(q) || (a.industry?.toLowerCase() ?? '').includes(q) || (a.location?.toLowerCase() ?? '').includes(q)
+    if (q && !((a.name?.toLowerCase() ?? '').includes(q) || (a.industry?.toLowerCase() ?? '').includes(q) || (a.location?.toLowerCase() ?? '').includes(q))) return false
+    if (filters.name && !(a.name?.toLowerCase() ?? '').includes(filters.name.toLowerCase())) return false
+    if (filters.location && !(a.location?.toLowerCase() ?? '').includes(filters.location.toLowerCase())) return false
+    if (filters.industry && !(a.industry?.toLowerCase() ?? '').includes(filters.industry.toLowerCase())) return false
+    if (filters.employees && !String(a.employees ?? '').includes(filters.employees)) return false
+    if (filters.status && a.status !== filters.status) return false
+    return true
   })
+  const activeFilterCount = Object.values(filters).filter(Boolean).length
 
   const toggleRow = (id: string) =>
     setSelectedRows((prev) => prev.includes(id) ? prev.filter((r) => r !== id) : [...prev, id])
@@ -542,6 +708,38 @@ export default function AccountsPage() {
 
         <div className="flex flex-1 overflow-hidden mt-4">
 
+          {/* ── Filter sidebar ──────────────────────────────────────────── */}
+          {showFilters && !compact && (
+            <div className="w-60 shrink-0 border-r border-border flex flex-col overflow-hidden">
+              <div className="px-4 py-3 border-b border-border flex items-center justify-between shrink-0">
+                <span className="text-[12px] text-muted-foreground">{activeFilterCount} filter{activeFilterCount !== 1 ? 's' : ''} applied.</span>
+                <button onClick={() => setShowFilters(false)} className="text-muted-foreground hover:text-foreground">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto py-3 px-3 space-y-4">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50 mb-2 px-1">Company Filters</p>
+                  <div className="space-y-0.5">
+                    <FilterRow icon={Building2} label="Business Name" value={filters.name} onSet={(v) => setFilters((f) => ({ ...f, name: v }))} onClear={() => setFilters((f) => ({ ...f, name: '' }))} />
+                    <FilterRow icon={MapPin} label="HQ Location" value={filters.location} onSet={(v) => setFilters((f) => ({ ...f, location: v }))} onClear={() => setFilters((f) => ({ ...f, location: '' }))} />
+                    <FilterRow icon={Briefcase} label="Industry" value={filters.industry} onSet={(v) => setFilters((f) => ({ ...f, industry: v }))} onClear={() => setFilters((f) => ({ ...f, industry: '' }))} />
+                    <FilterRow icon={Users} label="Headcount" value={filters.employees} onSet={(v) => setFilters((f) => ({ ...f, employees: v }))} onClear={() => setFilters((f) => ({ ...f, employees: '' }))} />
+                    <FilterRow icon={FolderInput} label="Status" value={filters.status} onSet={(v) => setFilters((f) => ({ ...f, status: v }))} onClear={() => setFilters((f) => ({ ...f, status: '' }))} />
+                  </div>
+                </div>
+                {activeFilterCount > 0 && (
+                  <button
+                    onClick={() => setFilters({ name: '', location: '', industry: '', employees: '', status: '' })}
+                    className="w-full text-[12px] text-muted-foreground hover:text-foreground flex items-center justify-center gap-1.5 py-1.5 rounded-md hover:bg-muted/50 transition-colors"
+                  >
+                    <RotateCcw className="h-3 w-3" /> Clear all filters
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* ── Table panel ─────────────────────────────────────────────── */}
           <div className={cn('flex flex-col overflow-hidden transition-all duration-200', compact ? 'w-[400px] shrink-0' : 'flex-1')}>
 
@@ -557,6 +755,30 @@ export default function AccountsPage() {
                 />
               </div>
               <div className="flex items-center gap-1.5 ml-auto">
+                {!compact && (
+                  <>
+                    <Button
+                      size="sm"
+                      variant={showFilters ? 'secondary' : 'outline'}
+                      onClick={() => setShowFilters((v) => !v)}
+                      className="h-8 text-[12px] gap-1.5"
+                    >
+                      <SlidersHorizontal className="h-3.5 w-3.5" />
+                      Filters
+                      {activeFilterCount > 0 && (
+                        <span className="bg-accent text-white rounded-full text-[10px] px-1.5 py-0 leading-5 font-medium">{activeFilterCount}</span>
+                      )}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setColumnSettingsOpen(true)}
+                      className="h-8 text-[12px] gap-1.5"
+                    >
+                      <Settings2 className="h-3.5 w-3.5" /> Columns
+                    </Button>
+                  </>
+                )}
                 <Button size="sm" variant="outline" onClick={() => setUploadDialogOpen(true)} className="h-8 text-[12px]">
                   <Upload className="h-3.5 w-3.5 mr-1" /> Upload CSV
                 </Button>
@@ -578,11 +800,13 @@ export default function AccountsPage() {
                       />
                     </th>
                     <Th>Account</Th>
-                    {!compact && <Th>Industry</Th>}
-                    {!compact && <Th>Location</Th>}
-                    {!compact && <Th>Employees</Th>}
-                    {!compact && <Th>Status</Th>}
-                    {!compact && <Th>Last Activity</Th>}
+                    {!compact && visibleColumns.has('contacts') && <Th>Contacts</Th>}
+                    {!compact && visibleColumns.has('industry') && <Th>Industry</Th>}
+                    {!compact && visibleColumns.has('location') && <Th>HQ Location</Th>}
+                    {!compact && visibleColumns.has('employees') && <Th>Headcount</Th>}
+                    {!compact && visibleColumns.has('status') && <Th>Status</Th>}
+                    {!compact && visibleColumns.has('lastActivity') && <Th>Last Activity</Th>}
+                    {!compact && visibleColumns.has('sequence') && <Th>Sequence</Th>}
                     <Th className="w-10" />
                   </tr>
                 </thead>
@@ -649,11 +873,13 @@ export default function AccountsPage() {
                             </div>
                           </td>
 
-                          {!compact && <td className="px-4 py-2.5 text-[13px] text-foreground/70 whitespace-nowrap">{a.industry || '—'}</td>}
-                          {!compact && <td className="px-4 py-2.5 text-[13px] text-foreground/70 whitespace-nowrap">{a.location || '—'}</td>}
-                          {!compact && <td className="px-4 py-2.5 text-[13px] text-foreground/70 whitespace-nowrap">{a.employees?.toLocaleString() || '—'}</td>}
-                          {!compact && <td className="px-4 py-2.5"><StatusBadge status={a.status} /></td>}
-                          {!compact && <td className="px-4 py-2.5 text-[13px] text-muted-foreground whitespace-nowrap">{a.lastActivity ? formatDistanceToNow(new Date(a.lastActivity), { addSuffix: true }) : '—'}</td>}
+                          {!compact && visibleColumns.has('contacts') && <td className="px-4 py-2.5 text-[13px] text-foreground/70 whitespace-nowrap">{a.contacts ?? '—'}</td>}
+                          {!compact && visibleColumns.has('industry') && <td className="px-4 py-2.5 text-[13px] text-foreground/70 whitespace-nowrap">{a.industry || '—'}</td>}
+                          {!compact && visibleColumns.has('location') && <td className="px-4 py-2.5 text-[13px] text-foreground/70 whitespace-nowrap">{a.location || '—'}</td>}
+                          {!compact && visibleColumns.has('employees') && <td className="px-4 py-2.5 text-[13px] text-foreground/70 whitespace-nowrap">{a.employees?.toLocaleString() || '—'}</td>}
+                          {!compact && visibleColumns.has('status') && <td className="px-4 py-2.5"><StatusBadge status={a.status} /></td>}
+                          {!compact && visibleColumns.has('lastActivity') && <td className="px-4 py-2.5 text-[13px] text-muted-foreground whitespace-nowrap">{a.lastActivity ? formatDistanceToNow(new Date(a.lastActivity), { addSuffix: true }) : '—'}</td>}
+                          {!compact && visibleColumns.has('sequence') && <td className="px-4 py-2.5 text-[13px] text-foreground/70 whitespace-nowrap">{a.sequence || '—'}</td>}
 
                           {/* Row actions */}
                           <td className="px-2 py-2.5 w-10" onClick={(e) => e.stopPropagation()}>
@@ -715,6 +941,12 @@ export default function AccountsPage() {
       {/* Dialogs */}
       <UploadAccountsDialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen} onUploadComplete={loadAccounts} />
       <AddAccountDialog open={addDialogOpen} onOpenChange={setAddDialogOpen} onAccountAdded={loadAccounts} />
+      <AccountColumnSettings
+        open={columnSettingsOpen}
+        onOpenChange={setColumnSettingsOpen}
+        visibleColumns={visibleColumns}
+        onSave={setVisibleColumns}
+      />
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>

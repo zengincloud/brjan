@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, ElementType } from 'react'
 import { formatDistanceToNow } from 'date-fns'
-import { Phone, Mail, Linkedin, Plus, Upload, X, Pencil, Trash2, Zap, Search, MoreHorizontal, Send, StickyNote, Copy, ChevronDown, ChevronRight, Check } from 'lucide-react'
+import { Phone, Mail, Linkedin, Plus, Upload, X, Pencil, Trash2, Zap, Search, MoreHorizontal, Send, StickyNote, Copy, ChevronDown, ChevronRight, Check, SlidersHorizontal, Settings2, RotateCcw, MapPin, Building2, Briefcase, User, GraduationCap } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,6 +16,7 @@ import { CallProspectDialog } from '@/components/call-prospect-dialog'
 import { AddToSequenceDialog } from '@/components/add-to-sequence-dialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { TrialLimitBanner } from '@/components/trial-limit-banner'
 import { TRIAL_LIMITS } from '@/lib/trial-limits'
 import { ProspectStatusBoxes } from '@/components/prospect-status-boxes'
@@ -950,6 +951,164 @@ function ProspectDetail({
   )
 }
 
+// ── Column definitions ─────────────────────────────────────────────────────────
+
+type ColDef = { key: string; label: string }
+
+const PROSPECT_COLS: ColDef[] = [
+  { key: 'company',      label: 'Company' },
+  { key: 'email',        label: 'Email' },
+  { key: 'title',        label: 'Title' },
+  { key: 'status',       label: 'Status' },
+  { key: 'sequence',     label: 'Sequence' },
+  { key: 'lastActivity', label: 'Last Activity' },
+  { key: 'phone',        label: 'Phone' },
+  { key: 'linkedin',     label: 'LinkedIn' },
+]
+
+const DEFAULT_PROSPECT_COLS = new Set(['company', 'email', 'title', 'status', 'sequence', 'lastActivity'])
+
+// ── Filter row ─────────────────────────────────────────────────────────────────
+
+function FilterRow({ icon: Icon, label, value, onSet, onClear }: {
+  icon: ElementType
+  label: string
+  value: string
+  onSet: (v: string) => void
+  onClear: () => void
+}) {
+  const [adding, setAdding] = useState(false)
+  const [inputVal, setInputVal] = useState('')
+
+  if (value) {
+    return (
+      <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-accent/10 group">
+        <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <span className="text-[12px] flex-1 truncate">
+          <span className="text-muted-foreground">{label}: </span>
+          <span className="font-medium">{value}</span>
+        </span>
+        <button onClick={onClear} className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity">
+          <X className="h-3 w-3" />
+        </button>
+      </div>
+    )
+  }
+
+  if (adding) {
+    return (
+      <div className="flex items-center gap-2 px-2 py-1">
+        <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <input
+          autoFocus
+          value={inputVal}
+          onChange={(e) => setInputVal(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && inputVal.trim()) { onSet(inputVal.trim()); setAdding(false); setInputVal('') }
+            if (e.key === 'Escape') { setAdding(false); setInputVal('') }
+          }}
+          onBlur={() => { if (inputVal.trim()) onSet(inputVal.trim()); setAdding(false); setInputVal('') }}
+          className="text-[12px] flex-1 bg-transparent border-b border-accent outline-none text-foreground placeholder:text-muted-foreground/50"
+          placeholder={`Filter by ${label.toLowerCase()}…`}
+        />
+        <button onClick={() => { setAdding(false); setInputVal('') }} className="text-muted-foreground hover:text-foreground">
+          <X className="h-3 w-3" />
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <button
+      onClick={() => setAdding(true)}
+      className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-foreground/80 hover:bg-muted/50 transition-colors"
+    >
+      <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+      <span className="text-[13px] flex-1 text-left">{label}</span>
+      <Plus className="h-3.5 w-3.5 text-muted-foreground" />
+    </button>
+  )
+}
+
+// ── Column settings dialog ──────────────────────────────────────────────────────
+
+function ProspectColumnSettings({ open, onOpenChange, visibleColumns, onSave }: {
+  open: boolean
+  onOpenChange: (o: boolean) => void
+  visibleColumns: Set<string>
+  onSave: (cols: Set<string>) => void
+}) {
+  const [draft, setDraft] = useState<Set<string>>(new Set(visibleColumns))
+
+  useEffect(() => { if (open) setDraft(new Set(visibleColumns)) }, [open, visibleColumns])
+
+  const toggle = (key: string) =>
+    setDraft((prev) => { const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next })
+
+  const orderedVisible = PROSPECT_COLS.filter((c) => draft.has(c.key))
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <div className="flex items-center gap-2">
+            <Settings2 className="h-4 w-4 text-muted-foreground" />
+            <DialogTitle>Contact Column Settings</DialogTitle>
+          </div>
+          <p className="text-[13px] text-muted-foreground mt-0.5">Select the columns you want to see.</p>
+        </DialogHeader>
+
+        <div className="flex gap-8 pt-2">
+          {/* Left: checkboxes */}
+          <div className="flex-1">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-3">Columns</p>
+            <div className="space-y-2.5">
+              {PROSPECT_COLS.map((col) => (
+                <label key={col.key} className="flex items-center gap-2.5 cursor-pointer">
+                  <Cb checked={draft.has(col.key)} onChange={() => toggle(col.key)} />
+                  <span className="text-[13px]">{col.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Right: ordered list */}
+          <div className="flex-1">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-3">Column Order</p>
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-muted/50">
+                <span className="text-[12px] text-muted-foreground w-4 shrink-0">1</span>
+                <span className="text-[13px] text-muted-foreground flex-1">Contact</span>
+              </div>
+              <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-muted/50">
+                <span className="text-[12px] text-muted-foreground w-4 shrink-0">2</span>
+                <span className="text-[13px] text-muted-foreground flex-1">Score</span>
+              </div>
+              {orderedVisible.map((col, i) => (
+                <div key={col.key} className="flex items-center gap-3 px-3 py-2 rounded-lg border border-border">
+                  <span className="text-[12px] text-muted-foreground w-4 shrink-0">{i + 3}</span>
+                  <span className="text-[13px] flex-1">{col.label}</span>
+                  <button onClick={() => toggle(col.key)} className="text-muted-foreground hover:text-foreground">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter className="mt-4">
+          <Button variant="ghost" size="sm" onClick={() => setDraft(new Set(DEFAULT_PROSPECT_COLS))} className="mr-auto gap-1.5">
+            <RotateCcw className="h-3.5 w-3.5" /> Reset to defaults
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button size="sm" onClick={() => { onSave(draft); onOpenChange(false) }}>Save Changes</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ── Table header cell ──────────────────────────────────────────────────────────
 
 function Th({ children, className }: { children: React.ReactNode; className?: string }) {
@@ -988,6 +1147,11 @@ export default function ProspectsPage() {
   const [deleteTarget, setDeleteTarget] = useState<{ ids: string[]; label: string } | null>(null)
   const [deleting, setDeleting] = useState(false)
 
+  const [showFilters, setShowFilters] = useState(false)
+  const [filters, setFilters] = useState({ name: '', title: '', location: '', status: '', sequence: '', company: '' })
+  const [columnSettingsOpen, setColumnSettingsOpen] = useState(false)
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set(DEFAULT_PROSPECT_COLS))
+
   const loadProspects = useCallback(async (loadPage = 1, append = false) => {
     try {
       if (!append) setLoading(true)
@@ -1023,8 +1187,15 @@ export default function ProspectsPage() {
 
   const filteredProspects = prospects.filter((p) => {
     const q = searchTerm.toLowerCase()
-    return !q || (p.name?.toLowerCase() ?? '').includes(q) || (p.company?.toLowerCase() ?? '').includes(q) || (p.email?.toLowerCase() ?? '').includes(q)
+    if (q && !((p.name?.toLowerCase() ?? '').includes(q) || (p.company?.toLowerCase() ?? '').includes(q) || (p.email?.toLowerCase() ?? '').includes(q))) return false
+    if (filters.name && !(p.name?.toLowerCase() ?? '').includes(filters.name.toLowerCase())) return false
+    if (filters.title && !(p.title?.toLowerCase() ?? '').includes(filters.title.toLowerCase())) return false
+    if (filters.company && !(p.company?.toLowerCase() ?? '').includes(filters.company.toLowerCase())) return false
+    if (filters.status && p.status !== filters.status) return false
+    if (filters.sequence && !(p.sequence?.toLowerCase() ?? '').includes(filters.sequence.toLowerCase())) return false
+    return true
   })
+  const activeFilterCount = Object.values(filters).filter(Boolean).length
 
   const toggleRow = (id: string) =>
     setSelectedRows((prev) => prev.includes(id) ? prev.filter((r) => r !== id) : [...prev, id])
@@ -1078,6 +1249,43 @@ export default function ProspectsPage() {
 
         <div className="flex flex-1 overflow-hidden mt-4">
 
+          {/* ── Filter sidebar ─────────────────────────────────────────────── */}
+          {showFilters && !compact && (
+            <div className="w-60 shrink-0 border-r border-border flex flex-col overflow-hidden">
+              <div className="px-4 py-3 border-b border-border flex items-center justify-between shrink-0">
+                <span className="text-[12px] text-muted-foreground">{activeFilterCount} filter{activeFilterCount !== 1 ? 's' : ''} applied.</span>
+                <button onClick={() => setShowFilters(false)} className="text-muted-foreground hover:text-foreground">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto py-3 px-3 space-y-4">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50 mb-2 px-1">Personal Filters</p>
+                  <div className="space-y-0.5">
+                    <FilterRow icon={User} label="Name" value={filters.name} onSet={(v) => setFilters((f) => ({ ...f, name: v }))} onClear={() => setFilters((f) => ({ ...f, name: '' }))} />
+                    <FilterRow icon={Briefcase} label="Job Information" value={filters.title} onSet={(v) => setFilters((f) => ({ ...f, title: v }))} onClear={() => setFilters((f) => ({ ...f, title: '' }))} />
+                    <FilterRow icon={MapPin} label="Location" value={filters.location} onSet={(v) => setFilters((f) => ({ ...f, location: v }))} onClear={() => setFilters((f) => ({ ...f, location: '' }))} />
+                    <FilterRow icon={Zap} label="Sequence" value={filters.sequence} onSet={(v) => setFilters((f) => ({ ...f, sequence: v }))} onClear={() => setFilters((f) => ({ ...f, sequence: '' }))} />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50 mb-2 px-1">Company Filters</p>
+                  <div className="space-y-0.5">
+                    <FilterRow icon={Building2} label="Business Name" value={filters.company} onSet={(v) => setFilters((f) => ({ ...f, company: v }))} onClear={() => setFilters((f) => ({ ...f, company: '' }))} />
+                  </div>
+                </div>
+                {activeFilterCount > 0 && (
+                  <button
+                    onClick={() => setFilters({ name: '', title: '', location: '', status: '', sequence: '', company: '' })}
+                    className="w-full text-[12px] text-muted-foreground hover:text-foreground flex items-center justify-center gap-1.5 py-1.5 rounded-md hover:bg-muted/50 transition-colors"
+                  >
+                    <RotateCcw className="h-3 w-3" /> Clear all filters
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* ── Table panel ───────────────────────────────────────────────── */}
           <div className={cn('flex flex-col overflow-hidden transition-all duration-200', compact ? 'w-[400px] shrink-0' : 'flex-1')}>
 
@@ -1106,6 +1314,30 @@ export default function ProspectsPage() {
                 </div>
               ) : (
                 <div className="flex items-center gap-1.5 ml-auto">
+                  {!compact && (
+                    <>
+                      <Button
+                        size="sm"
+                        variant={showFilters ? 'secondary' : 'outline'}
+                        onClick={() => setShowFilters((v) => !v)}
+                        className="h-8 text-[12px] gap-1.5"
+                      >
+                        <SlidersHorizontal className="h-3.5 w-3.5" />
+                        Filters
+                        {activeFilterCount > 0 && (
+                          <span className="bg-accent text-white rounded-full text-[10px] px-1.5 py-0 leading-5 font-medium">{activeFilterCount}</span>
+                        )}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setColumnSettingsOpen(true)}
+                        className="h-8 text-[12px] gap-1.5"
+                      >
+                        <Settings2 className="h-3.5 w-3.5" /> Columns
+                      </Button>
+                    </>
+                  )}
                   <Button size="sm" variant="outline" onClick={() => setUploadDialogOpen(true)} className="h-8 text-[12px]">
                     <Upload className="h-3.5 w-3.5 mr-1" /> Upload CSV
                   </Button>
@@ -1129,12 +1361,14 @@ export default function ProspectsPage() {
                     </th>
                     <Th>Contact</Th>
                     <Th>Score</Th>
-                    {!compact && <Th>Company</Th>}
-                    {!compact && <Th>Email</Th>}
-                    {!compact && <Th>Title</Th>}
-                    {!compact && <Th>Status</Th>}
-                    {!compact && <Th>Sequence</Th>}
-                    {!compact && <Th>Last Activity</Th>}
+                    {!compact && visibleColumns.has('company') && <Th>Company</Th>}
+                    {!compact && visibleColumns.has('email') && <Th>Email</Th>}
+                    {!compact && visibleColumns.has('title') && <Th>Title</Th>}
+                    {!compact && visibleColumns.has('phone') && <Th>Phone</Th>}
+                    {!compact && visibleColumns.has('status') && <Th>Status</Th>}
+                    {!compact && visibleColumns.has('sequence') && <Th>Sequence</Th>}
+                    {!compact && visibleColumns.has('lastActivity') && <Th>Last Activity</Th>}
+                    {!compact && visibleColumns.has('linkedin') && <Th>LinkedIn</Th>}
                     <Th className="w-10" />
                   </tr>
                 </thead>
@@ -1186,35 +1420,49 @@ export default function ProspectsPage() {
                             <ScoreCell status={p.status} />
                           </td>
 
-                          {/* Full columns — hidden in compact mode */}
-                          {!compact && (
+                          {/* Full columns — hidden in compact mode, controlled by visibleColumns */}
+                          {!compact && visibleColumns.has('company') && (
                             <td className="px-4 py-2.5 text-[13px] text-foreground/80 whitespace-nowrap">
                               {p.company || '—'}
                             </td>
                           )}
-                          {!compact && (
+                          {!compact && visibleColumns.has('email') && (
                             <td className="px-4 py-2.5 text-[13px] text-foreground/70 whitespace-nowrap">
                               {p.email}
                             </td>
                           )}
-                          {!compact && (
+                          {!compact && visibleColumns.has('title') && (
                             <td className="px-4 py-2.5 text-[13px] text-foreground/70 whitespace-nowrap">
                               {p.title || '—'}
                             </td>
                           )}
-                          {!compact && (
+                          {!compact && visibleColumns.has('phone') && (
+                            <td className="px-4 py-2.5 text-[13px] text-foreground/70 whitespace-nowrap">
+                              {p.phone || '—'}
+                            </td>
+                          )}
+                          {!compact && visibleColumns.has('status') && (
                             <td className="px-4 py-2.5">
                               <StatusBadge status={p.status} />
                             </td>
                           )}
-                          {!compact && (
+                          {!compact && visibleColumns.has('sequence') && (
                             <td className="px-4 py-2.5 text-[13px] text-foreground/70 whitespace-nowrap max-w-[160px] truncate">
                               {p.sequence || '—'}
                             </td>
                           )}
-                          {!compact && (
+                          {!compact && visibleColumns.has('lastActivity') && (
                             <td className="px-4 py-2.5 text-[13px] text-muted-foreground whitespace-nowrap">
                               {p.lastActivity ? formatDistanceToNow(new Date(p.lastActivity), { addSuffix: true }) : '—'}
+                            </td>
+                          )}
+                          {!compact && visibleColumns.has('linkedin') && (
+                            <td className="px-4 py-2.5">
+                              {p.linkedin ? (
+                                <a href={p.linkedin} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+                                  <Linkedin className="h-3.5 w-3.5 text-[#0A66C2] opacity-70 hover:opacity-100" />
+                                </a>
+                              ) : '—'}
                             </td>
                           )}
 
@@ -1286,6 +1534,12 @@ export default function ProspectsPage() {
       {/* Dialogs */}
       <UploadProspectsDialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen} onUploadComplete={loadProspects} />
       <AddProspectDialog open={addDialogOpen} onOpenChange={setAddDialogOpen} onProspectAdded={loadProspects} />
+      <ProspectColumnSettings
+        open={columnSettingsOpen}
+        onOpenChange={setColumnSettingsOpen}
+        visibleColumns={visibleColumns}
+        onSave={setVisibleColumns}
+      />
       <EditProspectDialog
         open={editDialogOpen}
         onOpenChange={setEditDialogOpen}

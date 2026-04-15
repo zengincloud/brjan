@@ -199,6 +199,7 @@ export default function DialerPage() {
   })
   const [expandedSlots, setExpandedSlots] = useState<Set<string>>(new Set())
   const [expandedQueueRows, setExpandedQueueRows] = useState<Set<string>>(new Set())
+  const [oneOffProspectId, setOneOffProspectId] = useState<string | null>(null)
   const [queueSize, setQueueSize] = useSessionState("dialer_queue_size", 0)
   const [calledProspects, setCalledProspects] = useSessionState<{ name: string; company: string; outcome: string }[]>("dialer_called_prospects", [])
   const [editingPhoneId, setEditingPhoneId] = useState<string | null>(null)
@@ -1003,6 +1004,11 @@ export default function DialerPage() {
     setCallDuration(0)
     callStartTimeRef.current = null
 
+    // Clear one-off call state if not in a session
+    if (!sessionActive) {
+      setOneOffProspectId(null)
+    }
+
     // Auto-advance to next prospect if session is active
     if (sessionActive && !sessionPaused) {
       if (nextProspect) {
@@ -1426,6 +1432,11 @@ export default function DialerPage() {
     setIsMuted(false)
     callStartTimeRef.current = null
 
+    // Clear one-off call state if not in a session
+    if (!sessionActive) {
+      setOneOffProspectId(null)
+    }
+
     // Auto-dial next
     if (sessionActive && !sessionPaused) {
       if (nextProspect) {
@@ -1640,6 +1651,9 @@ export default function DialerPage() {
       return
     }
 
+    setOneOffProspectId(prospect.id)
+    // Expand that row so inline controls are visible
+    setExpandedQueueRows(prev => new Set(prev).add(prospect.id))
     await connectCall(prospect, slotIndex)
     setQueueSize(prev => Math.max(0, prev - 1))
   }
@@ -2056,7 +2070,9 @@ export default function DialerPage() {
                       insightBullets.push(`${prospect.priorCalls.length} prior call${prospect.priorCalls.length !== 1 ? "s" : ""} — last: ${prospect.priorCalls[0].outcome}`)
                     }
 
-                    const isCurrentCall = sessionActive && idx === currentProspectIndex
+                    const isSessionCall = sessionActive && idx === currentProspectIndex
+                    const isOneOffCall = !sessionActive && prospect.id === oneOffProspectId
+                    const isCurrentCall = isSessionCall || isOneOffCall
                     const isAlreadyCalled = sessionActive && idx < currentProspectIndex
                     const isExpanded = expandedQueueRows.has(prospect.id) || isCurrentCall
                     const activeSlot = isCurrentCall ? callSlots[0] : null
@@ -2396,7 +2412,7 @@ export default function DialerPage() {
                                         onClick={() => saveAndAdvance("1")}
                                       >
                                         <Save className="h-3 w-3 mr-1" />
-                                        Save & Next
+                                        {isOneOffCall ? "Save" : "Save & Next"}
                                       </Button>
 
                                       <div className="border-l border-border h-5 mx-1" />
@@ -2898,8 +2914,8 @@ export default function DialerPage() {
           </div>
         </div>
 
-      {/* Quick Call card (only for one-off calls outside session) */}
-      {!sessionActive && callSlots[0]?.contact && (
+      {/* Quick Call card — now handled inline in the queue row via oneOffProspectId */}
+      {false && !sessionActive && callSlots[0]?.contact && (
       <div>
         <div className="flex items-center justify-between mb-4">
           <div>

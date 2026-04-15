@@ -2,13 +2,8 @@
 
 import { useState, useEffect, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Check } from "lucide-react"
 import {
   Linkedin,
   ExternalLink,
@@ -73,6 +68,27 @@ interface Task {
   priority: Priority
   status: TaskStatus
   createdAt: string
+}
+
+// ── Custom checkbox ────────────────────────────────────────────────────────────
+
+function Cb({ checked, onChange }: { checked: boolean; onChange: () => void }) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={checked}
+      onClick={onChange}
+      className={cn(
+        'w-[15px] h-[15px] rounded-[3px] border transition-colors shrink-0 flex items-center justify-center',
+        checked
+          ? 'bg-[hsl(100,78%,44%)] border-[hsl(100,78%,44%)]'
+          : 'border-border bg-transparent hover:border-muted-foreground/60'
+      )}
+    >
+      {checked && <Check className="h-2.5 w-2.5 text-white stroke-[3]" />}
+    </button>
+  )
 }
 
 const getTaskTypeIcon = (type: TaskType) => {
@@ -415,84 +431,71 @@ function TasksContent() {
             ref={provided.innerRef}
             {...provided.draggableProps}
             className={cn(
-              "p-4 rounded-lg border bg-card transition-colors",
-              isSelected && "ring-2 ring-primary",
-              task.status === "done" && "opacity-70",
-              snapshot.isDragging && "shadow-lg ring-2 ring-primary/50"
+              "p-3 rounded-lg border border-border bg-card transition-colors group",
+              isSelected && "border-[hsl(100,78%,44%)]/40 bg-[hsl(100,78%,44%)]/5",
+              task.status === "done" && "opacity-60",
+              snapshot.isDragging && "shadow-lg border-accent/50"
             )}
           >
-            <div className="flex items-start gap-3">
+            <div className="flex items-start gap-2.5">
               <div
                 {...provided.dragHandleProps}
-                className="mt-1 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
+                className="mt-0.5 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
               >
-                <GripVertical className="h-4 w-4" />
+                <GripVertical className="h-3.5 w-3.5" />
               </div>
-              <Checkbox
-                checked={isSelected}
-                onCheckedChange={() => handleSelectTask(task.id)}
-                className="mt-1"
-              />
+              <div className="mt-0.5" onClick={(e) => { e.stopPropagation(); handleSelectTask(task.id) }}>
+                <Cb checked={isSelected} onChange={() => handleSelectTask(task.id)} />
+              </div>
 
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-1.5 mb-1.5">
               {getTaskTypeIcon(task.type)}
-              <Badge variant="outline" className="text-xs">
-                {getTaskTypeLabel(task.type)}
-              </Badge>
-              <Badge className={cn("text-xs", getPriorityColor(task.priority))}>
+              <span className="text-[11px] font-medium text-muted-foreground">{getTaskTypeLabel(task.type)}</span>
+              <span className={cn("ml-auto px-1.5 py-0.5 rounded-full text-[10px] font-medium", getPriorityColor(task.priority))}>
                 {task.priority}
-              </Badge>
-              <Badge className={cn("text-xs", statusConfig[task.status].color)}>
-                {statusConfig[task.status].label}
-              </Badge>
+              </span>
             </div>
 
-            <h4 className="font-medium text-sm">{task.title}</h4>
-            <p className="text-sm text-muted-foreground mt-1">{task.description}</p>
+            <p className="text-[13px] font-medium leading-snug">{task.title}</p>
+            {task.description && (
+              <p className="text-[12px] text-muted-foreground mt-0.5 line-clamp-2">{task.description}</p>
+            )}
 
             {task.contact && (
-              <div className="flex items-center gap-2 mt-3">
-                <Avatar className="h-6 w-6">
-                  <AvatarImage src="/placeholder.svg" />
-                  <AvatarFallback>
-                    {task.contact.name
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="text-xs">
-                  <div className="font-medium">{task.contact.name}</div>
+              <div className="flex items-center gap-2 mt-2.5">
+                <div className="w-5 h-5 rounded-full bg-indigo-500 flex items-center justify-center text-[10px] font-semibold text-white shrink-0">
+                  {task.contact.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[12px] font-medium truncate">{task.contact.name}</p>
                   {task.contact.title && (
-                    <div className="text-muted-foreground">{task.contact.title}</div>
+                    <p className="text-[11px] text-muted-foreground truncate">{task.contact.title}</p>
                   )}
                 </div>
                 {task.contact.linkedin && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 ml-auto"
-                    onClick={() => window.open(task.contact?.linkedin, "_blank")}
+                  <button
+                    className="text-muted-foreground hover:text-foreground"
+                    onClick={(e) => { e.stopPropagation(); window.open(task.contact?.linkedin, "_blank") }}
                   >
                     <ExternalLink className="h-3 w-3" />
-                  </Button>
+                  </button>
                 )}
               </div>
             )}
 
             {task.company && (
-              <div className="flex items-center gap-2 mt-2">
-                <Building2 className="h-3 w-3 text-muted-foreground" />
-                <span className="text-xs">{task.company.name}</span>
+              <div className="flex items-center gap-1.5 mt-1.5">
+                <Building2 className="h-3 w-3 text-muted-foreground shrink-0" />
+                <span className="text-[12px] text-muted-foreground truncate">{task.company.name}</span>
               </div>
             )}
 
             {task.dueDate && (
-              <div className="flex items-center gap-2 mt-2">
-                <Calendar className="h-3 w-3 text-muted-foreground" />
-                <span className="text-xs">
-                  Due: {format(new Date(task.dueDate), "MMM d, yyyy")}
+              <div className="flex items-center gap-1.5 mt-1.5">
+                <Calendar className="h-3 w-3 text-muted-foreground shrink-0" />
+                <span className="text-[11px] text-muted-foreground">
+                  {format(new Date(task.dueDate), "MMM d, yyyy")}
                 </span>
               </div>
             )}
@@ -500,13 +503,13 @@ function TasksContent() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8" disabled={isUpdating}>
+              <button className="text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity" disabled={isUpdating}>
                 {isUpdating ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 ) : (
-                  <MoreHorizontal className="h-4 w-4" />
+                  <MoreHorizontal className="h-3.5 w-3.5" />
                 )}
-              </Button>
+              </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               {task.status !== "done" && (
@@ -530,259 +533,233 @@ function TasksContent() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
+            </div>
           </div>
         )}
       </Draggable>
     )
   }
 
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <h1 className="text-xl font-semibold">Tasks</h1>
-        </div>
-        <Card>
-          <CardContent className="py-12">
-            <div className="flex items-center justify-center">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-xl font-semibold">Tasks</h1>
-        <Button onClick={() => setCreateDialogOpen(true)} className="gap-2">
-          <Plus className="h-4 w-4" />
-          Create Task
-        </Button>
+    <div className="-m-5 flex flex-col" style={{ height: 'calc(100vh - 3rem)' }}>
+
+      {/* Toolbar */}
+      <div className="flex items-center gap-3 px-4 py-2.5 border-b border-border shrink-0">
+        {/* View tabs */}
+        <div className="flex items-center gap-0.5 rounded-lg bg-muted/50 p-0.5">
+          <button
+            onClick={() => { setActiveView("tasks"); setSelectedTasks(new Set()) }}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors",
+              activeView === "tasks"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <CalendarClock className="h-3.5 w-3.5" />
+            Tasks
+            <span className={cn(
+              "px-1.5 py-0 rounded-full text-[10px] font-semibold leading-5",
+              activeView === "tasks" ? "bg-accent/10 text-accent" : "bg-muted text-muted-foreground"
+            )}>{regularTasks.length}</span>
+          </button>
+          <button
+            onClick={() => { setActiveView("linkedin"); setSelectedTasks(new Set()) }}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors",
+              activeView === "linkedin"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Linkedin className="h-3.5 w-3.5" />
+            LinkedIn
+            <span className={cn(
+              "px-1.5 py-0 rounded-full text-[10px] font-semibold leading-5",
+              activeView === "linkedin" ? "bg-[#0A66C2]/10 text-[#0A66C2]" : "bg-muted text-muted-foreground"
+            )}>{linkedInTasks.length}</span>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-1.5 ml-auto">
+          {displayedTasks.length > 0 && (
+            <button
+              onClick={handleSelectAll}
+              className="text-[12px] text-muted-foreground hover:text-foreground px-2 py-1.5 rounded-md hover:bg-muted/50 transition-colors"
+            >
+              {selectedTasks.size === displayedTasks.length ? "Deselect All" : "Select All"}
+            </button>
+          )}
+          {activeView === "linkedin" && displayedTasks.length > 0 && (
+            <Button
+              size="sm"
+              className="h-8 text-[12px] gap-1.5 bg-[#0A66C2] hover:bg-[#0A66C2]/90"
+              onClick={openAllLinkedIns}
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              Open {selectedTasks.size > 0 ? `${selectedTasks.size} ` : "All "}LinkedIns
+            </Button>
+          )}
+          <Button size="sm" onClick={() => setCreateDialogOpen(true)} className="h-8 text-[12px] gap-1.5">
+            <Plus className="h-3.5 w-3.5" /> Create Task
+          </Button>
+        </div>
       </div>
 
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <Tabs
-              value={activeView}
-              onValueChange={(v) => {
-                setActiveView(v as "linkedin" | "tasks")
-                setSelectedTasks(new Set())
-              }}
-            >
-              <TabsList>
-                <TabsTrigger value="linkedin" className="gap-2">
-                  <Linkedin className="h-4 w-4" />
-                  LinkedIn ({linkedInTasks.length})
-                </TabsTrigger>
-                <TabsTrigger value="tasks" className="gap-2">
-                  <CalendarClock className="h-4 w-4" />
-                  Tasks ({regularTasks.length})
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+      {/* Bulk action bar */}
+      {selectedTasks.size > 0 && (
+        <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-accent/5 shrink-0">
+          <span className="text-[12px] font-medium text-muted-foreground">{selectedTasks.size} selected</span>
+          <div className="w-px h-4 bg-border mx-1" />
+          <button
+            onClick={bulkMarkDone}
+            disabled={bulkActioning}
+            className="flex items-center gap-1.5 text-[12px] px-2.5 py-1 rounded-md border border-border hover:bg-muted/50 transition-colors disabled:opacity-50"
+          >
+            {bulkActioning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+            Mark as Done
+          </button>
+          <button
+            onClick={bulkOpenLinkedIns}
+            disabled={bulkActioning}
+            className="flex items-center gap-1.5 text-[12px] px-2.5 py-1 rounded-md border border-border hover:bg-muted/50 transition-colors disabled:opacity-50"
+          >
+            <Linkedin className="h-3.5 w-3.5" />
+            Open LinkedIns
+          </button>
+          <button
+            onClick={() => setBulkDeleteDialogOpen(true)}
+            disabled={bulkActioning}
+            className="flex items-center gap-1.5 text-[12px] px-2.5 py-1 rounded-md border border-destructive/30 text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Delete
+          </button>
+          <button
+            onClick={() => setSelectedTasks(new Set())}
+            disabled={bulkActioning}
+            className="text-[12px] text-muted-foreground hover:text-foreground px-2 py-1 rounded-md hover:bg-muted/50 transition-colors ml-1"
+          >
+            Clear
+          </button>
+        </div>
+      )}
 
-            <div className="flex items-center gap-2">
-              {displayedTasks.length > 0 && (
-                <Button variant="outline" size="sm" onClick={handleSelectAll}>
-                  {selectedTasks.size === displayedTasks.length ? "Deselect All" : "Select All"}
-                </Button>
-              )}
-
-              {activeView === "linkedin" && displayedTasks.length > 0 && (
-                <Button
-                  size="sm"
-                  className="gap-2 bg-[#0A66C2] hover:bg-[#0A66C2]/90"
-                  onClick={openAllLinkedIns}
-                >
-                  <ExternalLink className="h-4 w-4" />
-                  Open {selectedTasks.size > 0 ? `${selectedTasks.size} ` : "All "}LinkedIns
-                </Button>
-              )}
-            </div>
+      {/* Board area */}
+      <div className="flex-1 overflow-auto px-5 py-4">
+        {loading ? (
+          <div className="flex items-center justify-center h-full">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
-
-          {/* Bulk action bar */}
-          {selectedTasks.size > 0 && (
-            <div className="flex items-center gap-3 mt-3 p-3 rounded-lg border bg-primary/5 border-primary/20">
-              <span className="text-sm font-medium">{selectedTasks.size} selected</span>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={bulkMarkDone}
-                disabled={bulkActioning}
-              >
-                {bulkActioning ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <CheckCircle2 className="h-4 w-4 mr-2" />
-                )}
-                Mark as Done
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="gap-2"
-                onClick={bulkOpenLinkedIns}
-                disabled={bulkActioning}
-              >
-                <Linkedin className="h-4 w-4" />
-                Open LinkedIns
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="text-destructive border-destructive/30 hover:bg-destructive/10"
-                onClick={() => setBulkDeleteDialogOpen(true)}
-                disabled={bulkActioning}
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setSelectedTasks(new Set())}
-                disabled={bulkActioning}
-              >
-                Clear selection
-              </Button>
-            </div>
-          )}
-        </CardHeader>
-
-        <CardContent>
-          {displayedTasks.length === 0 ? (
-            <div className="py-12 text-center">
-              {activeView === "linkedin" ? (
-                <>
-                  <Linkedin className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                  <p className="text-lg font-medium mb-1">No LinkedIn tasks</p>
-                  <p className="text-sm text-muted-foreground">
-                    LinkedIn connection and messaging tasks from sequences will appear here
-                  </p>
-                </>
-              ) : (
-                <>
-                  <CalendarClock className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                  <p className="text-lg font-medium mb-1">No tasks</p>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Your tasks will appear here
-                  </p>
-                  <Button onClick={() => setCreateDialogOpen(true)} className="gap-2">
-                    <Plus className="h-4 w-4" />
-                    Create Task
-                  </Button>
-                </>
-              )}
-            </div>
-          ) : (
-            <DragDropContext onDragEnd={handleDragEnd}>
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* To Do Column */}
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <h3 className="text-sm font-medium">To Do</h3>
-                    <Badge variant="secondary" className="text-xs">
-                      {tasksByStatus.to_do.length}
-                    </Badge>
-                  </div>
-                  <Droppable droppableId="to_do">
-                    {(provided, snapshot) => (
-                      <div
-                        ref={provided.innerRef}
-                        {...provided.droppableProps}
-                        className={cn(
-                          "min-h-[500px] p-2 rounded-lg border border-dashed transition-colors",
-                          snapshot.isDraggingOver ? "bg-primary/10 border-primary" : "bg-muted/30 border-transparent"
-                        )}
-                      >
-                        <div className="space-y-3">
-                          {tasksByStatus.to_do.map((task, index) => renderTaskCard(task, index))}
-                          {tasksByStatus.to_do.length === 0 && !snapshot.isDraggingOver && (
-                            <p className="text-sm text-muted-foreground text-center py-8">
-                              No tasks to do
-                            </p>
-                          )}
-                        </div>
-                        {provided.placeholder}
-                      </div>
-                    )}
-                  </Droppable>
+        ) : displayedTasks.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full gap-3">
+            {activeView === "linkedin" ? (
+              <>
+                <Linkedin className="h-10 w-10 text-muted-foreground/30" />
+                <p className="text-[14px] font-medium">No LinkedIn tasks</p>
+                <p className="text-[13px] text-muted-foreground">LinkedIn connection and messaging tasks from sequences will appear here</p>
+              </>
+            ) : (
+              <>
+                <CalendarClock className="h-10 w-10 text-muted-foreground/30" />
+                <p className="text-[14px] font-medium">No tasks yet</p>
+                <p className="text-[13px] text-muted-foreground">Create your first task to get started</p>
+                <Button size="sm" onClick={() => setCreateDialogOpen(true)} className="h-8 text-[12px] gap-1.5 mt-1">
+                  <Plus className="h-3.5 w-3.5" /> Create Task
+                </Button>
+              </>
+            )}
+          </div>
+        ) : (
+          <DragDropContext onDragEnd={handleDragEnd}>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-full">
+              {/* To Do Column */}
+              <div className="flex flex-col min-h-0">
+                <div className="flex items-center gap-2 mb-3">
+                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">To Do</h3>
+                  <span className="text-[10px] font-semibold px-1.5 py-0 rounded-full bg-muted text-muted-foreground leading-5">{tasksByStatus.to_do.length}</span>
                 </div>
-
-                {/* In Progress Column */}
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <h3 className="text-sm font-medium">In Progress</h3>
-                    <Badge variant="secondary" className="text-xs">
-                      {tasksByStatus.in_progress.length}
-                    </Badge>
-                  </div>
-                  <Droppable droppableId="in_progress">
-                    {(provided, snapshot) => (
-                      <div
-                        ref={provided.innerRef}
-                        {...provided.droppableProps}
-                        className={cn(
-                          "min-h-[500px] p-2 rounded-lg border border-dashed transition-colors",
-                          snapshot.isDraggingOver ? "bg-primary/10 border-primary" : "bg-muted/30 border-transparent"
+                <Droppable droppableId="to_do">
+                  {(provided, snapshot) => (
+                    <div
+                      ref={provided.innerRef}
+                      {...provided.droppableProps}
+                      className={cn(
+                        "flex-1 min-h-[200px] p-2 rounded-lg border border-dashed transition-colors",
+                        snapshot.isDraggingOver ? "bg-accent/5 border-accent/40" : "border-border/50 bg-muted/20"
+                      )}
+                    >
+                      <div className="space-y-2">
+                        {tasksByStatus.to_do.map((task, index) => renderTaskCard(task, index))}
+                        {tasksByStatus.to_do.length === 0 && !snapshot.isDraggingOver && (
+                          <p className="text-[12px] text-muted-foreground text-center py-8">No tasks to do</p>
                         )}
-                      >
-                        <div className="space-y-3">
-                          {tasksByStatus.in_progress.map((task, index) => renderTaskCard(task, index))}
-                          {tasksByStatus.in_progress.length === 0 && !snapshot.isDraggingOver && (
-                            <p className="text-sm text-muted-foreground text-center py-8">
-                              No tasks in progress
-                            </p>
-                          )}
-                        </div>
-                        {provided.placeholder}
                       </div>
-                    )}
-                  </Droppable>
-                </div>
-
-                {/* Done Column */}
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <h3 className="text-sm font-medium">Done</h3>
-                    <Badge variant="secondary" className="text-xs">
-                      {tasksByStatus.done.length}
-                    </Badge>
-                  </div>
-                  <Droppable droppableId="done">
-                    {(provided, snapshot) => (
-                      <div
-                        ref={provided.innerRef}
-                        {...provided.droppableProps}
-                        className={cn(
-                          "min-h-[500px] p-2 rounded-lg border border-dashed transition-colors",
-                          snapshot.isDraggingOver ? "bg-primary/10 border-primary" : "bg-muted/30 border-transparent"
-                        )}
-                      >
-                        <div className="space-y-3">
-                          {tasksByStatus.done.map((task, index) => renderTaskCard(task, index))}
-                          {tasksByStatus.done.length === 0 && !snapshot.isDraggingOver && (
-                            <p className="text-sm text-muted-foreground text-center py-8">
-                              No completed tasks
-                            </p>
-                          )}
-                        </div>
-                        {provided.placeholder}
-                      </div>
-                    )}
-                  </Droppable>
-                </div>
+                      {provided.placeholder}
+                    </div>
+                  )}
+                </Droppable>
               </div>
-            </DragDropContext>
-          )}
-        </CardContent>
-      </Card>
+
+              {/* In Progress Column */}
+              <div className="flex flex-col min-h-0">
+                <div className="flex items-center gap-2 mb-3">
+                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">In Progress</h3>
+                  <span className="text-[10px] font-semibold px-1.5 py-0 rounded-full bg-blue-500/10 text-blue-400 leading-5">{tasksByStatus.in_progress.length}</span>
+                </div>
+                <Droppable droppableId="in_progress">
+                  {(provided, snapshot) => (
+                    <div
+                      ref={provided.innerRef}
+                      {...provided.droppableProps}
+                      className={cn(
+                        "flex-1 min-h-[200px] p-2 rounded-lg border border-dashed transition-colors",
+                        snapshot.isDraggingOver ? "bg-blue-500/5 border-blue-500/30" : "border-border/50 bg-muted/20"
+                      )}
+                    >
+                      <div className="space-y-2">
+                        {tasksByStatus.in_progress.map((task, index) => renderTaskCard(task, index))}
+                        {tasksByStatus.in_progress.length === 0 && !snapshot.isDraggingOver && (
+                          <p className="text-[12px] text-muted-foreground text-center py-8">No tasks in progress</p>
+                        )}
+                      </div>
+                      {provided.placeholder}
+                    </div>
+                  )}
+                </Droppable>
+              </div>
+
+              {/* Done Column */}
+              <div className="flex flex-col min-h-0">
+                <div className="flex items-center gap-2 mb-3">
+                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">Done</h3>
+                  <span className="text-[10px] font-semibold px-1.5 py-0 rounded-full bg-[hsl(100,78%,44%)]/10 text-[hsl(100,78%,44%)] leading-5">{tasksByStatus.done.length}</span>
+                </div>
+                <Droppable droppableId="done">
+                  {(provided, snapshot) => (
+                    <div
+                      ref={provided.innerRef}
+                      {...provided.droppableProps}
+                      className={cn(
+                        "flex-1 min-h-[200px] p-2 rounded-lg border border-dashed transition-colors",
+                        snapshot.isDraggingOver ? "bg-[hsl(100,78%,44%)]/5 border-[hsl(100,78%,44%)]/30" : "border-border/50 bg-muted/20"
+                      )}
+                    >
+                      <div className="space-y-2">
+                        {tasksByStatus.done.map((task, index) => renderTaskCard(task, index))}
+                        {tasksByStatus.done.length === 0 && !snapshot.isDraggingOver && (
+                          <p className="text-[12px] text-muted-foreground text-center py-8">No completed tasks</p>
+                        )}
+                      </div>
+                      {provided.placeholder}
+                    </div>
+                  )}
+                </Droppable>
+              </div>
+            </div>
+          </DragDropContext>
+        )}
+      </div>
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
@@ -845,17 +822,8 @@ export default function TasksPage() {
   return (
     <Suspense
       fallback={
-        <div className="space-y-6">
-          <div className="flex justify-between items-center">
-            <h1 className="text-xl font-semibold">Tasks</h1>
-          </div>
-          <Card>
-            <CardContent className="py-12">
-              <div className="flex items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
-            </CardContent>
-          </Card>
+        <div className="-m-5 flex flex-col items-center justify-center" style={{ height: 'calc(100vh - 3rem)' }}>
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       }
     >

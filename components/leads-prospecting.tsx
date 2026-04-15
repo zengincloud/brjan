@@ -1,12 +1,12 @@
 "use client"
 
-import { useState, useEffect, Fragment } from "react"
+import { useState, useEffect, Fragment, ElementType } from "react"
 import { useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Search, ChevronDown, ChevronUp, Building2, Briefcase, User, BarChart, ArrowRight, Clock, Mail, Phone, Linkedin as LinkedinIcon, Loader2, MapPin, Calendar, TrendingUp, X, Save, FolderOpen, Trash2, Ban, Eye } from "lucide-react"
+import { Search, ChevronDown, ChevronUp, Building2, Briefcase, User, BarChart, ArrowRight, Clock, Mail, Phone, Linkedin as LinkedinIcon, Loader2, MapPin, Calendar, TrendingUp, X, Save, FolderOpen, Trash2, Ban, Eye, Plus, Settings2, RotateCcw, SlidersHorizontal, DollarSign, Users } from "lucide-react"
 import { Collapsible } from "@/components/ui/collapsible"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { useToast } from "@/components/ui/use-toast"
+import { cn } from "@/lib/utils"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -98,6 +99,127 @@ const sequences = [
   { id: "new-lead", name: "New Lead Welcome" },
 ]
 
+// ── Filter section row ─────────────────────────────────────────────────────────
+
+function FilterSectionRow({ icon: Icon, label, isOpen, onToggle, hasValue, onClear, children }: {
+  icon: ElementType
+  label: string
+  isOpen: boolean
+  onToggle: () => void
+  hasValue: boolean
+  onClear: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <div>
+      <button
+        onClick={onToggle}
+        className={cn(
+          "w-full flex items-center gap-2 px-2 py-1.5 rounded-md transition-colors text-left",
+          hasValue ? "bg-accent/10 hover:bg-accent/15" : "hover:bg-muted/50"
+        )}
+      >
+        <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <span className="text-[13px] flex-1">{label}</span>
+        {hasValue ? (
+          <button onClick={(e) => { e.stopPropagation(); onClear() }} className="text-muted-foreground hover:text-foreground">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        ) : (
+          <Plus className="h-3.5 w-3.5 text-muted-foreground" />
+        )}
+      </button>
+      {isOpen && (
+        <div className="ml-6 mr-2 mt-1 mb-2 space-y-2">
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Column definitions ──────────────────────────────────────────────────────────
+
+type LeadColDef = { key: string; label: string }
+
+const LEAD_RESULT_COLS: LeadColDef[] = [
+  { key: 'title',     label: 'Job Title' },
+  { key: 'company',   label: 'Company' },
+  { key: 'emails',    label: 'Emails' },
+  { key: 'phones',    label: 'Phone Numbers' },
+  { key: 'location',  label: 'Location' },
+  { key: 'seniority', label: 'Seniority' },
+  { key: 'intent',    label: 'Buyer Intent' },
+]
+const DEFAULT_LEAD_RESULT_COLS = new Set(['title', 'company', 'emails', 'phones'])
+
+// ── Column settings dialog ──────────────────────────────────────────────────────
+
+function LeadsResultColSettings({ open, onOpenChange, visibleCols, onSave }: {
+  open: boolean
+  onOpenChange: (o: boolean) => void
+  visibleCols: Set<string>
+  onSave: (cols: Set<string>) => void
+}) {
+  const [draft, setDraft] = useState<Set<string>>(new Set(visibleCols))
+  useEffect(() => { if (open) setDraft(new Set(visibleCols)) }, [open, visibleCols])
+  const toggle = (key: string) =>
+    setDraft((prev) => { const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next })
+  const ordered = LEAD_RESULT_COLS.filter((c) => draft.has(c.key))
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <div className="flex items-center gap-2">
+            <Settings2 className="h-4 w-4 text-muted-foreground" />
+            <DialogTitle>Contact Column Settings</DialogTitle>
+          </div>
+          <p className="text-[13px] text-muted-foreground mt-0.5">Select the columns you want to see.</p>
+        </DialogHeader>
+        <div className="flex gap-8 pt-2">
+          <div className="flex-1">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-3">Columns</p>
+            <div className="space-y-2.5">
+              {LEAD_RESULT_COLS.map((col) => (
+                <label key={col.key} className="flex items-center gap-2.5 cursor-pointer">
+                  <Checkbox checked={draft.has(col.key)} onCheckedChange={() => toggle(col.key)} />
+                  <span className="text-[13px]">{col.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <div className="flex-1">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-3">Column Order</p>
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-muted/50">
+                <span className="text-[12px] text-muted-foreground w-4 shrink-0">1</span>
+                <span className="text-[13px] text-muted-foreground flex-1">Name</span>
+              </div>
+              {ordered.map((col, i) => (
+                <div key={col.key} className="flex items-center gap-3 px-3 py-2 rounded-lg border border-border">
+                  <span className="text-[12px] text-muted-foreground w-4 shrink-0">{i + 2}</span>
+                  <span className="text-[13px] flex-1">{col.label}</span>
+                  <button onClick={() => toggle(col.key)} className="text-muted-foreground hover:text-foreground">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <DialogFooter className="mt-4">
+          <Button variant="ghost" size="sm" onClick={() => setDraft(new Set(DEFAULT_LEAD_RESULT_COLS))} className="mr-auto gap-1.5">
+            <RotateCcw className="h-3.5 w-3.5" /> Reset to defaults
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button size="sm" onClick={() => { onSave(draft); onOpenChange(false) }}>Save Changes</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // Helper function to convert text to title case
 function toTitleCase(str: string | null | undefined): string {
   if (!str) return ""
@@ -160,6 +282,12 @@ export function LeadsProspecting() {
   // Reveal state
   const [revealedContacts, setRevealedContacts] = useState<Record<string, RevealedData>>({})
   const [revealingContacts, setRevealingContacts] = useState<Set<string>>(new Set())
+
+  // Filter panel + column settings
+  const [showFilters, setShowFilters] = useState(true)
+  const [openFilter, setOpenFilter] = useState<string | null>(null)
+  const [columnSettingsOpen, setColumnSettingsOpen] = useState(false)
+  const [visibleResultCols, setVisibleResultCols] = useState<Set<string>>(new Set(DEFAULT_LEAD_RESULT_COLS))
 
   // Load saved searches from localStorage on mount
   useEffect(() => {
@@ -1062,6 +1190,18 @@ export function LeadsProspecting() {
     }
   }
 
+  const activeFilterCount = (
+    (nameFilter ? 1 : 0) +
+    (currentCompany ? 1 : 0) +
+    (jobFunction ? 1 : 0) +
+    jobTitles.length +
+    (geography || cities.length ? 1 : 0) +
+    seniorityLevels.length +
+    industries.length +
+    (headcountRange[0] !== 10 || headcountRange[1] < 10000 ? 1 : 0) +
+    (buyerIntent !== "all" ? 1 : 0)
+  )
+
   return (
     <div className="space-y-6">
       {/* Search and Keywords */}
@@ -1076,6 +1216,17 @@ export function LeadsProspecting() {
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
           />
         </div>
+        <Button
+          variant={showFilters ? "secondary" : "outline"}
+          onClick={() => setShowFilters((v) => !v)}
+          className="gap-2"
+        >
+          <SlidersHorizontal className="h-4 w-4" />
+          {showFilters ? "Hide Filters" : "Show Filters"}
+          {!showFilters && activeFilterCount > 0 && (
+            <span className="bg-accent text-white rounded-full text-[10px] px-1.5 py-0 leading-5 font-medium">{activeFilterCount}</span>
+          )}
+        </Button>
         <div className="flex gap-2">
           <Button onClick={handleSearch} disabled={isLoading}>
             {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
@@ -1153,87 +1304,38 @@ export function LeadsProspecting() {
         </DialogContent>
       </Dialog>
 
-      {/* Filters Section */}
-      <div className="grid gap-6 md:grid-cols-[300px_1fr]">
+      {/* Filters + Results Section */}
+      <div className={cn("grid gap-6", showFilters ? "md:grid-cols-[280px_1fr]" : "grid-cols-1")}>
         {/* Left Sidebar - Filters */}
-        <div className="space-y-6">
-          {/* Company Filters */}
-          <Card>
-            <CardHeader className="py-3 cursor-pointer" onClick={() => setIsCompanyOpen(!isCompanyOpen)}>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-[13px] font-semibold flex items-center">
-                  <Building2 className="h-4 w-4 mr-2" />
-                  Company
-                </CardTitle>
-                <ChevronDown className={`h-4 w-4 transition-transform ${isCompanyOpen ? "rotate-180" : ""}`} />
-              </div>
-            </CardHeader>
-            <Collapsible open={isCompanyOpen}>
-              <CardContent className="pt-0 space-y-5">
-                {/* Current Company */}
-                <div className="space-y-3">
-                  <Label className="text-sm font-medium">Current Company</Label>
-                  <Input
-                    placeholder="Enter company name"
-                    value={currentCompany}
-                    onChange={(e) => setCurrentCompany(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                  />
-                </div>
+        {showFilters && (
+          <div className="border border-border rounded-lg overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="px-4 py-3 border-b border-border flex items-center justify-between shrink-0">
+              <span className="text-[12px] text-muted-foreground">{activeFilterCount} filter{activeFilterCount !== 1 ? 's' : ''} applied.</span>
+            </div>
 
-                <Separator />
+            <div className="px-3 py-2.5 border-b border-border">
+              <Button variant="outline" size="sm" className="w-full h-8 text-[12px] gap-1.5 justify-start">
+                <Clock className="h-3.5 w-3.5" /> Search History
+              </Button>
+            </div>
 
-                {/* Company Headcount */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium">Company Headcount</Label>
-                    <span className="text-xs font-medium text-primary">
-                      {headcountRange[0] === 10 ? "Any" : headcountRange[0].toLocaleString()} - {headcountRange[1] >= 10000 ? "10,000+" : headcountRange[1].toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="px-2">
-                    <Slider
-                      value={headcountRange.map(v => v >= 10000 ? 1000 : Math.round(v / 10))}
-                      min={1}
-                      max={1000}
-                      step={1}
-                      onValueChange={(values) => {
-                        setHeadcountRange(values.map(v => v >= 1000 ? 10000 : v * 10))
-                      }}
-                      className="my-5"
-                    />
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>10</span>
-                      <span>2,500</span>
-                      <span>5,000</span>
-                      <span>10,000+</span>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Collapsible>
-          </Card>
+            <div className="flex-1 overflow-y-auto px-3 py-3">
+              {/* PERSONAL FILTERS */}
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/40 mb-2 px-1">Personal Filters</p>
+              <div className="space-y-0.5 mb-4">
 
-          {/* Role Filters */}
-          <Card>
-            <CardHeader className="py-3 cursor-pointer" onClick={() => setIsRoleOpen(!isRoleOpen)}>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-[13px] font-semibold flex items-center">
-                  <Briefcase className="h-4 w-4 mr-2" />
-                  Role
-                </CardTitle>
-                <ChevronDown className={`h-4 w-4 transition-transform ${isRoleOpen ? "rotate-180" : ""}`} />
-              </div>
-            </CardHeader>
-            <Collapsible open={isRoleOpen}>
-              <CardContent className="pt-0 space-y-5">
-                {/* Function */}
-                <div className="space-y-3">
-                  <Label className="text-sm font-medium">Function</Label>
+                <FilterSectionRow icon={User} label="Name"
+                  isOpen={openFilter === 'name'} onToggle={() => setOpenFilter(openFilter === 'name' ? null : 'name')}
+                  hasValue={!!nameFilter} onClear={() => setNameFilter('')}>
+                  <Input value={nameFilter} onChange={(e) => setNameFilter(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSearch()} placeholder="Person's name..." className="h-8 text-[12px]" />
+                </FilterSectionRow>
+
+                <FilterSectionRow icon={Briefcase} label="Job Information"
+                  isOpen={openFilter === 'job'} onToggle={() => setOpenFilter(openFilter === 'job' ? null : 'job')}
+                  hasValue={!!(jobFunction || jobTitles.length)} onClear={() => { setJobFunction(''); setJobTitles([]) }}>
                   <Select value={jobFunction} onValueChange={setJobFunction}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select function" />
-                    </SelectTrigger>
+                    <SelectTrigger className="h-8 text-[12px]"><SelectValue placeholder="Select function" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="sales">Sales</SelectItem>
                       <SelectItem value="marketing">Marketing</SelectItem>
@@ -1245,104 +1347,22 @@ export function LeadsProspecting() {
                       <SelectItem value="engineering">Engineering</SelectItem>
                     </SelectContent>
                   </Select>
-                </div>
-
-                <Separator />
-
-                {/* Current Job Title - Chip Input */}
-                <div className="space-y-3">
-                  <Label className="text-sm font-medium">Current Job Title</Label>
-                  <div className="flex flex-wrap gap-1.5 p-2 min-h-[42px] border rounded-md bg-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
-                    {jobTitles.map((title) => (
-                      <Badge
-                        key={title}
-                        variant="secondary"
-                        className="flex items-center gap-1 px-2 py-1 text-xs"
-                      >
-                        {title}
-                        <button
-                          type="button"
-                          onClick={() => removeJobTitle(title)}
-                          className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
+                  <div className="flex flex-wrap gap-1 p-1.5 min-h-[36px] border rounded-md bg-background text-[12px]">
+                    {jobTitles.map((t) => (
+                      <Badge key={t} variant="secondary" className="flex items-center gap-1 px-1.5 py-0.5 text-[11px]">
+                        {t}
+                        <button type="button" onClick={() => setJobTitles(jobTitles.filter(x => x !== t))}><X className="h-2.5 w-2.5" /></button>
                       </Badge>
                     ))}
-                    <input
-                      type="text"
-                      placeholder={jobTitles.length === 0 ? "Type and press enter..." : ""}
-                      value={jobTitleInput}
-                      onChange={(e) => setJobTitleInput(e.target.value)}
-                      onKeyDown={handleJobTitleKeyDown}
-                      className="flex-1 min-w-[120px] bg-transparent border-none outline-none text-sm placeholder:text-muted-foreground"
-                    />
+                    <input type="text" placeholder={jobTitles.length === 0 ? "Add title, press enter..." : ""} value={jobTitleInput} onChange={(e) => setJobTitleInput(e.target.value)} onKeyDown={handleJobTitleKeyDown} className="flex-1 min-w-[80px] bg-transparent border-none outline-none text-[12px]" />
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Press enter to add multiple titles
-                  </p>
-                </div>
+                </FilterSectionRow>
 
-                <Separator />
-
-                {/* Seniority Level */}
-                <div className="space-y-3">
-                  <Label className="text-sm font-medium">Seniority Level</Label>
-                  <div className="space-y-2">
-                    {["C-Suite", "VP", "Director", "Manager", "Individual Contributor"].map((level) => (
-                      <div key={level} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`level-${level.toLowerCase().replace(/\s+/g, "-")}`}
-                          checked={seniorityLevels.includes(level)}
-                          onCheckedChange={() => toggleSeniorityLevel(level)}
-                        />
-                        <Label
-                          htmlFor={`level-${level.toLowerCase().replace(/\s+/g, "-")}`}
-                          className="text-sm font-normal"
-                        >
-                          {level}
-                        </Label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </CardContent>
-            </Collapsible>
-          </Card>
-
-          {/* Personal Filters */}
-          <Card>
-            <CardHeader className="py-3 cursor-pointer" onClick={() => setIsPersonalOpen(!isPersonalOpen)}>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-[13px] font-semibold flex items-center">
-                  <User className="h-4 w-4 mr-2" />
-                  Personal
-                </CardTitle>
-                <ChevronDown className={`h-4 w-4 transition-transform ${isPersonalOpen ? "rotate-180" : ""}`} />
-              </div>
-            </CardHeader>
-            <Collapsible open={isPersonalOpen}>
-              <CardContent className="pt-0 space-y-5">
-                {/* Name */}
-                <div className="space-y-3">
-                  <Label className="text-sm font-medium">Name</Label>
-                  <Input
-                    placeholder="Enter person's name"
-                    value={nameFilter}
-                    onChange={(e) => setNameFilter(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                  />
-                </div>
-
-                <Separator />
-
-                {/* Geography */}
-                <div className="space-y-3">
-                  <Label className="text-sm font-medium">Geography</Label>
+                <FilterSectionRow icon={MapPin} label="Location"
+                  isOpen={openFilter === 'location'} onToggle={() => setOpenFilter(openFilter === 'location' ? null : 'location')}
+                  hasValue={!!(geography || cities.length)} onClear={() => { setGeography(''); setCities([]) }}>
                   <Select value={geography} onValueChange={setGeography}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select region" />
-                    </SelectTrigger>
+                    <SelectTrigger className="h-8 text-[12px]"><SelectValue placeholder="Select region" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="north-america">North America</SelectItem>
                       <SelectItem value="europe">Europe</SelectItem>
@@ -1351,229 +1371,88 @@ export function LeadsProspecting() {
                       <SelectItem value="middle-east">Middle East & Africa</SelectItem>
                     </SelectContent>
                   </Select>
-                  <div className="flex flex-wrap gap-1.5 p-2 min-h-[42px] border rounded-md bg-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 mt-2">
+                  <div className="flex flex-wrap gap-1 p-1.5 min-h-[36px] border rounded-md bg-background">
                     {cities.map((c) => (
-                      <Badge
-                        key={c}
-                        variant="secondary"
-                        className="flex items-center gap-1 px-2 py-1 text-xs"
-                      >
+                      <Badge key={c} variant="secondary" className="flex items-center gap-1 px-1.5 py-0.5 text-[11px]">
                         {c}
-                        <button
-                          type="button"
-                          onClick={() => removeCity(c)}
-                          className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
+                        <button type="button" onClick={() => removeCity(c)}><X className="h-2.5 w-2.5" /></button>
                       </Badge>
                     ))}
-                    <input
-                      type="text"
-                      placeholder={cities.length === 0 ? "City or country, press enter..." : ""}
-                      value={cityInput}
-                      onChange={(e) => setCityInput(e.target.value)}
-                      onKeyDown={handleCityKeyDown}
-                      className="flex-1 min-w-[120px] bg-transparent border-none outline-none text-sm placeholder:text-muted-foreground"
-                    />
+                    <input type="text" placeholder={cities.length === 0 ? "City or country..." : ""} value={cityInput} onChange={(e) => setCityInput(e.target.value)} onKeyDown={handleCityKeyDown} className="flex-1 min-w-[80px] bg-transparent border-none outline-none text-[12px]" />
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Press enter to add multiple locations
-                  </p>
-                </div>
+                </FilterSectionRow>
 
-                <Separator />
-
-                {/* Industry */}
-                <div className="space-y-3">
-                  <Label className="text-sm font-medium">Industry</Label>
-                  <div className="space-y-2">
-                    {["Technology", "Financial Services", "Healthcare", "Manufacturing", "Retail"].map((industry) => (
-                      <div key={industry} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`personal-industry-${industry.toLowerCase()}`}
-                          checked={industries.includes(industry)}
-                          onCheckedChange={() => toggleIndustry(industry)}
-                        />
-                        <Label htmlFor={`personal-industry-${industry.toLowerCase()}`} className="text-sm font-normal">
-                          {industry}
-                        </Label>
+                <FilterSectionRow icon={BarChart} label="Seniority"
+                  isOpen={openFilter === 'seniority'} onToggle={() => setOpenFilter(openFilter === 'seniority' ? null : 'seniority')}
+                  hasValue={seniorityLevels.length > 0} onClear={() => setSeniorityLevels([])}>
+                  <div className="space-y-1.5">
+                    {["C-Suite", "VP", "Director", "Manager", "Individual Contributor"].map((level) => (
+                      <div key={level} className="flex items-center gap-2">
+                        <Checkbox id={`sl-${level}`} checked={seniorityLevels.includes(level)} onCheckedChange={() => toggleSeniorityLevel(level)} />
+                        <Label htmlFor={`sl-${level}`} className="text-[12px] font-normal">{level}</Label>
                       </div>
                     ))}
                   </div>
-                </div>
-              </CardContent>
-            </Collapsible>
-          </Card>
+                </FilterSectionRow>
 
-          {/* Buyer Intent Filters */}
-          <Card>
-            <CardHeader className="py-3 cursor-pointer" onClick={() => setIsBuyerIntentOpen(!isBuyerIntentOpen)}>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-[13px] font-semibold flex items-center">
-                  <BarChart className="h-4 w-4 mr-2" />
-                  Buyer Intent
-                </CardTitle>
-                <ChevronDown className={`h-4 w-4 transition-transform ${isBuyerIntentOpen ? "rotate-180" : ""}`} />
               </div>
-            </CardHeader>
-            <Collapsible open={isBuyerIntentOpen}>
-              <CardContent className="pt-0 space-y-5">
-                <RadioGroup value={buyerIntent} onValueChange={setBuyerIntent}>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="all" id="intent-all" />
-                    <Label htmlFor="intent-all">All</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="strong" id="intent-strong" />
-                    <Label htmlFor="intent-strong" className="flex items-center">
-                      Strong
-                      <Badge className="ml-2 bg-green-500/20 text-green-500 hover:bg-green-500/30">High</Badge>
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="medium" id="intent-medium" />
-                    <Label htmlFor="intent-medium" className="flex items-center">
-                      Medium
-                      <Badge className="ml-2 bg-yellow-500/20 text-yellow-500 hover:bg-yellow-500/30">Medium</Badge>
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="weak" id="intent-weak" />
-                    <Label htmlFor="intent-weak" className="flex items-center">
-                      Weak
-                      <Badge className="ml-2 bg-blue-500/20 text-blue-500 hover:bg-blue-500/30">Low</Badge>
-                    </Label>
-                  </div>
-                </RadioGroup>
-              </CardContent>
-            </Collapsible>
-          </Card>
 
-          {/* Exclusions */}
-          <Card>
-            <CardHeader className="py-3 cursor-pointer" onClick={() => setIsExclusionsOpen(!isExclusionsOpen)}>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-[13px] font-semibold flex items-center">
-                  <Ban className="h-4 w-4 mr-2" />
-                  Exclusions
-                  {(excludedNames.length > 0 || excludedCompanies.length > 0 || excludedTitles.length > 0 || excludedIndustries.length > 0) && (
-                    <Badge variant="secondary" className="ml-2 text-xs">
-                      {excludedNames.length + excludedCompanies.length + excludedTitles.length + excludedIndustries.length}
-                    </Badge>
-                  )}
-                </CardTitle>
-                <ChevronDown className={`h-4 w-4 transition-transform ${isExclusionsOpen ? "rotate-180" : ""}`} />
+              {/* COMPANY FILTERS */}
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/40 mb-2 px-1">Company Filters</p>
+              <div className="space-y-0.5">
+
+                <FilterSectionRow icon={Building2} label="Business Name"
+                  isOpen={openFilter === 'company'} onToggle={() => setOpenFilter(openFilter === 'company' ? null : 'company')}
+                  hasValue={!!currentCompany} onClear={() => setCurrentCompany('')}>
+                  <Input value={currentCompany} onChange={(e) => setCurrentCompany(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSearch()} placeholder="Company name..." className="h-8 text-[12px]" />
+                </FilterSectionRow>
+
+                <FilterSectionRow icon={MapPin} label="HQ Location"
+                  isOpen={openFilter === 'hq'} onToggle={() => setOpenFilter(openFilter === 'hq' ? null : 'hq')}
+                  hasValue={false} onClear={() => {}}>
+                  <Input placeholder="Country or region..." className="h-8 text-[12px]" />
+                </FilterSectionRow>
+
+                <FilterSectionRow icon={Briefcase} label="Industry"
+                  isOpen={openFilter === 'industry'} onToggle={() => setOpenFilter(openFilter === 'industry' ? null : 'industry')}
+                  hasValue={industries.length > 0} onClear={() => setIndustries([])}>
+                  <div className="space-y-1.5">
+                    {["Technology", "Financial Services", "Healthcare", "Manufacturing", "Retail"].map((ind) => (
+                      <div key={ind} className="flex items-center gap-2">
+                        <Checkbox id={`ind-${ind}`} checked={industries.includes(ind)} onCheckedChange={() => toggleIndustry(ind)} />
+                        <Label htmlFor={`ind-${ind}`} className="text-[12px] font-normal">{ind}</Label>
+                      </div>
+                    ))}
+                  </div>
+                </FilterSectionRow>
+
+                <FilterSectionRow icon={Users} label="Headcount"
+                  isOpen={openFilter === 'headcount'} onToggle={() => setOpenFilter(openFilter === 'headcount' ? null : 'headcount')}
+                  hasValue={headcountRange[0] !== 10 || headcountRange[1] < 10000} onClear={() => setHeadcountRange([10, 10000])}>
+                  <div className="pt-1">
+                    <div className="flex justify-between text-[11px] text-muted-foreground mb-1">
+                      <span>{headcountRange[0] === 10 ? 'Any' : headcountRange[0].toLocaleString()}</span>
+                      <span>{headcountRange[1] >= 10000 ? '10,000+' : headcountRange[1].toLocaleString()}</span>
+                    </div>
+                    <Slider value={headcountRange.map(v => v >= 10000 ? 1000 : Math.round(v / 10))} min={1} max={1000} step={1}
+                      onValueChange={(vals) => setHeadcountRange(vals.map(v => v >= 1000 ? 10000 : v * 10))} className="my-3" />
+                  </div>
+                </FilterSectionRow>
+
               </div>
-            </CardHeader>
-            <Collapsible open={isExclusionsOpen}>
-              <CardContent className="pt-0 space-y-5">
-                {/* Exclude Names */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Exclude Names</Label>
-                  <div className="flex flex-wrap gap-1.5 p-2 min-h-[38px] border rounded-md bg-background focus-within:ring-2 focus-within:ring-ring">
-                    {excludedNames.map((name) => (
-                      <Badge key={name} variant="destructive" className="flex items-center gap-1 px-2 py-0.5 text-xs">
-                        {name}
-                        <button type="button" onClick={() => setExcludedNames(excludedNames.filter(n => n !== name))} className="ml-1 hover:bg-white/20 rounded-full p-0.5">
-                          <X className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    ))}
-                    <input
-                      type="text"
-                      placeholder={excludedNames.length === 0 ? "Name to exclude..." : ""}
-                      value={excludedNameInput}
-                      onChange={(e) => setExcludedNameInput(e.target.value)}
-                      onKeyDown={handleExcludedNameKeyDown}
-                      className="flex-1 min-w-[100px] bg-transparent border-none outline-none text-sm placeholder:text-muted-foreground"
-                    />
-                  </div>
-                </div>
+            </div>
 
-                {/* Exclude Companies */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Exclude Companies</Label>
-                  <div className="flex flex-wrap gap-1.5 p-2 min-h-[38px] border rounded-md bg-background focus-within:ring-2 focus-within:ring-ring">
-                    {excludedCompanies.map((company) => (
-                      <Badge key={company} variant="destructive" className="flex items-center gap-1 px-2 py-0.5 text-xs">
-                        {company}
-                        <button type="button" onClick={() => setExcludedCompanies(excludedCompanies.filter(c => c !== company))} className="ml-1 hover:bg-white/20 rounded-full p-0.5">
-                          <X className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    ))}
-                    <input
-                      type="text"
-                      placeholder={excludedCompanies.length === 0 ? "Company to exclude..." : ""}
-                      value={excludedCompanyInput}
-                      onChange={(e) => setExcludedCompanyInput(e.target.value)}
-                      onKeyDown={handleExcludedCompanyKeyDown}
-                      className="flex-1 min-w-[100px] bg-transparent border-none outline-none text-sm placeholder:text-muted-foreground"
-                    />
-                  </div>
-                </div>
-
-                {/* Exclude Titles */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Exclude Titles</Label>
-                  <div className="flex flex-wrap gap-1.5 p-2 min-h-[38px] border rounded-md bg-background focus-within:ring-2 focus-within:ring-ring">
-                    {excludedTitles.map((title) => (
-                      <Badge key={title} variant="destructive" className="flex items-center gap-1 px-2 py-0.5 text-xs">
-                        {title}
-                        <button type="button" onClick={() => setExcludedTitles(excludedTitles.filter(t => t !== title))} className="ml-1 hover:bg-white/20 rounded-full p-0.5">
-                          <X className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    ))}
-                    <input
-                      type="text"
-                      placeholder={excludedTitles.length === 0 ? "Title to exclude..." : ""}
-                      value={excludedTitleInput}
-                      onChange={(e) => setExcludedTitleInput(e.target.value)}
-                      onKeyDown={handleExcludedTitleKeyDown}
-                      className="flex-1 min-w-[100px] bg-transparent border-none outline-none text-sm placeholder:text-muted-foreground"
-                    />
-                  </div>
-                </div>
-
-                {/* Exclude Industries */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Exclude Industries</Label>
-                  <div className="flex flex-wrap gap-1.5 p-2 min-h-[38px] border rounded-md bg-background focus-within:ring-2 focus-within:ring-ring">
-                    {excludedIndustries.map((industry) => (
-                      <Badge key={industry} variant="destructive" className="flex items-center gap-1 px-2 py-0.5 text-xs">
-                        {industry}
-                        <button type="button" onClick={() => setExcludedIndustries(excludedIndustries.filter(i => i !== industry))} className="ml-1 hover:bg-white/20 rounded-full p-0.5">
-                          <X className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    ))}
-                    <input
-                      type="text"
-                      placeholder={excludedIndustries.length === 0 ? "Industry to exclude..." : ""}
-                      value={excludedIndustryInput}
-                      onChange={(e) => setExcludedIndustryInput(e.target.value)}
-                      onKeyDown={handleExcludedIndustryKeyDown}
-                      className="flex-1 min-w-[100px] bg-transparent border-none outline-none text-sm placeholder:text-muted-foreground"
-                    />
-                  </div>
-                </div>
-
-                <p className="text-xs text-muted-foreground">
-                  Press enter to add exclusions
-                </p>
-              </CardContent>
-            </Collapsible>
-          </Card>
-
-          <div className="flex gap-2">
-            <Button className="flex-1" onClick={handleSearch} disabled={isLoading}>
-              Apply Filters
-            </Button>
-            <Button variant="outline" onClick={handleReset}>Reset</Button>
+            {/* Bottom actions */}
+            <div className="px-3 py-3 border-t border-border space-y-2 shrink-0">
+              <Button className="w-full h-8 text-[12px]" onClick={handleSearch} disabled={isLoading}>
+                {isLoading && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+                Apply Filters
+              </Button>
+              <Button variant="outline" className="w-full h-8 text-[12px]" onClick={handleReset}>Reset</Button>
+            </div>
           </div>
-        </div>
+        )}
+
 
         {/* Right Side - Results */}
         <Card>
@@ -1600,6 +1479,9 @@ export function LeadsProspecting() {
                 )}
               </div>
               <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" className="h-8 gap-1.5 text-[12px]" onClick={() => setColumnSettingsOpen(true)}>
+                  <Settings2 className="h-3.5 w-3.5" /> Columns
+                </Button>
                 {searchResults.length > 0 && searchResults.some(lead => !revealedContacts[lead.id]) && (
                   <Button
                     variant="outline"
@@ -1709,14 +1591,13 @@ export function LeadsProspecting() {
                         <Checkbox
                           checked={selectedProspects.length === searchResults.length && searchResults.length > 0}
                           onCheckedChange={selectAllProspects}
-                          id="select-all"
+                          id="select-all-thead"
                         />
                       </th>
                       <th className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 border-b border-border whitespace-nowrap">Name</th>
-                      <th className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 border-b border-border whitespace-nowrap">Job Title</th>
-                      <th className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 border-b border-border whitespace-nowrap">Company</th>
-                      <th className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 border-b border-border whitespace-nowrap">Emails</th>
-                      <th className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 border-b border-border whitespace-nowrap">Phone Numbers</th>
+                      {LEAD_RESULT_COLS.filter(c => visibleResultCols.has(c.key)).map(c => (
+                        <th key={c.key} className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 border-b border-border whitespace-nowrap">{c.label}</th>
+                      ))}
                       <th className="px-4 py-2.5 border-b border-border w-28" />
                     </tr>
                   </thead>
@@ -1753,62 +1634,81 @@ export function LeadsProspecting() {
                                 )}
                               </div>
                             </td>
-                            {/* Job Title */}
-                            <td className="px-4 py-2.5 max-w-[200px]">
-                              <span className="text-[13px] text-muted-foreground truncate block">{toTitleCase(lead.title) || '—'}</span>
-                            </td>
-                            {/* Company */}
-                            <td className="px-4 py-2.5">
-                              <span className="text-[13px] text-foreground whitespace-nowrap">{toTitleCase(lead.company) || '—'}</span>
-                            </td>
-                            {/* Emails */}
-                            <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
-                              {displayEmail ? (
-                                <span className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
-                                  <Mail className="h-3.5 w-3.5 text-green-500 shrink-0" />
-                                  {displayEmail}
-                                </span>
-                              ) : (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7 text-[12px] gap-1.5"
-                                  disabled={revealingContacts.has(lead.id)}
-                                  onClick={() => handleReveal(lead)}
-                                >
-                                  {revealingContacts.has(lead.id) ? (
-                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                  ) : (
-                                    <Mail className="h-3 w-3 text-green-500" />
-                                  )}
-                                  Access email
-                                </Button>
-                              )}
-                            </td>
-                            {/* Phone */}
-                            <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
-                              {displayPhone ? (
-                                <span className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
-                                  <Phone className="h-3.5 w-3.5 text-green-500 shrink-0" />
-                                  {displayPhone}
-                                </span>
-                              ) : (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7 text-[12px] gap-1.5"
-                                  disabled={revealingContacts.has(lead.id)}
-                                  onClick={() => handleReveal(lead)}
-                                >
-                                  {revealingContacts.has(lead.id) ? (
-                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                  ) : (
-                                    <Phone className="h-3 w-3" />
-                                  )}
-                                  Access mobile
-                                </Button>
-                              )}
-                            </td>
+                            {visibleResultCols.has('title') && (
+                              <td className="px-4 py-2.5 max-w-[200px]">
+                                <span className="text-[13px] text-muted-foreground truncate block">{toTitleCase(lead.title) || '—'}</span>
+                              </td>
+                            )}
+                            {visibleResultCols.has('company') && (
+                              <td className="px-4 py-2.5">
+                                <span className="text-[13px] text-foreground whitespace-nowrap">{toTitleCase(lead.company) || '—'}</span>
+                              </td>
+                            )}
+                            {visibleResultCols.has('emails') && (
+                              <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
+                                {displayEmail ? (
+                                  <span className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
+                                    <Mail className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                                    {displayEmail}
+                                  </span>
+                                ) : (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-[12px] gap-1.5"
+                                    disabled={revealingContacts.has(lead.id)}
+                                    onClick={() => handleReveal(lead)}
+                                  >
+                                    {revealingContacts.has(lead.id) ? (
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : (
+                                      <Mail className="h-3 w-3 text-green-500" />
+                                    )}
+                                    Access email
+                                  </Button>
+                                )}
+                              </td>
+                            )}
+                            {visibleResultCols.has('phones') && (
+                              <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
+                                {displayPhone ? (
+                                  <span className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
+                                    <Phone className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                                    {displayPhone}
+                                  </span>
+                                ) : (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-[12px] gap-1.5"
+                                    disabled={revealingContacts.has(lead.id)}
+                                    onClick={() => handleReveal(lead)}
+                                  >
+                                    {revealingContacts.has(lead.id) ? (
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : (
+                                      <Phone className="h-3 w-3" />
+                                    )}
+                                    Access mobile
+                                  </Button>
+                                )}
+                              </td>
+                            )}
+                            {visibleResultCols.has('location') && (
+                              <td className="px-4 py-2.5">
+                                <span className="text-[13px] text-muted-foreground whitespace-nowrap">{toTitleCase(lead.location) || '—'}</span>
+                              </td>
+                            )}
+                            {visibleResultCols.has('seniority') && (
+                              <td className="px-4 py-2.5">
+                                <span className="text-[13px] text-muted-foreground">{lead.seniorityLevel || '—'}</span>
+                              </td>
+                            )}
+                            {visibleResultCols.has('intent') && (
+                              <td className="px-4 py-2.5">
+                                {getBuyerIntentBadge(lead.buyerIntent)}
+                              </td>
+                            )}
                             {/* Actions */}
                             <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center gap-1">
@@ -1828,7 +1728,7 @@ export function LeadsProspecting() {
                           </tr>
                           {isExpanded && (
                             <tr className="border-b border-border/60 bg-muted/10">
-                              <td colSpan={7} className="px-6 py-4">
+                              <td colSpan={2 + visibleResultCols.size} className="px-6 py-4">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                   <div className="space-y-2">
                                     <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">Contact Details</p>
@@ -1917,6 +1817,13 @@ export function LeadsProspecting() {
           </CardContent>
         </Card>
       </div>
+
+      <LeadsResultColSettings
+        open={columnSettingsOpen}
+        onOpenChange={setColumnSettingsOpen}
+        visibleCols={visibleResultCols}
+        onSave={setVisibleResultCols}
+      />
     </div>
   )
 }

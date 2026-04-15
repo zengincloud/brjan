@@ -1,18 +1,20 @@
 "use client"
 
-import { useState, useEffect, Fragment } from "react"
+import { useState, useEffect, Fragment, ElementType } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Search, ChevronDown, ChevronUp, Building2, Briefcase, Zap, Newspaper, Loader2, Globe, Users, Linkedin as LinkedinIcon, Target, MessageSquare, Lightbulb, TrendingUp, DollarSign } from "lucide-react"
+import { Search, ChevronDown, ChevronUp, Building2, Briefcase, Zap, Newspaper, Loader2, Globe, Users, Linkedin as LinkedinIcon, Target, MessageSquare, Lightbulb, TrendingUp, DollarSign, Plus, X, Settings2, RotateCcw, SlidersHorizontal, MapPin, Clock, EyeOff } from "lucide-react"
 import { Collapsible } from "@/components/ui/collapsible"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Slider } from "@/components/ui/slider"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { useToast } from "@/components/ui/use-toast"
+import { cn } from "@/lib/utils"
 
 interface CompanyResult {
   id: string
@@ -29,6 +31,127 @@ interface CompanyResult {
   founded: number
   technologies: string[]
   buyingSignals: string[]
+}
+
+// ── Filter section row ─────────────────────────────────────────────────────────
+
+function FilterSectionRow({ icon: Icon, label, isOpen, onToggle, hasValue, onClear, children }: {
+  icon: ElementType
+  label: string
+  isOpen: boolean
+  onToggle: () => void
+  hasValue: boolean
+  onClear: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <div>
+      <button
+        onClick={onToggle}
+        className={cn(
+          "w-full flex items-center gap-2 px-2 py-1.5 rounded-md transition-colors text-left",
+          hasValue ? "bg-accent/10 hover:bg-accent/15" : "hover:bg-muted/50"
+        )}
+      >
+        <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <span className="text-[13px] flex-1">{label}</span>
+        {hasValue ? (
+          <button onClick={(e) => { e.stopPropagation(); onClear() }} className="text-muted-foreground hover:text-foreground">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        ) : (
+          <Plus className="h-3.5 w-3.5 text-muted-foreground" />
+        )}
+      </button>
+      {isOpen && (
+        <div className="ml-6 mr-2 mt-1 mb-2 space-y-2">
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Column definitions ──────────────────────────────────────────────────────────
+
+type ColDef = { key: string; label: string }
+
+const ACCT_RESULT_COLS: ColDef[] = [
+  { key: 'industry',     label: 'Industry' },
+  { key: 'location',     label: 'Location' },
+  { key: 'employees',    label: 'Employees' },
+  { key: 'buyingSignals',label: 'Buying Signals' },
+  { key: 'revenue',      label: 'Revenue' },
+  { key: 'founded',      label: 'Year Founded' },
+  { key: 'technologies', label: 'Technologies' },
+]
+const DEFAULT_ACCT_RESULT_COLS = new Set(['industry', 'location', 'employees', 'buyingSignals'])
+
+// ── Column settings dialog ──────────────────────────────────────────────────────
+
+function AccountResultColSettings({ open, onOpenChange, visibleCols, onSave }: {
+  open: boolean
+  onOpenChange: (o: boolean) => void
+  visibleCols: Set<string>
+  onSave: (cols: Set<string>) => void
+}) {
+  const [draft, setDraft] = useState<Set<string>>(new Set(visibleCols))
+  useEffect(() => { if (open) setDraft(new Set(visibleCols)) }, [open, visibleCols])
+  const toggle = (key: string) =>
+    setDraft((prev) => { const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next })
+  const ordered = ACCT_RESULT_COLS.filter((c) => draft.has(c.key))
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <div className="flex items-center gap-2">
+            <Settings2 className="h-4 w-4 text-muted-foreground" />
+            <DialogTitle>Company Column Settings</DialogTitle>
+          </div>
+          <p className="text-[13px] text-muted-foreground mt-0.5">Select the columns you want to see.</p>
+        </DialogHeader>
+        <div className="flex gap-8 pt-2">
+          <div className="flex-1">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-3">Columns</p>
+            <div className="space-y-2.5">
+              {ACCT_RESULT_COLS.map((col) => (
+                <label key={col.key} className="flex items-center gap-2.5 cursor-pointer">
+                  <Checkbox checked={draft.has(col.key)} onCheckedChange={() => toggle(col.key)} />
+                  <span className="text-[13px]">{col.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <div className="flex-1">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-3">Column Order</p>
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-muted/50">
+                <span className="text-[12px] text-muted-foreground w-4 shrink-0">1</span>
+                <span className="text-[13px] text-muted-foreground flex-1">Company</span>
+              </div>
+              {ordered.map((col, i) => (
+                <div key={col.key} className="flex items-center gap-3 px-3 py-2 rounded-lg border border-border">
+                  <span className="text-[12px] text-muted-foreground w-4 shrink-0">{i + 2}</span>
+                  <span className="text-[13px] flex-1">{col.label}</span>
+                  <button onClick={() => toggle(col.key)} className="text-muted-foreground hover:text-foreground">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <DialogFooter className="mt-4">
+          <Button variant="ghost" size="sm" onClick={() => setDraft(new Set(DEFAULT_ACCT_RESULT_COLS))} className="mr-auto gap-1.5">
+            <RotateCcw className="h-3.5 w-3.5" /> Reset to defaults
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button size="sm" onClick={() => { onSave(draft); onOpenChange(false) }}>Save Changes</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
 }
 
 // Helper function to convert text to title case
@@ -63,6 +186,12 @@ export function AccountsProspecting() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set())
+
+  // Filter panel + column settings
+  const [showFilters, setShowFilters] = useState(true)
+  const [openFilter, setOpenFilter] = useState<string | null>(null)
+  const [columnSettingsOpen, setColumnSettingsOpen] = useState(false)
+  const [visibleResultCols, setVisibleResultCols] = useState<Set<string>>(new Set(DEFAULT_ACCT_RESULT_COLS))
 
   // Load saved search state on mount
   useEffect(() => {
@@ -259,6 +388,17 @@ export function AccountsProspecting() {
     )
   }
 
+  const activeFilterCount = (
+    (query ? 1 : 0) +
+    (location || city ? 1 : 0) +
+    industries.length +
+    technologies.length +
+    jobOpportunities.length +
+    recentActivities.length +
+    (revenueRange[0] !== 1 || revenueRange[1] !== 1000 ? 1 : 0) +
+    (headcountRange[0] !== 10 || headcountRange[1] < 10000 ? 1 : 0)
+  )
+
   return (
     <div className="space-y-6">
       {/* Search and Keywords */}
@@ -273,98 +413,55 @@ export function AccountsProspecting() {
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
           />
         </div>
+        <Button
+          variant={showFilters ? "secondary" : "outline"}
+          onClick={() => setShowFilters((v) => !v)}
+          className="gap-2"
+        >
+          <SlidersHorizontal className="h-4 w-4" />
+          {showFilters ? "Hide Filters" : "Show Filters"}
+          {!showFilters && activeFilterCount > 0 && (
+            <span className="bg-accent text-white rounded-full text-[10px] px-1.5 py-0 leading-5 font-medium">{activeFilterCount}</span>
+          )}
+        </Button>
         <Button onClick={handleSearch} disabled={isLoading}>
           {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
           {isLoading ? "Searching..." : "Search"}
         </Button>
       </div>
 
-      {/* Filters Section */}
-      <div className="grid gap-6 md:grid-cols-[300px_1fr]">
+      {/* Filters + Results Section */}
+      <div className={cn("grid gap-6", showFilters ? "md:grid-cols-[280px_1fr]" : "grid-cols-1")}>
         {/* Left Sidebar - Filters */}
-        <div className="space-y-6">
-          {/* Company Attributes Filter */}
-          <Card>
-            <CardHeader
-              className="py-3 cursor-pointer"
-              onClick={() => setIsCompanyAttributesOpen(!isCompanyAttributesOpen)}
-            >
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-[13px] font-semibold flex items-center">
-                  <Building2 className="h-4 w-4 mr-2" />
-                  Company Attributes
-                </CardTitle>
-                <ChevronDown
-                  className={`h-4 w-4 transition-transform ${isCompanyAttributesOpen ? "rotate-180" : ""}`}
-                />
-              </div>
-            </CardHeader>
-            <Collapsible open={isCompanyAttributesOpen}>
-              <CardContent className="pt-0 space-y-5">
-                {/* Annual Revenue */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium">Annual Revenue</Label>
-                    <span className="text-xs font-medium text-primary">
-                      {revenueRange[0] === 1 ? "Any" : `$${revenueRange[0]}M`} - {revenueRange[1] === 1000 ? "Any" : `$${revenueRange[1]}M`}
-                    </span>
-                  </div>
-                  <div className="px-2">
-                    <Slider
-                      value={revenueRange}
-                      min={1}
-                      max={1000}
-                      step={10}
-                      onValueChange={setRevenueRange}
-                      className="my-5"
-                    />
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>$1M</span>
-                      <span>$500M</span>
-                      <span>$1B+</span>
-                    </div>
-                  </div>
-                </div>
+        {showFilters && (
+          <div className="border border-border rounded-lg overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="px-4 py-3 border-b border-border flex items-center justify-between shrink-0">
+              <span className="text-[12px] text-muted-foreground">{activeFilterCount} filter{activeFilterCount !== 1 ? 's' : ''} applied.</span>
+            </div>
 
-                <Separator />
+            <div className="px-3 py-2.5 border-b border-border">
+              <Button variant="outline" size="sm" className="w-full h-8 text-[12px] gap-1.5 justify-start">
+                <Clock className="h-3.5 w-3.5" /> Search History
+              </Button>
+            </div>
 
-                {/* Headcount */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium">Headcount</Label>
-                    <span className="text-xs font-medium text-primary">
-                      {headcountRange[0] === 10 ? "Any" : headcountRange[0].toLocaleString()} - {headcountRange[1] >= 10000 ? "10,000+" : headcountRange[1].toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="px-2">
-                    <Slider
-                      value={headcountRange.map(v => v >= 10000 ? 1000 : Math.round(v / 10))}
-                      min={1}
-                      max={1000}
-                      step={1}
-                      onValueChange={(values) => {
-                        setHeadcountRange(values.map(v => v >= 1000 ? 10000 : v * 10))
-                      }}
-                      className="my-5"
-                    />
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>10</span>
-                      <span>2,500</span>
-                      <span>5,000</span>
-                      <span>10,000+</span>
-                    </div>
-                  </div>
-                </div>
+            {/* COMPANY FILTERS */}
+            <div className="flex-1 overflow-y-auto px-3 py-3">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/40 mb-2 px-1">Company Filters</p>
+              <div className="space-y-0.5">
 
-                <Separator />
+                <FilterSectionRow icon={Building2} label="Business Name"
+                  isOpen={openFilter === 'query'} onToggle={() => setOpenFilter(openFilter === 'query' ? null : 'query')}
+                  hasValue={!!query} onClear={() => setQuery('')}>
+                  <Input value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSearch()} placeholder="Company name or domain..." className="h-8 text-[12px]" />
+                </FilterSectionRow>
 
-                {/* HQ Location */}
-                <div className="space-y-3">
-                  <Label className="text-sm font-medium">HQ Location</Label>
+                <FilterSectionRow icon={MapPin} label="HQ Location"
+                  isOpen={openFilter === 'location'} onToggle={() => setOpenFilter(openFilter === 'location' ? null : 'location')}
+                  hasValue={!!(location || city)} onClear={() => { setLocation(''); setCity('') }}>
                   <Select value={location} onValueChange={setLocation}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select region" />
-                    </SelectTrigger>
+                    <SelectTrigger className="h-8 text-[12px]"><SelectValue placeholder="Select region" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="north-america">North America</SelectItem>
                       <SelectItem value="europe">Europe</SelectItem>
@@ -373,134 +470,86 @@ export function AccountsProspecting() {
                       <SelectItem value="middle-east">Middle East & Africa</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Input
-                    placeholder="City or Country"
-                    className="mt-2"
-                    value={city}
-                    onChange={(e) => setCity(e.target.value)}
-                  />
-                </div>
+                  <Input placeholder="City or Country" value={city} onChange={(e) => setCity(e.target.value)} className="h-8 text-[12px]" />
+                </FilterSectionRow>
 
-                <Separator />
-
-                {/* Industry */}
-                <div className="space-y-3">
-                  <Label className="text-sm font-medium">Industry</Label>
-                  <div className="space-y-2">
-                    {["Technology", "Financial Services", "Healthcare", "Manufacturing", "Retail"].map((industry) => (
-                      <div key={industry} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`industry-${industry.toLowerCase()}`}
-                          checked={industries.includes(industry)}
-                          onCheckedChange={() => toggleIndustry(industry)}
-                        />
-                        <Label htmlFor={`industry-${industry.toLowerCase()}`} className="text-sm font-normal">
-                          {industry}
-                        </Label>
+                <FilterSectionRow icon={Briefcase} label="Industry"
+                  isOpen={openFilter === 'industry'} onToggle={() => setOpenFilter(openFilter === 'industry' ? null : 'industry')}
+                  hasValue={industries.length > 0} onClear={() => setIndustries([])}>
+                  <div className="space-y-1.5">
+                    {["Technology", "Financial Services", "Healthcare", "Manufacturing", "Retail"].map((ind) => (
+                      <div key={ind} className="flex items-center gap-2">
+                        <Checkbox id={`ind-${ind}`} checked={industries.includes(ind)} onCheckedChange={() => toggleIndustry(ind)} />
+                        <Label htmlFor={`ind-${ind}`} className="text-[12px] font-normal">{ind}</Label>
                       </div>
                     ))}
                   </div>
-                </div>
+                </FilterSectionRow>
 
-                <Separator />
-
-                {/* Technologies Used */}
-                <div className="space-y-3">
-                  <Label className="text-sm font-medium">Technologies Used</Label>
-                  <div className="space-y-2">
-                    {["Salesforce", "HubSpot", "Marketo", "AWS", "Slack"].map((tech) => (
-                      <div key={tech} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`tech-${tech.toLowerCase()}`}
-                          checked={technologies.includes(tech)}
-                          onCheckedChange={() => toggleTechnology(tech)}
-                        />
-                        <Label htmlFor={`tech-${tech.toLowerCase()}`} className="text-sm font-normal">
-                          {tech}
-                        </Label>
-                      </div>
-                    ))}
+                <FilterSectionRow icon={Users} label="Headcount"
+                  isOpen={openFilter === 'headcount'} onToggle={() => setOpenFilter(openFilter === 'headcount' ? null : 'headcount')}
+                  hasValue={headcountRange[0] !== 10 || headcountRange[1] < 10000} onClear={() => setHeadcountRange([10, 10000])}>
+                  <div className="pt-1">
+                    <div className="flex justify-between text-[11px] text-muted-foreground mb-1">
+                      <span>{headcountRange[0] === 10 ? 'Any' : headcountRange[0].toLocaleString()}</span>
+                      <span>{headcountRange[1] >= 10000 ? '10,000+' : headcountRange[1].toLocaleString()}</span>
+                    </div>
+                    <Slider value={headcountRange.map(v => v >= 10000 ? 1000 : Math.round(v / 10))} min={1} max={1000} step={1}
+                      onValueChange={(vals) => setHeadcountRange(vals.map(v => v >= 1000 ? 10000 : v * 10))} className="my-3" />
                   </div>
-                </div>
-              </CardContent>
-            </Collapsible>
-          </Card>
+                </FilterSectionRow>
 
-          {/* Spotlight Filters */}
-          <Card>
-            <CardHeader className="py-3 cursor-pointer" onClick={() => setIsSpotlightOpen(!isSpotlightOpen)}>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-[13px] font-semibold flex items-center">
-                  <Zap className="h-4 w-4 mr-2" />
-                  Spotlight
-                </CardTitle>
-                <ChevronDown className={`h-4 w-4 transition-transform ${isSpotlightOpen ? "rotate-180" : ""}`} />
-              </div>
-            </CardHeader>
-            <Collapsible open={isSpotlightOpen}>
-              <CardContent className="pt-0 space-y-4">
-                {/* Job Opportunities */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium flex items-center">
-                    <Briefcase className="h-3 w-3 mr-2" />
-                    Job Opportunities
-                  </Label>
-                  <div className="space-y-2">
+                <FilterSectionRow icon={DollarSign} label="Revenue"
+                  isOpen={openFilter === 'revenue'} onToggle={() => setOpenFilter(openFilter === 'revenue' ? null : 'revenue')}
+                  hasValue={revenueRange[0] !== 1 || revenueRange[1] !== 1000} onClear={() => setRevenueRange([1, 1000])}>
+                  <div className="pt-1">
+                    <div className="flex justify-between text-[11px] text-muted-foreground mb-1">
+                      <span>{revenueRange[0] === 1 ? 'Any' : `$${revenueRange[0]}M`}</span>
+                      <span>{revenueRange[1] === 1000 ? 'Any' : `$${revenueRange[1]}M`}</span>
+                    </div>
+                    <Slider value={revenueRange} min={1} max={1000} step={10} onValueChange={setRevenueRange} className="my-3" />
+                  </div>
+                </FilterSectionRow>
+
+                <FilterSectionRow icon={Briefcase} label="Job Opportunities"
+                  isOpen={openFilter === 'jobs'} onToggle={() => setOpenFilter(openFilter === 'jobs' ? null : 'jobs')}
+                  hasValue={jobOpportunities.length > 0} onClear={() => setJobOpportunities([])}>
+                  <div className="space-y-1.5">
                     {["Hiring Sales Roles", "Hiring Marketing Roles", "Hiring Leadership"].map((job) => (
-                      <div key={job} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`job-${job.toLowerCase().replace(/\s+/g, "-")}`}
-                          checked={jobOpportunities.includes(job)}
-                          onCheckedChange={() => toggleJobOpportunity(job)}
-                        />
-                        <Label
-                          htmlFor={`job-${job.toLowerCase().replace(/\s+/g, "-")}`}
-                          className="text-sm font-normal"
-                        >
-                          {job}
-                        </Label>
+                      <div key={job} className="flex items-center gap-2">
+                        <Checkbox id={`job-${job}`} checked={jobOpportunities.includes(job)} onCheckedChange={() => toggleJobOpportunity(job)} />
+                        <Label htmlFor={`job-${job}`} className="text-[12px] font-normal">{job}</Label>
                       </div>
                     ))}
                   </div>
-                </div>
+                </FilterSectionRow>
 
-                <Separator />
-
-                {/* Recent Activities */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium flex items-center">
-                    <Newspaper className="h-3 w-3 mr-2" />
-                    Recent Activities
-                  </Label>
-                  <div className="space-y-2">
-                    {["Funding Rounds", "Leadership Changes", "Product Launches", "Expansion News"].map((activity) => (
-                      <div key={activity} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`activity-${activity.toLowerCase().replace(/\s+/g, "-")}`}
-                          checked={recentActivities.includes(activity)}
-                          onCheckedChange={() => toggleRecentActivity(activity)}
-                        />
-                        <Label
-                          htmlFor={`activity-${activity.toLowerCase().replace(/\s+/g, "-")}`}
-                          className="text-sm font-normal"
-                        >
-                          {activity}
-                        </Label>
+                <FilterSectionRow icon={Newspaper} label="Recent Activities"
+                  isOpen={openFilter === 'activities'} onToggle={() => setOpenFilter(openFilter === 'activities' ? null : 'activities')}
+                  hasValue={recentActivities.length > 0} onClear={() => setRecentActivities([])}>
+                  <div className="space-y-1.5">
+                    {["Funding Rounds", "Leadership Changes", "Product Launches", "Expansion News"].map((act) => (
+                      <div key={act} className="flex items-center gap-2">
+                        <Checkbox id={`act-${act}`} checked={recentActivities.includes(act)} onCheckedChange={() => toggleRecentActivity(act)} />
+                        <Label htmlFor={`act-${act}`} className="text-[12px] font-normal">{act}</Label>
                       </div>
                     ))}
                   </div>
-                </div>
-              </CardContent>
-            </Collapsible>
-          </Card>
+                </FilterSectionRow>
 
-          <div className="flex gap-2">
-            <Button className="flex-1" onClick={handleSearch} disabled={isLoading}>
-              Apply Filters
-            </Button>
-            <Button variant="outline" onClick={handleReset}>Reset</Button>
+              </div>
+            </div>
+
+            {/* Bottom actions */}
+            <div className="px-3 py-3 border-t border-border space-y-2 shrink-0">
+              <Button className="w-full h-8 text-[12px]" onClick={handleSearch} disabled={isLoading}>
+                {isLoading && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+                Apply Filters
+              </Button>
+              <Button variant="outline" className="w-full h-8 text-[12px]" onClick={handleReset}>Reset</Button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Right Side - Results */}
         <Card>
@@ -512,19 +561,24 @@ export function AccountsProspecting() {
               <div className="text-sm text-muted-foreground">
                 <span className="font-medium">{totalResults}</span> companies found matching your criteria
               </div>
-              <Select defaultValue="relevance">
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Sort by" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="relevance">Relevance</SelectItem>
-                  <SelectItem value="revenue-high">Revenue (High to Low)</SelectItem>
-                  <SelectItem value="revenue-low">Revenue (Low to High)</SelectItem>
-                  <SelectItem value="headcount-high">Headcount (High to Low)</SelectItem>
-                  <SelectItem value="headcount-low">Headcount (Low to High)</SelectItem>
-                  <SelectItem value="recent-activity">Recent Activity</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" className="h-8 gap-1.5 text-[12px]" onClick={() => setColumnSettingsOpen(true)}>
+                  <Settings2 className="h-3.5 w-3.5" /> Columns
+                </Button>
+                <Select defaultValue="relevance">
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Sort by" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="relevance">Relevance</SelectItem>
+                    <SelectItem value="revenue-high">Revenue (High to Low)</SelectItem>
+                    <SelectItem value="revenue-low">Revenue (Low to High)</SelectItem>
+                    <SelectItem value="headcount-high">Headcount (High to Low)</SelectItem>
+                    <SelectItem value="headcount-low">Headcount (Low to High)</SelectItem>
+                    <SelectItem value="recent-activity">Recent Activity</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             {error && (
@@ -551,10 +605,9 @@ export function AccountsProspecting() {
                   <thead>
                     <tr>
                       <th className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 border-b border-border whitespace-nowrap">Name</th>
-                      <th className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 border-b border-border whitespace-nowrap">Industry</th>
-                      <th className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 border-b border-border whitespace-nowrap">Location</th>
-                      <th className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 border-b border-border whitespace-nowrap">Employees</th>
-                      <th className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 border-b border-border whitespace-nowrap">Buying Signals</th>
+                      {ACCT_RESULT_COLS.filter(c => visibleResultCols.has(c.key)).map(c => (
+                        <th key={c.key} className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 border-b border-border whitespace-nowrap">{c.label}</th>
+                      ))}
                       <th className="px-4 py-2.5 border-b border-border w-28" />
                     </tr>
                   </thead>
@@ -588,37 +641,69 @@ export function AccountsProspecting() {
                                 <p className="text-[12px] text-muted-foreground truncate max-w-[220px]">{company.description}</p>
                               )}
                             </td>
-                            {/* Industry */}
-                            <td className="px-4 py-2.5">
-                              <span className="text-[13px] text-muted-foreground">{toTitleCase(company.industry) || '—'}</span>
-                            </td>
-                            {/* Location */}
-                            <td className="px-4 py-2.5">
-                              <span className="text-[13px] text-muted-foreground whitespace-nowrap">{toTitleCase(company.location) || '—'}</span>
-                            </td>
-                            {/* Employees */}
-                            <td className="px-4 py-2.5">
-                              <span className="text-[13px] text-muted-foreground whitespace-nowrap">
-                                {company.employees ? company.employees.toLocaleString() : '—'}
-                              </span>
-                            </td>
-                            {/* Buying Signals */}
-                            <td className="px-4 py-2.5 max-w-[200px]">
-                              {company.buyingSignals && company.buyingSignals.length > 0 ? (
-                                <div className="flex flex-wrap gap-1">
-                                  {company.buyingSignals.slice(0, 2).map((signal, idx) => (
-                                    <span key={idx} className="px-1.5 py-0.5 rounded text-[11px] bg-secondary text-muted-foreground border border-border">
-                                      {signal}
-                                    </span>
-                                  ))}
-                                  {company.buyingSignals.length > 2 && (
-                                    <span className="text-[11px] text-muted-foreground">+{company.buyingSignals.length - 2}</span>
-                                  )}
-                                </div>
-                              ) : (
-                                <span className="text-[13px] text-muted-foreground">—</span>
-                              )}
-                            </td>
+                            {visibleResultCols.has('industry') && (
+                              <td className="px-4 py-2.5">
+                                <span className="text-[13px] text-muted-foreground">{toTitleCase(company.industry) || '—'}</span>
+                              </td>
+                            )}
+                            {visibleResultCols.has('location') && (
+                              <td className="px-4 py-2.5">
+                                <span className="text-[13px] text-muted-foreground whitespace-nowrap">{toTitleCase(company.location) || '—'}</span>
+                              </td>
+                            )}
+                            {visibleResultCols.has('employees') && (
+                              <td className="px-4 py-2.5">
+                                <span className="text-[13px] text-muted-foreground whitespace-nowrap">
+                                  {company.employees ? company.employees.toLocaleString() : '—'}
+                                </span>
+                              </td>
+                            )}
+                            {visibleResultCols.has('buyingSignals') && (
+                              <td className="px-4 py-2.5 max-w-[200px]">
+                                {company.buyingSignals && company.buyingSignals.length > 0 ? (
+                                  <div className="flex flex-wrap gap-1">
+                                    {company.buyingSignals.slice(0, 2).map((signal, idx) => (
+                                      <span key={idx} className="px-1.5 py-0.5 rounded text-[11px] bg-secondary text-muted-foreground border border-border">
+                                        {signal}
+                                      </span>
+                                    ))}
+                                    {company.buyingSignals.length > 2 && (
+                                      <span className="text-[11px] text-muted-foreground">+{company.buyingSignals.length - 2}</span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-[13px] text-muted-foreground">—</span>
+                                )}
+                              </td>
+                            )}
+                            {visibleResultCols.has('revenue') && (
+                              <td className="px-4 py-2.5">
+                                <span className="text-[13px] text-muted-foreground whitespace-nowrap">
+                                  {company.revenue ? `$${company.revenue.toLocaleString()}` : '—'}
+                                </span>
+                              </td>
+                            )}
+                            {visibleResultCols.has('founded') && (
+                              <td className="px-4 py-2.5">
+                                <span className="text-[13px] text-muted-foreground">{company.founded || '—'}</span>
+                              </td>
+                            )}
+                            {visibleResultCols.has('technologies') && (
+                              <td className="px-4 py-2.5 max-w-[200px]">
+                                {company.technologies && company.technologies.length > 0 ? (
+                                  <div className="flex flex-wrap gap-1">
+                                    {company.technologies.slice(0, 2).map((tech, idx) => (
+                                      <span key={idx} className="px-1.5 py-0.5 rounded text-[11px] bg-secondary text-muted-foreground border border-border">{tech}</span>
+                                    ))}
+                                    {company.technologies.length > 2 && (
+                                      <span className="text-[11px] text-muted-foreground">+{company.technologies.length - 2}</span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-[13px] text-muted-foreground">—</span>
+                                )}
+                              </td>
+                            )}
                             {/* Actions */}
                             <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center gap-1">
@@ -638,7 +723,7 @@ export function AccountsProspecting() {
                           </tr>
                           {isExpanded && (
                             <tr className="border-b border-border/60 bg-muted/10">
-                              <td colSpan={6} className="px-6 py-4">
+                              <td colSpan={2 + visibleResultCols.size} className="px-6 py-4">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                   <div className="space-y-2">
                                     <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">Company Details</p>
@@ -681,6 +766,13 @@ export function AccountsProspecting() {
           </CardContent>
         </Card>
       </div>
+
+      <AccountResultColSettings
+        open={columnSettingsOpen}
+        onOpenChange={setColumnSettingsOpen}
+        visibleCols={visibleResultCols}
+        onSave={setVisibleResultCols}
+      />
     </div>
   )
 }

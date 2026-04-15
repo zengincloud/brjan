@@ -255,6 +255,10 @@ export function LeadsProspecting() {
   const [seniorityLevels, setSeniorityLevels] = useState<string[]>([])
   const [industries, setIndustries] = useState<string[]>([])
 
+  // Revenue + headcount UI state
+  const [revenue, setRevenue] = useState("")
+  const [headcountSelected, setHeadcountSelected] = useState("")
+
   // Exclusion filters
   const [excludedNames, setExcludedNames] = useState<string[]>([])
   const [excludedNameInput, setExcludedNameInput] = useState("")
@@ -581,6 +585,8 @@ export function LeadsProspecting() {
     setSeniorityLevels([])
     setIndustries([])
     setHeadcountRange([10, 10000])
+    setHeadcountSelected("")
+    setRevenue("")
     // Clear exclusions
     setExcludedNames([])
     setExcludedNameInput("")

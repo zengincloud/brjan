@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -27,6 +27,9 @@ export default function SignupPage() {
   const [googleLoading, setGoogleLoading] = useState(false)
   const [showConfirmation, setShowConfirmation] = useState(false)
   const [confirmedEmail, setConfirmedEmail] = useState('')
+  const [otp, setOtp] = useState(['', '', '', '', '', ''])
+  const [verifying, setVerifying] = useState(false)
+  const otpRefs = useRef<(HTMLInputElement | null)[]>([])
 
   const supabase = createClient()
 
@@ -139,8 +142,67 @@ export default function SignupPage() {
     }
   }
 
+  const handleOtpChange = (index: number, value: string) => {
+    // Only allow digits
+    const digit = value.replace(/\D/g, '').slice(-1)
+    const next = [...otp]
+    next[index] = digit
+    setOtp(next)
+    // Auto-advance
+    if (digit && index < 5) {
+      otpRefs.current[index + 1]?.focus()
+    }
+    // Auto-submit when all 6 filled
+    if (digit && index === 5) {
+      const code = [...next].join('')
+      if (code.length === 6) handleVerifyOtp(code)
+    }
+  }
+
+  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' && !otp[index] && index > 0) {
+      otpRefs.current[index - 1]?.focus()
+    }
+  }
+
+  const handleOtpPaste = (e: React.ClipboardEvent) => {
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
+    if (!pasted) return
+    e.preventDefault()
+    const next = [...otp]
+    pasted.split('').forEach((d, i) => { next[i] = d })
+    setOtp(next)
+    otpRefs.current[Math.min(pasted.length, 5)]?.focus()
+    if (pasted.length === 6) handleVerifyOtp(pasted)
+  }
+
+  const handleVerifyOtp = async (code: string) => {
+    setVerifying(true)
+    try {
+      const { error } = await supabase.auth.verifyOtp({
+        email: confirmedEmail,
+        token: code,
+        type: 'signup',
+      })
+      if (error) {
+        toast.error('Invalid code. Please try again.')
+        setOtp(['', '', '', '', '', ''])
+        otpRefs.current[0]?.focus()
+        return
+      }
+      toast.success('Email confirmed!')
+      router.push('/')
+      router.refresh()
+    } catch {
+      toast.error('Something went wrong. Please try again.')
+    } finally {
+      setVerifying(false)
+    }
+  }
+
   // Confirmation screen
   if (showConfirmation) {
+    const otpValue = otp.join('')
     return (
       <div className="flex min-h-screen items-center justify-center bg-[hsl(220,15%,7%)] p-6">
         <div className="w-full max-w-md space-y-8 text-center">
@@ -148,22 +210,42 @@ export default function SignupPage() {
             <Mail className="h-10 w-10 text-[hsl(100,78%,44%)]" />
           </div>
           <div className="space-y-2">
-            <h2 className="text-3xl font-bold text-white">Check your email!</h2>
-            <p className="text-white/50">We&apos;ve sent a confirmation link to</p>
+            <h2 className="text-3xl font-bold text-white">Check your email</h2>
+            <p className="text-white/50">
+              We sent a 6-digit code to{' '}
+              <span className="text-white font-medium">{confirmedEmail}</span>
+            </p>
           </div>
-          <div className="px-4 py-3 bg-white/5 border border-white/10 rounded-xl">
-            <p className="font-medium text-lg text-white">{confirmedEmail}</p>
+
+          {/* OTP inputs */}
+          <div className="flex justify-center gap-3" onPaste={handleOtpPaste}>
+            {otp.map((digit, i) => (
+              <input
+                key={i}
+                ref={(el) => { otpRefs.current[i] = el }}
+                type="text"
+                inputMode="numeric"
+                maxLength={1}
+                value={digit}
+                onChange={(e) => handleOtpChange(i, e.target.value)}
+                onKeyDown={(e) => handleOtpKeyDown(i, e)}
+                disabled={verifying}
+                className="w-12 h-14 text-center text-xl font-bold rounded-xl bg-white/5 border border-white/10 text-white focus:border-[hsl(100,78%,44%)] focus:outline-none focus:ring-2 focus:ring-[hsl(100,78%,44%,0.3)] transition-all disabled:opacity-50"
+              />
+            ))}
           </div>
-          <div className="space-y-2 text-sm text-white/40">
-            <p>Click the link in the email to activate your account.</p>
-            <p>If you don&apos;t see it, check your spam folder.</p>
-          </div>
-          <div className="pt-4 border-t border-white/10">
-            <p className="text-sm text-white/40 mb-3">Already confirmed?</p>
-            <Button asChild className="w-full h-12 bg-[hsl(100,78%,44%)] hover:bg-[hsl(100,78%,38%)] text-white font-semibold shadow-[0_0_20px_hsl(100,78%,44%,0.3)]">
-              <Link href="/login">Go to Login</Link>
-            </Button>
-          </div>
+
+          <Button
+            onClick={() => handleVerifyOtp(otpValue)}
+            disabled={otpValue.length < 6 || verifying}
+            className="w-full h-12 bg-[hsl(100,78%,44%)] hover:bg-[hsl(100,78%,38%)] text-white font-semibold shadow-[0_0_20px_hsl(100,78%,44%,0.3)]"
+          >
+            {verifying ? 'Verifying…' : 'Confirm account'}
+          </Button>
+
+          <p className="text-sm text-white/30">
+            Didn&apos;t get it? Check your spam folder.
+          </p>
         </div>
       </div>
     )
@@ -358,9 +440,15 @@ export default function SignupPage() {
                 disabled={loading}
                 className="h-12 bg-white/5 border-white/10 text-white placeholder:text-white/25 focus:border-[hsl(100,78%,44%)] focus:ring-[hsl(100,78%,44%,0.3)] transition-all"
               />
-              <p className="text-xs text-white/30">
-                Must be at least {MIN_PASSWORD_LENGTH} characters
-              </p>
+              {password.length > 0 && password.length < MIN_PASSWORD_LENGTH ? (
+                <p className="text-xs text-red-400">
+                  Password must be at least {MIN_PASSWORD_LENGTH} characters ({password.length}/{MIN_PASSWORD_LENGTH})
+                </p>
+              ) : (
+                <p className="text-xs text-white/30">
+                  Must be at least {MIN_PASSWORD_LENGTH} characters
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirmPassword" className="text-sm text-white/70">Confirm password</Label>

@@ -55,27 +55,40 @@ export async function getCurrentUser() {
     const orgName = metadata.organizationName || null
     const isSuperEmail = isSuperAdminEmail(email)
 
-    // Auto-create an organization for every new user
-    const org = await prisma.organization.create({
-      data: {
-        name: orgName || (firstName ? `${firstName}'s Team` : 'My Team'),
-      },
+    // Check if a user with this email already exists (e.g. re-signup with same email)
+    const existingByEmail = await prisma.user.findUnique({
+      where: { email },
     })
 
-    user = await prisma.user.create({
-      data: {
-        supabaseId: supabaseUser.id,
-        email,
-        firstName,
-        lastName,
-        avatarUrl: metadata.avatar_url,
-        organizationId: org.id,
-        role: isSuperEmail ? 'super_admin' : 'owner',
-      },
-    })
+    if (existingByEmail) {
+      // Re-link the existing user to the new Supabase ID
+      user = await prisma.user.update({
+        where: { id: existingByEmail.id },
+        data: { supabaseId: supabaseUser.id },
+      })
+    } else {
+      // Auto-create an organization for every new user
+      const org = await prisma.organization.create({
+        data: {
+          name: orgName || (firstName ? `${firstName}'s Team` : 'My Team'),
+        },
+      })
 
-    // Notify Slack about new signup (fire-and-forget)
-    notifySlackNewUser(user, org.name).catch(() => {})
+      user = await prisma.user.create({
+        data: {
+          supabaseId: supabaseUser.id,
+          email,
+          firstName,
+          lastName,
+          avatarUrl: metadata.avatar_url,
+          organizationId: org.id,
+          role: isSuperEmail ? 'super_admin' : 'owner',
+        },
+      })
+
+      // Notify Slack about new signup (fire-and-forget)
+      notifySlackNewUser(user, org.name).catch(() => {})
+    }
   } else {
     // For existing users: promote to super_admin if their email is in the list
     const shouldBeSuperAdmin = isSuperAdminEmail(user.email)

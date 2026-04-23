@@ -26,18 +26,31 @@ export async function resolveRealUser(): Promise<User | null> {
     const googleName = metadata.name || metadata.full_name || ''
     const [googleFirst, ...googleLastParts] = googleName.split(' ')
 
-    user = await prisma.user.create({
-      data: {
-        supabaseId: supabaseUser.id,
-        email: supabaseUser.email!,
-        firstName: metadata.firstName || googleFirst || null,
-        lastName: metadata.lastName || googleLastParts.join(' ') || null,
-        avatarUrl: metadata.avatar_url,
-      },
+    // Check if a user with this email already exists (e.g. re-signup with same email)
+    const existingByEmail = await prisma.user.findUnique({
+      where: { email: supabaseUser.email! },
     })
 
-    // Notify Slack about new signup (fire-and-forget)
-    notifySlackNewUser(user).catch(() => {})
+    if (existingByEmail) {
+      // Re-link the existing user to the new Supabase ID
+      user = await prisma.user.update({
+        where: { id: existingByEmail.id },
+        data: { supabaseId: supabaseUser.id },
+      })
+    } else {
+      user = await prisma.user.create({
+        data: {
+          supabaseId: supabaseUser.id,
+          email: supabaseUser.email!,
+          firstName: metadata.firstName || googleFirst || null,
+          lastName: metadata.lastName || googleLastParts.join(' ') || null,
+          avatarUrl: metadata.avatar_url,
+        },
+      })
+
+      // Notify Slack about new signup (fire-and-forget)
+      notifySlackNewUser(user).catch(() => {})
+    }
   }
 
   // Auto-promote super admin emails

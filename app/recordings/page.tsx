@@ -2,11 +2,11 @@ import { RecordingsList } from "@/components/recordings-list"
 
 export default function RecordingsPage() {
   return (
-    <div className="container mx-auto py-8 px-4">
-      <div className="mb-8">
-        <h1 className="text-xl font-semibold mb-2">Call History</h1>
-        <p className="text-muted-foreground">
-          View call history, recordings, and transcriptions
+    <div className="space-y-5 p-6">
+      <div>
+        <h1 className="text-[15px] font-semibold text-foreground">Call Reports</h1>
+        <p className="text-[12px] text-muted-foreground mt-0.5">
+          Call history, recordings, and transcriptions
         </p>
       </div>
 

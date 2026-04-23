@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -92,7 +91,6 @@ export function RecordingsList() {
     }
   }
 
-  // Compute stats from recordings (before filtering so metric cards always show totals)
   const now = new Date()
   const startOfWeek = new Date(now)
   startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay())
@@ -100,16 +98,14 @@ export function RecordingsList() {
 
   const callsThisWeek = recordings.filter(r => new Date(r.createdAt) >= startOfWeek)
   const connectedCalls = callsThisWeek.filter(r => r.outcome?.startsWith("connected"))
-  const conversations = callsThisWeek.filter(r => (r.recordingDuration || r.duration || 0) > 60) // > 1 minute
+  const conversations = callsThisWeek.filter(r => (r.recordingDuration || r.duration || 0) > 60)
   const introsBooked = callsThisWeek.filter(r => r.outcome === "connected_intro_booked")
   const connectRate = callsThisWeek.length > 0 ? Math.round((connectedCalls.length / callsThisWeek.length) * 100) : 0
   const conversationRate = callsThisWeek.length > 0 ? Math.round((conversations.length / callsThisWeek.length) * 100) : 0
 
   const filteredRecordings = recordings.filter((recording) => {
-    // Recording filter
     if (filter === "recordings" && !recording.recordingUrl) return false
 
-    // Metric card filter
     if (metricFilter !== "none") {
       const recordingDate = new Date(recording.createdAt)
       const isThisWeek = recordingDate >= startOfWeek
@@ -117,7 +113,7 @@ export function RecordingsList() {
 
       switch (metricFilter) {
         case "calls_this_week":
-          break // All calls this week pass
+          break
         case "connected":
           if (!recording.outcome?.startsWith("connected")) return false
           break
@@ -130,14 +126,12 @@ export function RecordingsList() {
       }
     }
 
-    // Text search filter
     const searchLower = searchTerm.toLowerCase()
     const matchesSearch =
       recording.to.toLowerCase().includes(searchLower) ||
       recording.prospect?.name.toLowerCase().includes(searchLower) ||
       recording.prospect?.company?.toLowerCase().includes(searchLower)
 
-    // Date range filter
     let matchesDateRange = true
     if (dateRange?.from) {
       const recordingDate = new Date(recording.createdAt)
@@ -156,155 +150,148 @@ export function RecordingsList() {
     return `${mins}:${secs.toString().padStart(2, "0")}`
   }
 
-  const getOutcomeBadge = (outcome: string | null) => {
+  const getOutcomePill = (outcome: string | null) => {
     if (!outcome) return null
 
-    const variants: Record<string, { variant: "default" | "secondary" | "destructive" | "outline", label: string }> = {
-      connected: { variant: "default", label: "Connected" },
-      connected_intro_booked: { variant: "default", label: "Intro Booked" },
-      connected_referral: { variant: "default", label: "Referral" },
-      connected_not_interested: { variant: "secondary", label: "Not Interested" },
-      connected_info_gathered: { variant: "default", label: "Info Gathered" },
-      callback: { variant: "secondary", label: "Call Back Later" },
-      voicemail: { variant: "secondary", label: "Voicemail" },
-      no_answer: { variant: "outline", label: "No Answer" },
-      busy: { variant: "outline", label: "Busy" },
-      failed: { variant: "destructive", label: "Failed" },
-      gatekeeper: { variant: "secondary", label: "Gatekeeper" },
+    const configs: Record<string, { bg: string; text: string; border: string; dot: string; label: string }> = {
+      connected:               { bg: "bg-[hsl(100,78%,44%,0.1)]",  text: "text-[hsl(100,78%,44%)]",  border: "border-[hsl(100,78%,44%,0.2)]",  dot: "bg-[hsl(100,78%,44%)]",  label: "Connected" },
+      connected_intro_booked:  { bg: "bg-[hsl(100,78%,44%,0.1)]",  text: "text-[hsl(100,78%,44%)]",  border: "border-[hsl(100,78%,44%,0.2)]",  dot: "bg-[hsl(100,78%,44%)]",  label: "Intro Booked" },
+      connected_referral:      { bg: "bg-[hsl(100,78%,44%,0.1)]",  text: "text-[hsl(100,78%,44%)]",  border: "border-[hsl(100,78%,44%,0.2)]",  dot: "bg-[hsl(100,78%,44%)]",  label: "Referral" },
+      connected_not_interested:{ bg: "bg-secondary/40",             text: "text-muted-foreground",    border: "border-border",                  dot: "bg-muted-foreground/50", label: "Not Interested" },
+      connected_info_gathered: { bg: "bg-blue-500/10",              text: "text-blue-400",            border: "border-blue-500/20",             dot: "bg-blue-400",            label: "Info Gathered" },
+      callback:                { bg: "bg-yellow-500/10",            text: "text-yellow-500",          border: "border-yellow-500/20",           dot: "bg-yellow-500",          label: "Call Back" },
+      voicemail:               { bg: "bg-secondary/40",             text: "text-muted-foreground",    border: "border-border",                  dot: "bg-muted-foreground/50", label: "Voicemail" },
+      no_answer:               { bg: "bg-secondary/40",             text: "text-muted-foreground",    border: "border-border",                  dot: "bg-muted-foreground/30", label: "No Answer" },
+      busy:                    { bg: "bg-secondary/40",             text: "text-muted-foreground",    border: "border-border",                  dot: "bg-muted-foreground/30", label: "Busy" },
+      failed:                  { bg: "bg-red-500/10",               text: "text-red-400",             border: "border-red-500/20",              dot: "bg-red-400",             label: "Failed" },
+      gatekeeper:              { bg: "bg-purple-500/10",            text: "text-purple-400",          border: "border-purple-500/20",           dot: "bg-purple-400",          label: "Gatekeeper" },
     }
 
-    const config = variants[outcome] || { variant: "outline" as const, label: outcome.replace(/_/g, " ") }
+    const c = configs[outcome] || { bg: "bg-secondary/40", text: "text-muted-foreground", border: "border-border", dot: "bg-muted-foreground/40", label: outcome.replace(/_/g, " ") }
 
     return (
-      <Badge variant={config.variant} className="text-xs capitalize">
-        {config.label}
-      </Badge>
+      <span className={cn("inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium border", c.bg, c.text, c.border)}>
+        <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", c.dot)} />
+        {c.label}
+      </span>
     )
   }
 
   if (loading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">Call Recordings</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
+      <div className="space-y-4">
+        <div className="grid grid-cols-4 divide-x divide-border border border-border rounded-lg overflow-hidden bg-card">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="flex flex-col gap-1.5 px-4 py-3">
+              <Skeleton className="h-3 w-20" />
+              <Skeleton className="h-6 w-10" />
+            </div>
+          ))}
+        </div>
+        <div className="rounded-lg border border-border bg-card">
+          <div className="space-y-0">
             {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-20 w-full" />
+              <div key={i} className="flex items-center gap-3 px-4 py-3 border-b border-border/60 last:border-0">
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-16 ml-auto" />
+              </div>
             ))}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     )
   }
 
   return (
     <div className="space-y-4">
-      {/* Call Stats - Clickable to filter call list */}
-      <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
-        <Card
-          className={cn("border-border cursor-pointer transition-all hover:border-primary/50", metricFilter === "calls_this_week" && "border-primary ring-1 ring-primary/20")}
-          onClick={() => setMetricFilter(metricFilter === "calls_this_week" ? "none" : "calls_this_week")}
-        >
-          <CardContent className="pt-4 pb-3 px-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground">Calls This Week</p>
-                <p className="text-2xl font-bold">{callsThisWeek.length}</p>
-              </div>
-              <Phone className="h-5 w-5 text-muted-foreground" />
+      {/* Stats Bar */}
+      <div
+        className="grid grid-cols-4 divide-x divide-border border border-border rounded-lg overflow-hidden bg-card"
+      >
+        {[
+          {
+            key: "calls_this_week" as const,
+            label: "Calls This Week",
+            value: callsThisWeek.length,
+            dot: "bg-muted-foreground/40",
+          },
+          {
+            key: "connected" as const,
+            label: "Connect Rate",
+            value: `${connectRate}%`,
+            sub: `${connectedCalls.length} connected`,
+            dot: "bg-[hsl(100,78%,44%)]",
+          },
+          {
+            key: "conversations" as const,
+            label: "Conversation Rate",
+            value: `${conversationRate}%`,
+            sub: `${conversations.length} calls > 1 min`,
+            dot: "bg-blue-400",
+          },
+          {
+            key: "intros_booked" as const,
+            label: "Intros Booked",
+            value: introsBooked.length,
+            dot: "bg-[hsl(100,78%,44%)]",
+          },
+        ].map((s) => (
+          <button
+            key={s.key}
+            onClick={() => setMetricFilter(metricFilter === s.key ? "none" : s.key)}
+            className={cn(
+              "flex flex-col gap-1 px-4 py-3 text-left transition-colors hover:bg-muted/20",
+              metricFilter === s.key && "bg-muted/30"
+            )}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", s.dot)} />
+              <span className="text-[11px] text-muted-foreground truncate">{s.label}</span>
             </div>
-          </CardContent>
-        </Card>
-        <Card
-          className={cn("border-border cursor-pointer transition-all hover:border-primary/50", metricFilter === "connected" && "border-primary ring-1 ring-primary/20")}
-          onClick={() => setMetricFilter(metricFilter === "connected" ? "none" : "connected")}
-        >
-          <CardContent className="pt-4 pb-3 px-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground">Connect Rate</p>
-                <p className="text-2xl font-bold">{connectRate}%</p>
-              </div>
-              <UserCheck className="h-5 w-5 text-primary" />
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">{connectedCalls.length} connected</p>
-          </CardContent>
-        </Card>
-        <Card
-          className={cn("border-border cursor-pointer transition-all hover:border-primary/50", metricFilter === "conversations" && "border-primary ring-1 ring-primary/20")}
-          onClick={() => setMetricFilter(metricFilter === "conversations" ? "none" : "conversations")}
-        >
-          <CardContent className="pt-4 pb-3 px-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground">Conversation Rate</p>
-                <p className="text-2xl font-bold">{conversationRate}%</p>
-              </div>
-              <MessageSquare className="h-5 w-5 text-green-500" />
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">{conversations.length} calls &gt; 1 min</p>
-          </CardContent>
-        </Card>
-        <Card
-          className={cn("border-border cursor-pointer transition-all hover:border-primary/50", metricFilter === "intros_booked" && "border-primary ring-1 ring-primary/20")}
-          onClick={() => setMetricFilter(metricFilter === "intros_booked" ? "none" : "intros_booked")}
-        >
-          <CardContent className="pt-4 pb-3 px-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground">Intros Booked</p>
-                <p className="text-2xl font-bold text-primary">{introsBooked.length}</p>
-              </div>
-              <TrendingUp className="h-5 w-5 text-primary" />
-            </div>
-          </CardContent>
-        </Card>
+            <span className="text-xl font-semibold text-foreground leading-none">{s.value}</span>
+            {s.sub && <span className="text-[11px] text-muted-foreground">{s.sub}</span>}
+          </button>
+        ))}
       </div>
 
-      {/* Active metric filter indicator */}
-      {metricFilter !== "none" && (
-        <div className="flex items-center gap-2">
-          <Badge variant="secondary" className="gap-1">
-            Showing: {metricFilter === "calls_this_week" ? "All calls this week" : metricFilter === "connected" ? "Connected calls" : metricFilter === "conversations" ? "Conversations (> 1 min)" : "Intros booked"}
-            <button onClick={() => setMetricFilter("none")} className="ml-1 hover:text-foreground">
-              <X className="h-3 w-3" />
-            </button>
-          </Badge>
-        </div>
-      )}
-
-      {/* Filter Tabs, Search, and Date Range */}
-      <div className="flex items-center gap-3">
-        <div className="flex items-center border rounded-lg p-0.5">
-          <Button
-            variant={filter === "all" ? "default" : "ghost"}
-            size="sm"
+      {/* Toolbar */}
+      <div className="flex items-center gap-2">
+        {/* Filter toggle */}
+        <div className="flex items-center gap-1 p-0.5 rounded-lg border border-border bg-card">
+          <button
             onClick={() => setFilter("all")}
-            className="h-7 text-xs"
+            className={cn(
+              "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors",
+              filter === "all"
+                ? "bg-secondary text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            )}
           >
-            <PhoneOutgoing className="h-3 w-3 mr-1" />
+            <PhoneOutgoing className="h-3 w-3" />
             All Calls
-          </Button>
-          <Button
-            variant={filter === "recordings" ? "default" : "ghost"}
-            size="sm"
+          </button>
+          <button
             onClick={() => setFilter("recordings")}
-            className="h-7 text-xs"
+            className={cn(
+              "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors",
+              filter === "recordings"
+                ? "bg-secondary text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            )}
           >
-            <Mic className="h-3 w-3 mr-1" />
+            <Mic className="h-3 w-3" />
             Recordings
-          </Button>
+          </button>
         </div>
 
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
             placeholder="Search by name, company, or phone..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9"
+            className="pl-8 h-8 text-[12px]"
           />
         </div>
 
@@ -312,17 +299,16 @@ export function RecordingsList() {
           <PopoverTrigger asChild>
             <Button
               variant="outline"
+              size="sm"
               className={cn(
-                "justify-start text-left font-normal min-w-[240px]",
+                "h-8 text-[12px] font-normal gap-1.5",
                 !dateRange && "text-muted-foreground"
               )}
             >
-              <CalendarIcon className="mr-2 h-4 w-4" />
+              <CalendarIcon className="h-3.5 w-3.5" />
               {dateRange?.from ? (
                 dateRange.to ? (
-                  <>
-                    {format(dateRange.from, "MMM d, yyyy")} - {format(dateRange.to, "MMM d, yyyy")}
-                  </>
+                  <>{format(dateRange.from, "MMM d")} – {format(dateRange.to, "MMM d, yyyy")}</>
                 ) : (
                   format(dateRange.from, "MMM d, yyyy")
                 )
@@ -343,233 +329,221 @@ export function RecordingsList() {
         </Popover>
 
         {dateRange && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setDateRange(undefined)}
-            className="h-9 w-9"
-          >
-            <X className="h-4 w-4" />
+          <Button variant="ghost" size="icon" onClick={() => setDateRange(undefined)} className="h-8 w-8">
+            <X className="h-3.5 w-3.5" />
           </Button>
         )}
+
+        {metricFilter !== "none" && (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-secondary text-muted-foreground border border-border">
+            {metricFilter === "calls_this_week" ? "All calls this week" : metricFilter === "connected" ? "Connected calls" : metricFilter === "conversations" ? "Conversations > 1 min" : "Intros booked"}
+            <button onClick={() => setMetricFilter("none")} className="hover:text-foreground">
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        )}
+
+        <span className="ml-auto text-[11px] text-muted-foreground">
+          {filteredRecordings.length} {filter === "all" ? "calls" : "recordings"}
+        </span>
       </div>
 
-      {/* Main Card with Split Pane */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <Phone className="h-4 w-4" />
-            {filter === "all" ? "Call History" : "Call Recordings"} ({filteredRecordings.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {filteredRecordings.length === 0 ? (
-            <div className="py-12 text-center">
-              <Phone className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <p className="text-lg font-medium mb-1">No calls found</p>
-              <p className="text-sm text-muted-foreground">
-                {searchTerm || dateRange
-                  ? "Try adjusting your search or date range"
-                  : "Your call history will appear here"}
-              </p>
-            </div>
-          ) : (
-            <div className="flex h-[600px]">
-              {/* Left side - Recording list */}
-              <div className="w-[300px] border-r">
-                <ScrollArea className="h-full">
-                  <div className="p-2 space-y-1">
-                    {filteredRecordings.map((recording) => (
+      {/* Main panel */}
+      <div className="border border-border rounded-lg overflow-hidden bg-card">
+        {filteredRecordings.length === 0 ? (
+          <div className="py-16 text-center">
+            <Phone className="h-10 w-10 mx-auto mb-3 text-muted-foreground/40" />
+            <p className="text-[13px] font-medium text-foreground mb-1">No calls found</p>
+            <p className="text-[12px] text-muted-foreground">
+              {searchTerm || dateRange
+                ? "Try adjusting your search or date range"
+                : "Your call history will appear here"}
+            </p>
+          </div>
+        ) : (
+          <div className="flex h-[600px]">
+            {/* Left — Call list */}
+            <div className="w-[280px] border-r border-border flex flex-col">
+              {/* List header */}
+              <div className="border-b border-border bg-background px-4 py-2.5">
+                <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+                  {filter === "all" ? "Call History" : "Recordings"}
+                </span>
+              </div>
+              <ScrollArea className="flex-1">
+                <div className="py-1">
+                  {filteredRecordings.map((recording) => {
+                    const isSelected = selectedRecording?.id === recording.id
+                    return (
                       <button
                         key={recording.id}
                         onClick={() => setSelectedRecording(recording)}
                         className={cn(
-                          "w-full text-left p-3 rounded-lg transition-colors",
-                          "hover:bg-muted/50",
-                          selectedRecording?.id === recording.id
-                            ? "bg-muted border border-border"
-                            : "border border-transparent"
+                          "w-full text-left px-4 py-3 border-l-2 transition-colors",
+                          "border-b border-border/60 last:border-b-0",
+                          isSelected
+                            ? "border-l-[hsl(100,78%,44%)] bg-[hsl(100,78%,44%,0.05)]"
+                            : "border-l-transparent hover:bg-muted/20"
                         )}
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
-                            {recording.prospect ? (
-                              <p className="text-sm font-medium truncate">
-                                {recording.prospect.name}
-                              </p>
-                            ) : (
-                              <p className="text-sm font-medium truncate">
-                                Unknown Contact
-                              </p>
-                            )}
-                            <p className="text-xs text-muted-foreground font-mono truncate">
-                              {recording.to}
+                            <p className="text-[13px] font-medium truncate text-foreground">
+                              {recording.prospect?.name ?? "Unknown Contact"}
                             </p>
                             {recording.prospect?.company && (
-                              <p className="text-xs text-muted-foreground truncate">
+                              <p className="text-[11px] text-muted-foreground truncate">
                                 {recording.prospect.company}
                               </p>
                             )}
-                            <p className="text-xs text-muted-foreground mt-1">
+                            <p className="text-[11px] text-muted-foreground mt-0.5">
                               {format(new Date(recording.createdAt), "MMM d, h:mm a")}
                             </p>
                           </div>
                           <div className="flex flex-col items-end gap-1 shrink-0">
-                            {recording.outcome && getOutcomeBadge(recording.outcome)}
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                            {recording.outcome && getOutcomePill(recording.outcome)}
+                            <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
                               <Clock className="h-3 w-3" />
                               <span>{formatDuration(recording.recordingDuration || recording.duration)}</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              {recording.recordingUrl && (
-                                <Mic className="h-3 w-3 text-primary" />
-                              )}
-                              {recording.transcriptionStatus === "completed" && (
-                                <FileText className="h-3 w-3 text-green-500" />
-                              )}
+                              {recording.recordingUrl && <Mic className="h-3 w-3 text-[hsl(100,78%,44%)]" />}
+                              {recording.transcriptionStatus === "completed" && <FileText className="h-3 w-3 text-blue-400" />}
                             </div>
                           </div>
                         </div>
                       </button>
-                    ))}
-                  </div>
-                </ScrollArea>
-              </div>
+                    )
+                  })}
+                </div>
+              </ScrollArea>
+            </div>
 
-              {/* Right side - Recording details and transcript */}
-              <div className="flex-1 overflow-hidden">
-                {selectedRecording ? (
-                  <ScrollArea className="h-full">
-                    <div className="p-4 space-y-4">
-                      {/* Recording header */}
-                      <div className="space-y-2">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            {selectedRecording.prospect ? (
-                              <>
-                                <div className="flex items-center gap-2">
-                                  <User className="h-4 w-4 text-muted-foreground" />
-                                  <span className="font-medium">{selectedRecording.prospect.name}</span>
-                                </div>
-                                {selectedRecording.prospect.company && (
-                                  <div className="flex items-center gap-2 mt-1">
-                                    <Building2 className="h-4 w-4 text-muted-foreground" />
-                                    <span className="text-sm text-muted-foreground">
-                                      {selectedRecording.prospect.title && `${selectedRecording.prospect.title} at `}
-                                      {selectedRecording.prospect.company}
-                                    </span>
-                                  </div>
-                                )}
-                              </>
-                            ) : (
-                              <span className="font-medium">Unknown Contact</span>
+            {/* Right — Detail panel */}
+            <div className="flex-1 overflow-hidden">
+              {selectedRecording ? (
+                <ScrollArea className="h-full">
+                  <div className="p-5 space-y-5">
+                    {/* Header */}
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="space-y-1">
+                        {selectedRecording.prospect ? (
+                          <>
+                            <div className="flex items-center gap-2">
+                              <User className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-[15px] font-semibold text-foreground">{selectedRecording.prospect.name}</span>
+                            </div>
+                            {selectedRecording.prospect.company && (
+                              <div className="flex items-center gap-2">
+                                <Building2 className="h-4 w-4 text-muted-foreground" />
+                                <span className="text-[13px] text-muted-foreground">
+                                  {selectedRecording.prospect.title && `${selectedRecording.prospect.title} · `}
+                                  {selectedRecording.prospect.company}
+                                </span>
+                              </div>
                             )}
-                          </div>
+                          </>
+                        ) : (
+                          <span className="text-[15px] font-semibold text-foreground">Unknown Contact</span>
+                        )}
 
-                          <div className="flex items-center gap-2">
-                            {selectedRecording.prospect?.email && selectedRecording.transcriptionStatus === "completed" && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => draftEmailFromCall(selectedRecording)}
-                                disabled={draftingEmail}
-                              >
-                                {draftingEmail ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Mail className="h-4 w-4 mr-2" />}
-                                Draft Email
-                              </Button>
-                            )}
-                            {selectedRecording.recordingUrl && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                asChild
-                              >
-                                <a
-                                  href={`/api/calls/${selectedRecording.id}/recording`}
-                                  download={`recording-${selectedRecording.id}.mp3`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                >
-                                  <Download className="h-4 w-4 mr-2" />
-                                  Download
-                                </a>
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-4 text-sm">
-                          <div className="flex items-center gap-2">
-                            <Phone className="h-4 w-4 text-muted-foreground" />
-                            <span className="font-mono">{selectedRecording.to}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Clock className="h-4 w-4 text-muted-foreground" />
-                            <span>{formatDuration(selectedRecording.recordingDuration || selectedRecording.duration)}</span>
-                          </div>
-                          {selectedRecording.outcome && getOutcomeBadge(selectedRecording.outcome)}
+                        <div className="flex items-center gap-3 pt-1">
+                          <span className="inline-flex items-center gap-1.5 text-[12px] text-muted-foreground font-mono">
+                            <Phone className="h-3.5 w-3.5" />
+                            {selectedRecording.to}
+                          </span>
+                          <span className="inline-flex items-center gap-1.5 text-[12px] text-muted-foreground">
+                            <Clock className="h-3.5 w-3.5" />
+                            {formatDuration(selectedRecording.recordingDuration || selectedRecording.duration)}
+                          </span>
+                          {selectedRecording.outcome && getOutcomePill(selectedRecording.outcome)}
                           {selectedRecording.recordingUrl && (
-                            <Badge variant="outline" className="text-xs">
-                              <Mic className="h-3 w-3 mr-1" />
-                              Recorded
-                            </Badge>
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-secondary/40 text-muted-foreground border border-border">
+                              <Mic className="h-3 w-3" /> Recorded
+                            </span>
                           )}
                         </div>
 
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-[11px] text-muted-foreground">
                           {format(new Date(selectedRecording.createdAt), "MMMM d, yyyy 'at' h:mm a")}
                         </p>
                       </div>
 
-                      {/* Recording player */}
-                      {selectedRecording.recordingUrl && (
-                        <div className="p-3 rounded-lg border bg-muted/30">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Play className="h-4 w-4" />
-                            <span className="text-sm font-medium">Recording</span>
-                            <span className="text-xs text-muted-foreground">
-                              ({formatDuration(selectedRecording.recordingDuration)})
-                            </span>
-                          </div>
-                          <audio
-                            controls
-                            className="w-full h-8"
-                            src={`/api/calls/${selectedRecording.id}/recording`}
+                      <div className="flex items-center gap-2 shrink-0">
+                        {selectedRecording.prospect?.email && selectedRecording.transcriptionStatus === "completed" && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => draftEmailFromCall(selectedRecording)}
+                            disabled={draftingEmail}
+                            className="h-8 text-[12px]"
                           >
-                            Your browser does not support audio playback.
-                          </audio>
-                        </div>
-                      )}
-
-                      {/* Notes */}
-                      {selectedRecording.notes && (
-                        <div className="p-3 rounded-lg border">
-                          <p className="text-sm font-medium mb-1">Notes</p>
-                          <p className="text-sm text-muted-foreground">{selectedRecording.notes}</p>
-                        </div>
-                      )}
-
-                      {/* Transcript */}
-                      {selectedRecording.recordingUrl && (
-                        <CallTranscript
-                          callId={selectedRecording.id}
-                          hasRecording={!!selectedRecording.recordingUrl}
-                          transcriptionStatus={selectedRecording.transcriptionStatus}
-                          callOutcome={selectedRecording.outcome}
-                        />
-                      )}
+                            {draftingEmail ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Mail className="h-3.5 w-3.5 mr-1.5" />}
+                            Draft Email
+                          </Button>
+                        )}
+                        {selectedRecording.recordingUrl && (
+                          <Button variant="outline" size="sm" asChild className="h-8 text-[12px]">
+                            <a
+                              href={`/api/calls/${selectedRecording.id}/recording`}
+                              download={`recording-${selectedRecording.id}.mp3`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <Download className="h-3.5 w-3.5 mr-1.5" />
+                              Download
+                            </a>
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                  </ScrollArea>
-                ) : (
-                  <div className="h-full flex items-center justify-center text-muted-foreground">
-                    <p className="text-sm">Select a call to view details</p>
+
+                    {/* Audio player */}
+                    {selectedRecording.recordingUrl && (
+                      <div className="rounded-lg border border-border bg-secondary/20 px-4 py-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Play className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="text-[13px] font-medium text-foreground">Recording</span>
+                          <span className="text-[11px] text-muted-foreground">
+                            {formatDuration(selectedRecording.recordingDuration)}
+                          </span>
+                        </div>
+                        <audio
+                          controls
+                          className="w-full h-8"
+                          src={`/api/calls/${selectedRecording.id}/recording`}
+                        >
+                          Your browser does not support audio playback.
+                        </audio>
+                      </div>
+                    )}
+
+                    {/* Notes */}
+                    {selectedRecording.notes && (
+                      <div className="rounded-lg border border-border px-4 py-3">
+                        <p className="text-[13px] font-medium text-foreground mb-1">Notes</p>
+                        <p className="text-[13px] text-muted-foreground">{selectedRecording.notes}</p>
+                      </div>
+                    )}
+
+                    {/* Transcript */}
+                    {selectedRecording.recordingUrl && (
+                      <CallTranscript
+                        callId={selectedRecording.id}
+                        hasRecording={!!selectedRecording.recordingUrl}
+                        transcriptionStatus={selectedRecording.transcriptionStatus}
+                        callOutcome={selectedRecording.outcome}
+                      />
+                    )}
                   </div>
-                )}
-              </div>
+                </ScrollArea>
+              ) : (
+                <div className="h-full flex items-center justify-center">
+                  <p className="text-[13px] text-muted-foreground">Select a call to view details</p>
+                </div>
+              )}
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

@@ -11,6 +11,7 @@ import { Collapsible } from "@/components/ui/collapsible"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Slider } from "@/components/ui/slider"
 import { Separator } from "@/components/ui/separator"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { useToast } from "@/components/ui/use-toast"
@@ -79,7 +80,8 @@ interface SavedSearch {
     buyerIntent: string
     seniorityLevels: string[]
     industries: string[]
-    headcountRange: number[]
+    headcountIdxRange?: number[]
+    revenueIdxRange?: number[]
     // Exclusions
     excludedNames: string[]
     excludedCompanies: string[]
@@ -254,6 +256,11 @@ function toTitleCase(str: string | null | undefined): string {
     .join(" ")
 }
 
+const REVENUE_LABELS = ["$1M", "$10M", "$25M", "$50M", "$100M", "$250M", "$500M", "$1B", "$1B+"]
+const REVENUE_VALUES = [1, 10, 25, 50, 100, 250, 500, 1000, 1000]
+const HEADCOUNT_LABELS = ["10", "50", "200", "500", "1K", "5K", "10K", "10K+"]
+const HEADCOUNT_VALUES = [10, 50, 200, 500, 1000, 5000, 10000, 10000]
+
 export function LeadsProspecting() {
   const { toast } = useToast()
   const searchParams = useSearchParams()
@@ -263,7 +270,7 @@ export function LeadsProspecting() {
   const [isBuyerIntentOpen, setIsBuyerIntentOpen] = useState(true)
   const [isBestPathOpen, setIsBestPathOpen] = useState(true)
   const [isRecentUpdatesOpen, setIsRecentUpdatesOpen] = useState(true)
-  const [headcountRange, setHeadcountRange] = useState([10, 10000])
+  const [headcountIdxRange, setHeadcountIdxRange] = useState([0, HEADCOUNT_LABELS.length - 1])
 
   // Search filters
   const [query, setQuery] = useState("")
@@ -279,9 +286,11 @@ export function LeadsProspecting() {
   const [seniorityLevels, setSeniorityLevels] = useState<string[]>([])
   const [industries, setIndustries] = useState<string[]>([])
 
-  // Revenue + headcount UI state
-  const [revenue, setRevenue] = useState("")
-  const [headcountSelected, setHeadcountSelected] = useState("")
+  // Revenue + headcount slider state (index into step arrays)
+  const [revenueIdxRange, setRevenueIdxRange] = useState([0, REVENUE_LABELS.length - 1])
+
+  // Derived actual values for API
+  const headcountRange = [HEADCOUNT_VALUES[headcountIdxRange[0]], HEADCOUNT_VALUES[headcountIdxRange[1]]]
 
   // Funding filters
   const [fundingDateType, setFundingDateType] = useState<"last_round" | "any_round">("last_round")
@@ -357,7 +366,10 @@ export function LeadsProspecting() {
         setBuyerIntent(state.buyerIntent || "all")
         setSeniorityLevels(state.seniorityLevels || [])
         setIndustries(state.industries || [])
-        setHeadcountRange(state.headcountRange || [10, 10000])
+        const savedHc = state.headcountIdxRange
+        setHeadcountIdxRange(Array.isArray(savedHc) && savedHc[1] < HEADCOUNT_LABELS.length ? savedHc : [0, HEADCOUNT_LABELS.length - 1])
+        const savedRev = state.revenueIdxRange
+        setRevenueIdxRange(Array.isArray(savedRev) && savedRev[1] < REVENUE_LABELS.length ? savedRev : [0, REVENUE_LABELS.length - 1])
         setSearchResults(state.searchResults || [])
         setTotalResults(state.totalResults || 0)
         // Load exclusions
@@ -590,7 +602,8 @@ export function LeadsProspecting() {
         buyerIntent,
         seniorityLevels,
         industries,
-        headcountRange,
+        headcountIdxRange,
+        revenueIdxRange,
         excludedNames,
         excludedCompanies,
         excludedTitles,
@@ -620,9 +633,8 @@ export function LeadsProspecting() {
     setBuyerIntent("all")
     setSeniorityLevels([])
     setIndustries([])
-    setHeadcountRange([10, 10000])
-    setHeadcountSelected("")
-    setRevenue("")
+    setHeadcountIdxRange([0, HEADCOUNT_LABELS.length - 1])
+    setRevenueIdxRange([0, REVENUE_LABELS.length - 1])
     setFundingDateType("last_round")
     setFundingDateRange("all_times")
     setLastFundingFrom(""); setLastFundingTo("")
@@ -882,7 +894,8 @@ export function LeadsProspecting() {
         buyerIntent,
         seniorityLevels,
         industries,
-        headcountRange,
+        headcountIdxRange,
+        revenueIdxRange,
         excludedNames,
         excludedCompanies,
         excludedTitles,
@@ -911,7 +924,10 @@ export function LeadsProspecting() {
     setBuyerIntent(f.buyerIntent || "all")
     setSeniorityLevels(f.seniorityLevels || [])
     setIndustries(f.industries || [])
-    setHeadcountRange(f.headcountRange || [10, 10000])
+    const savedHc = f.headcountIdxRange
+    setHeadcountIdxRange(Array.isArray(savedHc) && savedHc[1] < HEADCOUNT_LABELS.length ? savedHc : [0, HEADCOUNT_LABELS.length - 1])
+    const savedRev = f.revenueIdxRange
+    setRevenueIdxRange(Array.isArray(savedRev) && savedRev[1] < REVENUE_LABELS.length ? savedRev : [0, REVENUE_LABELS.length - 1])
     setExcludedNames(f.excludedNames || [])
     setExcludedCompanies(f.excludedCompanies || [])
     setExcludedTitles(f.excludedTitles || [])
@@ -1251,8 +1267,8 @@ export function LeadsProspecting() {
     (geography || cities.length ? 1 : 0) +
     seniorityLevels.length +
     industries.length +
-    (headcountSelected ? 1 : 0) +
-    (revenue ? 1 : 0) +
+    (headcountIdxRange[0] !== 0 || headcountIdxRange[1] !== HEADCOUNT_LABELS.length - 1 ? 1 : 0) +
+    (revenueIdxRange[0] !== 0 || revenueIdxRange[1] !== REVENUE_LABELS.length - 1 ? 1 : 0) +
     (fundingStages.length || fundingTypes.length || lastFundingFrom || totalFundingFrom ? 1 : 0) +
     (buyerIntent !== "all" ? 1 : 0)
   )
@@ -1492,23 +1508,14 @@ export function LeadsProspecting() {
 
                 <FilterSectionRow icon={Users} label="Headcount"
                   isOpen={openFilter === 'headcount'} onToggle={() => setOpenFilter(openFilter === 'headcount' ? null : 'headcount')}
-                  hasValue={!!headcountSelected} onClear={() => { setHeadcountSelected(""); setHeadcountRange([10, 10000]) }}>
-                  <Select value={headcountSelected} onValueChange={(v) => {
-                    setHeadcountSelected(v)
-                    const map: Record<string, [number, number]> = {
-                      "1-10": [1, 10], "11-50": [11, 50], "51-200": [51, 200],
-                      "201-500": [201, 500], "501-1000": [501, 1000],
-                      "1001-5000": [1001, 5000], "5001-10000": [5001, 10000], "10001+": [10001, 1000000],
-                    }
-                    setHeadcountRange(map[v] ?? [10, 10000])
-                  }}>
-                    <SelectTrigger className="h-8 text-[12px]"><SelectValue placeholder="Company Headcount" /></SelectTrigger>
-                    <SelectContent>
-                      {["1-10", "11-50", "51-200", "201-500", "501-1000", "1001-5000", "5001-10000", "10001+"].map((r) => (
-                        <SelectItem key={r} value={r} className="text-[12px]">{r}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  hasValue={headcountIdxRange[0] !== 0 || headcountIdxRange[1] !== HEADCOUNT_LABELS.length - 1} onClear={() => setHeadcountIdxRange([0, HEADCOUNT_LABELS.length - 1])}>
+                  <div className="pt-1">
+                    <div className="flex justify-between text-[11px] text-muted-foreground mb-1">
+                      <span>{headcountIdxRange[0] === 0 ? 'Any' : HEADCOUNT_LABELS[headcountIdxRange[0]]}</span>
+                      <span>{headcountIdxRange[1] === HEADCOUNT_LABELS.length - 1 ? 'Any' : HEADCOUNT_LABELS[headcountIdxRange[1]]}</span>
+                    </div>
+                    <Slider value={headcountIdxRange} min={0} max={HEADCOUNT_LABELS.length - 1} step={1} onValueChange={setHeadcountIdxRange} className="my-3" />
+                  </div>
                   <Select>
                     <SelectTrigger className="h-8 text-[12px]"><SelectValue placeholder="Headcount Annual Growth" /></SelectTrigger>
                     <SelectContent>
@@ -1521,15 +1528,14 @@ export function LeadsProspecting() {
 
                 <FilterSectionRow icon={DollarSign} label="Revenue"
                   isOpen={openFilter === 'revenue'} onToggle={() => setOpenFilter(openFilter === 'revenue' ? null : 'revenue')}
-                  hasValue={!!revenue} onClear={() => setRevenue("")}>
-                  <Select value={revenue} onValueChange={setRevenue}>
-                    <SelectTrigger className="h-8 text-[12px]"><SelectValue placeholder="Select revenue range" /></SelectTrigger>
-                    <SelectContent>
-                      {["$0–$1M", "$1M–$10M", "$10M–$25M", "$25M–$50M", "$50M–$100M", "$100M–$250M", "$250M–$500M", "$500M–$1B", "$1B+"].map((r) => (
-                        <SelectItem key={r} value={r} className="text-[12px]">{r}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  hasValue={revenueIdxRange[0] !== 0 || revenueIdxRange[1] !== REVENUE_LABELS.length - 1} onClear={() => setRevenueIdxRange([0, REVENUE_LABELS.length - 1])}>
+                  <div className="pt-1">
+                    <div className="flex justify-between text-[11px] text-muted-foreground mb-1">
+                      <span>{revenueIdxRange[0] === 0 ? 'Any' : REVENUE_LABELS[revenueIdxRange[0]]}</span>
+                      <span>{revenueIdxRange[1] === REVENUE_LABELS.length - 1 ? 'Any' : REVENUE_LABELS[revenueIdxRange[1]]}</span>
+                    </div>
+                    <Slider value={revenueIdxRange} min={0} max={REVENUE_LABELS.length - 1} step={1} onValueChange={setRevenueIdxRange} className="my-3" />
+                  </div>
                 </FilterSectionRow>
 
                 <FilterSectionRow icon={TrendingUp} label="Funding"

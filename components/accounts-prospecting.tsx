@@ -164,12 +164,17 @@ function toTitleCase(str: string | null | undefined): string {
     .join(" ")
 }
 
+const REVENUE_LABELS = ["$1M", "$10M", "$25M", "$50M", "$100M", "$250M", "$500M", "$1B", "$1B+"]
+const REVENUE_VALUES = [1, 10, 25, 50, 100, 250, 500, 1000, 1000]
+const HEADCOUNT_LABELS = ["10", "50", "200", "500", "1K", "5K", "10K", "10K+"]
+const HEADCOUNT_VALUES = [10, 50, 200, 500, 1000, 5000, 10000, 10000]
+
 export function AccountsProspecting() {
   const { toast } = useToast()
   const [isCompanyAttributesOpen, setIsCompanyAttributesOpen] = useState(true)
   const [isSpotlightOpen, setIsSpotlightOpen] = useState(true)
-  const [revenueRange, setRevenueRange] = useState([1, 1000])
-  const [headcountRange, setHeadcountRange] = useState([10, 10000])
+  const [revenueRange, setRevenueRange] = useState([0, REVENUE_LABELS.length - 1])
+  const [headcountRange, setHeadcountRange] = useState([0, HEADCOUNT_LABELS.length - 1])
 
   // Search filters
   const [query, setQuery] = useState("")
@@ -206,8 +211,10 @@ export function AccountsProspecting() {
         setTechnologies(state.technologies || [])
         setJobOpportunities(state.jobOpportunities || [])
         setRecentActivities(state.recentActivities || [])
-        setRevenueRange(state.revenueRange || [1, 1000])
-        setHeadcountRange(state.headcountRange || [10, 10000])
+        const savedRev = state.revenueRange
+        setRevenueRange(Array.isArray(savedRev) && savedRev[1] < REVENUE_LABELS.length ? savedRev : [0, REVENUE_LABELS.length - 1])
+        const savedHc = state.headcountRange
+        setHeadcountRange(Array.isArray(savedHc) && savedHc[1] < HEADCOUNT_LABELS.length ? savedHc : [0, HEADCOUNT_LABELS.length - 1])
         setSearchResults(state.searchResults || [])
         setTotalResults(state.totalResults || 0)
       } catch (e) {
@@ -246,8 +253,8 @@ export function AccountsProspecting() {
         body: JSON.stringify({
           query: searchQuery,
           industry: industries,
-          revenueRange,
-          headcountRange,
+          revenueRange: [REVENUE_VALUES[revenueRange[0]], REVENUE_VALUES[revenueRange[1]]],
+          headcountRange: [HEADCOUNT_VALUES[headcountRange[0]], HEADCOUNT_VALUES[headcountRange[1]]],
           location,
           city,
           technologies,
@@ -297,8 +304,8 @@ export function AccountsProspecting() {
     setTechnologies([])
     setJobOpportunities([])
     setRecentActivities([])
-    setRevenueRange([1, 1000])
-    setHeadcountRange([10, 10000])
+    setRevenueRange([0, REVENUE_LABELS.length - 1])
+    setHeadcountRange([0, HEADCOUNT_LABELS.length - 1])
     setSearchResults([])
     setTotalResults(0)
     setError(null)
@@ -395,8 +402,8 @@ export function AccountsProspecting() {
     technologies.length +
     jobOpportunities.length +
     recentActivities.length +
-    (revenueRange[0] !== 1 || revenueRange[1] !== 1000 ? 1 : 0) +
-    (headcountRange[0] !== 10 || headcountRange[1] < 10000 ? 1 : 0)
+    (revenueRange[0] !== 0 || revenueRange[1] !== REVENUE_LABELS.length - 1 ? 1 : 0) +
+    (headcountRange[0] !== 0 || headcountRange[1] !== HEADCOUNT_LABELS.length - 1 ? 1 : 0)
   )
 
   return (
@@ -488,26 +495,25 @@ export function AccountsProspecting() {
 
                 <FilterSectionRow icon={Users} label="Headcount"
                   isOpen={openFilter === 'headcount'} onToggle={() => setOpenFilter(openFilter === 'headcount' ? null : 'headcount')}
-                  hasValue={headcountRange[0] !== 10 || headcountRange[1] < 10000} onClear={() => setHeadcountRange([10, 10000])}>
+                  hasValue={headcountRange[0] !== 0 || headcountRange[1] !== HEADCOUNT_LABELS.length - 1} onClear={() => setHeadcountRange([0, HEADCOUNT_LABELS.length - 1])}>
                   <div className="pt-1">
                     <div className="flex justify-between text-[11px] text-muted-foreground mb-1">
-                      <span>{headcountRange[0] === 10 ? 'Any' : headcountRange[0].toLocaleString()}</span>
-                      <span>{headcountRange[1] >= 10000 ? '10,000+' : headcountRange[1].toLocaleString()}</span>
+                      <span>{headcountRange[0] === 0 ? 'Any' : HEADCOUNT_LABELS[headcountRange[0]]}</span>
+                      <span>{headcountRange[1] === HEADCOUNT_LABELS.length - 1 ? 'Any' : HEADCOUNT_LABELS[headcountRange[1]]}</span>
                     </div>
-                    <Slider value={headcountRange.map(v => v >= 10000 ? 1000 : Math.round(v / 10))} min={1} max={1000} step={1}
-                      onValueChange={(vals) => setHeadcountRange(vals.map(v => v >= 1000 ? 10000 : v * 10))} className="my-3" />
+                    <Slider value={headcountRange} min={0} max={HEADCOUNT_LABELS.length - 1} step={1} onValueChange={setHeadcountRange} className="my-3" />
                   </div>
                 </FilterSectionRow>
 
                 <FilterSectionRow icon={DollarSign} label="Revenue"
                   isOpen={openFilter === 'revenue'} onToggle={() => setOpenFilter(openFilter === 'revenue' ? null : 'revenue')}
-                  hasValue={revenueRange[0] !== 1 || revenueRange[1] !== 1000} onClear={() => setRevenueRange([1, 1000])}>
+                  hasValue={revenueRange[0] !== 0 || revenueRange[1] !== REVENUE_LABELS.length - 1} onClear={() => setRevenueRange([0, REVENUE_LABELS.length - 1])}>
                   <div className="pt-1">
                     <div className="flex justify-between text-[11px] text-muted-foreground mb-1">
-                      <span>{revenueRange[0] === 1 ? 'Any' : `$${revenueRange[0]}M`}</span>
-                      <span>{revenueRange[1] === 1000 ? 'Any' : `$${revenueRange[1]}M`}</span>
+                      <span>{revenueRange[0] === 0 ? 'Any' : REVENUE_LABELS[revenueRange[0]]}</span>
+                      <span>{revenueRange[1] === REVENUE_LABELS.length - 1 ? 'Any' : REVENUE_LABELS[revenueRange[1]]}</span>
                     </div>
-                    <Slider value={revenueRange} min={1} max={1000} step={10} onValueChange={setRevenueRange} className="my-3" />
+                    <Slider value={revenueRange} min={0} max={REVENUE_LABELS.length - 1} step={1} onValueChange={setRevenueRange} className="my-3" />
                   </div>
                 </FilterSectionRow>
 

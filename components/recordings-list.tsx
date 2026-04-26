@@ -5,7 +5,10 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Phone, Search, User, Building2, CalendarIcon, Clock, Download, Play, FileText, X, Mic, PhoneOutgoing, TrendingUp, UserCheck, MessageSquare, Mail, Loader2 } from "lucide-react"
+import { Phone, Search, User, Building2, CalendarIcon, Clock, Download, Play, FileText, X, Mic, PhoneOutgoing, TrendingUp, UserCheck, MessageSquare, Mail, Loader2, AlertTriangle } from "lucide-react"
+import { useUser } from "@/hooks/use-user"
+import { TrialLimitBanner } from "@/components/trial-limit-banner"
+import { TRIAL_LIMITS } from "@/lib/trial-limits"
 import { format, isWithinInterval, startOfDay, endOfDay } from "date-fns"
 import { Skeleton } from "@/components/ui/skeleton"
 import { CallTranscript } from "@/components/call-transcript"
@@ -39,6 +42,7 @@ type CallRecording = {
 }
 
 export function RecordingsList() {
+  const { user } = useUser()
   const [recordings, setRecordings] = useState<CallRecording[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
@@ -203,8 +207,14 @@ export function RecordingsList() {
     )
   }
 
+  const recordingCount = recordings.filter(r => r.recordingUrl).length
+  const isTrial = user?.tier === 'trial' && user?.role !== 'super_admin'
+
   return (
     <div className="space-y-4">
+      {isTrial && (
+        <TrialLimitBanner current={recordingCount} limit={TRIAL_LIMITS.recordings} resourceLabel="call recordings" />
+      )}
       {/* Stats Bar */}
       <div
         className="grid grid-cols-4 divide-x divide-border border border-border rounded-lg overflow-hidden bg-card"

@@ -276,6 +276,20 @@ export function EmailerDashboard({ isTrialUser }: { isTrialUser?: boolean }) {
         </div>
       )}
 
+      {/* Trial gate */}
+      {isTrialUser && (
+        <div className="mx-6 mt-4 shrink-0 flex items-start gap-3 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-400">
+          <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-medium">Email sending is not available on the trial plan.</p>
+            <p className="text-xs text-yellow-400/70 mt-0.5">Upgrade to Starter or higher to send emails from your own inbox.</p>
+          </div>
+          <a href="/upgrade" className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-md border border-yellow-500/40 hover:bg-yellow-500/10 transition-colors">
+            Upgrade
+          </a>
+        </div>
+      )}
+
       {/* Content */}
       <div className="flex-1 overflow-hidden flex flex-col">
         {tab === 'all' && <EmailTable emails={filtered} loading={loading} />}

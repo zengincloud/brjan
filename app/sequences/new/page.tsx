@@ -62,9 +62,18 @@ export default function NewSequencePage() {
   const [steps, setSteps] = useState<SequenceStep[]>([])
   const [editingStep, setEditingStep] = useState<number | null>(null)
   const [templates, setTemplates] = useState<EmailTemplate[]>([])
+  const [existingSequenceCount, setExistingSequenceCount] = useState<number | null>(null)
+
+  const isTrial = user?.tier === 'trial' && user?.role !== 'super_admin'
+  const atSequenceLimit = isTrial && existingSequenceCount !== null && existingSequenceCount >= TRIAL_LIMITS.sequences
 
   useEffect(() => {
     loadTemplates()
+    // Fetch existing sequence count for trial users
+    fetch("/api/sequences")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.sequences) setExistingSequenceCount(d.sequences.length) })
+      .catch(() => {})
   }, [])
 
   const loadTemplates = async () => {
@@ -228,11 +237,15 @@ export default function NewSequencePage() {
           <h1 className="text-xl font-semibold">Create Sequence</h1>
           <p className="text-muted-foreground">Design your outreach workflow</p>
         </div>
-        <Button onClick={saveSequence} disabled={saving} className="ml-auto">
+        <Button onClick={saveSequence} disabled={saving || atSequenceLimit} className="ml-auto">
           <Save className="mr-2 h-4 w-4" />
           {saving ? "Saving..." : "Save Sequence"}
         </Button>
       </div>
+
+      {atSequenceLimit && (
+        <TrialLimitBanner current={existingSequenceCount!} limit={TRIAL_LIMITS.sequences} resourceLabel="sequences" />
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left: Sequence Details */}

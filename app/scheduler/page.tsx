@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { CalendarClock, Clock, Plus, X, Globe, Users, Check, Info, ExternalLink } from "lucide-react"
+import { CalendarClock, Clock, Plus, X, Globe, Users, Check, Info, ExternalLink, Loader2, CalendarDays, MapPin, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
@@ -10,8 +10,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { toast } from "sonner"
+import Link from "next/link"
 
-// Sample time zones
 const timeZones = [
   { value: "utc-8", label: "Pacific Time (UTC-8)", offset: -8 },
   { value: "utc-7", label: "Mountain Time (UTC-7)", offset: -7 },
@@ -29,7 +33,6 @@ const timeZones = [
   { value: "utc+12", label: "New Zealand Time (UTC+12)", offset: 12 },
 ]
 
-// Map settings timezone keys to scheduler timezone values
 const timezoneMap: Record<string, string> = {
   pst: "utc-8",
   mst: "utc-7",
@@ -37,23 +40,267 @@ const timezoneMap: Record<string, string> = {
   est: "utc-5",
 }
 
-// Generate hours for the time grid
 const hours = Array.from({ length: 24 }, (_, i) => i)
+
+interface CalendarEvent {
+  id: string
+  summary: string
+  description?: string
+  location?: string
+  start: string
+  end: string
+  attendees: { email: string; name?: string; responseStatus?: string }[]
+  htmlLink: string
+  status: string
+}
+
+function formatEventDate(dateStr: string) {
+  const d = new Date(dateStr)
+  return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
+}
+
+function formatEventTime(dateStr: string) {
+  const d = new Date(dateStr)
+  return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+}
+
+function EventCard({ event }: { event: CalendarEvent }) {
+  return (
+    <div className="p-4 border rounded-lg space-y-2 hover:bg-muted/30 transition-colors">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="font-medium">{event.summary}</p>
+          <div className="flex items-center gap-1 text-sm text-muted-foreground mt-0.5">
+            <CalendarDays className="h-3.5 w-3.5" />
+            <span>{formatEventDate(event.start)}</span>
+            <span className="mx-1">·</span>
+            <Clock className="h-3.5 w-3.5" />
+            <span>{formatEventTime(event.start)} – {formatEventTime(event.end)}</span>
+          </div>
+        </div>
+        <a href={event.htmlLink} target="_blank" rel="noopener noreferrer">
+          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
+            <ExternalLink className="h-3.5 w-3.5" />
+          </Button>
+        </a>
+      </div>
+      {event.location && (
+        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+          <MapPin className="h-3 w-3" />
+          <span>{event.location}</span>
+        </div>
+      )}
+      {event.attendees.length > 0 && (
+        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+          <User className="h-3 w-3" />
+          <span>{event.attendees.map(a => a.name || a.email).join(", ")}</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function EventsList({ type }: { type: "upcoming" | "past" }) {
+  const [events, setEvents] = useState<CalendarEvent[]>([])
+  const [loading, setLoading] = useState(true)
+  const [notConnected, setNotConnected] = useState(false)
+
+  useEffect(() => {
+    fetch(`/api/integrations/gcal/events?type=${type}`)
+      .then(async (res) => {
+        if (res.status === 403) {
+          setNotConnected(true)
+          return
+        }
+        const data = await res.json()
+        setEvents(data.events || [])
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [type])
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  if (notConnected) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 text-center">
+        <CalendarClock className="h-12 w-12 text-muted-foreground mb-4" />
+        <h3 className="text-lg font-medium mb-2">Google Calendar not connected</h3>
+        <p className="text-muted-foreground max-w-md mb-6">
+          Connect your Google Calendar in Settings to see your meetings here.
+        </p>
+        <Link href="/settings?tab=integrations">
+          <Button variant="outline">Go to Settings</Button>
+        </Link>
+      </div>
+    )
+  }
+
+  if (events.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 text-center">
+        {type === "upcoming" ? (
+          <CalendarClock className="h-12 w-12 text-muted-foreground mb-4" />
+        ) : (
+          <Clock className="h-12 w-12 text-muted-foreground mb-4" />
+        )}
+        <h3 className="text-lg font-medium mb-2">
+          {type === "upcoming" ? "No upcoming meetings" : "No past meetings"}
+        </h3>
+        <p className="text-muted-foreground max-w-md">
+          {type === "upcoming"
+            ? "Schedule meetings with prospects and clients to see them here."
+            : "Your meeting history will appear here once you've had meetings."}
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      {events.map((event) => (
+        <EventCard key={event.id} event={event} />
+      ))}
+    </div>
+  )
+}
+
+interface CreateEventDialogProps {
+  open: boolean
+  onClose: () => void
+  prefill?: { startHour: number; participantEmails: string[] }
+  userTzOffset: number
+  userTzLabel: string
+}
+
+function CreateEventDialog({ open, onClose, prefill, userTzOffset, userTzLabel }: CreateEventDialogProps) {
+  const [summary, setSummary] = useState("Meeting")
+  const [description, setDescription] = useState("")
+  const [attendees, setAttendees] = useState("")
+  const [date, setDate] = useState(() => {
+    const d = new Date()
+    d.setDate(d.getDate() + 1)
+    return d.toISOString().split("T")[0]
+  })
+  const [startTime, setStartTime] = useState("09:00")
+  const [endTime, setEndTime] = useState("10:00")
+  const [isCreating, setIsCreating] = useState(false)
+
+  useEffect(() => {
+    if (prefill) {
+      const h = prefill.startHour
+      setStartTime(`${String(h).padStart(2, "0")}:00`)
+      setEndTime(`${String((h + 1) % 24).padStart(2, "0")}:00`)
+      setAttendees(prefill.participantEmails.join(", "))
+    }
+  }, [prefill])
+
+  const handleCreate = async () => {
+    setIsCreating(true)
+    try {
+      const startDateTime = new Date(`${date}T${startTime}:00`).toISOString()
+      const endDateTime = new Date(`${date}T${endTime}:00`).toISOString()
+      const attendeeEmails = attendees
+        .split(/[,\n]/)
+        .map((e) => e.trim())
+        .filter(Boolean)
+
+      const res = await fetch("/api/integrations/gcal/create-event", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          summary,
+          description: description || undefined,
+          startTime: startDateTime,
+          endTime: endDateTime,
+          attendeeEmails,
+        }),
+      })
+
+      if (res.status === 403) {
+        toast.error("Google Calendar not connected — go to Settings to connect it.")
+        return
+      }
+
+      if (!res.ok) throw new Error("Failed to create event")
+
+      toast.success("Meeting created in Google Calendar!")
+      onClose()
+    } catch (error) {
+      toast.error("Failed to create meeting")
+    } finally {
+      setIsCreating(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Create Meeting</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-1">
+            <Label>Title</Label>
+            <Input value={summary} onChange={(e) => setSummary(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="col-span-3 space-y-1">
+              <Label>Date</Label>
+              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>Start</Label>
+              <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>End</Label>
+              <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label>Attendees (comma separated emails)</Label>
+            <Textarea
+              placeholder="prospect@company.com, colleague@yourco.com"
+              value={attendees}
+              onChange={(e) => setAttendees(e.target.value)}
+              rows={2}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label>Description (optional)</Label>
+            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleCreate} disabled={isCreating || !summary || !date}>
+            {isCreating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            Create Meeting
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 export default function SchedulerPage() {
   const [activeTab, setActiveTab] = useState("availability")
   const [participants, setParticipants] = useState([
-    {
-      id: 1,
-      name: "You",
-      email: "",
-      timezone: "utc-5",
-      workingHours: { start: 9, end: 17 },
-      isAvailable: true,
-    },
+    { id: 1, name: "You", email: "", timezone: "utc-5", workingHours: { start: 9, end: 17 }, isAvailable: true },
   ])
+  const [newParticipantName, setNewParticipantName] = useState("")
+  const [newParticipantEmail, setNewParticipantEmail] = useState("")
+  const [newParticipantTimezone, setNewParticipantTimezone] = useState("utc")
+  const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const [createPrefill, setCreatePrefill] = useState<{ startHour: number; participantEmails: string[] } | undefined>()
 
-  // Fetch user's saved working hours from settings
   useEffect(() => {
     fetch("/api/auth/user")
       .then((r) => r.ok ? r.json() : null)
@@ -72,14 +319,9 @@ export default function SchedulerPage() {
       })
       .catch(() => {})
   }, [])
-  const [newParticipantName, setNewParticipantName] = useState("")
-  const [newParticipantEmail, setNewParticipantEmail] = useState("")
-  const [newParticipantTimezone, setNewParticipantTimezone] = useState("utc")
 
-  // Function to add a new participant
   const addParticipant = () => {
     if (newParticipantName.trim() === "") return
-
     setParticipants([
       ...participants,
       {
@@ -91,127 +333,77 @@ export default function SchedulerPage() {
         isAvailable: true,
       },
     ])
-
-    // Reset form
     setNewParticipantName("")
     setNewParticipantEmail("")
     setNewParticipantTimezone("utc")
   }
 
-  // Function to remove a participant
-  const removeParticipant = (id: number) => {
-    setParticipants(participants.filter((p) => p.id !== id))
-  }
-
-  // Function to toggle participant availability
-  const toggleAvailability = (id: number) => {
+  const removeParticipant = (id: number) => setParticipants(participants.filter((p) => p.id !== id))
+  const toggleAvailability = (id: number) =>
     setParticipants(participants.map((p) => (p.id === id ? { ...p, isAvailable: !p.isAvailable } : p)))
-  }
-
-  // Function to update participant timezone
-  const updateTimezone = (id: number, timezone: string) => {
+  const updateTimezone = (id: number, timezone: string) =>
     setParticipants(participants.map((p) => (p.id === id ? { ...p, timezone } : p)))
-  }
 
-  // Get timezone info for a participant
-  const getTimezoneInfo = (timezoneValue: string) => {
-    return timeZones.find((tz) => tz.value === timezoneValue) || timeZones[0]
-  }
+  const getTimezoneInfo = (timezoneValue: string) =>
+    timeZones.find((tz) => tz.value === timezoneValue) || timeZones[0]
 
-  // Convert local display hour to a participant's local hour
-  // The grid displays hours in the first participant's local time
-  // To check another participant's working hours, convert from display timezone to their timezone
   const convertTime = (hour: number, fromOffset: number, toOffset: number) => {
-    // Convert display hour to UTC, then to target timezone
     const utcHour = (hour - fromOffset + 24) % 24
-    const targetHour = (utcHour + toOffset + 24) % 24
-    return targetHour
+    return (utcHour + toOffset + 24) % 24
   }
 
-  // Check if an hour (in display/local time) is within working hours for a participant
   const isWorkingHour = (participant: any, displayHour: number) => {
     const displayTz = getTimezoneInfo(participants[0]?.timezone || "utc")
     const participantTz = getTimezoneInfo(participant.timezone)
     const localHour = convertTime(displayHour, displayTz.offset, participantTz.offset)
-    return (
-      localHour >= participant.workingHours.start && localHour < participant.workingHours.end && participant.isAvailable
-    )
+    return localHour >= participant.workingHours.start && localHour < participant.workingHours.end && participant.isAvailable
   }
 
-  // Count how many participants are available at a given hour
-  const countAvailableParticipants = (hour: number) => {
-    return participants.filter((p) => isWorkingHour(p, hour)).length
-  }
+  const countAvailableParticipants = (hour: number) =>
+    participants.filter((p) => isWorkingHour(p, hour)).length
 
-  // Format hour for display
   const formatHour = (hour: number) => {
     const period = hour >= 12 ? "PM" : "AM"
     const displayHour = hour % 12 === 0 ? 12 : hour % 12
     return `${displayHour} ${period}`
   }
 
-  // Find optimal meeting times based on actual participant overlap
   const findOptimalTimes = () => {
     const userTz = getTimezoneInfo(participants[0]?.timezone || "utc-5")
-    const tzLabel = userTz.label.split(" (")[0] // e.g. "Eastern Time"
+    const tzLabel = userTz.label.split(" (")[0]
     const results: { startHour: number; endHour: number; time: string; score: number }[] = []
 
     for (let hour = 0; hour < 24; hour++) {
       const available = participants.filter((p) => isWorkingHour(p, hour)).length
       if (available > 0) {
         const score = Math.round((available / participants.length) * 100)
-        const startLabel = formatHour(hour)
-        const endLabel = formatHour((hour + 1) % 24)
         results.push({
           startHour: hour,
           endHour: (hour + 1) % 24,
-          time: `${startLabel} - ${endLabel} ${tzLabel}`,
+          time: `${formatHour(hour)} - ${formatHour((hour + 1) % 24)} ${tzLabel}`,
           score,
         })
       }
     }
 
-    // Sort by score descending, then by earlier hour
     results.sort((a, b) => b.score - a.score || a.startHour - b.startHour)
     return results.slice(0, 3)
   }
 
-  // Build a Google Calendar URL for a given time slot
-  const buildGoogleCalendarUrl = (startHour: number) => {
-    const userTz = getTimezoneInfo(participants[0]?.timezone || "utc-5")
-    // Use tomorrow's date as default
-    const tomorrow = new Date()
-    tomorrow.setDate(tomorrow.getDate() + 1)
-    const yyyy = tomorrow.getFullYear()
-    const mm = String(tomorrow.getMonth() + 1).padStart(2, "0")
-    const dd = String(tomorrow.getDate()).padStart(2, "0")
-
-    // Convert local display hour to UTC for the calendar link
-    const utcStart = ((startHour - userTz.offset + 24) % 24)
-    const utcEnd = ((startHour + 1 - userTz.offset + 24) % 24)
-
-    const startStr = `${yyyy}${mm}${dd}T${String(Math.floor(utcStart)).padStart(2, "0")}${String(Math.round((utcStart % 1) * 60)).padStart(2, "0")}00Z`
-    const endStr = `${yyyy}${mm}${dd}T${String(Math.floor(utcEnd)).padStart(2, "0")}${String(Math.round((utcEnd % 1) * 60)).padStart(2, "0")}00Z`
-
-    const participantEmails = participants.filter(p => p.email).map(p => p.email).join(",")
-    const params = new URLSearchParams({
-      action: "TEMPLATE",
-      text: "Meeting",
-      dates: `${startStr}/${endStr}`,
-      details: "Scheduled via Brjan",
-    })
-    if (participantEmails) params.set("add", participantEmails)
-
-    return `https://calendar.google.com/calendar/render?${params.toString()}`
+  const handleCreateFromOptimalTime = (startHour: number) => {
+    const participantEmails = participants.filter(p => p.email && p.id !== 1).map(p => p.email)
+    setCreatePrefill({ startHour, participantEmails })
+    setCreateDialogOpen(true)
   }
 
   const optimalTimes = findOptimalTimes()
+  const userTzInfo = getTimezoneInfo(participants[0]?.timezone || "utc-5")
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Scheduler</h1>
-        <Button>
+        <Button onClick={() => { setCreatePrefill(undefined); setCreateDialogOpen(true) }}>
           <Plus className="h-4 w-4 mr-2" />
           Create Meeting
         </Button>
@@ -223,44 +415,33 @@ export default function SchedulerPage() {
           <TabsTrigger value="past">Past Meetings</TabsTrigger>
           <TabsTrigger value="availability">Multi-Timezone Availability</TabsTrigger>
         </TabsList>
+
         <TabsContent value="upcoming" className="mt-6">
           <Card>
             <CardHeader>
               <CardTitle>Upcoming Meetings</CardTitle>
-              <CardDescription>View and manage your scheduled meetings</CardDescription>
+              <CardDescription>Pulled from your connected Google Calendar</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <CalendarClock className="h-12 w-12 text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-2">No upcoming meetings</h3>
-                <p className="text-muted-foreground max-w-md mb-6">
-                  Schedule meetings with prospects and clients to see them here.
-                </p>
-                <Button>Create Meeting</Button>
-              </div>
+              <EventsList type="upcoming" />
             </CardContent>
           </Card>
         </TabsContent>
+
         <TabsContent value="past" className="mt-6">
           <Card>
             <CardHeader>
               <CardTitle>Past Meetings</CardTitle>
-              <CardDescription>Review your previous meetings</CardDescription>
+              <CardDescription>Your recent meeting history from Google Calendar</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <Clock className="h-12 w-12 text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-2">No past meetings</h3>
-                <p className="text-muted-foreground max-w-md">
-                  Your meeting history will appear here once you've had meetings.
-                </p>
-              </div>
+              <EventsList type="past" />
             </CardContent>
           </Card>
         </TabsContent>
+
         <TabsContent value="availability" className="mt-6">
           <div className="grid gap-6 md:grid-cols-[350px_1fr]">
-            {/* Left side - Participants */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center">
@@ -270,7 +451,6 @@ export default function SchedulerPage() {
                 <CardDescription>Add participants and their time zones</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                {/* Add new participant form */}
                 <div className="space-y-4 pb-4 border-b">
                   <h3 className="text-sm font-medium">Add Participant</h3>
                   <div className="space-y-2">
@@ -290,9 +470,7 @@ export default function SchedulerPage() {
                       </SelectTrigger>
                       <SelectContent>
                         {timeZones.map((tz) => (
-                          <SelectItem key={tz.value} value={tz.value}>
-                            {tz.label}
-                          </SelectItem>
+                          <SelectItem key={tz.value} value={tz.value}>{tz.label}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -303,28 +481,22 @@ export default function SchedulerPage() {
                   </div>
                 </div>
 
-                {/* Participant list */}
                 <div className="space-y-3">
                   <h3 className="text-sm font-medium">Current Participants</h3>
                   {participants.map((participant) => (
                     <div key={participant.id} className="flex items-start justify-between p-3 border rounded-md">
                       <div className="flex items-start gap-3">
                         <Avatar className="h-8 w-8">
-                          <AvatarImage src={`/placeholder.svg`} />
+                          <AvatarImage src="/placeholder.svg" />
                           <AvatarFallback>
-                            {participant.name
-                              .split(" ")
-                              .map((n) => n[0])
-                              .join("")}
+                            {participant.name.split(" ").map((n) => n[0]).join("")}
                           </AvatarFallback>
                         </Avatar>
                         <div>
                           <div className="font-medium flex items-center">
                             {participant.name}
                             {participant.id === 1 && (
-                              <Badge variant="outline" className="ml-2 text-xs">
-                                You
-                              </Badge>
+                              <Badge variant="outline" className="ml-2 text-xs">You</Badge>
                             )}
                           </div>
                           <div className="text-sm text-muted-foreground">{participant.email}</div>
@@ -338,9 +510,7 @@ export default function SchedulerPage() {
                               </SelectTrigger>
                               <SelectContent>
                                 {timeZones.map((tz) => (
-                                  <SelectItem key={tz.value} value={tz.value}>
-                                    {tz.label}
-                                  </SelectItem>
+                                  <SelectItem key={tz.value} value={tz.value}>{tz.label}</SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
@@ -371,7 +541,6 @@ export default function SchedulerPage() {
                   ))}
                 </div>
 
-                {/* Optimal meeting times */}
                 {participants.length > 1 && optimalTimes.length > 0 && (
                   <div className="space-y-3 pt-4 border-t">
                     <h3 className="text-sm font-medium">Optimal Meeting Times</h3>
@@ -386,14 +555,14 @@ export default function SchedulerPage() {
                             {time.score}% match
                           </Badge>
                         </div>
-                        <div className="mt-2 flex justify-end gap-2">
+                        <div className="mt-2 flex justify-end">
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => window.open(buildGoogleCalendarUrl(time.startHour), "_blank")}
+                            onClick={() => handleCreateFromOptimalTime(time.startHour)}
                           >
-                            <ExternalLink className="h-3 w-3 mr-1" />
-                            Open in Google Calendar
+                            <Plus className="h-3 w-3 mr-1" />
+                            Create Meeting
                           </Button>
                         </div>
                       </div>
@@ -403,7 +572,6 @@ export default function SchedulerPage() {
               </CardContent>
             </Card>
 
-            {/* Right side - Availability grid */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
@@ -420,8 +588,8 @@ export default function SchedulerPage() {
                       </TooltipTrigger>
                       <TooltipContent>
                         <p className="max-w-xs">
-                          This grid shows when participants are available based on their local working hours. Darker
-                          colors indicate more participants are available at that time.
+                          This grid shows when participants are available based on their local working hours.
+                          Darker colors indicate more participants are available at that time.
                         </p>
                       </TooltipContent>
                     </Tooltip>
@@ -432,7 +600,6 @@ export default function SchedulerPage() {
               <CardContent>
                 <div className="overflow-x-auto">
                   <div className="min-w-[800px]">
-                    {/* Time grid header - local hours */}
                     <div className="flex border-b mb-2">
                       <div className="w-24 flex-shrink-0"></div>
                       {hours.map((hour) => (
@@ -442,10 +609,8 @@ export default function SchedulerPage() {
                       ))}
                     </div>
 
-                    {/* Time grid rows - one per participant */}
                     {participants.map((participant) => {
                       const tz = getTimezoneInfo(participant.timezone)
-
                       return (
                         <div key={participant.id} className="flex items-center mb-2">
                           <div className="w-24 flex-shrink-0 text-xs truncate pr-2">
@@ -458,21 +623,18 @@ export default function SchedulerPage() {
                               <div
                                 key={hour}
                                 className={`flex-1 h-8 border-r ${isWorking ? "bg-primary/30" : "bg-muted/20"}`}
-                              ></div>
+                              />
                             )
                           })}
                         </div>
                       )
                     })}
 
-                    {/* Overlap indicator row */}
                     {participants.length > 1 && (
                       <div className="flex items-center mt-4 pt-4 border-t">
                         <div className="w-24 flex-shrink-0 text-xs font-medium">Overlap</div>
                         {hours.map((hour) => {
                           const availableCount = countAvailableParticipants(hour)
-                          const percentage = (availableCount / participants.length) * 100
-
                           return (
                             <div
                               key={hour}
@@ -480,7 +642,7 @@ export default function SchedulerPage() {
                                 availableCount === participants.length
                                   ? "bg-green-500/30"
                                   : availableCount > 0
-                                    ? `bg-primary/30`
+                                    ? "bg-primary/30"
                                     : "bg-muted/20"
                               }`}
                             >
@@ -497,18 +659,17 @@ export default function SchedulerPage() {
                   </div>
                 </div>
 
-                {/* Legend */}
                 <div className="flex items-center justify-end gap-4 mt-4 text-xs text-muted-foreground">
                   <div className="flex items-center gap-1">
-                    <div className="w-3 h-3 bg-muted/20"></div>
+                    <div className="w-3 h-3 bg-muted/20" />
                     <span>Unavailable</span>
                   </div>
                   <div className="flex items-center gap-1">
-                    <div className="w-3 h-3 bg-primary/30"></div>
+                    <div className="w-3 h-3 bg-primary/30" />
                     <span>Available</span>
                   </div>
                   <div className="flex items-center gap-1">
-                    <div className="w-3 h-3 bg-green-500/30"></div>
+                    <div className="w-3 h-3 bg-green-500/30" />
                     <span>Everyone Available</span>
                   </div>
                 </div>
@@ -517,6 +678,14 @@ export default function SchedulerPage() {
           </div>
         </TabsContent>
       </Tabs>
+
+      <CreateEventDialog
+        open={createDialogOpen}
+        onClose={() => setCreateDialogOpen(false)}
+        prefill={createPrefill}
+        userTzOffset={userTzInfo.offset}
+        userTzLabel={userTzInfo.label}
+      />
     </div>
   )
 }

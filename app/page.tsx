@@ -3,6 +3,7 @@ import { TaskBoard } from "@/components/task-board"
 import { DashboardOverview } from "@/components/dashboard-overview"
 import { OnboardingChecklist } from "@/components/onboarding-checklist"
 import { WelcomeModal } from "@/components/welcome-modal"
+import { TrialUsageSummary } from "@/components/trial-usage-summary"
 
 interface DashboardPageProps {
   searchParams: Promise<{ welcome?: string }>
@@ -23,6 +24,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         </div>
       </div>
       <OnboardingChecklist showHero={showWelcome} />
+      <TrialUsageSummary />
       <DashboardOverview />
       <div className="w-full">
         <SDRPerformanceChart />

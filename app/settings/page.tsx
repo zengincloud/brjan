@@ -19,6 +19,7 @@ import { toast } from "sonner"
 import { GmailIntegration } from "@/components/settings/gmail-integration"
 import { HubspotIntegration } from "@/components/settings/hubspot-integration"
 import { SalesforceIntegration } from "@/components/settings/salesforce-integration"
+import { GcalIntegration } from "@/components/settings/gcal-integration"
 import { OrganizationSettings } from "@/components/settings/organization-settings"
 import { TeamSettings } from "@/components/settings/team-settings"
 import { DeliverabilitySettings } from "@/components/settings/deliverability-settings"
@@ -541,6 +542,7 @@ export default function SettingsPage() {
         {/* Integrations Tab */}
         {activeTab === "integrations" && <div className="space-y-4">
           <GmailIntegration />
+          <GcalIntegration />
           <HubspotIntegration />
           <SalesforceIntegration />
 

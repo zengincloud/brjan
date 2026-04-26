@@ -44,6 +44,7 @@ model User {
   gmailIntegration      GmailIntegration?
   hubspotIntegration    HubspotIntegration?
   salesforceIntegration SalesforceIntegration?
+  gcalIntegration       GcalIntegration?
   phoneNumbers          PhoneNumber[]
   invitationsSent  Invitation[]
   trackedEmails    TrackedEmail[]
@@ -157,6 +158,23 @@ model SalesforceIntegration {
 
   @@index([userId])
   @@map("salesforce_integrations")
+}
+
+model GcalIntegration {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  calendarEmail  String
+  accessToken    String   @db.Text
+  refreshToken   String   @db.Text
+  tokenExpiresAt DateTime
+  scopes         String
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId])
+  @@map("gcal_integrations")
 }
 
 model Task {

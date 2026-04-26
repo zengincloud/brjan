@@ -187,7 +187,7 @@ export default function DialerPage() {
   const [sessionPaused, setSessionPaused] = useSessionState("dialer_session_paused", false)
   const [selectedSequence, setSelectedSequence] = useSessionState<string>("dialer_sequence", "all")
   const [sortBy, setSortBy] = useSessionState<string>("dialer_sort", "due_date")
-  const [selectedPhone, setSelectedPhone] = useSessionState<string>("dialer_phone", "+16282253832")
+  const [selectedPhone, setSelectedPhone] = useSessionState<string>("dialer_phone", "")
   const [callSlots, setCallSlots] = useSessionState<CallSlot[]>("dialer_call_slots", [
     { id: "1", status: "idle", contact: null, startTime: null, notes: "", pendingOutcome: undefined, pendingPipelineStage: undefined, pendingCallbackNotes: undefined },
   ])
@@ -434,11 +434,17 @@ export default function DialerPage() {
       .then((r) => r.ok ? r.json() : null)
       .then((data) => {
         if (data?.numbers?.length) {
-          setPhoneNumbers(data.numbers.map((n: any) => ({ id: n.number, label: n.friendlyName })))
+          const loaded = data.numbers.map((n: any) => ({ id: n.number, label: n.friendlyName }))
+          setPhoneNumbers(loaded)
+          // If current selection isn't in the list, default to first
+          const ids = loaded.map((n: any) => n.id)
+          if (!ids.includes(selectedPhone)) {
+            setSelectedPhone(loaded[0].id)
+          }
         }
       })
       .catch(() => {})
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Track the last sequence we fetched for so we only refetch on actual filter changes
   // Initialize from persisted selectedSequence so navigating back doesn't re-fetch (which would reorder the queue and break currentProspectIndex)
@@ -1785,14 +1791,23 @@ export default function DialerPage() {
           )}
 
           {!sessionActive ? (
+            phoneNumbers.length === 0 ? (
+              <a href="/settings?tab=calling-numbers">
+                <Button variant="outline" className="gap-2">
+                  <Phone className="h-4 w-4" />
+                  Add a number to start calling
+                </Button>
+              </a>
+            ) : (
             <Button
               onClick={startSession}
               className="bg-primary hover:bg-primary/90 text-primary-foreground"
-              disabled={!deviceReady}
+              disabled={!deviceReady || !selectedPhone}
             >
               <Play className="h-4 w-4 mr-2" />
               Start Session
             </Button>
+            )
           ) : (
             <>
               {/* Active call controls */}

@@ -9,12 +9,14 @@ export async function POST(request: NextRequest) {
     const url = new URL(request.url)
     let to: string | null = null
     let callId: string | null = null
+    let callerId: string | null = null
 
     // Try to read formData safely
     try {
       const formData = await request.formData()
       to = formData.get('To') as string
       callId = formData.get('callId') as string
+      callerId = formData.get('callerId') as string
     } catch (e) {
       console.log('Could not read formData, using query params')
     }
@@ -22,6 +24,7 @@ export async function POST(request: NextRequest) {
     // Fallback to query params if formData failed
     if (!to) to = url.searchParams.get('To')
     if (!callId) callId = url.searchParams.get('callId')
+    if (!callerId) callerId = url.searchParams.get('callerId')
 
     // Get base URL for callbacks
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://app.boilerroom.ai'
@@ -42,7 +45,7 @@ export async function POST(request: NextRequest) {
       const dial = twiml.dial({
         timeout: 30,
         answerOnBridge: true, // Only charge when prospect answers
-        callerId: process.env.TWILIO_PHONE_NUMBER, // Use Twilio number as caller ID
+        callerId: callerId || process.env.TWILIO_PHONE_NUMBER, // Use selected number or fallback
         record: 'record-from-answer-dual', // Record both sides from when call is answered
         recordingStatusCallback: callId
           ? `${baseUrl}/api/calls/recording-status?callId=${callId}`

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -13,10 +13,18 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
   AlertTriangle,
   CheckCircle2,
   Filter,
   Info,
+  Loader2,
   Mic,
   MoreHorizontal,
   Phone,
@@ -26,11 +34,13 @@ import {
   Settings2,
   Shield,
   SlidersHorizontal,
+  Trash2,
   TrendingDown,
   TrendingUp,
   Upload,
   X,
 } from "lucide-react"
+import { toast } from "sonner"
 
 function StatCard({
   title,
@@ -202,42 +212,159 @@ function OverviewView() {
 }
 
 /* ─── NUMBERS ─── */
+interface PhoneNumberRecord {
+  id: string
+  number: string
+  friendlyName: string
+  areaCode: string
+  createdAt: string
+}
+
+interface AvailableNumber {
+  phoneNumber: string
+  friendlyName: string
+  locality: string
+  region: string
+  areaCode: string
+}
+
 function NumbersView() {
+  const [numbers, setNumbers] = useState<PhoneNumberRecord[]>([])
+  const [loading, setLoading] = useState(true)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [step, setStep] = useState<"area-code" | "pick" | "confirm">("area-code")
+  const [areaCode, setAreaCode] = useState("")
+  const [searching, setSearching] = useState(false)
+  const [available, setAvailable] = useState<AvailableNumber[]>([])
+  const [selected, setSelected] = useState<AvailableNumber | null>(null)
+  const [provisioning, setProvisioning] = useState(false)
+  const [releasing, setReleasing] = useState<string | null>(null)
+
+  const fetchNumbers = useCallback(async () => {
+    try {
+      const res = await fetch("/api/calling/numbers")
+      if (res.ok) {
+        const data = await res.json()
+        setNumbers(data.numbers || [])
+      }
+    } catch (e) {
+      console.error("Failed to fetch numbers:", e)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { fetchNumbers() }, [fetchNumbers])
+
+  const handleSearch = async () => {
+    if (!/^\d{3}$/.test(areaCode)) {
+      toast.error("Enter a valid 3-digit area code")
+      return
+    }
+    setSearching(true)
+    try {
+      const res = await fetch(`/api/calling/numbers/search?areaCode=${areaCode}`)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      if (data.numbers.length === 0) {
+        toast.error("No numbers available for that area code. Try another.")
+        return
+      }
+      setAvailable(data.numbers)
+      setStep("pick")
+    } catch (err: any) {
+      toast.error(err.message || "Search failed")
+    } finally {
+      setSearching(false)
+    }
+  }
+
+  const handleProvision = async () => {
+    if (!selected) return
+    setProvisioning(true)
+    try {
+      const res = await fetch("/api/calling/numbers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phoneNumber: selected.phoneNumber,
+          friendlyName: selected.friendlyName,
+          areaCode: selected.areaCode,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      toast.success(`${selected.friendlyName} added to your account`)
+      setModalOpen(false)
+      setStep("area-code")
+      setAreaCode("")
+      setAvailable([])
+      setSelected(null)
+      fetchNumbers()
+    } catch (err: any) {
+      toast.error(err.message || "Failed to provision number")
+    } finally {
+      setProvisioning(false)
+    }
+  }
+
+  const handleRelease = async (id: string, friendlyName: string) => {
+    if (!confirm(`Release ${friendlyName}? This cannot be undone.`)) return
+    setReleasing(id)
+    try {
+      const res = await fetch(`/api/calling/numbers/${id}`, { method: "DELETE" })
+      if (!res.ok) throw new Error("Failed to release")
+      toast.success(`${friendlyName} released`)
+      setNumbers((prev) => prev.filter((n) => n.id !== id))
+    } catch (err: any) {
+      toast.error(err.message || "Failed to release number")
+    } finally {
+      setReleasing(null)
+    }
+  }
+
+  const openModal = () => {
+    setStep("area-code")
+    setAreaCode("")
+    setAvailable([])
+    setSelected(null)
+    setModalOpen(true)
+  }
+
   return (
     <div className="space-y-4">
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3">
         <StatCard
           title="Numbers in good standing"
-          value="0 of 0"
+          value={`${numbers.length} of ${numbers.length}`}
           footer={
             <div className="space-y-1">
               <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Number health</p>
-              <p className="text-[12px] text-muted-foreground">Learn how spam flags affect pickups <span className="underline cursor-pointer">here</span>.</p>
+              <p className="text-[12px] text-muted-foreground">Numbers flag as spam after high call volumes.</p>
             </div>
           }
         >
-          <StatRow icon={CheckCircle2} label="0 Clean" />
+          <StatRow icon={CheckCircle2} label={`${numbers.length} Clean`} />
           <StatRow icon={AlertTriangle} label="0 Flagged as spam" />
-          <StatRow icon={Info} label="0 Needs attention" />
         </StatCard>
 
         <StatCard
           title="Local presence area codes"
-          value="0 active"
-          badge={
-            <div className="w-10 h-10 rounded-full border-2 border-border flex items-center justify-center text-[11px] font-semibold text-muted-foreground">
-              0%
-            </div>
-          }
+          value={`${new Set(numbers.map((n) => n.areaCode)).size} active`}
           footer={
             <div className="space-y-1">
               <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Local presence coverage</p>
-              <p className="text-[12px] text-muted-foreground">Learn why local numbers improve pickup rates <span className="underline cursor-pointer">here</span>.</p>
+              <p className="text-[12px] text-muted-foreground">Local numbers improve answer rates by up to 4x.</p>
             </div>
           }
         >
-          <p className="text-[12px] text-muted-foreground">Add numbers to enable local presence dialing.</p>
+          {numbers.length === 0
+            ? <p className="text-[12px] text-muted-foreground">Add numbers to enable local presence dialing.</p>
+            : [...new Set(numbers.map((n) => n.areaCode))].map((ac) => (
+                <StatRow key={ac} icon={Phone} label={`Area code ${ac}`} />
+              ))
+          }
         </StatCard>
       </div>
 
@@ -252,29 +379,14 @@ function NumbersView() {
 
         {/* Toolbar */}
         <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border">
-          <Button variant="ghost" size="sm" className="h-7 text-[12px] gap-1.5 text-muted-foreground">
-            <Filter className="h-3.5 w-3.5" />
-            Show Filters
-          </Button>
-          <div className="relative">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <Input placeholder="Search numbers..." className="h-7 pl-7 text-[12px] w-48" />
-          </div>
           <div className="ml-auto flex items-center gap-2">
             <Button
               size="sm"
               className="h-7 text-[12px] bg-yellow-400 hover:bg-yellow-500 text-yellow-950 font-medium gap-1"
+              onClick={openModal}
             >
               <Plus className="h-3.5 w-3.5" />
               Add number
-            </Button>
-            <Button variant="ghost" size="sm" className="h-7 text-[12px] gap-1.5 text-muted-foreground">
-              <SlidersHorizontal className="h-3.5 w-3.5" />
-              Sort
-            </Button>
-            <Button variant="ghost" size="sm" className="h-7 text-[12px] gap-1.5 text-muted-foreground">
-              <Settings2 className="h-3.5 w-3.5" />
-              View options
             </Button>
           </div>
         </div>
@@ -283,27 +395,136 @@ function NumbersView() {
         <table className="w-full text-[12px]">
           <thead>
             <tr className="border-b border-border">
-              <th className="w-8 px-4 py-2.5">
-                <input type="checkbox" className="h-3.5 w-3.5 rounded" />
-              </th>
-              {["Number", "Status", "Type", "Spam risk", "Connection rate", "Calls made", "Area code", "Rotation", "Actions"].map((h) => (
-                <th key={h} className="text-left px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 whitespace-nowrap">
-                  {["Spam risk", "Connection rate"].includes(h) ? (
-                    <span className="flex items-center gap-1">{h} <Info className="h-3 w-3" /></span>
-                  ) : h}
+              {["Number", "Friendly Name", "Area code", "Added", "Actions"].map((h) => (
+                <th key={h} className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 whitespace-nowrap">
+                  {h}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td colSpan={10} className="px-4 py-8 text-center text-[12px] text-muted-foreground">
-                No numbers found. Click &quot;Add number&quot; to provision a phone number.
-              </td>
-            </tr>
+            {loading ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-8 text-center">
+                  <Loader2 className="h-4 w-4 animate-spin mx-auto text-muted-foreground" />
+                </td>
+              </tr>
+            ) : numbers.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-8 text-center text-[12px] text-muted-foreground">
+                  No numbers yet. Click &quot;Add number&quot; to provision one.
+                </td>
+              </tr>
+            ) : (
+              numbers.map((n) => (
+                <tr key={n.id} className="border-b border-border last:border-0 hover:bg-muted/30">
+                  <td className="px-4 py-3 font-mono">{n.number}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{n.friendlyName}</td>
+                  <td className="px-4 py-3">
+                    <Badge variant="outline" className="text-[11px]">{n.areaCode}</Badge>
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground">
+                    {new Date(n.createdAt).toLocaleDateString()}
+                  </td>
+                  <td className="px-4 py-3">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                      onClick={() => handleRelease(n.id, n.friendlyName)}
+                      disabled={releasing === n.id}
+                    >
+                      {releasing === n.id
+                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        : <Trash2 className="h-3.5 w-3.5" />
+                      }
+                    </Button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
+
+      {/* Add Number Modal */}
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add a Phone Number</DialogTitle>
+            <DialogDescription>
+              Search by area code and pick a local number. ~$1.15/month per number.
+            </DialogDescription>
+          </DialogHeader>
+
+          {step === "area-code" && (
+            <div className="space-y-4 pt-2">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Area Code</label>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="e.g. 415"
+                    value={areaCode}
+                    onChange={(e) => setAreaCode(e.target.value.replace(/\D/g, "").slice(0, 3))}
+                    className="w-32"
+                    onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                  />
+                  <Button onClick={handleSearch} disabled={searching || areaCode.length !== 3}>
+                    {searching ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                    {searching ? "Searching..." : "Search"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {step === "pick" && (
+            <div className="space-y-3 pt-2">
+              <p className="text-sm text-muted-foreground">Available numbers in area code {areaCode}:</p>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {available.map((n) => (
+                  <button
+                    key={n.phoneNumber}
+                    onClick={() => { setSelected(n); setStep("confirm") }}
+                    className={`w-full text-left px-3 py-2.5 rounded-md border text-sm transition-colors hover:bg-muted ${
+                      selected?.phoneNumber === n.phoneNumber ? "border-primary bg-primary/5" : "border-border"
+                    }`}
+                  >
+                    <span className="font-mono font-medium">{n.friendlyName}</span>
+                    {n.locality && (
+                      <span className="ml-2 text-xs text-muted-foreground">{n.locality}, {n.region}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+              <Button variant="outline" size="sm" onClick={() => setStep("area-code")}>
+                Back
+              </Button>
+            </div>
+          )}
+
+          {step === "confirm" && selected && (
+            <div className="space-y-4 pt-2">
+              <div className="p-4 rounded-lg border border-border bg-muted/30 space-y-1">
+                <p className="font-mono font-semibold">{selected.friendlyName}</p>
+                {selected.locality && (
+                  <p className="text-sm text-muted-foreground">{selected.locality}, {selected.region}</p>
+                )}
+                <p className="text-xs text-muted-foreground mt-1">~$1.15/month • billed to your Twilio account</p>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setStep("pick")} disabled={provisioning}>
+                  Back
+                </Button>
+                <Button onClick={handleProvision} disabled={provisioning}>
+                  {provisioning ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  {provisioning ? "Provisioning..." : "Confirm & Add"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

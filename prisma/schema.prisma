@@ -44,6 +44,7 @@ model User {
   gmailIntegration      GmailIntegration?
   hubspotIntegration    HubspotIntegration?
   salesforceIntegration SalesforceIntegration?
+  phoneNumbers          PhoneNumber[]
   invitationsSent  Invitation[]
   trackedEmails    TrackedEmail[]
   linkedInConversations LinkedInConversation[]
@@ -122,6 +123,22 @@ model HubspotIntegration {
 
   @@index([userId])
   @@map("hubspot_integrations")
+}
+
+model PhoneNumber {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  number       String   // E.164 format e.g. +14155551234
+  friendlyName String   // e.g. (415) 555-1234
+  areaCode     String
+  twilioSid    String   @unique
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
+  @@map("phone_numbers")
 }
 
 model SalesforceIntegration {

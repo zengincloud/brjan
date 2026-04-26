@@ -427,13 +427,18 @@ export default function DialerPage() {
     ...fetchedSequences,
   ]
 
-  // Available phone numbers (including Twilio-provided number)
-  const phoneNumbers = [
-    { id: "+16282253832", label: "+1 (628) 225-3832 (Twilio)" },
-    { id: "+1 (555) 000-0001", label: "+1 (555) 000-0001 (Main)" },
-    { id: "+1 (555) 000-0002", label: "+1 (555) 000-0002 (Sales)" },
-    { id: "+1 (555) 000-0003", label: "+1 (555) 000-0003 (Support)" },
-  ]
+  // Available phone numbers — loaded from DB
+  const [phoneNumbers, setPhoneNumbers] = useState<{ id: string; label: string }[]>([])
+  useEffect(() => {
+    fetch("/api/calling/numbers")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data?.numbers?.length) {
+          setPhoneNumbers(data.numbers.map((n: any) => ({ id: n.number, label: n.friendlyName })))
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   // Track the last sequence we fetched for so we only refetch on actual filter changes
   // Initialize from persisted selectedSequence so navigating back doesn't re-fetch (which would reorder the queue and break currentProspectIndex)
@@ -759,6 +764,7 @@ export default function DialerPage() {
         params: {
           To: prospect.phone,
           callId: data.callId,
+          callerId: selectedPhone,
         },
       })
 

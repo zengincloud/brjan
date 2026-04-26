@@ -41,8 +41,9 @@ model User {
   sequences        Sequence[]
   emailTemplates   EmailTemplate[]
   linkedinTemplates LinkedinTemplate[]
-  gmailIntegration   GmailIntegration?
-  hubspotIntegration HubspotIntegration?
+  gmailIntegration      GmailIntegration?
+  hubspotIntegration    HubspotIntegration?
+  salesforceIntegration SalesforceIntegration?
   invitationsSent  Invitation[]
   trackedEmails    TrackedEmail[]
   linkedInConversations LinkedInConversation[]
@@ -121,6 +122,24 @@ model HubspotIntegration {
 
   @@index([userId])
   @@map("hubspot_integrations")
+}
+
+model SalesforceIntegration {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  instanceUrl    String   // e.g. https://yourorg.salesforce.com
+  orgId          String   // Salesforce org ID
+  accessToken    String   @db.Text
+  refreshToken   String   @db.Text
+  tokenExpiresAt DateTime
+  scopes         String
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId])
+  @@map("salesforce_integrations")
 }
 
 model Task {

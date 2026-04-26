@@ -18,6 +18,7 @@ import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
 import { GmailIntegration } from "@/components/settings/gmail-integration"
 import { HubspotIntegration } from "@/components/settings/hubspot-integration"
+import { SalesforceIntegration } from "@/components/settings/salesforce-integration"
 import { OrganizationSettings } from "@/components/settings/organization-settings"
 import { TeamSettings } from "@/components/settings/team-settings"
 import { DeliverabilitySettings } from "@/components/settings/deliverability-settings"
@@ -541,26 +542,15 @@ export default function SettingsPage() {
         {activeTab === "integrations" && <div className="space-y-4">
           <GmailIntegration />
           <HubspotIntegration />
+          <SalesforceIntegration />
 
           <Card>
             <CardHeader>
-              <CardTitle>CRM Integration</CardTitle>
-              <CardDescription>Other CRM integrations coming soon</CardDescription>
+              <CardTitle>More Integrations</CardTitle>
+              <CardDescription>Additional integrations coming soon</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 border border-border rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded bg-secondary flex items-center justify-center">
-                      <Zap className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <p className="font-medium">Salesforce</p>
-                      <p className="text-xs text-muted-foreground">Sync contacts, leads, and activities</p>
-                    </div>
-                  </div>
-                  <Button variant="outline" disabled>Coming Soon</Button>
-                </div>
                 <div className="flex items-center justify-between p-4 border border-border rounded-lg">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded bg-secondary flex items-center justify-center">
@@ -591,18 +581,6 @@ export default function SettingsPage() {
                   <div>
                     <p className="font-medium">Google Calendar</p>
                     <p className="text-xs text-muted-foreground">Sync meetings and availability</p>
-                  </div>
-                </div>
-                <Button variant="outline">Connect</Button>
-              </div>
-              <div className="flex items-center justify-between p-4 border border-border rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded bg-secondary flex items-center justify-center">
-                    <Zap className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="font-medium">Outlook Calendar</p>
-                    <p className="text-xs text-muted-foreground">Microsoft 365 calendar sync</p>
                   </div>
                 </div>
                 <Button variant="outline">Connect</Button>

@@ -62,9 +62,15 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
     })
 
     const useGmail = gmailIntegration?.isActive && !preferSendGrid
-    const fromEmail = useGmail
-      ? gmailIntegration.gmailEmail
-      : SENDGRID_FROM_EMAIL
+
+    if (!useGmail) {
+      return NextResponse.json(
+        { error: "No Gmail inbox connected. Please connect your Gmail account in Settings → Integrations before sending emails." },
+        { status: 400 }
+      )
+    }
+
+    const fromEmail = gmailIntegration.gmailEmail
 
     // Replace template variables if we have a prospect
     let finalSubject = subject
@@ -82,14 +88,6 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
           finalBodyHtml = replaceEmailVariables(bodyHtml, prospect)
         }
       }
-    }
-
-    // Validate that we have at least one email provider configured
-    if (!useGmail && !SENDGRID_API_KEY) {
-      return NextResponse.json(
-        { error: "No email provider configured. Please connect Gmail or configure SendGrid." },
-        { status: 500 }
-      )
     }
 
     // Create email record in database
@@ -118,34 +116,16 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
     try {
       let externalId: string | undefined
 
-      if (useGmail) {
-        // Send via Gmail
-        const result = await sendEmailViaGmail(userId, {
-          to,
-          cc,
-          bcc,
-          subject: finalSubject,
-          bodyText: finalBodyText,
-          bodyHtml: finalBodyHtml,
-          from: gmailIntegration.gmailEmail,
-        })
-        externalId = result.messageId
-      } else {
-        // Send via SendGrid
-        const msg: any = {
-          to,
-          from: SENDGRID_FROM_EMAIL,
-          subject: finalSubject,
-          text: finalBodyText,
-        }
-
-        if (cc) msg.cc = cc
-        if (bcc) msg.bcc = bcc
-        if (finalBodyHtml) msg.html = finalBodyHtml
-
-        const [response] = await sgMail.send(msg)
-        externalId = response.headers["x-message-id"] as string
-      }
+      const result = await sendEmailViaGmail(userId, {
+        to,
+        cc,
+        bcc,
+        subject: finalSubject,
+        bodyText: finalBodyText,
+        bodyHtml: finalBodyHtml,
+        from: gmailIntegration.gmailEmail,
+      })
+      externalId = result.messageId
 
       // Update email record with success status
       await prisma.email.update({
@@ -194,76 +174,6 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       })
     } catch (sendError: any) {
       console.error("Email send error:", sendError)
-
-      // If Gmail fails and SendGrid is available, try fallback
-      if (useGmail && SENDGRID_API_KEY && !preferSendGrid) {
-        console.log("Gmail send failed, attempting SendGrid fallback...")
-
-        try {
-          const msg: any = {
-            to,
-            from: SENDGRID_FROM_EMAIL,
-            subject,
-            text: bodyText,
-          }
-
-          if (cc) msg.cc = cc
-          if (bcc) msg.bcc = bcc
-          if (bodyHtml) msg.html = bodyHtml
-
-          const [response] = await sgMail.send(msg)
-
-          await prisma.email.update({
-            where: { id: emailRecord.id },
-            data: {
-              status: "sent",
-              sentAt: new Date(),
-              from: SENDGRID_FROM_EMAIL,
-              sendgridId: response.headers["x-message-id"] as string,
-              metadata: {
-                ...(metadata || {}),
-                sentVia: "sendgrid",
-                gmailFallback: true,
-                gmailError: sendError.message,
-              },
-            },
-          })
-
-          if (prospectId) {
-            await prisma.prospect.update({
-              where: { id: prospectId },
-              data: {
-                lastActivity: new Date(),
-                status: "contacted",
-              },
-            })
-          }
-
-          // Advance sequence on fallback success too
-          let sequenceAdvanced = null
-          const sequenceId = metadata?.sequenceId
-          if (sequenceId && prospectId) {
-            const advanceResult = await advanceSequenceStep(prospectId, sequenceId, userId)
-            if (advanceResult.success) {
-              sequenceAdvanced = {
-                completed: advanceResult.completed,
-                nextStep: advanceResult.nextStep,
-              }
-            }
-          }
-
-          return NextResponse.json({
-            success: true,
-            emailId: emailRecord.id,
-            externalId: response.headers["x-message-id"],
-            sentVia: "sendgrid",
-            fallback: true,
-            sequenceAdvanced,
-          })
-        } catch (fallbackError: any) {
-          console.error("SendGrid fallback also failed:", fallbackError)
-        }
-      }
 
       // Update email record with failure status
       await prisma.email.update({

@@ -178,7 +178,7 @@ export function SendEmailDialog({
       }
 
       toast.success(`Email sent to ${prospect.name}`, {
-        description: data.sentVia === "gmail" ? "Sent from your Gmail" : "Sent via shared sender",
+        description: "Sent from your Gmail",
       })
 
       onEmailSent?.()

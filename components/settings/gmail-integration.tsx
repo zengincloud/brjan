@@ -245,7 +245,7 @@ export function GmailIntegration() {
               <div>
                 <p className="font-semibold text-lg">Google Gmail</p>
                 <p className="text-sm text-yellow-600">
-                  No inbox connected - emails will use shared sender
+                  Connect Gmail to send emails from your inbox
                 </p>
               </div>
             </div>

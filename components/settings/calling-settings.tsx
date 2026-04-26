@@ -232,7 +232,7 @@ function NumbersView() {
   const [numbers, setNumbers] = useState<PhoneNumberRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
-  const [step, setStep] = useState<"area-code" | "pick" | "confirm">("area-code")
+  const [step, setStep] = useState<"area-code" | "pick" | "confirm" | "no-credits">("area-code")
   const [areaCode, setAreaCode] = useState("")
   const [searching, setSearching] = useState(false)
   const [available, setAvailable] = useState<AvailableNumber[]>([])
@@ -293,6 +293,10 @@ function NumbersView() {
         }),
       })
       const data = await res.json()
+      if (res.status === 402) {
+        setStep("no-credits")
+        return
+      }
       if (!res.ok) throw new Error(data.error)
       toast.success(`${selected.friendlyName} added to your account`)
       setModalOpen(false)
@@ -500,6 +504,25 @@ function NumbersView() {
               <Button variant="outline" size="sm" onClick={() => setStep("area-code")}>
                 Back
               </Button>
+            </div>
+          )}
+
+          {step === "no-credits" && (
+            <div className="space-y-4 pt-2">
+              <div className="p-4 rounded-lg border border-destructive/40 bg-destructive/5 space-y-1.5">
+                <p className="font-semibold text-sm">Not enough credits</p>
+                <p className="text-sm text-muted-foreground">
+                  Adding a second number costs <span className="font-medium text-foreground">50 credits</span>. You don&apos;t have enough on your current plan.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <a href="/upgrade">
+                  <Button className="w-full">Upgrade plan for more credits</Button>
+                </a>
+                <Button variant="outline" className="w-full" onClick={() => setModalOpen(false)}>
+                  Maybe later
+                </Button>
+              </div>
             </div>
           )}
 

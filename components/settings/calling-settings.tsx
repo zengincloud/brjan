@@ -453,7 +453,7 @@ function NumbersView() {
           <DialogHeader>
             <DialogTitle>Add a Phone Number</DialogTitle>
             <DialogDescription>
-              Search by area code and pick a local number. ~$1.15/month per number.
+              Your first number is free. Additional numbers cost 50 credits each.
             </DialogDescription>
           </DialogHeader>
 
@@ -510,7 +510,7 @@ function NumbersView() {
                 {selected.locality && (
                   <p className="text-sm text-muted-foreground">{selected.locality}, {selected.region}</p>
                 )}
-                <p className="text-xs text-muted-foreground mt-1">~$1.15/month • billed to your Twilio account</p>
+                <p className="text-xs text-muted-foreground mt-1">{numbers.length === 0 ? "Free — your first number" : "50 credits"}</p>
               </div>
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setStep("pick")} disabled={provisioning}>

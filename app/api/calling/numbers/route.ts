@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { withAuth } from "@/lib/auth/api-middleware"
 import { prisma } from "@/lib/prisma"
+import { checkCredits, deductCredits } from "@/lib/credits"
 import twilio from "twilio"
+
+const ADDITIONAL_NUMBER_COST = 50 // credits per number after the first
 
 const twilioClient = twilio(
   process.env.TWILIO_ACCOUNT_SID,
@@ -33,6 +36,15 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       return NextResponse.json({ error: "phoneNumber is required" }, { status: 400 })
     }
 
+    // Check if this is the user's first number
+    const existingCount = await prisma.phoneNumber.count({ where: { userId } })
+    if (existingCount > 0) {
+      const creditCheck = await checkCredits(userId, ADDITIONAL_NUMBER_COST)
+      if (!creditCheck.allowed) {
+        return NextResponse.json({ error: creditCheck.error }, { status: 402 })
+      }
+    }
+
     // Purchase the number from Twilio
     const purchased = await twilioClient.incomingPhoneNumbers.create({
       phoneNumber,
@@ -52,6 +64,11 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
         twilioSid: purchased.sid,
       },
     })
+
+    // Deduct credits for additional numbers (first is free)
+    if (existingCount > 0) {
+      await deductCredits(userId, ADDITIONAL_NUMBER_COST)
+    }
 
     return NextResponse.json({ phoneNumber: record })
   } catch (error: any) {

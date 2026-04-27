@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -48,7 +49,8 @@ function ManageSubscriptionButton() {
 }
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState("profile")
+  const searchParams = useSearchParams()
+  const [activeTab, setActiveTab] = useState(() => searchParams.get("tab") ?? "profile")
   const [deliverabilityOpen, setDeliverabilityOpen] = useState(true)
   const [callingOpen, setCallingOpen] = useState(true)
   const [currentPassword, setCurrentPassword] = useState("")

@@ -3,10 +3,11 @@
 import { RadarChart, PolarGrid, PolarAngleAxis, Radar, Legend, ResponsiveContainer } from "recharts"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
-import { Zap, TrendingUp } from "lucide-react"
+import { Zap, TrendingUp, Settings2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { useUserRole } from "@/hooks/use-user-role"
 import { useDashboardStats } from "@/hooks/use-dashboard-stats"
+import Link from "next/link"
 
 // Default targets (fallback)
 const DEFAULT_TARGETS = { emails: 40, calls: 500, leads: 50, linkedin: 20 }
@@ -58,13 +59,20 @@ export function SDRPerformanceChart() {
               <Zap className="w-4 h-4 text-accent" />
             </div>
             <div>
-              <CardTitle className="text-lg">Weekly SDR Performance</CardTitle>
+              <CardTitle className="text-lg">Weekly Performance</CardTitle>
               <CardDescription className="text-xs">
                 Progress toward {TARGETS.emails} emails, {TARGETS.calls} calls, {TARGETS.leads} leads,{" "}
                 {TARGETS.linkedin} LinkedIn outreaches
               </CardDescription>
             </div>
           </div>
+          <Link
+            href="/settings?tab=organization"
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <Settings2 className="w-3.5 h-3.5" />
+            Edit targets
+          </Link>
         </div>
       </CardHeader>
 

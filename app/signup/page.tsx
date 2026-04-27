@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { toast } from 'sonner'
-import { Zap, Phone, Mail, BarChart3, ArrowRight, CheckCircle2, ArrowBigUp, ArrowLeft } from 'lucide-react'
+import { Zap, Phone, Mail, BarChart3, ArrowRight, CheckCircle2, ArrowBigUp, ArrowLeft, Loader2 } from 'lucide-react'
 
 const MIN_PASSWORD_LENGTH = 8
 
@@ -218,43 +218,51 @@ export default function SignupPage() {
             </p>
           </div>
 
-          {/* OTP inputs */}
-          <div className="flex justify-center gap-3" onPaste={handleOtpPaste}>
-            {otp.map((digit, i) => (
-              <input
-                key={i}
-                ref={(el) => { otpRefs.current[i] = el }}
-                type="text"
-                inputMode="numeric"
-                maxLength={1}
-                value={digit}
-                onChange={(e) => handleOtpChange(i, e.target.value)}
-                onKeyDown={(e) => handleOtpKeyDown(i, e)}
-                disabled={verifying}
-                className="w-12 h-14 text-center text-xl font-bold rounded-xl bg-white/5 border border-white/10 text-white focus:border-[hsl(100,78%,44%)] focus:outline-none focus:ring-2 focus:ring-[hsl(100,78%,44%,0.3)] transition-all disabled:opacity-50"
-              />
-            ))}
-          </div>
+          {verifying ? (
+            <div className="flex flex-col items-center gap-4 py-4">
+              <Loader2 className="h-10 w-10 text-[hsl(100,78%,44%)] animate-spin" />
+              <p className="text-white/60 font-medium">Verifying your code…</p>
+            </div>
+          ) : (
+            <>
+              {/* OTP inputs */}
+              <div className="flex justify-center gap-3" onPaste={handleOtpPaste}>
+                {otp.map((digit, i) => (
+                  <input
+                    key={i}
+                    ref={(el) => { otpRefs.current[i] = el }}
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={1}
+                    value={digit}
+                    onChange={(e) => handleOtpChange(i, e.target.value)}
+                    onKeyDown={(e) => handleOtpKeyDown(i, e)}
+                    className="w-12 h-14 text-center text-xl font-bold rounded-xl bg-white/5 border border-white/10 text-white focus:border-[hsl(100,78%,44%)] focus:outline-none focus:ring-2 focus:ring-[hsl(100,78%,44%,0.3)] transition-all"
+                  />
+                ))}
+              </div>
 
-          <Button
-            onClick={() => handleVerifyOtp(otpValue)}
-            disabled={otpValue.length < 6 || verifying}
-            className="w-full h-12 bg-[hsl(100,78%,44%)] hover:bg-[hsl(100,78%,38%)] text-white font-semibold shadow-[0_0_20px_hsl(100,78%,44%,0.3)]"
-          >
-            {verifying ? 'Verifying…' : 'Confirm account'}
-          </Button>
+              <Button
+                onClick={() => handleVerifyOtp(otpValue)}
+                disabled={otpValue.length < 6}
+                className="w-full h-12 bg-[hsl(100,78%,44%)] hover:bg-[hsl(100,78%,38%)] text-white font-semibold shadow-[0_0_20px_hsl(100,78%,44%,0.3)]"
+              >
+                Confirm account
+              </Button>
 
-          <p className="text-sm text-white/30">
-            Didn&apos;t get it? Check your spam folder.
-          </p>
+              <p className="text-sm text-white/30">
+                Didn&apos;t get it? Check your spam folder.
+              </p>
 
-          <button
-            onClick={() => setShowConfirmation(false)}
-            className="flex items-center gap-1.5 mx-auto text-sm text-white/30 hover:text-white/60 transition-colors"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            Back to sign up
-          </button>
+              <button
+                onClick={() => setShowConfirmation(false)}
+                className="flex items-center gap-1.5 mx-auto text-sm text-white/30 hover:text-white/60 transition-colors"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+                Back to sign up
+              </button>
+            </>
+          )}
         </div>
       </div>
     )

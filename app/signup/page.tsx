@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { toast } from 'sonner'
-import { Zap, Phone, Mail, BarChart3, ArrowRight, CheckCircle2 } from 'lucide-react'
+import { Zap, Phone, Mail, BarChart3, ArrowRight, CheckCircle2, ArrowBigUp, ArrowLeft } from 'lucide-react'
 
 const MIN_PASSWORD_LENGTH = 8
 
@@ -18,9 +18,9 @@ export default function SignupPage() {
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [firstName, setFirstName] = useState('')
-  const [lastName, setLastName] = useState('')
+  const [name, setName] = useState('')
+  const [nameError, setNameError] = useState('')
+  const [emailError, setEmailError] = useState('')
   const [organizationName, setOrganizationName] = useState('')
   const [agreeToTerms, setAgreeToTerms] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -39,6 +39,12 @@ export default function SignupPage() {
   const handleEmailSignup = async (e: React.FormEvent) => {
     e.preventDefault()
 
+    const nameParts = name.trim().split(/\s+/)
+    if (nameParts.length < 2 || !nameParts[1]) {
+      setNameError(name.trim() ? 'Last name missing' : 'First and last name missing')
+      return
+    }
+
     if (!email) {
       toast.error('Please enter your email address')
       return
@@ -51,11 +57,6 @@ export default function SignupPage() {
 
     if (password.length < MIN_PASSWORD_LENGTH) {
       toast.error(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`)
-      return
-    }
-
-    if (password !== confirmPassword) {
-      toast.error('Passwords do not match')
       return
     }
 
@@ -72,8 +73,8 @@ export default function SignupPage() {
         password,
         options: {
           data: {
-            firstName,
-            lastName,
+            firstName: nameParts[0],
+            lastName: nameParts.slice(1).join(' '),
             organizationName: organizationName.trim() || undefined,
           },
           emailRedirectTo: `${siteUrl}/auth/callback`,
@@ -88,7 +89,7 @@ export default function SignupPage() {
         }
 
         if (error.message.includes('User already registered')) {
-          toast.error('This email is already registered. Try logging in instead.')
+          setEmailError('Account already exists')
         } else if (error.message.includes('Email rate limit exceeded')) {
           toast.error('Too many signup attempts. Please wait a few minutes and try again.')
         } else if (error.message.includes('Invalid email')) {
@@ -246,6 +247,14 @@ export default function SignupPage() {
           <p className="text-sm text-white/30">
             Didn&apos;t get it? Check your spam folder.
           </p>
+
+          <button
+            onClick={() => setShowConfirmation(false)}
+            className="flex items-center gap-1.5 mx-auto text-sm text-white/30 hover:text-white/60 transition-colors"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Back to sign up
+          </button>
         </div>
       </div>
     )
@@ -377,40 +386,51 @@ export default function SignupPage() {
 
           {/* Signup Form */}
           <form onSubmit={handleEmailSignup} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="firstName" className="text-sm text-white/70">First name</Label>
-                <Input
-                  id="firstName"
-                  type="text"
-                  placeholder="John"
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                  disabled={loading}
-                  className="h-12 bg-white/5 border-white/10 text-white placeholder:text-white/25 focus:border-[hsl(100,78%,44%)] focus:ring-[hsl(100,78%,44%,0.3)] transition-all"
-                />
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="name" className="text-sm text-white/70">Name</Label>
+                <span className="flex items-center gap-1 text-xs text-white/30">
+                  Name + Company is autocapitalized — save yourself the <ArrowBigUp className="h-3.5 w-3.5" />
+                </span>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="lastName" className="text-sm text-white/70">Last name</Label>
-                <Input
-                  id="lastName"
-                  type="text"
-                  placeholder="Doe"
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                  disabled={loading}
-                  className="h-12 bg-white/5 border-white/10 text-white placeholder:text-white/25 focus:border-[hsl(100,78%,44%)] focus:ring-[hsl(100,78%,44%,0.3)] transition-all"
-                />
-              </div>
+              <Input
+                id="name"
+                type="text"
+                placeholder="First and Last Name"
+                value={name}
+                onChange={(e) => {
+                  const capitalized = e.target.value.replace(/\b\w/g, (c) => c.toUpperCase())
+                  setName(capitalized)
+                  const parts = capitalized.trim().split(/\s+/)
+                  if (!capitalized.trim()) {
+                    setNameError('')
+                  } else if (parts.length < 2 || !parts[1]) {
+                    setNameError('Last name missing')
+                  } else {
+                    setNameError('')
+                  }
+                }}
+                onBlur={() => {
+                  const parts = name.trim().split(/\s+/)
+                  if (!name.trim()) {
+                    setNameError('First and last name missing')
+                  } else if (parts.length < 2 || !parts[1]) {
+                    setNameError('Last name missing')
+                  }
+                }}
+                disabled={loading}
+                className="h-12 bg-white/5 border-white/10 text-white placeholder:text-white/25 focus:border-[hsl(100,78%,44%)] focus:ring-[hsl(100,78%,44%,0.3)] transition-all"
+              />
+              {nameError && <p className="text-xs text-red-400">{nameError}</p>}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="organizationName" className="text-sm text-white/70">Organization name</Label>
+              <Label htmlFor="organizationName" className="text-sm text-white/70">Company name</Label>
               <Input
                 id="organizationName"
                 type="text"
                 placeholder="Acme Inc."
                 value={organizationName}
-                onChange={(e) => setOrganizationName(e.target.value)}
+                onChange={(e) => setOrganizationName(e.target.value.replace(/\b\w/g, (c) => c.toUpperCase()))}
                 disabled={loading}
                 className="h-12 bg-white/5 border-white/10 text-white placeholder:text-white/25 focus:border-[hsl(100,78%,44%)] focus:ring-[hsl(100,78%,44%,0.3)] transition-all"
               />
@@ -422,11 +442,17 @@ export default function SignupPage() {
                 type="email"
                 placeholder="you@company.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => { setEmail(e.target.value); setEmailError('') }}
                 required
                 disabled={loading}
                 className="h-12 bg-white/5 border-white/10 text-white placeholder:text-white/25 focus:border-[hsl(100,78%,44%)] focus:ring-[hsl(100,78%,44%,0.3)] transition-all"
               />
+              {emailError && (
+                <p className="text-xs text-red-400">
+                  {emailError} —{' '}
+                  <Link href="/login" className="underline hover:text-red-300">sign in instead</Link>
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="password" className="text-sm text-white/70">Password</Label>
@@ -449,19 +475,6 @@ export default function SignupPage() {
                   Must be at least {MIN_PASSWORD_LENGTH} characters
                 </p>
               )}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword" className="text-sm text-white/70">Confirm password</Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                placeholder="Confirm your password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                disabled={loading}
-                className="h-12 bg-white/5 border-white/10 text-white placeholder:text-white/25 focus:border-[hsl(100,78%,44%)] focus:ring-[hsl(100,78%,44%,0.3)] transition-all"
-              />
             </div>
             <div className="flex items-start space-x-2 pt-1">
               <Checkbox

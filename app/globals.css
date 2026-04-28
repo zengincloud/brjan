@@ -8,6 +8,28 @@
   }
 }
 
+@keyframes br-orbit {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.br-loading-ring {
+  position: absolute;
+  border-radius: 50%;
+  animation: br-orbit 1.8s linear infinite;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0%,
+    transparent 65%,
+    rgba(255, 255, 255, 0.5) 78%,
+    rgba(255, 255, 255, 1) 90%,
+    transparent 100%
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), black calc(100% - 3px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), black calc(100% - 3px));
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 1)) drop-shadow(0 0 20px rgba(255, 255, 255, 0.6));
+}
+
 @layer base {
   :root {
     --font-sans: var(--font-geist-sans);

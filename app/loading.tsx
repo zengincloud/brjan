@@ -1,8 +1,15 @@
 export default function Loading() {
   return (
-    <div className="flex items-center gap-2 py-12 text-muted-foreground">
-      <div className="h-4 w-4 rounded-full border-2 border-accent border-t-transparent animate-spin" />
-      <span className="text-sm font-medium">Thinking...</span>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background">
+      <div className="relative" style={{ width: 72, height: 72 }}>
+        <div className="br-loading-ring" style={{ inset: -18 }} />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/brgradientfav.png"
+          alt="Boilerroom"
+          style={{ width: 72, height: 72, borderRadius: '50%' }}
+        />
+      </div>
     </div>
   )
 }

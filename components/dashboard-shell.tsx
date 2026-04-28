@@ -9,6 +9,7 @@ import { Sidebar } from "@/components/sidebar"
 import { ImpersonationBanner } from "@/components/impersonation-banner"
 import { Menu, Mail, Phone, Search, Bell, Zap, User, Building2, Loader2 } from "lucide-react"
 import { UserProvider, useUser } from "@/hooks/use-user"
+import { VoiceOrb } from "@/components/voice-orb"
 import { UserRoleProvider } from "@/hooks/use-user-role"
 import { DashboardStatsProvider } from "@/hooks/use-dashboard-stats"
 import { Input } from "@/components/ui/input"
@@ -41,6 +42,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       <UserRoleProvider>
         <DashboardStatsProvider>
           <DashboardShellInner>{children}</DashboardShellInner>
+          <VoiceOrb />
         </DashboardStatsProvider>
       </UserRoleProvider>
     </UserProvider>

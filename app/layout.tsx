@@ -5,7 +5,6 @@ import { GeistMono } from "geist/font/mono"
 import { Toaster } from "@/components/ui/toaster"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { ToastContextProvider } from "@/components/ui/toast"
-import { VoiceOrb } from "@/components/voice-orb"
 
 export const metadata = {
   title: "boilerroom.ai",
@@ -27,7 +26,6 @@ export default function RootLayout({
       <body className="font-sans">
         <ToastContextProvider>
           <DashboardShell>{children}</DashboardShell>
-          <VoiceOrb />
           <Toaster />
         </ToastContextProvider>
       </body>

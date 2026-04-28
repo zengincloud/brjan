@@ -66,6 +66,7 @@ import {
   Search,
 } from "lucide-react"
 import { SendEmailDialog } from "@/components/send-email-dialog"
+import { GetNumberDialog } from "@/components/get-number-dialog"
 import { Calendar as CalendarIcon, CalendarClock } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -429,6 +430,8 @@ export default function DialerPage() {
 
   // Available phone numbers — loaded from DB
   const [phoneNumbers, setPhoneNumbers] = useState<{ id: string; label: string }[]>([])
+  const [getNumberDialogOpen, setGetNumberDialogOpen] = useState(false)
+
   useEffect(() => {
     fetch("/api/calling/numbers")
       .then((r) => r.ok ? r.json() : null)
@@ -445,6 +448,12 @@ export default function DialerPage() {
       })
       .catch(() => {})
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleNumberAdded = (number: { id: string; number: string; friendlyName: string }) => {
+    const entry = { id: number.number, label: number.friendlyName }
+    setPhoneNumbers((prev) => [...prev, entry])
+    setSelectedPhone(number.number)
+  }
 
   // Track the last sequence we fetched for so we only refetch on actual filter changes
   // Initialize from persisted selectedSequence so navigating back doesn't re-fetch (which would reorder the queue and break currentProspectIndex)
@@ -1926,18 +1935,29 @@ export default function DialerPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="phone-select" className="text-sm">Caller ID</Label>
-                <Select value={selectedPhone} onValueChange={setSelectedPhone}>
-                  <SelectTrigger id="phone-select">
-                    <SelectValue placeholder="Select phone number" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {phoneNumbers.map((phone) => (
-                      <SelectItem key={phone.id} value={phone.id}>
-                        {phone.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-2">
+                  <Select value={selectedPhone} onValueChange={setSelectedPhone}>
+                    <SelectTrigger id="phone-select" className="flex-1">
+                      <SelectValue placeholder="Select phone number" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {phoneNumbers.map((phone) => (
+                        <SelectItem key={phone.id} value={phone.id}>
+                          {phone.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="shrink-0"
+                    title="Get a new number"
+                    onClick={() => setGetNumberDialogOpen(true)}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
                 <p className="text-xs text-muted-foreground">
                   Outbound caller ID
                 </p>
@@ -3764,6 +3784,13 @@ export default function DialerPage() {
         open={emailDialogOpen}
         onOpenChange={setEmailDialogOpen}
         prospect={emailProspect}
+      />
+
+      <GetNumberDialog
+        open={getNumberDialogOpen}
+        onOpenChange={setGetNumberDialogOpen}
+        existingCount={phoneNumbers.length}
+        onNumberAdded={handleNumberAdded}
       />
 
       {/* Callback date picker overlay */}

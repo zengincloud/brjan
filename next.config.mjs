@@ -6,6 +6,7 @@ const nextConfig = {
   images: {
     remotePatterns: [],
   },
+  transpilePackages: ["@react-three/fiber", "@react-three/drei", "three"],
 }
 
 export default nextConfig

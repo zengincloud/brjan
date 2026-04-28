@@ -1,0 +1,61 @@
+"use client"
+
+import { useEffect } from "react"
+import dynamic from "next/dynamic"
+import { useUserRole } from "@/hooks/use-user-role"
+import { useVoiceCommand } from "@/hooks/use-voice-command"
+
+const Orb = dynamic(() => import("@/components/ui/orb").then((m) => m.Orb), { ssr: false })
+
+export function VoiceOrb() {
+  const { isSuperAdmin } = useUserRole()
+  const { agentState, startListening, stopListening } = useVoiceCommand()
+
+  useEffect(() => {
+    if (!isSuperAdmin) return
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code === "Space" && e.target === document.body) {
+        e.preventDefault()
+        startListening()
+      }
+    }
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code === "Space") stopListening()
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    window.addEventListener("keyup", onKeyUp)
+    return () => {
+      window.removeEventListener("keydown", onKeyDown)
+      window.removeEventListener("keyup", onKeyUp)
+    }
+  }, [isSuperAdmin, startListening, stopListening])
+
+  if (!isSuperAdmin) return null
+
+  const label = agentState === "listening"
+    ? "Listening..."
+    : agentState === "thinking"
+    ? "Thinking..."
+    : agentState === "talking"
+    ? "Speaking..."
+    : "Hold to talk"
+
+  return (
+    <div
+      className="fixed bottom-6 right-6 z-50 w-20 h-20 cursor-pointer group select-none"
+      onMouseDown={startListening}
+      onMouseUp={stopListening}
+      onTouchStart={startListening}
+      onTouchEnd={stopListening}
+    >
+      <div className={`w-full h-full rounded-full overflow-hidden transition-opacity ${agentState ? "opacity-100" : "opacity-70 hover:opacity-100"}`}>
+        <Orb agentState={agentState} colors={["#6366f1", "#8b5cf6"]} />
+      </div>
+      <p className="absolute -top-7 left-1/2 -translate-x-1/2 text-xs text-white/40 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+        {label}
+      </p>
+    </div>
+  )
+}

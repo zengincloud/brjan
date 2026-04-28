@@ -841,7 +841,7 @@ export default function AccountsPage() {
                           )}
                         >
                           {/* Checkbox */}
-                          <td className="px-4 py-2.5 w-10" onClick={(e) => { e.stopPropagation(); toggleRow(a.id) }}>
+                          <td className="px-4 py-2.5 w-10" onClick={(e) => e.stopPropagation()}>
                             <Cb checked={isChecked} onChange={() => toggleRow(a.id)} />
                           </td>
 

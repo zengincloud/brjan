@@ -179,7 +179,8 @@ export function AccountsProspecting() {
   // Search filters
   const [query, setQuery] = useState("")
   const [location, setLocation] = useState("")
-  const [city, setCity] = useState("")
+  const [cities, setCities] = useState<string[]>([])
+  const [cityInput, setCityInput] = useState("")
   const [industries, setIndustries] = useState<string[]>([])
   const [technologies, setTechnologies] = useState<string[]>([])
   const [jobOpportunities, setJobOpportunities] = useState<string[]>([])
@@ -194,7 +195,7 @@ export function AccountsProspecting() {
 
   // Filter panel + column settings
   const [showFilters, setShowFilters] = useState(true)
-  const [openFilter, setOpenFilter] = useState<string | null>(null)
+  const [openFilters, setOpenFilters] = useState<Set<string>>(new Set())
   const [columnSettingsOpen, setColumnSettingsOpen] = useState(false)
   const [visibleResultCols, setVisibleResultCols] = useState<Set<string>>(new Set(DEFAULT_ACCT_RESULT_COLS))
 
@@ -206,7 +207,7 @@ export function AccountsProspecting() {
         const state = JSON.parse(savedState)
         setQuery(state.query || "")
         setLocation(state.location || "")
-        setCity(state.city || "")
+        setCities(Array.isArray(state.city) ? state.city : state.city ? [state.city] : [])
         setIndustries(state.industries || [])
         setTechnologies(state.technologies || [])
         setJobOpportunities(state.jobOpportunities || [])
@@ -256,7 +257,7 @@ export function AccountsProspecting() {
           revenueRange: [REVENUE_VALUES[revenueRange[0]], REVENUE_VALUES[revenueRange[1]]],
           headcountRange: [HEADCOUNT_VALUES[headcountRange[0]], HEADCOUNT_VALUES[headcountRange[1]]],
           location,
-          city,
+          city: cities,
           technologies,
           jobOpportunities,
           recentActivities,
@@ -277,7 +278,7 @@ export function AccountsProspecting() {
       const stateToSave = {
         query,
         location,
-        city,
+        city: cities,
         industries,
         technologies,
         jobOpportunities,
@@ -299,7 +300,8 @@ export function AccountsProspecting() {
   const handleReset = () => {
     setQuery("")
     setLocation("")
-    setCity("")
+    setCities([])
+    setCityInput("")
     setIndustries([])
     setTechnologies([])
     setJobOpportunities([])
@@ -395,9 +397,28 @@ export function AccountsProspecting() {
     )
   }
 
+  const toggleFilter = (key: string) => {
+    setOpenFilters(prev => {
+      const s = new Set(prev)
+      s.has(key) ? s.delete(key) : s.add(key)
+      return s
+    })
+  }
+
+  const handleCityKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && cityInput.trim()) {
+      e.preventDefault()
+      const newCity = cityInput.trim()
+      if (!cities.includes(newCity)) setCities([...cities, newCity])
+      setCityInput("")
+    } else if (e.key === "Backspace" && !cityInput && cities.length > 0) {
+      setCities(cities.slice(0, -1))
+    }
+  }
+
   const activeFilterCount = (
     (query ? 1 : 0) +
-    (location || city ? 1 : 0) +
+    (location || cities.length ? 1 : 0) +
     industries.length +
     technologies.length +
     jobOpportunities.length +
@@ -459,14 +480,14 @@ export function AccountsProspecting() {
               <div className="space-y-0.5">
 
                 <FilterSectionRow icon={Building2} label="Business Name"
-                  isOpen={openFilter === 'query'} onToggle={() => setOpenFilter(openFilter === 'query' ? null : 'query')}
+                  isOpen={openFilters.has('query')} onToggle={() => toggleFilter('query')}
                   hasValue={!!query} onClear={() => setQuery('')}>
                   <Input value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSearch()} placeholder="Company name or domain..." className="h-8 text-[12px]" />
                 </FilterSectionRow>
 
                 <FilterSectionRow icon={MapPin} label="HQ Location"
-                  isOpen={openFilter === 'location'} onToggle={() => setOpenFilter(openFilter === 'location' ? null : 'location')}
-                  hasValue={!!(location || city)} onClear={() => { setLocation(''); setCity('') }}>
+                  isOpen={openFilters.has('location')} onToggle={() => toggleFilter('location')}
+                  hasValue={!!(location || cities.length)} onClear={() => { setLocation(''); setCities([]); setCityInput('') }}>
                   <Select value={location} onValueChange={setLocation}>
                     <SelectTrigger className="h-8 text-[12px]"><SelectValue placeholder="Select region" /></SelectTrigger>
                     <SelectContent>
@@ -477,11 +498,19 @@ export function AccountsProspecting() {
                       <SelectItem value="middle-east">Middle East & Africa</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Input placeholder="City or Country" value={city} onChange={(e) => setCity(e.target.value)} className="h-8 text-[12px]" />
+                  <div className="flex flex-wrap gap-1 p-1.5 min-h-[36px] border rounded-md bg-background">
+                    {cities.map((c) => (
+                      <Badge key={c} variant="secondary" className="flex items-center gap-1 px-1.5 py-0.5 text-[11px]">
+                        {c}
+                        <button type="button" onClick={() => setCities(cities.filter(x => x !== c))}><X className="h-2.5 w-2.5" /></button>
+                      </Badge>
+                    ))}
+                    <input type="text" placeholder={cities.length === 0 ? "City or country..." : ""} value={cityInput} onChange={(e) => setCityInput(e.target.value)} onKeyDown={handleCityKeyDown} className="flex-1 min-w-[80px] bg-transparent border-none outline-none text-[12px]" />
+                  </div>
                 </FilterSectionRow>
 
                 <FilterSectionRow icon={Briefcase} label="Industry"
-                  isOpen={openFilter === 'industry'} onToggle={() => setOpenFilter(openFilter === 'industry' ? null : 'industry')}
+                  isOpen={openFilters.has('industry')} onToggle={() => toggleFilter('industry')}
                   hasValue={industries.length > 0} onClear={() => setIndustries([])}>
                   <div className="space-y-1.5">
                     {["Technology", "Financial Services", "Healthcare", "Manufacturing", "Retail"].map((ind) => (
@@ -494,11 +523,11 @@ export function AccountsProspecting() {
                 </FilterSectionRow>
 
                 <FilterSectionRow icon={Users} label="Headcount"
-                  isOpen={openFilter === 'headcount'} onToggle={() => setOpenFilter(openFilter === 'headcount' ? null : 'headcount')}
+                  isOpen={openFilters.has('headcount')} onToggle={() => toggleFilter('headcount')}
                   hasValue={headcountRange[0] !== 0 || headcountRange[1] !== HEADCOUNT_LABELS.length - 1} onClear={() => setHeadcountRange([0, HEADCOUNT_LABELS.length - 1])}>
                   <div className="pt-1">
                     <div className="flex justify-between text-[11px] text-muted-foreground mb-1">
-                      <span>{headcountRange[0] === 0 ? 'Any' : HEADCOUNT_LABELS[headcountRange[0]]}</span>
+                      <span>{headcountRange[0] === 0 ? '1' : HEADCOUNT_LABELS[headcountRange[0]]}</span>
                       <span>{headcountRange[1] === HEADCOUNT_LABELS.length - 1 ? 'Any' : HEADCOUNT_LABELS[headcountRange[1]]}</span>
                     </div>
                     <Slider value={headcountRange} min={0} max={HEADCOUNT_LABELS.length - 1} step={1} onValueChange={setHeadcountRange} className="my-3" />
@@ -506,7 +535,7 @@ export function AccountsProspecting() {
                 </FilterSectionRow>
 
                 <FilterSectionRow icon={DollarSign} label="Revenue"
-                  isOpen={openFilter === 'revenue'} onToggle={() => setOpenFilter(openFilter === 'revenue' ? null : 'revenue')}
+                  isOpen={openFilters.has('revenue')} onToggle={() => toggleFilter('revenue')}
                   hasValue={revenueRange[0] !== 0 || revenueRange[1] !== REVENUE_LABELS.length - 1} onClear={() => setRevenueRange([0, REVENUE_LABELS.length - 1])}>
                   <div className="pt-1">
                     <div className="flex justify-between text-[11px] text-muted-foreground mb-1">
@@ -518,7 +547,7 @@ export function AccountsProspecting() {
                 </FilterSectionRow>
 
                 <FilterSectionRow icon={Briefcase} label="Job Opportunities"
-                  isOpen={openFilter === 'jobs'} onToggle={() => setOpenFilter(openFilter === 'jobs' ? null : 'jobs')}
+                  isOpen={openFilters.has('jobs')} onToggle={() => toggleFilter('jobs')}
                   hasValue={jobOpportunities.length > 0} onClear={() => setJobOpportunities([])}>
                   <div className="space-y-1.5">
                     {["Hiring Sales Roles", "Hiring Marketing Roles", "Hiring Leadership"].map((job) => (
@@ -531,7 +560,7 @@ export function AccountsProspecting() {
                 </FilterSectionRow>
 
                 <FilterSectionRow icon={Newspaper} label="Recent Activities"
-                  isOpen={openFilter === 'activities'} onToggle={() => setOpenFilter(openFilter === 'activities' ? null : 'activities')}
+                  isOpen={openFilters.has('activities')} onToggle={() => toggleFilter('activities')}
                   hasValue={recentActivities.length > 0} onClear={() => setRecentActivities([])}>
                   <div className="space-y-1.5">
                     {["Funding Rounds", "Leadership Changes", "Product Launches", "Expansion News"].map((act) => (

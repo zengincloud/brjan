@@ -37,8 +37,7 @@ const PLANS = [
     features: [
       '500 credits / month',
       'Everything in Starter',
-      'LinkedIn outreach',
-      '5 teammate seats',
+'5 teammate seats',
       'HubSpot integration',
       'Priority support',
     ],

@@ -3,47 +3,31 @@ import { withAuth } from "@/lib/auth/api-middleware"
 
 export const dynamic = 'force-dynamic'
 
-// POST /api/search/people - Search for people using Wiza Prospect Search API
+// POST /api/search/people - Search for people using PDL Person Search API (no credits consumed for browsing)
 export const POST = withAuth(async (request: NextRequest, userId: string) => {
-  // Helper to capitalize names properly (title case)
   function toTitleCase(str: string | null | undefined): string {
     if (!str) return ""
-    return str
-      .toLowerCase()
-      .split(" ")
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" ")
+    return str.toLowerCase().split(" ").map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(" ")
   }
 
-  // Helper to calculate buyer intent based on person data
   function calculateBuyerIntent(person: any): "high" | "medium" | "low" {
     let score = 0
-
-    // Senior level
     const title = (person.job_title || "").toLowerCase()
     const seniorTitles = ["ceo", "cto", "cfo", "coo", "cmo", "vp", "vice president", "president", "founder", "owner", "partner"]
     if (seniorTitles.some(t => title.includes(t))) score += 2
-
-    // Decision maker title keywords
     const decisionKeywords = ["director", "head", "chief", "managing"]
-    if (decisionKeywords.some(keyword => title.includes(keyword))) score += 1
-
-    // Manager level
+    if (decisionKeywords.some(k => title.includes(k))) score += 1
     if (title.includes("manager") || title.includes("lead")) score += 1
-
     if (score >= 3) return "high"
     if (score >= 1) return "medium"
     return "low"
   }
 
   try {
-    const apiKey = process.env.WIZA_API_KEY
+    const apiKey = process.env.PDL_API_KEY
 
     if (!apiKey) {
-      return NextResponse.json(
-        { error: "Wiza API key not configured" },
-        { status: 500 }
-      )
+      return NextResponse.json({ error: "PDL API key not configured" }, { status: 500 })
     }
 
     const body = await request.json()
@@ -59,328 +43,301 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       geography,
       city,
       industry,
-      // Exclusions
       excludedNames,
       excludedCompanies,
       excludedTitles,
       excludedIndustries,
-      limit = 10,
+      limit = 30,
+      scrollToken,
     } = body
 
-    // Build Wiza filters object
-    const filters: any = {}
+    const mustClauses: any[] = []
+    const mustNotClauses: any[] = []
+    let isNameSearch = false
 
     // Name filter
     if (nameFilter) {
       const parts = nameFilter.trim().split(/\s+/)
       if (parts.length >= 2) {
-        filters.first_name = [parts[0]]
-        filters.last_name = [parts.slice(1).join(" ")]
+        mustClauses.push({ term: { first_name: parts[0].toLowerCase() } })
+        mustClauses.push({ term: { last_name: parts.slice(1).join(" ").toLowerCase() } })
       } else {
-        filters.first_name = [parts[0]]
+        mustClauses.push({ term: { first_name: parts[0].toLowerCase() } })
       }
     }
 
-    // Free-text query - detect if it looks like a person name (two words, no common title keywords)
-    let isNameSearch = false
+    // Free-text query — detect person name vs job title
     if (query && !jobTitle?.length) {
       const trimmedQuery = query.trim()
       const queryParts = trimmedQuery.split(/\s+/)
       const titleKeywords = [
-        "ceo", "cto", "cfo", "coo", "cmo", "vp", "vice", "president", "director",
-        "manager", "head", "chief", "lead", "senior", "junior", "engineer", "developer",
-        "analyst", "consultant", "specialist", "coordinator", "associate", "intern",
-        "sales", "marketing", "product", "design", "software", "data", "account",
-        "executive", "officer", "founder", "partner", "architect",
+        "ceo","cto","cfo","coo","cmo","vp","vice","president","director","manager",
+        "head","chief","lead","senior","junior","engineer","developer","analyst",
+        "consultant","specialist","coordinator","associate","intern","sales",
+        "marketing","product","design","software","data","account","executive",
+        "officer","founder","partner","architect",
       ]
-      const looksLikeName = queryParts.length >= 2 &&
-        queryParts.length <= 3 &&
+      const looksLikeName = queryParts.length >= 2 && queryParts.length <= 3 &&
         !titleKeywords.some(kw => trimmedQuery.toLowerCase().includes(kw))
 
       if (looksLikeName) {
-        // Treat as person name: first word = first name, rest = last name
-        filters.first_name = [queryParts[0]]
-        filters.last_name = [queryParts.slice(1).join(" ")]
+        mustClauses.push({ term: { first_name: queryParts[0].toLowerCase() } })
+        mustClauses.push({ term: { last_name: queryParts.slice(1).join(" ").toLowerCase() } })
         isNameSearch = true
       } else {
-        filters.job_title = [{ v: trimmedQuery, s: "i" }]
+        mustClauses.push({ match: { job_title: trimmedQuery } })
       }
     }
 
-    // Job titles - supports both string and array
+    // Job titles
     if (jobTitle) {
-      const titles = Array.isArray(jobTitle) ? jobTitle : [jobTitle]
-      const titleFilters = titles
-        .filter((t: string) => t && t.trim())
-        .map((t: string) => ({ v: t.trim(), s: "i" }))
-      if (titleFilters.length > 0) {
-        filters.job_title = [...(filters.job_title || []), ...titleFilters]
+      const titles = (Array.isArray(jobTitle) ? jobTitle : [jobTitle]).filter((t: string) => t?.trim())
+      if (titles.length === 1) {
+        mustClauses.push({ match: { job_title: titles[0].trim() } })
+      } else if (titles.length > 1) {
+        mustClauses.push({
+          bool: {
+            should: titles.map((t: string) => ({ match: { job_title: t.trim() } })),
+          },
+        })
       }
     }
 
     // Excluded titles
     if (excludedTitles?.length) {
-      const excludeFilters = excludedTitles
-        .filter((t: string) => t && t.trim())
-        .map((t: string) => ({ v: t.trim(), s: "e" }))
-      filters.job_title = [...(filters.job_title || []), ...excludeFilters]
+      excludedTitles.filter((t: string) => t?.trim()).forEach((t: string) => {
+        mustNotClauses.push({ match: { job_title: t.trim() } })
+      })
     }
 
-    // Job function → Wiza job_role
+    // Job function → PDL job_title_role
     if (jobFunction) {
       const roleMap: Record<string, string> = {
-        'sales': 'sales',
-        'marketing': 'marketing',
-        'it': 'engineering',
-        'finance': 'finance',
-        'hr': 'human_resources',
-        'operations': 'operations',
-        'product': 'engineering',
-        'engineering': 'engineering',
-        'design': 'design',
-        'legal': 'legal',
-        'education': 'education',
-        'health': 'health',
-        'customer_service': 'customer_service',
-        'public_relations': 'public_relations',
-        'media': 'media',
-        'real_estate': 'real_estate',
-        'trades': 'trades',
+        sales: "sales", marketing: "marketing", it: "engineering",
+        finance: "finance", hr: "human_resources", operations: "operations",
+        product: "product", engineering: "engineering", design: "design",
+        legal: "legal", education: "education", health: "health",
+        customer_service: "customer_service", public_relations: "public_relations",
+        media: "media", real_estate: "real_estate", trades: "trades",
       }
       const role = roleMap[jobFunction.toLowerCase()] || jobFunction.toLowerCase()
-      filters.job_role = [role]
+      mustClauses.push({ term: { job_title_role: role } })
     }
 
-    // Seniority level → Wiza job_title_level
+    // Seniority → PDL job_title_levels
     if (seniorityLevel?.length) {
       const levelMap: Record<string, string[]> = {
-        'C-Suite': ['CXO', 'Owner'],
-        'VP': ['VP'],
-        'Director': ['Director'],
-        'Manager': ['Manager'],
-        'Individual Contributor': ['Senior', 'Entry'],
+        "C-Suite": ["cxo", "owner"],
+        "VP": ["vp"],
+        "Director": ["director"],
+        "Manager": ["manager"],
+        "Individual Contributor": ["senior", "entry", "training"],
       }
-      const wizaLevels: string[] = []
+      const pdlLevels: string[] = []
       seniorityLevel.forEach((level: string) => {
         const mapped = levelMap[level]
-        if (mapped) wizaLevels.push(...mapped)
+        if (mapped) pdlLevels.push(...mapped)
       })
-      if (wizaLevels.length > 0) {
-        filters.job_title_level = wizaLevels
-      }
+      if (pdlLevels.length > 0) mustClauses.push({ terms: { job_title_levels: pdlLevels } })
     }
 
-    // Current company — prefer domain-based search when available
+    // Company — prefer domain when available, fall back to name
     if (companyDomain) {
-      filters.job_company_website = [companyDomain.trim()]
-    }
-    if (currentCompany) {
-      filters.job_company = [{ v: currentCompany.trim(), s: "i" }]
+      mustClauses.push({ term: { job_company_website: companyDomain.trim().toLowerCase() } })
+    } else if (currentCompany) {
+      mustClauses.push({ match: { job_company_name: currentCompany.trim() } })
     }
 
     // Excluded companies
     if (excludedCompanies?.length) {
-      const excludeCompanyFilters = excludedCompanies
-        .filter((c: string) => c && c.trim())
-        .map((c: string) => ({ v: c.trim(), s: "e" }))
-      filters.job_company = [...(filters.job_company || []), ...excludeCompanyFilters]
+      excludedCompanies.filter((c: string) => c?.trim()).forEach((c: string) => {
+        mustNotClauses.push({ match: { job_company_name: c.trim() } })
+      })
     }
 
-    // Company headcount range → Wiza company_size
-    if (companyHeadcount && companyHeadcount.length === 2) {
+    // Headcount range
+    if (companyHeadcount?.length === 2) {
       const [min, max] = companyHeadcount
-      const sizeRanges = [
-        { range: "1-10", minVal: 1, maxVal: 10 },
-        { range: "11-50", minVal: 11, maxVal: 50 },
-        { range: "51-200", minVal: 51, maxVal: 200 },
-        { range: "201-500", minVal: 201, maxVal: 500 },
-        { range: "501-1000", minVal: 501, maxVal: 1000 },
-        { range: "1001-5000", minVal: 1001, maxVal: 5000 },
-        { range: "5001-10000", minVal: 5001, maxVal: 10000 },
-        { range: "10001+", minVal: 10001, maxVal: Infinity },
-      ]
-      // When max >= 10000 (slider at max), treat as no upper bound
-      const effectiveMax = max >= 10000 ? Infinity : max
-      const matchingRanges = sizeRanges
-        .filter(r => r.maxVal >= min && r.minVal <= effectiveMax)
-        .map(r => r.range)
-      if (matchingRanges.length > 0) {
-        filters.company_size = matchingRanges
+      const rangeFilter: any = {}
+      if (min > 1) rangeFilter.gte = min
+      if (max < 10000) rangeFilter.lte = max
+      if (Object.keys(rangeFilter).length > 0) {
+        mustClauses.push({ range: { job_company_employee_count: rangeFilter } })
       }
     }
 
-    // Geography → Wiza location
+    // Geography (region selector) → filter by country
     if (geography) {
-      const regionMap: Record<string, { v: string; b: string; s: string }[]> = {
-        'north-america': [
-          { v: "United States", b: "country", s: "i" },
-          { v: "Canada", b: "country", s: "i" },
-        ],
-        'europe': [
-          { v: "United Kingdom", b: "country", s: "i" },
-          { v: "Germany", b: "country", s: "i" },
-          { v: "France", b: "country", s: "i" },
-          { v: "Spain", b: "country", s: "i" },
-          { v: "Italy", b: "country", s: "i" },
-          { v: "Netherlands", b: "country", s: "i" },
-        ],
-        'asia-pacific': [
-          { v: "Australia", b: "country", s: "i" },
-          { v: "Japan", b: "country", s: "i" },
-          { v: "India", b: "country", s: "i" },
-          { v: "Singapore", b: "country", s: "i" },
-        ],
-        'latin-america': [
-          { v: "Brazil", b: "country", s: "i" },
-          { v: "Mexico", b: "country", s: "i" },
-          { v: "Argentina", b: "country", s: "i" },
-        ],
-        'middle-east': [
-          { v: "United Arab Emirates", b: "country", s: "i" },
-          { v: "Saudi Arabia", b: "country", s: "i" },
-          { v: "Israel", b: "country", s: "i" },
-        ],
+      const regionCountries: Record<string, string[]> = {
+        "north-america": ["united states", "canada"],
+        "europe": ["united kingdom", "germany", "france", "spain", "italy", "netherlands", "sweden", "switzerland"],
+        "asia-pacific": ["australia", "japan", "india", "singapore", "china", "south korea"],
+        "latin-america": ["brazil", "mexico", "argentina", "colombia", "chile"],
+        "middle-east": ["united arab emirates", "saudi arabia", "israel", "qatar"],
       }
-      const locations = regionMap[geography.toLowerCase()]
-      if (locations) {
-        filters.location = locations
-      }
+      const countries = regionCountries[geography.toLowerCase()]
+      if (countries) mustClauses.push({ bool: { should: countries.map((c: string) => ({ match: { location_country: c } })) } })
     }
 
-    // City filter → Wiza location with region type (more lenient than "city" which requires "city, state, country" format)
+    // City/country text tags — match against locality, country, and region
+    // Uses should so "Vancouver" hits location_locality OR location_country OR location_region
     if (city) {
-      const cityList = Array.isArray(city) ? city : [city]
-      const cityLocations = cityList
-        .filter((c: string) => c && c.trim())
-        .map((c: string) => ({ v: c.trim(), b: "region", s: "i" }))
-      if (cityLocations.length > 0) {
-        filters.location = [...(filters.location || []), ...cityLocations]
+      const cityList = (Array.isArray(city) ? city : [city]).filter((c: string) => c?.trim())
+      if (cityList.length > 0) {
+        const locationShould = cityList.flatMap((c: string) => {
+          const v = c.trim()
+          return [
+            { match: { location_locality: v } },
+            { match: { location_country: v } },
+            { match: { location_region: v } },
+          ]
+        })
+        mustClauses.push({ bool: { should: locationShould } })
       }
     }
 
-    // Industry → Wiza company_industry
+    // Industry
     if (industry?.length) {
-      const industryFilters = industry.map((i: string) => ({ v: i.toLowerCase(), s: "i" }))
-      filters.company_industry = industryFilters
+      const industryMap: Record<string, string[]> = {
+        "technology": ["information technology and services", "computer software", "internet"],
+        "software & saas": ["computer software", "internet", "information technology and services"],
+        "financial services": ["financial services", "investment management", "capital markets"],
+        "banking": ["banking", "financial services"],
+        "healthcare": ["hospital & health care", "health wellness and fitness", "medical devices"],
+        "pharmaceuticals": ["pharmaceuticals", "biotechnology"],
+        "manufacturing": ["mechanical or industrial engineering", "industrial automation", "machinery"],
+        "retail & e-commerce": ["retail", "consumer goods", "apparel & fashion"],
+        "real estate": ["real estate", "commercial real estate"],
+        "education": ["higher education", "e-learning", "primary/secondary education"],
+        "media & entertainment": ["media production", "broadcast media", "entertainment"],
+        "telecommunications": ["telecommunications", "wireless"],
+        "transportation & logistics": ["transportation/trucking/railroad", "logistics and supply chain", "airlines/aviation"],
+        "energy & utilities": ["utilities", "oil & energy", "renewables & environment"],
+        "government": ["government administration", "government relations"],
+        "non-profit": ["non-profit organization management", "civic & social organization"],
+        "legal services": ["law practice", "legal services"],
+        "consulting": ["management consulting", "business supplies and equipment"],
+        "marketing & advertising": ["marketing and advertising", "public relations and communications"],
+      }
+      const pdlIndustries: string[] = []
+      industry.forEach((i: string) => {
+        const mapped = industryMap[i.toLowerCase()]
+        if (mapped?.length) pdlIndustries.push(...mapped)
+        else pdlIndustries.push(i.toLowerCase())
+      })
+      if (pdlIndustries.length > 0) mustClauses.push({ terms: { job_company_industry: pdlIndustries } })
     }
 
     // Excluded industries
     if (excludedIndustries?.length) {
-      const excludeIndustryFilters = excludedIndustries
-        .filter((i: string) => i && i.trim())
-        .map((i: string) => ({ v: i.trim().toLowerCase(), s: "e" }))
-      filters.company_industry = [...(filters.company_industry || []), ...excludeIndustryFilters]
+      const vals = excludedIndustries.filter((i: string) => i?.trim()).map((i: string) => i.trim().toLowerCase())
+      if (vals.length > 0) mustNotClauses.push({ terms: { job_company_industry: vals } })
     }
 
-    console.log("Wiza search filters:", JSON.stringify(filters, null, 2))
+    const esQuery: any = { bool: {} }
+    if (mustClauses.length > 0) esQuery.bool.must = mustClauses
+    if (mustNotClauses.length > 0) esQuery.bool.must_not = mustNotClauses
 
-    // Helper to call Wiza and transform results
-    const doSearch = async (searchFilters: any) => {
-      const response = await fetch("https://wiza.co/api/prospects/search", {
+    console.log("PDL person search query:", JSON.stringify(esQuery, null, 2))
+
+    const doSearch = async (q: any, token?: string) => {
+      const payload: any = { query: q, size: Math.min(limit, 30) }
+      if (token) payload.scroll_token = token
+      const response = await fetch("https://api.peopledatalabs.com/v5/person/search", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey}`,
+          "X-api-key": apiKey,
         },
-        body: JSON.stringify({
-          filters: searchFilters,
-          size: Math.min(limit, 30), // Wiza max is 30
-        }),
+        body: JSON.stringify(payload),
       })
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        console.error("Wiza API error:", errorData)
+        console.error("PDL person search error:", errorData)
         return { ok: false, errorData, status: response.status }
       }
 
       const data = await response.json()
-      console.log("Wiza Response:", JSON.stringify(data, null, 2))
+      console.log("PDL person search total:", data.total)
 
-      const profiles = (data.data?.profiles || []).map((person: any) => {
+      const profiles = (data.data || []).map((person: any) => {
         let linkedinUrl = person.linkedin_url
-        if (linkedinUrl && !linkedinUrl.startsWith('http')) {
-          linkedinUrl = `https://${linkedinUrl}`
-        }
-
+        if (linkedinUrl && !linkedinUrl.startsWith("http")) linkedinUrl = `https://${linkedinUrl}`
         return {
-          id: person.linkedin_url || `${person.full_name}-${person.job_company_name}`,
+          id: person.linkedin_url || person.id || `${person.full_name}-${person.job_company_name}`,
           name: toTitleCase(person.full_name),
-          title: person.job_title,
+          title: person.job_title || "",
           company: toTitleCase(person.job_company_name),
           location: person.location_name || "",
           email: null,
           emails: [],
           phone: null,
-          linkedin: linkedinUrl,
+          linkedin: linkedinUrl || null,
           seniorityLevel: person.job_title_role || null,
-          companySize: null,
-          industry: person.industry || null,
+          companySize: person.job_company_employee_count || null,
+          industry: person.job_company_industry || null,
           companyWebsite: person.job_company_website || null,
           buyerIntent: calculateBuyerIntent(person),
         }
       })
 
-      return { ok: true, profiles, total: data.data?.total || 0 }
+      return { ok: true, profiles, total: data.total || 0, scrollToken: data.scroll_token || null }
     }
 
-    // Primary search with all filters
-    const result = await doSearch(filters)
+    let result = await doSearch(esQuery, scrollToken)
 
     if (!result.ok) {
       return NextResponse.json(
-        { error: (result as any).errorData?.status?.message || "Failed to search people" },
+        { error: (result as any).errorData?.error?.message || "Failed to search people" },
         { status: (result as any).status }
       )
     }
 
     let transformedResults = result.profiles
+    const totalCount = result.total
 
-    // Fallback: if domain search returned 0 results, retry without domain (use company name only)
+    // Fallback: domain search got 0 → retry with company name only
     if (transformedResults.length === 0 && companyDomain && currentCompany) {
-      console.log("Domain search returned 0 results, retrying with company name only...")
-      const { job_company_website, ...filtersWithoutDomain } = filters
-      const fallbackResult = await doSearch(filtersWithoutDomain)
-
-      if (fallbackResult.ok && fallbackResult.profiles.length > 0) {
-        transformedResults = fallbackResult.profiles
+      console.log("Domain search returned 0, retrying with company name only...")
+      const withoutDomain = {
+        bool: {
+          must: [
+            ...mustClauses.filter((c: any) => !c.term?.job_company_website),
+            { match: { job_company_name: currentCompany.trim() } },
+          ],
+          ...(mustNotClauses.length > 0 ? { must_not: mustNotClauses } : {}),
+        },
       }
+      const fallback = await doSearch(withoutDomain)
+      if (fallback.ok && fallback.profiles.length > 0) transformedResults = fallback.profiles
     }
 
-    // Fallback: if name + company returned 0 results, retry without company filter
-    // (Wiza's company matching can be too strict for exact name + company AND)
-    if (transformedResults.length === 0 && isNameSearch && currentCompany) {
-      console.log("Name + company search returned 0 results, retrying without company filter...")
-      const { job_company, job_company_website, ...filtersWithoutCompany } = filters
-      const fallbackResult = await doSearch(filtersWithoutCompany)
-
-      if (fallbackResult.ok && fallbackResult.profiles.length > 0) {
-        transformedResults = fallbackResult.profiles
+    // Fallback: any search + company got 0 → retry without company constraint
+    // (PDL may store the company name differently than what the user typed)
+    if (transformedResults.length === 0 && currentCompany && (query || isNameSearch || nameFilter || jobTitle?.length)) {
+      console.log("Name + company returned 0, retrying without company filter...")
+      const withoutCompany = {
+        bool: {
+          must: mustClauses.filter((c: any) => !c.match?.job_company_name && !c.term?.job_company_website),
+          ...(mustNotClauses.length > 0 ? { must_not: mustNotClauses } : {}),
+        },
       }
+      const fallback = await doSearch(withoutCompany)
+      if (fallback.ok && fallback.profiles.length > 0) transformedResults = fallback.profiles
     }
 
-    // Client-side filtering
-    let filteredResults = transformedResults
-
-    // Filter out excluded names client-side (Wiza doesn't have a name exclusion filter)
+    // Client-side: filter excluded names
     if (excludedNames?.length) {
       const excludeLower = excludedNames.map((n: string) => n.toLowerCase())
-      filteredResults = filteredResults.filter((r: any) =>
+      transformedResults = transformedResults.filter((r: any) =>
         !excludeLower.some((name: string) => r.name.toLowerCase().includes(name))
       )
     }
 
-    return NextResponse.json({
-      results: filteredResults,
-      total: result.total || filteredResults.length,
-      limit,
-      offset: 0,
-    })
+    return NextResponse.json({ results: transformedResults, total: totalCount || transformedResults.length, limit, scrollToken: result.scrollToken })
   } catch (error: any) {
     console.error("Error searching people:", error)
-    return NextResponse.json(
-      { error: error.message || "Failed to search people" },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: error.message || "Failed to search people" }, { status: 500 })
   }
 })

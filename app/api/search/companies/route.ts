@@ -44,11 +44,36 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       }
     }
 
-    // Industry filter
+    // Industry filter — map UI labels to PDL's LinkedIn-based taxonomy
     if (industry?.length) {
-      mustClauses.push({
-        terms: { industry: industry.map((i: string) => i.toLowerCase()) }
+      const industryMap: Record<string, string[]> = {
+        'technology': ['information technology and services', 'computer software', 'internet'],
+        'software & saas': ['computer software', 'internet', 'information technology and services'],
+        'financial services': ['financial services', 'investment management', 'capital markets'],
+        'banking': ['banking', 'financial services'],
+        'healthcare': ['hospital & health care', 'health wellness and fitness', 'medical devices'],
+        'pharmaceuticals': ['pharmaceuticals', 'biotechnology'],
+        'manufacturing': ['mechanical or industrial engineering', 'industrial automation', 'machinery'],
+        'retail & e-commerce': ['retail', 'consumer goods', 'apparel & fashion'],
+        'real estate': ['real estate', 'commercial real estate'],
+        'education': ['higher education', 'e-learning', 'primary/secondary education'],
+        'media & entertainment': ['media production', 'broadcast media', 'entertainment'],
+        'telecommunications': ['telecommunications', 'wireless'],
+        'transportation & logistics': ['transportation/trucking/railroad', 'logistics and supply chain', 'airlines/aviation'],
+        'energy & utilities': ['utilities', 'oil & energy', 'renewables & environment'],
+        'government': ['government administration', 'government relations'],
+        'non-profit': ['non-profit organization management', 'civic & social organization'],
+        'legal services': ['law practice', 'legal services'],
+        'consulting': ['management consulting', 'business supplies and equipment'],
+        'marketing & advertising': ['marketing and advertising', 'public relations and communications'],
+      }
+      const pdlIndustries: string[] = []
+      industry.forEach((i: string) => {
+        const mapped = industryMap[i.toLowerCase()]
+        if (mapped && mapped.length > 0) pdlIndustries.push(...mapped)
+        else pdlIndustries.push(i.toLowerCase())
       })
+      if (pdlIndustries.length > 0) mustClauses.push({ terms: { industry: pdlIndustries } })
     }
 
     // Headcount / Employee count range
@@ -99,13 +124,19 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       }
       const countries = regionCountries[location.toLowerCase()]
       if (countries) {
-        mustClauses.push({ terms: { "location.country": countries } })
+        mustClauses.push({ bool: { should: countries.map((c: string) => ({ match: { "location.country": c } })) } })
       }
     }
 
-    // City filter
+    // City filter — accepts string or array, use match for case-insensitive handling
     if (city) {
-      mustClauses.push({ term: { "location.locality": city.trim().toLowerCase() } })
+      const cityList = Array.isArray(city) ? city : [city]
+      const cityValues = cityList.map((c: string) => c.trim()).filter(Boolean)
+      if (cityValues.length === 1) {
+        mustClauses.push({ match: { "location.locality": cityValues[0] } })
+      } else if (cityValues.length > 1) {
+        mustClauses.push({ bool: { should: cityValues.map((c: string) => ({ match: { "location.locality": c } })) } })
+      }
     }
 
     // Technologies (PDL "tags" field)

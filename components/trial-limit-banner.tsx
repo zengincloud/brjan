@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { AlertTriangle, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { useUser } from '@/hooks/use-user'
 
 interface TrialLimitBannerProps {
   current: number
@@ -13,8 +14,9 @@ interface TrialLimitBannerProps {
 }
 
 export function TrialLimitBanner({ current, limit, resourceLabel, className }: TrialLimitBannerProps) {
+  const { isSuperAdmin } = useUser()
   const pct = current / limit
-  if (pct < 0.7) return null
+  if (pct < 0.7 || isSuperAdmin) return null
 
   const atLimit = current >= limit
   const Icon = atLimit ? XCircle : AlertTriangle

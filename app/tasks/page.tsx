@@ -649,7 +649,11 @@ function TasksContent() {
       <div className="flex-1 overflow-auto px-5 py-4">
         {loading ? (
           <div className="flex items-center justify-center h-full">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <div className="relative" style={{ width: 72, height: 72 }}>
+              <div className="br-loading-ring" style={{ inset: -18 }} />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/brgradientfav.png" alt="Boilerroom" style={{ width: 72, height: 72, borderRadius: "50%" }} />
+            </div>
           </div>
         ) : displayedTasks.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-3">
@@ -823,7 +827,11 @@ export default function TasksPage() {
     <Suspense
       fallback={
         <div className="-m-5 flex flex-col items-center justify-center" style={{ height: 'calc(100vh - 3rem)' }}>
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <div className="relative" style={{ width: 72, height: 72 }}>
+            <div className="br-loading-ring" style={{ inset: -18 }} />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/brgradientfav.png" alt="Boilerroom" style={{ width: 72, height: 72, borderRadius: "50%" }} />
+          </div>
         </div>
       }
     >

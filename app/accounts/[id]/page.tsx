@@ -237,9 +237,10 @@ export default function AccountDetailPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
-          <p className="text-muted-foreground">Loading account details...</p>
+        <div className="relative" style={{ width: 72, height: 72 }}>
+          <div className="br-loading-ring" style={{ inset: -18 }} />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brgradientfav.png" alt="Boilerroom" style={{ width: 72, height: 72, borderRadius: "50%" }} />
         </div>
       </div>
     )

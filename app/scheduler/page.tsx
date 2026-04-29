@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { CalendarClock, Clock, Plus, X, Globe, Users, Check, Info, ExternalLink, Loader2, CalendarDays, MapPin, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -122,7 +122,11 @@ function EventsList({ type }: { type: "upcoming" | "past" }) {
   if (loading) {
     return (
       <div className="flex justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <div className="relative" style={{ width: 72, height: 72 }}>
+          <div className="br-loading-ring" style={{ inset: -18 }} />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brgradientfav.png" alt="Boilerroom" style={{ width: 72, height: 72, borderRadius: "50%" }} />
+        </div>
       </div>
     )
   }
@@ -182,7 +186,11 @@ interface CreateEventDialogProps {
 function CreateEventDialog({ open, onClose, prefill, userTzOffset, userTzLabel }: CreateEventDialogProps) {
   const [summary, setSummary] = useState("Meeting")
   const [description, setDescription] = useState("")
-  const [attendees, setAttendees] = useState("")
+  const [attendees, setAttendees] = useState<{ email: string; name?: string }[]>([])
+  const [attendeeInput, setAttendeeInput] = useState("")
+  const [suggestions, setSuggestions] = useState<{ name: string; email: string }[]>([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const attendeeRef = useRef<HTMLDivElement>(null)
   const [date, setDate] = useState(() => {
     const d = new Date()
     d.setDate(d.getDate() + 1)
@@ -197,7 +205,7 @@ function CreateEventDialog({ open, onClose, prefill, userTzOffset, userTzLabel }
       const h = prefill.startHour
       setStartTime(`${String(h).padStart(2, "0")}:00`)
       setEndTime(`${String((h + 1) % 24).padStart(2, "0")}:00`)
-      setAttendees(prefill.participantEmails.join(", "))
+      setAttendees(prefill.participantEmails.map(e => ({ email: e })))
     }
   }, [prefill])
 
@@ -206,10 +214,7 @@ function CreateEventDialog({ open, onClose, prefill, userTzOffset, userTzLabel }
     try {
       const startDateTime = new Date(`${date}T${startTime}:00`).toISOString()
       const endDateTime = new Date(`${date}T${endTime}:00`).toISOString()
-      const attendeeEmails = attendees
-        .split(/[,\n]/)
-        .map((e) => e.trim())
-        .filter(Boolean)
+      const attendeeEmails = attendees.map(a => a.email).filter(Boolean)
 
       const res = await fetch("/api/integrations/gcal/create-event", {
         method: "POST",
@@ -265,13 +270,77 @@ function CreateEventDialog({ open, onClose, prefill, userTzOffset, userTzLabel }
             </div>
           </div>
           <div className="space-y-1">
-            <Label>Attendees (comma separated emails)</Label>
-            <Textarea
-              placeholder="prospect@company.com, colleague@yourco.com"
-              value={attendees}
-              onChange={(e) => setAttendees(e.target.value)}
-              rows={2}
-            />
+            <Label>Attendees</Label>
+            <div className="relative" ref={attendeeRef}>
+              <div className="flex flex-wrap gap-1.5 p-2 min-h-[40px] border rounded-md bg-background focus-within:ring-1 focus-within:ring-ring">
+                {attendees.map((a, i) => (
+                  <span key={i} className="inline-flex items-center gap-1 bg-secondary text-secondary-foreground text-xs px-2 py-0.5 rounded-full">
+                    {a.name ? `${a.name} <${a.email}>` : a.email}
+                    <button type="button" onClick={() => setAttendees(attendees.filter((_, j) => j !== i))}>
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+                <input
+                  type="text"
+                  className="flex-1 min-w-[160px] bg-transparent outline-none text-sm placeholder:text-muted-foreground"
+                  placeholder={attendees.length === 0 ? "Name or email..." : ""}
+                  value={attendeeInput}
+                  onChange={async (e) => {
+                    const v = e.target.value
+                    setAttendeeInput(v)
+                    if (v.trim().length >= 2) {
+                      const res = await fetch(`/api/prospects?search=${encodeURIComponent(v)}&pageSize=5`)
+                      if (res.ok) {
+                        const data = await res.json()
+                        const matches = (data.prospects || []).filter((p: any) => p.email)
+                        setSuggestions(matches.map((p: any) => ({ name: p.name, email: p.email })))
+                        setShowSuggestions(matches.length > 0)
+                      }
+                    } else {
+                      setShowSuggestions(false)
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if ((e.key === "Enter" || e.key === ",") && attendeeInput.trim()) {
+                      e.preventDefault()
+                      const email = attendeeInput.trim().replace(/,$/, "")
+                      if (email && !attendees.find(a => a.email === email)) {
+                        setAttendees([...attendees, { email }])
+                      }
+                      setAttendeeInput("")
+                      setShowSuggestions(false)
+                    } else if (e.key === "Backspace" && !attendeeInput && attendees.length > 0) {
+                      setAttendees(attendees.slice(0, -1))
+                    }
+                  }}
+                  onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                />
+              </div>
+              {showSuggestions && (
+                <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-md overflow-hidden">
+                  {suggestions.map((s, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      className="w-full flex flex-col px-3 py-2 text-left text-sm hover:bg-accent"
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        if (!attendees.find(a => a.email === s.email)) {
+                          setAttendees([...attendees, { email: s.email, name: s.name }])
+                        }
+                        setAttendeeInput("")
+                        setShowSuggestions(false)
+                      }}
+                    >
+                      <span className="font-medium">{s.name}</span>
+                      <span className="text-xs text-muted-foreground">{s.email}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">Type a name to search prospects, or type an email and press Enter</p>
           </div>
           <div className="space-y-1">
             <Label>Description (optional)</Label>

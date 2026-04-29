@@ -4,11 +4,12 @@ import { useRouter } from "next/navigation"
 import { useCallback } from "react"
 
 export type VoiceAction =
-  | { action: "search_people"; params: { title?: string; location?: string; company?: string; keyword?: string } }
+  | { action: "search_people"; params: { title?: string; location?: string; company?: string; keyword?: string; name?: string } }
   | { action: "search_companies"; params: { industry?: string; location?: string; size?: string; keyword?: string } }
   | { action: "navigate"; params: { page: "leads" | "accounts" | "prospecting" | "people" | "companies" | "settings" | "sequences" | "calls" | "dialer" | "activity" } }
   | { action: "add_lead"; params: { name?: string; company?: string } }
   | { action: "add_account"; params: { company?: string } }
+  | { action: "speak_only"; message: string }
   | { action: "unknown"; params: Record<string, never>; message: string }
 
 const PAGE_ROUTES: Record<string, string> = {
@@ -41,8 +42,10 @@ export function useVoiceAction() {
         if (voiceAction.params.location) params.set("location", voiceAction.params.location)
         if (voiceAction.params.company) params.set("company", voiceAction.params.company)
         if (voiceAction.params.keyword) params.set("keyword", voiceAction.params.keyword)
-        router.push(`/prospecting?${params.toString()}`)
-        return `Searching for people`
+        if (voiceAction.params.name) params.set("name", voiceAction.params.name)
+        params.set("autoSearch", "true")
+        router.push(`/prospecting/outbound?${params.toString()}`)
+        return `Searching for ${voiceAction.params.name || voiceAction.params.title || "people"}`
       }
 
       case "search_companies": {
@@ -62,6 +65,9 @@ export function useVoiceAction() {
       case "add_account":
         router.push("/accounts")
         return `Opening accounts`
+
+      case "speak_only":
+        return voiceAction.message
 
       case "unknown":
         return voiceAction.message ?? "Sorry, I didn't understand that"

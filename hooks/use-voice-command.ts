@@ -63,11 +63,7 @@ export function useVoiceCommand() {
       }
 
       const voiceAction: VoiceAction = await commandRes.json()
-      const message = voiceAction.action !== "unknown"
-        ? (voiceAction as any).message ?? execute(voiceAction)
-        : execute(voiceAction)
-
-      if (voiceAction.action !== "unknown") execute(voiceAction)
+      const message = execute(voiceAction)
       await speak(message)
     } catch {
       setAgentState(null)

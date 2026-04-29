@@ -389,17 +389,23 @@ export function LeadsProspecting() {
     }
   }, [])
 
-  // Handle multithread URL params
+  // Handle URL params (including voice command params)
   useEffect(() => {
     const company = searchParams.get('company')
     const seniorityLevelsParam = searchParams.get('seniorityLevels')
     const autoSearch = searchParams.get('autoSearch')
+    const title = searchParams.get('title')
+    const location = searchParams.get('location')
+    const name = searchParams.get('name')
+    const keyword = searchParams.get('keyword')
 
-    if (company || seniorityLevelsParam) {
-      // Set filters from URL params
-      if (company) {
-        setCurrentCompany(company)
-      }
+    const hasParams = company || seniorityLevelsParam || title || location || name || keyword
+
+    if (hasParams) {
+      if (company) setCurrentCompany(company)
+      if (title) setJobTitles([title])
+      if (location) setCities([location])
+      if (name || keyword) setQuery(name || keyword || '')
       if (seniorityLevelsParam) {
         try {
           const levels = JSON.parse(seniorityLevelsParam)
@@ -409,12 +415,10 @@ export function LeadsProspecting() {
         }
       }
 
-      // Auto-trigger search if requested
-      if (autoSearch === 'true') {
-        // Small delay to ensure state is set
+      if (autoSearch === 'true' || title || location || name || keyword) {
         setTimeout(() => {
           handleSearch()
-        }, 100)
+        }, 300)
       }
     }
   }, [searchParams])

@@ -82,7 +82,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 export function Sidebar({ className }: { className?: string }) {
   const [isActivityOpen, setIsActivityOpen] = useState(false)
   const [isLinkedInOpen, setIsLinkedInOpen] = useState(false)
-  const { user, creditStatus, userRole } = useUser()
+  const { user, creditStatus, userRole, isLoading } = useUser()
   const pathname = usePathname()
 
   const getInitials = () => {
@@ -183,48 +183,67 @@ export function Sidebar({ className }: { className?: string }) {
 
       {/* Bottom section */}
       <div className="px-3 pb-3 pt-2 border-t border-white/[0.06] space-y-1.5">
-        {/* Credits indicator */}
-        {creditsRemaining !== null && (
-          <div className="flex items-center gap-2 px-2 py-1">
-            <CircleDot className="h-3.5 w-3.5 text-white/30 shrink-0" />
-            <span className="text-[12px] text-white/40">
-              {creditsRemaining} credits remaining
-            </span>
-          </div>
+        {isLoading ? (
+          /* Skeleton while user data loads */
+          <>
+            <div className="flex items-center gap-2 px-2 py-1">
+              <div className="w-3.5 h-3.5 rounded bg-white/10 animate-pulse shrink-0" />
+              <div className="h-3 w-28 rounded bg-white/10 animate-pulse" />
+            </div>
+            <div className="h-8 w-full rounded-lg bg-white/10 animate-pulse" />
+            <div className="h-8 w-full rounded-lg bg-white/[0.05] animate-pulse" />
+            <div className="flex items-center gap-2.5 px-2 py-2">
+              <div className="w-6 h-6 rounded-full bg-white/10 animate-pulse shrink-0" />
+              <div className="flex-1 h-3 rounded bg-white/10 animate-pulse" />
+              <div className="w-3.5 h-3.5 rounded bg-white/10 animate-pulse shrink-0" />
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Credits indicator */}
+            {creditsRemaining !== null && (
+              <div className="flex items-center gap-2 px-2 py-1">
+                <CircleDot className="h-3.5 w-3.5 text-white/30 shrink-0" />
+                <span className="text-[12px] text-white/40">
+                  {creditsRemaining} credits remaining
+                </span>
+              </div>
+            )}
+
+            {/* Upgrade button (trial users) */}
+            {user?.tier === 'trial' && (
+              <Link
+                href="/upgrade"
+                className="flex items-center justify-center w-full py-2 px-3 rounded-lg bg-[hsl(100,78%,44%)] hover:bg-[hsl(100,78%,38%)] text-white text-[13px] font-semibold transition-colors shadow-[0_0_16px_hsl(100,78%,44%,0.25)]"
+              >
+                Upgrade Plan
+              </Link>
+            )}
+
+            {/* Invite Team / Settings row */}
+            <Link
+              href="/settings?tab=team"
+              className="flex items-center justify-center w-full py-2 px-3 rounded-lg text-white/50 hover:text-white/80 hover:bg-white/[0.05] text-[13px] transition-colors"
+            >
+              <Users className="h-3.5 w-3.5 mr-2 shrink-0" />
+              Invite Team
+            </Link>
+
+            {/* User row */}
+            <Link
+              href="/settings"
+              className="flex items-center gap-2.5 px-2 py-2 rounded-md hover:bg-white/[0.05] transition-colors group"
+            >
+              <div className="w-6 h-6 rounded-full bg-accent/20 flex items-center justify-center shrink-0">
+                <span className="text-[10px] font-bold text-accent leading-none">{getInitials()}</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[12px] font-medium text-white/80 truncate leading-none">{getDisplayName()}</p>
+              </div>
+              <Settings className="h-3.5 w-3.5 text-white/20 group-hover:text-white/40 transition-colors shrink-0" />
+            </Link>
+          </>
         )}
-
-        {/* Upgrade button (trial users) */}
-        {user?.tier === 'trial' && (
-          <Link
-            href="/upgrade"
-            className="flex items-center justify-center w-full py-2 px-3 rounded-lg bg-[hsl(100,78%,44%)] hover:bg-[hsl(100,78%,38%)] text-white text-[13px] font-semibold transition-colors shadow-[0_0_16px_hsl(100,78%,44%,0.25)]"
-          >
-            Upgrade Plan
-          </Link>
-        )}
-
-        {/* Invite Team / Settings row */}
-        <Link
-          href="/settings?tab=team"
-          className="flex items-center justify-center w-full py-2 px-3 rounded-lg text-white/50 hover:text-white/80 hover:bg-white/[0.05] text-[13px] transition-colors"
-        >
-          <Users className="h-3.5 w-3.5 mr-2 shrink-0" />
-          Invite Team
-        </Link>
-
-        {/* User row */}
-        <Link
-          href="/settings"
-          className="flex items-center gap-2.5 px-2 py-2 rounded-md hover:bg-white/[0.05] transition-colors group"
-        >
-          <div className="w-6 h-6 rounded-full bg-accent/20 flex items-center justify-center shrink-0">
-            <span className="text-[10px] font-bold text-accent leading-none">{getInitials()}</span>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[12px] font-medium text-white/80 truncate leading-none">{getDisplayName()}</p>
-          </div>
-          <Settings className="h-3.5 w-3.5 text-white/20 group-hover:text-white/40 transition-colors shrink-0" />
-        </Link>
       </div>
     </div>
   )

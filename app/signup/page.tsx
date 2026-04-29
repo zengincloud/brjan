@@ -313,7 +313,7 @@ export default function SignupPage() {
           <div className="space-y-3 pt-2">
             <div className="flex items-center gap-3">
               <CheckCircle2 className="h-5 w-5 text-[hsl(100,78%,44%)]" />
-              <span className="text-white/70">50 free credits to get started</span>
+              <span className="text-white/70">25 free credits to get started</span>
             </div>
             <div className="flex items-center gap-3">
               <CheckCircle2 className="h-5 w-5 text-[hsl(100,78%,44%)]" />
@@ -321,7 +321,7 @@ export default function SignupPage() {
             </div>
             <div className="flex items-center gap-3">
               <CheckCircle2 className="h-5 w-5 text-[hsl(100,78%,44%)]" />
-              <span className="text-white/70">Set up in under 2 minutes</span>
+              <span className="text-white/70">Set up in 30 seconds</span>
             </div>
           </div>
         </div>

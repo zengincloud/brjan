@@ -64,6 +64,7 @@ import {
   MapPin,
   Linkedin,
   Search,
+  Plus,
 } from "lucide-react"
 import { SendEmailDialog } from "@/components/send-email-dialog"
 import { GetNumberDialog } from "@/components/get-number-dialog"

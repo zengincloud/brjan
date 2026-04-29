@@ -272,6 +272,8 @@ export function LeadsProspecting() {
   const [isRecentUpdatesOpen, setIsRecentUpdatesOpen] = useState(true)
   const [headcountIdxRange, setHeadcountIdxRange] = useState([0, HEADCOUNT_LABELS.length - 1])
 
+  const [pendingVoiceSearch, setPendingVoiceSearch] = useState(false)
+
   // Search filters
   const [query, setQuery] = useState("")
   const [nameFilter, setNameFilter] = useState("")
@@ -399,7 +401,8 @@ export function LeadsProspecting() {
     const name = searchParams.get('name')
     const keyword = searchParams.get('keyword')
 
-    const hasParams = company || seniorityLevelsParam || title || location || name || keyword
+    const hasVoiceParams = !!(title || location || name || keyword)
+    const hasParams = !!(company || seniorityLevelsParam || hasVoiceParams)
 
     if (hasParams) {
       if (company) setCurrentCompany(company)
@@ -415,13 +418,18 @@ export function LeadsProspecting() {
         }
       }
 
-      if (autoSearch === 'true' || title || location || name || keyword) {
-        setTimeout(() => {
-          handleSearch()
-        }, 300)
+      if (autoSearch === 'true' || hasVoiceParams) {
+        setPendingVoiceSearch(true)
       }
     }
   }, [searchParams])
+
+  // Fire search after state has settled from URL params
+  useEffect(() => {
+    if (!pendingVoiceSearch) return
+    setPendingVoiceSearch(false)
+    handleSearch()
+  }, [pendingVoiceSearch, jobTitles, cities, query, currentCompany])
 
   const handleSearch = async (page = 0, scrollToken?: string) => {
     setIsLoading(true)

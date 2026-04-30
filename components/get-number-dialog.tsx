@@ -11,7 +11,6 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Loader2 } from "lucide-react"
-import { useToast } from "@/components/ui/use-toast"
 
 interface AvailableNumber {
   phoneNumber: string
@@ -42,13 +41,14 @@ export function GetNumberDialog({ open, onOpenChange, existingCount, onNumberAdd
   const [available, setAvailable] = useState<AvailableNumber[]>([])
   const [selected, setSelected] = useState<AvailableNumber | null>(null)
   const [provisioning, setProvisioning] = useState(false)
-  const { toast } = useToast()
+  const [searchError, setSearchError] = useState<string | null>(null)
 
   const reset = () => {
     setStep("area-code")
     setAreaCode("")
     setAvailable([])
     setSelected(null)
+    setSearchError(null)
   }
 
   const handleOpenChange = (v: boolean) => {
@@ -58,9 +58,10 @@ export function GetNumberDialog({ open, onOpenChange, existingCount, onNumberAdd
 
   const handleSearch = async () => {
     if (!/^\d{3}$/.test(areaCode)) {
-      toast({ title: "Enter a valid 3-digit area code", variant: "destructive" })
+      setSearchError("Enter a valid 3-digit area code")
       return
     }
+    setSearchError(null)
     setSearching(true)
     try {
       const res = await fetch(`/api/calling/numbers/search?areaCode=${areaCode}`)
@@ -68,16 +69,16 @@ export function GetNumberDialog({ open, onOpenChange, existingCount, onNumberAdd
       if (!res.ok) throw new Error(data.error)
       if (data.numbers.length === 0) {
         if (data.reason === "invalid_area_code") {
-          toast({ title: "That area code doesn't exist. Double-check and try again.", variant: "destructive" })
+          setSearchError("That area code doesn't exist. Double-check and try again.")
         } else {
-          toast({ title: "No numbers available right now.", description: "Check back later or try a nearby area code.", variant: "destructive" })
+          setSearchError("No numbers available for that area code right now. Check back later or try a nearby area code.")
         }
         return
       }
       setAvailable(data.numbers)
       setStep("pick")
     } catch (err: any) {
-      toast({ title: err.message || "Search failed", variant: "destructive" })
+      setSearchError(err.message || "Search failed")
     } finally {
       setSearching(false)
     }
@@ -102,11 +103,10 @@ export function GetNumberDialog({ open, onOpenChange, existingCount, onNumberAdd
         return
       }
       if (!res.ok) throw new Error(data.error)
-      toast({ title: `${selected.friendlyName} added to your account` })
       onNumberAdded?.(data.phoneNumber)
       handleOpenChange(false)
     } catch (err: any) {
-      toast({ title: err.message || "Failed to provision number", variant: "destructive" })
+      setSearchError(err.message || "Failed to add number")
     } finally {
       setProvisioning(false)
     }
@@ -139,6 +139,9 @@ export function GetNumberDialog({ open, onOpenChange, existingCount, onNumberAdd
                   {searching ? "Searching..." : "Search"}
                 </Button>
               </div>
+              {searchError && (
+                <p className="text-sm text-destructive">{searchError}</p>
+              )}
             </div>
           </div>
         )}
@@ -177,6 +180,9 @@ export function GetNumberDialog({ open, onOpenChange, existingCount, onNumberAdd
                 {existingCount === 0 ? "Free — your first number" : "50 credits"}
               </p>
             </div>
+            {searchError && (
+              <p className="text-sm text-destructive">{searchError}</p>
+            )}
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => setStep("pick")} disabled={provisioning}>Back</Button>
               <Button onClick={handleProvision} disabled={provisioning}>

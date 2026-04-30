@@ -49,11 +49,7 @@ export default function MeetingsHadPage() {
         <h1 className="text-xl font-semibold">Meetings</h1>
         <Card>
           <CardContent className="py-12 flex justify-center">
-            <div className="relative" style={{ width: 72, height: 72 }}>
-              <div className="br-loading-ring" style={{ inset: -18 }} />
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/brgradientfav.png" alt="Boilerroom" style={{ width: 72, height: 72, borderRadius: "50%" }} />
-            </div>
+            <BRLoader />
           </CardContent>
         </Card>
       </div>

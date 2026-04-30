@@ -286,11 +286,7 @@ export function SequencesList() {
         <TabsContent value={activeTab} className="mt-6">
           {loading ? (
             <div className="flex justify-center py-24">
-              <div className="relative" style={{ width: 72, height: 72 }}>
-                <div className="br-loading-ring" style={{ inset: -18 }} />
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/brgradientfav.png" alt="Boilerroom" style={{ width: 72, height: 72, borderRadius: "50%" }} />
-              </div>
+              <BRLoader />
             </div>
           ) : filteredSequences.length === 0 ? (
             <div className="text-center py-12 space-y-2">

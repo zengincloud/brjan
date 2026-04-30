@@ -16,18 +16,25 @@
 .br-loading-ring {
   position: absolute;
   border-radius: 50%;
-  animation: br-orbit 1.8s linear infinite;
+  animation: br-orbit 1.4s linear infinite;
   background: conic-gradient(
     from 0deg,
     transparent 0%,
-    transparent 65%,
-    rgba(255, 255, 255, 0.5) 78%,
-    rgba(255, 255, 255, 1) 90%,
+    transparent 45%,
+    hsl(100 78% 44% / 0.2) 58%,
+    hsl(100 78% 44% / 0.6) 70%,
+    hsl(100 78% 55%) 82%,
+    hsl(100 78% 75%) 91%,
+    white 96%,
     transparent 100%
   );
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), black calc(100% - 3px));
-  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), black calc(100% - 3px));
-  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 1)) drop-shadow(0 0 20px rgba(255, 255, 255, 0.6));
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), black calc(100% - 5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 5px), black calc(100% - 5px));
+  filter:
+    drop-shadow(0 0 4px hsl(100 78% 75%))
+    drop-shadow(0 0 10px hsl(100 78% 55%))
+    drop-shadow(0 0 22px hsl(100 78% 44% / 0.9))
+    drop-shadow(0 0 40px hsl(100 78% 44% / 0.5));
 }
 
 @layer base {

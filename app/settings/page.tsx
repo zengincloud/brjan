@@ -558,7 +558,7 @@ export default function SettingsPage() {
                 <div className="flex items-center justify-between p-4 border border-border rounded-lg">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded bg-secondary flex items-center justify-center overflow-hidden">
-                      <img src="https://logo.clearbit.com/clay.com" alt="Clay" className="w-7 h-7 object-contain rounded" />
+                      <img src="/clay-logo.webp" alt="Clay" className="w-7 h-7 object-contain rounded" />
                     </div>
                     <div>
                       <p className="font-medium">Clay</p>

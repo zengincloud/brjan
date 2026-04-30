@@ -73,60 +73,21 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
     const prevFrom = subDays(from, rangeDays)
     const prevTo = from
 
-    const [
-      // Current period calls
-      calls,
-      // Previous period call counts
-      prevCallCount,
-      prevConnectedCount,
-      prevMeetingsBooked,
-      // Current period emails
-      emailsSent,
-      prevEmailsSent,
-      // Email engagement
-      emailsOpened,
-      emailsClicked,
-      emailsBounced,
-      // Prospect statuses (current snapshot)
-      prospectStatusCounts,
-      // Account statuses (current snapshot)
-      accountStatusCounts,
-      // Prospects created in range
-      newProspects,
-      // Tasks in range
-      taskStatusCounts,
-      taskTypeCounts,
-      // Sequence performance
-      sequenceStatusCounts,
-      sequenceDetails,
-      // Recent activity
-      recentCalls,
-      recentEmails,
-    ] = await Promise.all([
-      // All calls in range with details for grouping
+    // Split into batches of 6 to stay within the DB connection pool limit
+    const [calls, prevCallCount, prevConnectedCount, prevMeetingsBooked, emailsSent, prevEmailsSent] = await Promise.all([
       prisma.call.findMany({
         where: { userId, createdAt: { gte: from, lte: to } },
         select: { id: true, createdAt: true, startedAt: true, outcome: true, duration: true, recordingDuration: true, status: true },
       }),
-      // Previous period totals
       prisma.call.count({
         where: { userId, createdAt: { gte: prevFrom, lte: prevTo } },
       }),
       prisma.call.count({
-        where: {
-          userId,
-          createdAt: { gte: prevFrom, lte: prevTo },
-          outcome: { in: CONNECTED_OUTCOMES as any },
-        },
+        where: { userId, createdAt: { gte: prevFrom, lte: prevTo }, outcome: { in: CONNECTED_OUTCOMES as any } },
       }),
       prisma.call.count({
-        where: {
-          userId,
-          createdAt: { gte: prevFrom, lte: prevTo },
-          outcome: "connected_intro_booked",
-        },
+        where: { userId, createdAt: { gte: prevFrom, lte: prevTo }, outcome: "connected_intro_booked" },
       }),
-      // Emails sent in range
       prisma.email.findMany({
         where: { userId, status: "sent", sentAt: { gte: from, lte: to } },
         select: { id: true, sentAt: true, emailType: true },
@@ -134,7 +95,9 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
       prisma.email.count({
         where: { userId, status: "sent", sentAt: { gte: prevFrom, lte: prevTo } },
       }),
-      // Email engagement
+    ])
+
+    const [emailsOpened, emailsClicked, emailsBounced, prospectStatusCounts, accountStatusCounts, newProspects] = await Promise.all([
       prisma.email.count({
         where: { userId, sentAt: { gte: from, lte: to }, openedAt: { not: null } },
       }),
@@ -144,45 +107,38 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
       prisma.email.count({
         where: { userId, sentAt: { gte: from, lte: to }, status: "bounced" },
       }),
-      // Prospect status distribution (current)
       prisma.prospect.groupBy({
         by: ["status"],
         where: { userId },
         _count: { id: true },
       }),
-      // Account status distribution (current)
       prisma.account.groupBy({
         by: ["status"],
         where: { userId },
         _count: { id: true },
       }),
-      // New prospects in range
       prisma.prospect.findMany({
         where: { userId, createdAt: { gte: from, lte: to } },
         select: { id: true, createdAt: true, status: true },
       }),
-      // Task status counts
+    ])
+
+    const [taskStatusCounts, taskTypeCounts, sequenceStatusCounts, sequenceDetails, recentCalls, recentEmails] = await Promise.all([
       prisma.task.groupBy({
         by: ["status"],
         where: { userId, createdAt: { gte: from, lte: to } },
         _count: { id: true },
       }),
-      // Task type counts
       prisma.task.groupBy({
         by: ["type"],
         where: { userId, createdAt: { gte: from, lte: to } },
         _count: { id: true },
       }),
-      // Sequence performance (grouped by status)
       prisma.prospectSequence.groupBy({
         by: ["status"],
-        where: {
-          prospect: { userId },
-          startedAt: { gte: from, lte: to },
-        },
+        where: { prospect: { userId }, startedAt: { gte: from, lte: to } },
         _count: { id: true },
       }),
-      // Per-sequence stats
       prisma.sequence.findMany({
         where: { userId },
         select: {
@@ -204,7 +160,6 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
           },
         },
       }),
-      // Recent calls
       prisma.call.findMany({
         where: { userId, createdAt: { gte: from, lte: to } },
         orderBy: { createdAt: "desc" },
@@ -218,17 +173,11 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
           prospect: { select: { name: true, company: true } },
         },
       }),
-      // Recent emails
       prisma.email.findMany({
         where: { userId, status: "sent", sentAt: { gte: from, lte: to } },
         orderBy: { sentAt: "desc" },
         take: 15,
-        select: {
-          id: true,
-          to: true,
-          subject: true,
-          sentAt: true,
-        },
+        select: { id: true, to: true, subject: true, sentAt: true },
       }),
     ])
 

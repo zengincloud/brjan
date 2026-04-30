@@ -31,12 +31,24 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
 
     const country = CANADIAN_AREA_CODES.has(parseInt(areaCode)) ? "CA" : "US"
 
+    // Basic NANP validity: first digit must be 2-9, and not an N11 service code (e.g. 411, 911)
+    const areaCodeInt = parseInt(areaCode)
+    const firstDigit = Math.floor(areaCodeInt / 100)
+    const lastTwo = areaCodeInt % 100
+    if (firstDigit < 2 || lastTwo === 11) {
+      return NextResponse.json({ numbers: [], reason: "invalid_area_code" })
+    }
+
     const available = await twilioClient.availablePhoneNumbers(country)
       .local.list({
-        areaCode: parseInt(areaCode),
+        areaCode: areaCodeInt,
         limit: 10,
         voiceEnabled: true,
       })
+
+    if (available.length === 0) {
+      return NextResponse.json({ numbers: [], reason: "no_inventory" })
+    }
 
     const numbers = available.map((n) => ({
       phoneNumber: n.phoneNumber,

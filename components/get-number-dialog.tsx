@@ -66,7 +66,11 @@ export function GetNumberDialog({ open, onOpenChange, existingCount, onNumberAdd
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       if (data.numbers.length === 0) {
-        toast.error("No numbers available for that area code. Try another.")
+        if (data.reason === "invalid_area_code") {
+          toast.error("That area code doesn't exist. Double-check and try again.")
+        } else {
+          toast.error("No numbers available for that area code right now. Check back later or try a nearby area code.")
+        }
         return
       }
       setAvailable(data.numbers)

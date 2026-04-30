@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Users, Building2, Phone, Mail, UserPlus, TrendingUp } from "lucide-react"
 import Link from "next/link"
+import { BRLoader } from "@/components/ui/br-loader"
 
 type Stats = {
   totalUsers: number

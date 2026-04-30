@@ -1,6 +1,7 @@
 "use client"
 
 import dynamic from "next/dynamic"
+import { BRLoader } from "@/components/ui/br-loader"
 
 const DialerContent = dynamic(() => import("./dialer-content"), {
   ssr: false,

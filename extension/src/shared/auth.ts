@@ -132,37 +132,49 @@ export async function loginWithGoogle(): Promise<AuthState> {
     )
   })
 
-  // Parse tokens from the callback URL hash fragment
-  // Supabase implicit flow returns: #access_token=...&refresh_token=...&expires_in=...
+  // Parse tokens — Supabase may use implicit flow (hash) or PKCE (query param code)
   const url = new URL(responseUrl)
   const hashParams = new URLSearchParams(url.hash.substring(1))
-  const accessToken = hashParams.get('access_token')
-  const refreshToken = hashParams.get('refresh_token')
-  const expiresIn = hashParams.get('expires_in')
+  let accessToken = hashParams.get('access_token')
+  let refreshToken = hashParams.get('refresh_token')
+  let expiresIn = hashParams.get('expires_in')
+  let sessionUser: any = null
 
-  if (!accessToken || !refreshToken) {
-    throw new Error('No tokens received from Google login')
-  }
-
-  // Set the session in Supabase to get user info
-  const { data: sessionData, error: sessionError } = await getSupabase().auth.setSession({
-    access_token: accessToken,
-    refresh_token: refreshToken,
-  })
-
-  if (sessionError || !sessionData.user) {
-    throw new Error(sessionError?.message || 'Failed to set session')
+  if (accessToken && refreshToken) {
+    // Implicit flow: tokens are in the hash fragment
+    const { data: sessionData, error: sessionError } = await getSupabase().auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    })
+    if (sessionError || !sessionData.user) {
+      throw new Error(sessionError?.message || 'Failed to set session')
+    }
+    sessionUser = sessionData.user
+  } else {
+    // PKCE flow: exchange the code for a session
+    const code = url.searchParams.get('code')
+    if (!code) {
+      throw new Error('No tokens received from Google login')
+    }
+    const { data: sessionData, error: sessionError } = await getSupabase().auth.exchangeCodeForSession(code)
+    if (sessionError || !sessionData.session) {
+      throw new Error(sessionError?.message || 'Failed to exchange code for session')
+    }
+    accessToken = sessionData.session.access_token
+    refreshToken = sessionData.session.refresh_token
+    expiresIn = String(sessionData.session.expires_in)
+    sessionUser = sessionData.user
   }
 
   const authState: AuthState = {
-    accessToken,
-    refreshToken,
+    accessToken: accessToken!,
+    refreshToken: refreshToken!,
     expiresAt: Math.floor(Date.now() / 1000) + parseInt(expiresIn || '3600'),
     user: {
-      id: sessionData.user.id,
-      email: sessionData.user.email!,
-      name: sessionData.user.user_metadata?.full_name
-        || sessionData.user.user_metadata?.name
+      id: sessionUser.id,
+      email: sessionUser.email!,
+      name: sessionUser.user_metadata?.full_name
+        || sessionUser.user_metadata?.name
         || undefined,
     },
   }

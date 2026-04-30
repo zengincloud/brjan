@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Send, MessageSquare, Loader2, ExternalLink, RefreshCw, RotateCcw, AlertCircle, Clock } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
+import { BRLoader } from "@/components/ui/br-loader"
 
 interface Prospect {
   id: string

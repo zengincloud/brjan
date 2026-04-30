@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Building2, CheckCircle, XCircle, Loader2 } from "lucide-react"
+import { BRLoader } from "@/components/ui/br-loader"
 
 export default function InviteAcceptPage() {
   const params = useParams()

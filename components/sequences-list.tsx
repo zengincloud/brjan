@@ -49,6 +49,7 @@ import { Trash2 } from "lucide-react"
 import { useUser } from "@/hooks/use-user"
 import { TrialLimitBanner } from "@/components/trial-limit-banner"
 import { TRIAL_LIMITS } from "@/lib/trial-limits"
+import { BRLoader } from "@/components/ui/br-loader"
 
 type Sequence = {
   id: string

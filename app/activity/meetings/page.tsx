@@ -6,6 +6,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Loader2 } from "lucide-react"
+import { BRLoader } from "@/components/ui/br-loader"
 
 interface MeetingItem {
   id: string

@@ -8,6 +8,7 @@ import { addDays, format } from "date-fns"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Loader2 } from "lucide-react"
+import { BRLoader } from "@/components/ui/br-loader"
 
 export default function EmailsDeliveredPage() {
   const [date, setDate] = useState<DateRange | undefined>({

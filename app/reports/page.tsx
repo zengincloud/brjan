@@ -11,6 +11,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import type { DateRange } from "react-day-picker"
 import { addDays, startOfWeek, endOfWeek, subWeeks } from "date-fns"
 import { useReportStats } from "@/hooks/use-report-stats"
+import { BRLoader } from "@/components/ui/br-loader"
 
 const timePresets = [
   { label: "This Week", value: "this_week" },

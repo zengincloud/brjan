@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { ArrowLeft, Mail, Phone, Linkedin, MapPin, Building, Briefcase, Calendar, Globe, Pencil, Zap, X, ClipboardList, Clock, ExternalLink, UserMinus, Loader2, Star, Plus, Trash2, Check, Sparkles, StickyNote, Copy } from "lucide-react"
+import { ArrowLeft, Mail, Phone, Linkedin, MapPin, Building, Briefcase, Calendar, Globe, Pencil, Zap, X, ClipboardList, Clock, ExternalLink, UserMinus, Loader2, Star, Plus, Trash2, Check, Sparkles, StickyNote, Copy, Send } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { formatDistanceToNow, format } from "date-fns"
 import { useUser } from "@/hooks/use-user"
@@ -120,6 +120,8 @@ export default function ProspectDetailPage() {
   const [noteEntries, setNoteEntries] = useState<NoteEntry[]>([])
   const [newNoteText, setNewNoteText] = useState("")
   const [addingNote, setAddingNote] = useState(false)
+  const [composingEmail, setComposingEmail] = useState(false)
+  const [emailDraft, setEmailDraft] = useState<{ subject: string; body: string; to: string } | null>(null)
 
   useEffect(() => {
     if (params.id) {
@@ -194,6 +196,26 @@ export default function ProspectDetailPage() {
     } catch {
       toast.error("Failed to delete note")
     }
+  }
+
+  const composeEmailFromActivity = async () => {
+    setComposingEmail(true)
+    setEmailDraft(null)
+    try {
+      const response = await fetch(`/api/prospects/${params.id}/compose-email`, { method: "POST" })
+      if (!response.ok) throw new Error("Failed to generate email")
+      const data = await response.json()
+      setEmailDraft(data)
+    } catch {
+      toast.error("Failed to generate email draft")
+    } finally {
+      setComposingEmail(false)
+    }
+  }
+
+  const openInGmail = (draft: { subject: string; body: string; to: string }) => {
+    const url = `https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(draft.to)}&su=${encodeURIComponent(draft.subject)}&body=${encodeURIComponent(draft.body)}`
+    window.open(url, "_blank")
   }
 
   const refreshData = () => {
@@ -978,6 +1000,72 @@ export default function ProspectDetailPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Compose Email from Activity */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-purple-500" />
+              <CardTitle>Compose Email from Activity</CardTitle>
+            </div>
+            {!emailDraft && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={composeEmailFromActivity}
+                disabled={composingEmail}
+              >
+                {composingEmail ? (
+                  <><Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" />Generating...</>
+                ) : (
+                  <><Sparkles className="h-3.5 w-3.5 mr-2" />Generate Draft</>
+                )}
+              </Button>
+            )}
+            {emailDraft && (
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={composeEmailFromActivity}
+                  disabled={composingEmail}
+                  className="text-xs"
+                >
+                  {composingEmail ? <Loader2 className="h-3 w-3 animate-spin" /> : "Regenerate"}
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => openInGmail(emailDraft)}
+                >
+                  <Send className="h-3.5 w-3.5 mr-2" />
+                  Open in Gmail
+                </Button>
+              </div>
+            )}
+          </div>
+        </CardHeader>
+        {emailDraft && (
+          <CardContent className="space-y-3">
+            <div>
+              <p className="text-xs text-muted-foreground font-medium mb-1">Subject</p>
+              <p className="text-sm font-medium">{emailDraft.subject}</p>
+            </div>
+            <Separator />
+            <div>
+              <p className="text-xs text-muted-foreground font-medium mb-1">Body</p>
+              <p className="text-sm whitespace-pre-wrap leading-relaxed">{emailDraft.body}</p>
+            </div>
+          </CardContent>
+        )}
+        {!emailDraft && !composingEmail && (
+          <CardContent>
+            <p className="text-xs text-muted-foreground">
+              Aggregates your notes and research on this prospect to write a personalized email.
+            </p>
+          </CardContent>
+        )}
+      </Card>
 
       {/* Notes - Inline dated entries */}
       <Card>

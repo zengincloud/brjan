@@ -17,12 +17,12 @@ function parseNotes(notes: string | null): NoteEntry[] {
   try {
     const parsed = JSON.parse(notes)
     if (Array.isArray(parsed)) return parsed
-    // Legacy single string — convert to entry
-    return [{ id: crypto.randomUUID(), text: parsed, date: new Date().toISOString(), initials: '??', userId: '' }]
+    // Legacy single string — convert to entry (date unknown)
+    return [{ id: crypto.randomUUID(), text: parsed, date: '', initials: '??', userId: '' }]
   } catch {
-    // Legacy plain text note — convert to entry
+    // Legacy plain text note — convert to entry (date unknown)
     if (notes.trim()) {
-      return [{ id: crypto.randomUUID(), text: notes, date: new Date().toISOString(), initials: '??', userId: '' }]
+      return [{ id: crypto.randomUUID(), text: notes, date: '', initials: '??', userId: '' }]
     }
     return []
   }

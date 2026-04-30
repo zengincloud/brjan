@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, ElementType } from 'react'
+import { useState, useEffect, useCallback, ElementType, useRef } from 'react'
 import { useSessionState } from '@/hooks/use-session-state'
 import { formatDistanceToNow } from 'date-fns'
 import { Globe, Linkedin, Plus, Upload, X, Trash2, Search, MoreHorizontal, FolderInput, Users, Phone, Mail, Sparkles, RefreshCw, UserPlus, Check, SlidersHorizontal, Settings2, RotateCcw, MapPin, Building2, Briefcase } from 'lucide-react'
@@ -600,11 +600,12 @@ function Th({ children, className }: { children: React.ReactNode; className?: st
 export default function AccountsPage() {
   const { toast } = useToast()
 
-  const [accounts, setAccounts] = useState<Account[]>([])
-  const [loading, setLoading] = useState(true)
-  const [totalCount, setTotalCount] = useState(0)
+  const [accounts, setAccounts] = useSessionState<Account[]>('accounts-data', [])
+  const [loading, setLoading] = useState(false)
+  const [totalCount, setTotalCount] = useSessionState<number>('accounts-total', 0)
   const [page, setPage] = useState(1)
   const pageSize = 50
+  const hasCachedAccounts = useRef(false)
 
   const [searchTerm, setSearchTerm] = useSessionState('accounts-search', '')
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null)
@@ -621,9 +622,11 @@ export default function AccountsPage() {
   const [columnSettingsOpen, setColumnSettingsOpen] = useState(false)
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set(DEFAULT_ACCOUNT_COLS))
 
+  hasCachedAccounts.current = accounts.length > 0
+
   const loadAccounts = useCallback(async (loadPage = 1, append = false) => {
     try {
-      if (!append) setLoading(true)
+      if (!append && !hasCachedAccounts.current) setLoading(true)
       const params = new URLSearchParams({ page: String(loadPage), pageSize: String(pageSize) })
       const res = await fetch(`/api/accounts?${params}`)
       if (!res.ok) throw new Error()

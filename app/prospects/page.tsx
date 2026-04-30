@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, ElementType } from 'react'
+import { useState, useEffect, useCallback, ElementType, useRef } from 'react'
 import { useSessionState } from '@/hooks/use-session-state'
 import { formatDistanceToNow } from 'date-fns'
 import { Phone, Mail, Linkedin, Plus, Upload, X, Pencil, Trash2, Zap, Search, MoreHorizontal, Send, StickyNote, Copy, ChevronDown, ChevronRight, Check, SlidersHorizontal, Settings2, RotateCcw, MapPin, Building2, Briefcase, User, GraduationCap, Sparkles, RefreshCw, Loader2 } from 'lucide-react'
@@ -1250,11 +1250,12 @@ export default function ProspectsPage() {
   const { toast } = useToast()
   const { user } = useUser()
 
-  const [prospects, setProspects] = useState<Prospect[]>([])
-  const [loading, setLoading] = useState(true)
-  const [totalCount, setTotalCount] = useState(0)
+  const [prospects, setProspects] = useSessionState<Prospect[]>('prospects-data', [])
+  const [loading, setLoading] = useState(false)
+  const [totalCount, setTotalCount] = useSessionState<number>('prospects-total', 0)
   const [page, setPage] = useState(1)
   const pageSize = 50
+  const hasCachedProspects = useRef(false)
 
   const [searchTerm, setSearchTerm] = useSessionState('prospects-search', '')
   const [selectedProspect, setSelectedProspect] = useState<Prospect | null>(null)
@@ -1277,9 +1278,11 @@ export default function ProspectsPage() {
   const [columnSettingsOpen, setColumnSettingsOpen] = useState(false)
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set(DEFAULT_PROSPECT_COLS))
 
+  hasCachedProspects.current = prospects.length > 0
+
   const loadProspects = useCallback(async (loadPage = 1, append = false) => {
     try {
-      if (!append) setLoading(true)
+      if (!append && !hasCachedProspects.current) setLoading(true)
       const params = new URLSearchParams({ page: String(loadPage), pageSize: String(pageSize) })
       const res = await fetch(`/api/prospects?${params}`)
       if (!res.ok) throw new Error()

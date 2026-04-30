@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, ElementType } from 'react'
+import { useSessionState } from '@/hooks/use-session-state'
 import { formatDistanceToNow } from 'date-fns'
 import { Phone, Mail, Linkedin, Plus, Upload, X, Pencil, Trash2, Zap, Search, MoreHorizontal, Send, StickyNote, Copy, ChevronDown, ChevronRight, Check, SlidersHorizontal, Settings2, RotateCcw, MapPin, Building2, Briefcase, User, GraduationCap, Sparkles, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -1171,7 +1172,7 @@ export default function ProspectsPage() {
   const [page, setPage] = useState(1)
   const pageSize = 50
 
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useSessionState('prospects-search', '')
   const [selectedProspect, setSelectedProspect] = useState<Prospect | null>(null)
   const [selectedRows, setSelectedRows] = useState<string[]>([])
   const [sequences, setSequences] = useState<SequenceOption[]>([])
@@ -1187,8 +1188,8 @@ export default function ProspectsPage() {
   const [deleteTarget, setDeleteTarget] = useState<{ ids: string[]; label: string } | null>(null)
   const [deleting, setDeleting] = useState(false)
 
-  const [showFilters, setShowFilters] = useState(false)
-  const [filters, setFilters] = useState({ name: '', title: '', location: '', status: '', sequence: '', company: '' })
+  const [showFilters, setShowFilters] = useSessionState('prospects-show-filters', false)
+  const [filters, setFilters] = useSessionState('prospects-filters', { name: '', title: '', location: '', status: '', sequence: '', company: '' })
   const [columnSettingsOpen, setColumnSettingsOpen] = useState(false)
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set(DEFAULT_PROSPECT_COLS))
 

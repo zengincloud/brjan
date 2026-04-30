@@ -10,6 +10,7 @@ import { ArrowLeft, Mail, Phone, Linkedin, MapPin, Building, Briefcase, Calendar
 import { Input } from "@/components/ui/input"
 import { formatDistanceToNow, format } from "date-fns"
 import { useUser } from "@/hooks/use-user"
+import { useSessionState } from "@/hooks/use-session-state"
 
 function safeTimeAgo(dateStr: string | null | undefined): string {
   if (!dateStr) return "Unknown"
@@ -118,10 +119,11 @@ export default function ProspectDetailPage() {
   const [accountResults, setAccountResults] = useState<AccountLink[]>([])
   const [accountSearchLoading, setAccountSearchLoading] = useState(false)
   const [noteEntries, setNoteEntries] = useState<NoteEntry[]>([])
-  const [newNoteText, setNewNoteText] = useState("")
+  const prospectId = params.id as string
+  const [newNoteText, setNewNoteText] = useSessionState(`prospect-${prospectId}-note-draft`, '')
   const [addingNote, setAddingNote] = useState(false)
   const [composingEmail, setComposingEmail] = useState(false)
-  const [emailDraft, setEmailDraft] = useState<{ subject: string; body: string; to: string } | null>(null)
+  const [emailDraft, setEmailDraft] = useSessionState<{ subject: string; body: string; to: string } | null>(`prospect-${prospectId}-email-draft`, null)
 
   useEffect(() => {
     if (params.id) {

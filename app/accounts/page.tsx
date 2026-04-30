@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, ElementType } from 'react'
+import { useSessionState } from '@/hooks/use-session-state'
 import { formatDistanceToNow } from 'date-fns'
 import { Globe, Linkedin, Plus, Upload, X, Trash2, Search, MoreHorizontal, FolderInput, Users, Phone, Mail, Sparkles, RefreshCw, UserPlus, Check, SlidersHorizontal, Settings2, RotateCcw, MapPin, Building2, Briefcase } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -605,7 +606,7 @@ export default function AccountsPage() {
   const [page, setPage] = useState(1)
   const pageSize = 50
 
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useSessionState('accounts-search', '')
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null)
   const [selectedRows, setSelectedRows] = useState<string[]>([])
 
@@ -615,8 +616,8 @@ export default function AccountsPage() {
   const [deleteTarget, setDeleteTarget] = useState<Account | null>(null)
   const [deleting, setDeleting] = useState(false)
 
-  const [showFilters, setShowFilters] = useState(false)
-  const [filters, setFilters] = useState({ name: '', location: '', industry: '', employees: '', status: '' })
+  const [showFilters, setShowFilters] = useSessionState('accounts-show-filters', false)
+  const [filters, setFilters] = useSessionState('accounts-filters', { name: '', location: '', industry: '', employees: '', status: '' })
   const [columnSettingsOpen, setColumnSettingsOpen] = useState(false)
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set(DEFAULT_ACCOUNT_COLS))
 

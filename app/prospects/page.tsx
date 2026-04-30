@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, ElementType } from 'react'
 import { useSessionState } from '@/hooks/use-session-state'
 import { formatDistanceToNow } from 'date-fns'
-import { Phone, Mail, Linkedin, Plus, Upload, X, Pencil, Trash2, Zap, Search, MoreHorizontal, Send, StickyNote, Copy, ChevronDown, ChevronRight, Check, SlidersHorizontal, Settings2, RotateCcw, MapPin, Building2, Briefcase, User, GraduationCap, Sparkles, RefreshCw } from 'lucide-react'
+import { Phone, Mail, Linkedin, Plus, Upload, X, Pencil, Trash2, Zap, Search, MoreHorizontal, Send, StickyNote, Copy, ChevronDown, ChevronRight, Check, SlidersHorizontal, Settings2, RotateCcw, MapPin, Building2, Briefcase, User, GraduationCap, Sparkles, RefreshCw, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -256,6 +256,28 @@ function OverviewTab({ prospect, pov, loadingPov, onRefreshPov, isEditing, onCal
   const [emailsExpanded, setEmailsExpanded] = useState(false)
   const [phonesExpanded, setPhonesExpanded] = useState(false)
   const [settingPrimary, setSettingPrimary] = useState(false)
+  const [composingEmail, setComposingEmail] = useState(false)
+  const [emailDraft, setEmailDraft] = useState<{ subject: string; body: string; to: string } | null>(null)
+
+  const composeEmailFromActivity = async () => {
+    setComposingEmail(true)
+    setEmailDraft(null)
+    try {
+      const res = await fetch(`/api/prospects/${prospect.id}/compose-email`, { method: 'POST' })
+      if (!res.ok) throw new Error()
+      const data = await res.json()
+      setEmailDraft(data)
+    } catch {
+      toast({ title: 'Error', description: 'Failed to generate email draft', variant: 'destructive' })
+    } finally {
+      setComposingEmail(false)
+    }
+  }
+
+  const openInGmail = (draft: { subject: string; body: string; to: string }) => {
+    const url = `https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(draft.to)}&su=${encodeURIComponent(draft.subject)}&body=${encodeURIComponent(draft.body)}`
+    window.open(url, '_blank')
+  }
 
   const wiza = prospect.wizaData || {}
 
@@ -479,6 +501,68 @@ function OverviewTab({ prospect, pov, loadingPov, onRefreshPov, isEditing, onCal
           )}
         </div>
       )}
+
+      {/* Compose Email from Activity */}
+      <div>
+        <div className="flex items-center justify-between mb-2.5">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">Compose Email</p>
+          <div className="flex items-center gap-2">
+            {emailDraft && (
+              <button
+                onClick={composeEmailFromActivity}
+                disabled={composingEmail}
+                className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1"
+              >
+                <RefreshCw className={cn('h-3 w-3', composingEmail && 'animate-spin')} />
+                Regenerate
+              </button>
+            )}
+            {!emailDraft && (
+              <button
+                onClick={composeEmailFromActivity}
+                disabled={composingEmail}
+                className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1"
+              >
+                <Sparkles className={cn('h-3 w-3', composingEmail && 'animate-spin')} />
+                {composingEmail ? 'Generating...' : 'Generate'}
+              </button>
+            )}
+          </div>
+        </div>
+        {composingEmail && (
+          <div className="flex items-center gap-2 text-[12px] text-muted-foreground py-3">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating draft...
+          </div>
+        )}
+        {emailDraft && !composingEmail && (
+          <div className="rounded-lg border border-border bg-card p-3 space-y-2">
+            <div>
+              <p className="text-[11px] font-medium text-muted-foreground mb-0.5">Subject</p>
+              <p className="text-[12px] text-foreground font-medium">{emailDraft.subject}</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-medium text-muted-foreground mb-0.5">Body</p>
+              <p className="text-[12px] text-foreground leading-relaxed whitespace-pre-wrap">{emailDraft.body}</p>
+            </div>
+            <Button
+              size="sm"
+              className="h-7 text-[12px] w-full mt-1"
+              onClick={() => openInGmail(emailDraft)}
+            >
+              <Send className="h-3 w-3 mr-1.5" /> Open in Gmail
+            </Button>
+          </div>
+        )}
+        {!emailDraft && !composingEmail && (
+          <div className="rounded-lg border border-dashed border-border p-4 text-center">
+            <Mail className="h-5 w-5 mx-auto mb-2 text-muted-foreground/40" />
+            <p className="text-[12px] text-muted-foreground mb-2">Generate a personalized email from your notes and research</p>
+            <Button size="sm" variant="outline" className="h-7 text-[12px]" onClick={composeEmailFromActivity}>
+              <Sparkles className="h-3.5 w-3.5 mr-1" /> Generate Draft
+            </Button>
+          </div>
+        )}
+      </div>
     </>
   )
 }

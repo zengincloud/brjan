@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Loader2 } from "lucide-react"
-import { toast } from "sonner"
+import { useToast } from "@/components/ui/use-toast"
 
 interface AvailableNumber {
   phoneNumber: string
@@ -42,6 +42,7 @@ export function GetNumberDialog({ open, onOpenChange, existingCount, onNumberAdd
   const [available, setAvailable] = useState<AvailableNumber[]>([])
   const [selected, setSelected] = useState<AvailableNumber | null>(null)
   const [provisioning, setProvisioning] = useState(false)
+  const { toast } = useToast()
 
   const reset = () => {
     setStep("area-code")
@@ -57,7 +58,7 @@ export function GetNumberDialog({ open, onOpenChange, existingCount, onNumberAdd
 
   const handleSearch = async () => {
     if (!/^\d{3}$/.test(areaCode)) {
-      toast.error("Enter a valid 3-digit area code")
+      toast({ title: "Enter a valid 3-digit area code", variant: "destructive" })
       return
     }
     setSearching(true)
@@ -67,16 +68,16 @@ export function GetNumberDialog({ open, onOpenChange, existingCount, onNumberAdd
       if (!res.ok) throw new Error(data.error)
       if (data.numbers.length === 0) {
         if (data.reason === "invalid_area_code") {
-          toast.error("That area code doesn't exist. Double-check and try again.")
+          toast({ title: "That area code doesn't exist. Double-check and try again.", variant: "destructive" })
         } else {
-          toast.error("No numbers available for that area code right now. Check back later or try a nearby area code.")
+          toast({ title: "No numbers available right now.", description: "Check back later or try a nearby area code.", variant: "destructive" })
         }
         return
       }
       setAvailable(data.numbers)
       setStep("pick")
     } catch (err: any) {
-      toast.error(err.message || "Search failed")
+      toast({ title: err.message || "Search failed", variant: "destructive" })
     } finally {
       setSearching(false)
     }
@@ -101,11 +102,11 @@ export function GetNumberDialog({ open, onOpenChange, existingCount, onNumberAdd
         return
       }
       if (!res.ok) throw new Error(data.error)
-      toast.success(`${selected.friendlyName} added to your account`)
+      toast({ title: `${selected.friendlyName} added to your account` })
       onNumberAdded?.(data.phoneNumber)
       handleOpenChange(false)
     } catch (err: any) {
-      toast.error(err.message || "Failed to provision number")
+      toast({ title: err.message || "Failed to provision number", variant: "destructive" })
     } finally {
       setProvisioning(false)
     }

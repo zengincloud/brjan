@@ -285,7 +285,13 @@ export function SequencesList() {
 
         <TabsContent value={activeTab} className="mt-6">
           {loading ? (
-            <div className="text-center py-12 text-muted-foreground">Loading sequences...</div>
+            <div className="flex justify-center py-24">
+              <div className="relative" style={{ width: 72, height: 72 }}>
+                <div className="br-loading-ring" style={{ inset: -18 }} />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/brgradientfav.png" alt="Boilerroom" style={{ width: 72, height: 72, borderRadius: "50%" }} />
+              </div>
+            </div>
           ) : filteredSequences.length === 0 ? (
             <div className="text-center py-12 space-y-2">
               <p className="text-muted-foreground">No sequences found.</p>

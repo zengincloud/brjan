@@ -416,11 +416,11 @@ export default function ReportsPage() {
 
       {/* Loading state */}
       {isLoading && (
-        <div className="space-y-6">
-          <Skeleton className="h-[300px] w-full rounded-lg" />
-          <div className="grid gap-6 md:grid-cols-2">
-            <Skeleton className="h-[300px] rounded-lg" />
-            <Skeleton className="h-[300px] rounded-lg" />
+        <div className="flex justify-center py-24">
+          <div className="relative" style={{ width: 72, height: 72 }}>
+            <div className="br-loading-ring" style={{ inset: -18 }} />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/brgradientfav.png" alt="Boilerroom" style={{ width: 72, height: 72, borderRadius: "50%" }} />
           </div>
         </div>
       )}

@@ -558,10 +558,7 @@ export default function SettingsPage() {
                 <div className="flex items-center justify-between p-4 border border-border rounded-lg">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded bg-secondary flex items-center justify-center overflow-hidden">
-                      <svg viewBox="0 0 32 32" className="h-6 w-6" fill="none">
-                        <rect width="32" height="32" rx="6" fill="#F97316"/>
-                        <text x="50%" y="55%" dominantBaseline="middle" textAnchor="middle" fill="white" fontSize="13" fontWeight="bold" fontFamily="sans-serif">C</text>
-                      </svg>
+                      <img src="https://logo.clearbit.com/clay.com" alt="Clay" className="w-7 h-7 object-contain rounded" />
                     </div>
                     <div>
                       <p className="font-medium">Clay</p>

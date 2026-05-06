@@ -55,6 +55,7 @@ const CHARACTERS = {
     role: "Marketing Manager",
     company: "Launchpad Co.",
     initials: "SC",
+    image: "/sheldon.jpg",
     difficulty: "easy" as Difficulty,
     description: "Friendly and open. Gives you a fair shot — but still needs to see the value.",
     traits: ["Has 3 minutes", "Curious by nature", "One soft objection"],
@@ -67,6 +68,7 @@ const CHARACTERS = {
     role: "VP of Sales",
     company: "GrowthForce",
     initials: "AA",
+    image: "/adele.webp",
     difficulty: "medium" as Difficulty,
     description: "Busy and results-focused. No fluff — lead with proof or lose her.",
     traits: ["Results over features", "Two objections", "Wants hard numbers"],
@@ -79,6 +81,7 @@ const CHARACTERS = {
     role: "Chief Revenue Officer",
     company: "Enterprise Corp",
     initials: "PP",
+    image: "/paddy.jpg",
     difficulty: "hard" as Difficulty,
     description: "Hostile to cold calls. Locked-in vendor, high BS radar, no patience.",
     traits: ["Locked-in contract", "Three objections", "Almost impossible"],
@@ -445,10 +448,10 @@ export default function ColdCallPracticePage() {
 
   // ─── HISTORY HELPERS ─────────────────────────────────────────────────────
 
-  const CHARACTER_DISPLAY: Record<string, { name: string; initials: string; avatarClass: string; dotClass: string }> = {
-    mike_reynolds: { name: "Sheldon Cooper",    initials: "SC", avatarClass: "from-emerald-400 to-emerald-600", dotClass: "bg-emerald-500" },
-    jessica_park:  { name: "Adele Adkins",      initials: "AA", avatarClass: "from-amber-400 to-amber-600",    dotClass: "bg-amber-500"   },
-    derek_walsh:   { name: "Paddy Pimblett",    initials: "PP", avatarClass: "from-red-400 to-red-600",        dotClass: "bg-red-500"     },
+  const CHARACTER_DISPLAY: Record<string, { name: string; initials: string; image: string; avatarClass: string; dotClass: string }> = {
+    mike_reynolds: { name: "Sheldon Cooper",  initials: "SC", image: "/sheldon.jpg", avatarClass: "from-emerald-400 to-emerald-600", dotClass: "bg-emerald-500" },
+    jessica_park:  { name: "Adele Adkins",    initials: "AA", image: "/adele.webp",  avatarClass: "from-amber-400 to-amber-600",    dotClass: "bg-amber-500"   },
+    derek_walsh:   { name: "Paddy Pimblett",  initials: "PP", image: "/paddy.jpg",   avatarClass: "from-red-400 to-red-600",        dotClass: "bg-red-500"     },
   }
 
   function formatDate(iso: string) {
@@ -500,8 +503,8 @@ export default function ColdCallPracticePage() {
                     onClick={() => toggleCallDetail(call.id)}
                     className="w-full flex items-center gap-3.5 p-4 text-left hover:bg-white/[0.03] transition-colors"
                   >
-                    <div className={cn("w-9 h-9 rounded-full bg-gradient-to-br flex items-center justify-center text-white font-bold text-xs shrink-0", char.avatarClass)}>
-                      {char.initials}
+                    <div className="w-9 h-9 rounded-full overflow-hidden shrink-0">
+                      <img src={char.image} alt={char.name} className="w-full h-full object-cover" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -577,7 +580,7 @@ export default function ColdCallPracticePage() {
                                 {expandedDetail.messages.map((msg, i) => (
                                   <p key={i} className="text-xs text-white/50 leading-relaxed">
                                     <span className={cn("font-semibold", msg.role === "user" ? "text-blue-400" : "text-white/30")}>
-                                      {msg.role === "user" ? "You" : char.name}:
+                                    {msg.role === "user" ? "You" : char.name}:
                                     </span>{" "}
                                     {msg.content}
                                   </p>
@@ -600,11 +603,8 @@ export default function ColdCallPracticePage() {
         {/* Left panel — character preview */}
         <div className="w-[260px] shrink-0 flex flex-col items-center p-6 bg-white/[0.02] border-r border-white/[0.06]">
           {/* Avatar */}
-          <div className={cn(
-            "w-[88px] h-[88px] rounded-full bg-gradient-to-br flex items-center justify-center text-white font-bold text-2xl select-none",
-            character.avatarClass
-          )}>
-            {character.initials}
+          <div className="w-[88px] h-[88px] rounded-full overflow-hidden shrink-0">
+            <img src={character.image} alt={character.name} className="w-full h-full object-cover" />
           </div>
 
           <p className="mt-4 text-[15px] font-semibold text-white text-center leading-tight">{character.name}</p>
@@ -692,11 +692,8 @@ export default function ColdCallPracticePage() {
                       )}
                     >
                       {/* Mini avatar */}
-                      <div className={cn(
-                        "w-9 h-9 rounded-full bg-gradient-to-br flex items-center justify-center text-white font-bold text-xs shrink-0",
-                        char.avatarClass
-                      )}>
-                        {char.initials}
+                      <div className="w-9 h-9 rounded-full overflow-hidden shrink-0">
+                        <img src={char.image} alt={char.name} className="w-full h-full object-cover" />
                       </div>
 
                       <div className="flex-1 min-w-0">
@@ -773,11 +770,10 @@ export default function ColdCallPracticePage() {
           <div className="flex items-center gap-3">
             <div className="relative">
               <div className={cn(
-                "w-10 h-10 rounded-full bg-gradient-to-br flex items-center justify-center text-white font-bold text-sm transition-all",
-                character.avatarClass,
+                "w-10 h-10 rounded-full overflow-hidden transition-all",
                 callStatus === "speaking" && "ring-2 ring-offset-2 ring-offset-[hsl(240,10%,8%)] ring-white/25 scale-110"
               )}>
-                {character.initials}
+                <img src={character.image} alt={character.name} className="w-full h-full object-cover" />
               </div>
               {callStatus === "speaking" && (
                 <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-[hsl(240,10%,8%)] animate-pulse" />
@@ -846,11 +842,8 @@ export default function ColdCallPracticePage() {
           {messages.map((msg, i) => (
             <div key={i} className={cn("flex items-end gap-2", msg.role === "user" ? "justify-end" : "justify-start")}>
               {msg.role === "prospect" && (
-                <div className={cn(
-                  "w-6 h-6 rounded-full bg-gradient-to-br flex items-center justify-center text-white font-bold text-[9px] shrink-0 mb-0.5",
-                  character.avatarClass
-                )}>
-                  {character.initials}
+                <div className="w-6 h-6 rounded-full overflow-hidden shrink-0 mb-0.5">
+                  <img src={character.image} alt={character.name} className="w-full h-full object-cover" />
                 </div>
               )}
               <div className={cn(
@@ -865,11 +858,8 @@ export default function ColdCallPracticePage() {
           ))}
           {callStatus === "thinking" && (
             <div className="flex items-end gap-2 justify-start">
-              <div className={cn(
-                "w-6 h-6 rounded-full bg-gradient-to-br flex items-center justify-center text-white font-bold text-[9px] shrink-0 mb-0.5",
-                character.avatarClass
-              )}>
-                {character.initials}
+              <div className="w-6 h-6 rounded-full overflow-hidden shrink-0 mb-0.5">
+                <img src={character.image} alt={character.name} className="w-full h-full object-cover" />
               </div>
               <div className="bg-white/[0.07] px-3.5 py-2.5 rounded-2xl rounded-bl-sm">
                 <div className="flex gap-1 items-center h-4">
@@ -923,11 +913,8 @@ export default function ColdCallPracticePage() {
         {/* Score card */}
         <div className="text-center py-6 rounded-xl bg-white/[0.03] border border-white/[0.06] space-y-2">
           <div className="flex items-center justify-center gap-2.5 mb-3">
-            <div className={cn(
-              "w-10 h-10 rounded-full bg-gradient-to-br flex items-center justify-center text-white font-bold text-sm",
-              character.avatarClass
-            )}>
-              {character.initials}
+            <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
+              <img src={character.image} alt={character.name} className="w-full h-full object-cover" />
             </div>
             <div className="text-left">
               <p className="text-sm font-medium text-white">{character.name}</p>

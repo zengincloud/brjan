@@ -59,10 +59,10 @@ const CHARACTERS = {
   },
   derek_walsh: {
     id: "derek_walsh",
-    name: "Ivanna Kissenhog",
+    name: "Paddy Pimblett",
     role: "Chief Revenue Officer",
     company: "Enterprise Corp",
-    initials: "IK",
+    initials: "PP",
     difficulty: "hard" as Difficulty,
     description: "Hostile to cold calls. Locked-in vendor, high BS radar, no patience.",
     traits: ["Locked-in contract", "Three objections", "Almost impossible"],

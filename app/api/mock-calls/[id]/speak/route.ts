@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic"
 const CHARACTER_VOICE_IDS: Record<string, string> = {
   mike_reynolds: "xKhbyU7E3bC6T89Kn26c", // Sheldon Cooper — easy
   jessica_park:  "NbkKnEAZ7Bqw4EAkVEaz", // Adele Adkins — medium
-  derek_walsh:   "gE0owC0H9C8SzfDyIUtB", // Ivanna Kissenhog — hard
+  derek_walsh:   "csXxiUN2BUFflsCaDxPM", // Paddy Pimblett — hard
 }
 
 export const POST = withAuth<{ params: { id: string } }>(

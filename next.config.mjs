@@ -7,6 +7,11 @@ const nextConfig = {
     remotePatterns: [],
   },
   transpilePackages: ["@react-three/fiber", "@react-three/drei", "three"],
+  experimental: {
+    staleTimes: {
+      dynamic: 0,
+    },
+  },
 }
 
 export default nextConfig

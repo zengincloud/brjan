@@ -68,6 +68,7 @@ import {
 } from "lucide-react"
 import { SendEmailDialog } from "@/components/send-email-dialog"
 import { GetNumberDialog } from "@/components/get-number-dialog"
+import { QuickDialDialog } from "@/components/quick-dial-dialog"
 import { Calendar as CalendarIcon, CalendarClock } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -210,6 +211,7 @@ export default function DialerPage() {
   const [accountNotes, setAccountNotes] = useState<{ [key: string]: string }>({})
   const [emailDialogOpen, setEmailDialogOpen] = useState(false)
   const [emailProspect, setEmailProspect] = useState<{ id: string; name: string; email: string; title?: string; company?: string } | null>(null)
+  const [quickDialOpen, setQuickDialOpen] = useState(false)
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
   const [editingNoteType, setEditingNoteType] = useState<"prospect" | "account" | null>(null)
   const [apiProspects, setApiProspects] = useSessionState<DialerProspect[]>("dialer_api_prospects", [])
@@ -1809,14 +1811,25 @@ export default function DialerPage() {
                 </Button>
               </a>
             ) : (
-            <Button
-              onClick={startSession}
-              className="bg-primary hover:bg-primary/90 text-primary-foreground"
-              disabled={!deviceReady || !selectedPhone}
-            >
-              <Play className="h-4 w-4 mr-2" />
-              Start Session
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                onClick={() => setQuickDialOpen(true)}
+                disabled={!deviceReady}
+                className="gap-2"
+              >
+                <Phone className="h-4 w-4" />
+                Quick Dial
+              </Button>
+              <Button
+                onClick={startSession}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                disabled={!deviceReady || !selectedPhone}
+              >
+                <Play className="h-4 w-4 mr-2" />
+                Start Session
+              </Button>
+            </>
             )
           ) : (
             <>
@@ -3793,6 +3806,8 @@ export default function DialerPage() {
         existingCount={phoneNumbers.length}
         onNumberAdded={handleNumberAdded}
       />
+
+      <QuickDialDialog open={quickDialOpen} onOpenChange={setQuickDialOpen} />
 
       {/* Callback date picker overlay */}
       {callbackPickerSlotId && (

@@ -16,7 +16,7 @@ export const PATCH = withAuth<{ params: { id: string } }>(async (
   const { params } = context!;
   try {
     const body = await request.json()
-    const { outcome, notes, duration, endedAt, twilioSid, status, startedAt } = body
+    const { outcome, notes, duration, endedAt, twilioSid, status, startedAt, prospectId } = body
 
     const call = await prisma.call.findUnique({
       where: {
@@ -57,6 +57,7 @@ export const PATCH = withAuth<{ params: { id: string } }>(async (
     if (twilioSid) updateData.twilioSid = twilioSid
     if (status) updateData.status = status
     if (startedAt) updateData.startedAt = new Date(startedAt)
+    if (prospectId) updateData.prospectId = prospectId
 
     // If we have an outcome, mark as completed
     if (outcome) {

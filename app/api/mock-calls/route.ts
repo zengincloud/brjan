@@ -6,7 +6,6 @@ import { checkCredits, deductCredits } from "@/lib/credits"
 export const dynamic = "force-dynamic"
 
 const MOCK_CALL_CREDIT_COST = 2
-const FREE_CALLS_WARNING_THRESHOLD = 5
 
 // GET /api/mock-calls - Get user's mock call history + stats
 export const GET = withAuth(async (_request: NextRequest, userId: string) => {
@@ -26,10 +25,7 @@ export const GET = withAuth(async (_request: NextRequest, userId: string) => {
     },
   })
 
-  const completedCount = mockCalls.filter((c) => c.status === "completed").length
-  const showWarning = completedCount >= FREE_CALLS_WARNING_THRESHOLD
-
-  return NextResponse.json({ mockCalls, completedCount, showWarning })
+  return NextResponse.json({ mockCalls })
 })
 
 // POST /api/mock-calls - Start a new mock call session
@@ -64,13 +60,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
 
   await deductCredits(userId, MOCK_CALL_CREDIT_COST)
 
-  // Check if they've hit the warning threshold after this call
-  const completedCount = await prisma.mockCall.count({
-    where: { userId, status: "completed" },
-  })
-  const showWarning = completedCount >= FREE_CALLS_WARNING_THRESHOLD - 1
-
-  return NextResponse.json({ mockCall, showWarning })
+  return NextResponse.json({ mockCall })
 })
 
 function getCharacterOpener(character: string): string {

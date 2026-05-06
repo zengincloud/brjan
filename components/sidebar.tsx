@@ -151,7 +151,7 @@ export function Sidebar({ className }: { className?: string }) {
         </Collapsible>
         <NavItem href="/recordings" icon={Mic} label="Call Recordings" active={pathname === "/recordings"} />
         <NavItem href="/reports" icon={FileBarChart} label="Reports" active={pathname === "/reports"} />
-        <NavItem href="/activity/cold-call-practice" icon={Dumbbell} label="Cold Call Practice" active={pathname === "/activity/cold-call-practice"} />
+        <NavItem href="/activity/cold-call-practice" icon={Dumbbell} label="AI Roleplay" active={pathname === "/activity/cold-call-practice"} />
 
         <SectionLabel>LinkedIn</SectionLabel>
         <Collapsible open={isLinkedInOpen} onOpenChange={setIsLinkedInOpen}>

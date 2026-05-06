@@ -1,10 +1,9 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { Phone, PhoneOff, Zap, AlertTriangle, Trophy, RotateCcw, Mic, Clock, ChevronDown } from "lucide-react"
+import { Phone, PhoneOff, Trophy, RotateCcw, Mic, Clock, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import Link from "next/link"
 import { toast } from "sonner"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -111,8 +110,6 @@ const CRITERIA_LABELS: Record<keyof ScoringBreakdown, string> = {
   close:              "Asked for Meeting",
 }
 
-const FREE_CALL_LIMIT = 12
-const WARNING_THRESHOLD = 5
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
@@ -124,7 +121,6 @@ export default function ColdCallPracticePage() {
   const [messages, setMessages]                 = useState<Message[]>([])
   const [callStatus, setCallStatus]             = useState<CallStatus>("connecting")
   const [callSeconds, setCallSeconds]           = useState(0)
-  const [completedCount, setCompletedCount]     = useState(0)
   const [score, setScore]                       = useState<number | null>(null)
   const [feedback, setFeedback]                 = useState<string | null>(null)
   const [scoringBreakdown, setScoringBreakdown] = useState<ScoringBreakdown | null>(null)
@@ -145,20 +141,15 @@ export default function ColdCallPracticePage() {
   const timerRef         = useRef<ReturnType<typeof setInterval> | null>(null)
   const transcriptRef    = useRef<HTMLDivElement>(null)
 
-  const character      = CHARACTERS[DIFFICULTY_BY_ID[selectedDifficulty]]
-  const diffStyle      = DIFF_STYLE[selectedDifficulty]
-  const callsRemaining = Math.max(0, FREE_CALL_LIMIT - completedCount)
-  const isNearLimit    = completedCount >= WARNING_THRESHOLD
+  const character  = CHARACTERS[DIFFICULTY_BY_ID[selectedDifficulty]]
+  const diffStyle  = DIFF_STYLE[selectedDifficulty]
 
   // ── Init ──────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     fetch("/api/mock-calls")
       .then(r => r.json())
-      .then(d => {
-        if (d.completedCount !== undefined) setCompletedCount(d.completedCount)
-        if (d.mockCalls) setHistoryCalls(d.mockCalls.filter((c: HistoryCall) => c.status === "completed"))
-      })
+      .then(d => { if (d.mockCalls) setHistoryCalls(d.mockCalls.filter((c: HistoryCall) => c.status === "completed")) })
       .catch(() => {})
 
     if (!("webkitSpeechRecognition" in window) && !("SpeechRecognition" in window)) {
@@ -383,14 +374,6 @@ export default function ColdCallPracticePage() {
         setTimeout(() => { try { recognitionRef.current?.start() } catch {} }, 600)
       }
 
-      if (data.showWarning) {
-        setTimeout(() => {
-          toast.warning("Running low on free practice calls.", {
-            description: `${completedCount + 1} of ${FREE_CALL_LIMIT} used.`,
-            duration: 6000,
-          })
-        }, 4000)
-      }
     } catch {
       toast.error("Something went wrong.")
       setIsStarting(false)
@@ -421,7 +404,6 @@ export default function ColdCallPracticePage() {
         setScore(data.score)
         setFeedback(data.feedback)
         setScoringBreakdown(data.scoringBreakdown)
-        setCompletedCount(c => c + 1)
         // Refresh history list
         fetch("/api/mock-calls")
           .then(r => r.json())
@@ -635,13 +617,6 @@ export default function ColdCallPracticePage() {
 
           <div className="flex-1" />
 
-          {/* Credit info */}
-          {isNearLimit && callsRemaining > 0 && (
-            <div className="w-full flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-400 mt-4">
-              <AlertTriangle className="h-3 w-3 shrink-0" />
-              <span>{callsRemaining} call{callsRemaining !== 1 ? "s" : ""} remaining</span>
-            </div>
-          )}
           <p className="text-[10px] text-white/20 text-center mt-2">2 credits per call</p>
         </div>
 
@@ -730,27 +705,15 @@ export default function ColdCallPracticePage() {
 
           {/* Start button — pinned to bottom */}
           <div className="p-4 border-t border-white/[0.06]">
-            {callsRemaining === 0 ? (
-              <div className="space-y-2 text-center">
-                <p className="text-xs text-white/40">You've used all {FREE_CALL_LIMIT} free practice calls.</p>
-                <Link href="/upgrade">
-                  <Button className="w-full bg-[hsl(100,78%,44%)] hover:bg-[hsl(100,78%,38%)] text-white font-semibold">
-                    <Zap className="h-4 w-4 mr-2" />
-                    Upgrade for Unlimited Practice
-                  </Button>
-                </Link>
-              </div>
-            ) : (
-              <Button
-                onClick={startCall}
-                disabled={!speechSupported || isStarting}
-                size="lg"
-                className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-semibold text-sm"
-              >
-                <Phone className="h-4 w-4 mr-2" />
-                {isStarting ? "Connecting…" : `Start Cold Call Practice with ${character.name}`}
-              </Button>
-            )}
+            <Button
+              onClick={startCall}
+              disabled={!speechSupported || isStarting}
+              size="lg"
+              className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-semibold text-sm"
+            >
+              <Phone className="h-4 w-4 mr-2" />
+              {isStarting ? "Connecting…" : `Start AI Roleplay with ${character.name}`}
+            </Button>
           </div>
         </div>
       </div>
@@ -1003,7 +966,7 @@ export default function ColdCallPracticePage() {
             <RotateCcw className="h-3.5 w-3.5 mr-2" />
             Practice Again
           </Button>
-          {selectedDifficulty !== "hard" && callsRemaining > 0 && (
+          {selectedDifficulty !== "hard" && (
             <Button
               onClick={() => {
                 setSelected(selectedDifficulty === "easy" ? "medium" : "hard")

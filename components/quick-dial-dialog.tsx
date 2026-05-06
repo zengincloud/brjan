@@ -18,7 +18,6 @@ import {
   UserPlus,
   Search,
   X,
-  Delete,
   Building2,
 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
@@ -252,7 +251,6 @@ export function QuickDialDialog({
   }, [prospectSearch])
 
   const pressKey = (key: string) => setPhoneNumber((prev) => prev + key)
-  const backspace = () => setPhoneNumber((prev) => prev.slice(0, -1))
 
   const makeCall = async () => {
     const cleaned = phoneNumber.trim()
@@ -410,27 +408,14 @@ export function QuickDialDialog({
             <div className="space-y-3">
               <div className="space-y-1.5">
                 <Label htmlFor="phone-input">Phone Number</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="phone-input"
-                    placeholder="+1 555 000 0000"
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && makeCall()}
-                    autoFocus
-                    className="flex-1"
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="shrink-0 text-muted-foreground hover:text-foreground"
-                    onClick={backspace}
-                    tabIndex={-1}
-                    disabled={!phoneNumber}
-                  >
-                    <Delete className="h-4 w-4" />
-                  </Button>
-                </div>
+                <Input
+                  id="phone-input"
+                  placeholder="+1 555 000 0000"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && makeCall()}
+                  autoFocus
+                />
               </div>
 
               {/* Dialpad row */}

@@ -431,8 +431,9 @@ export default function DialerPage() {
     ...fetchedSequences,
   ]
 
-  // Available phone numbers — loaded from DB
-  const [phoneNumbers, setPhoneNumbers] = useState<{ id: string; label: string }[]>([])
+  // Available phone numbers — loaded from DB, cached in sessionStorage to avoid flash on re-navigation
+  const [phoneNumbers, setPhoneNumbers] = useSessionState<{ id: string; label: string }[]>("dialer_phone_numbers", [])
+  const [phoneNumbersLoaded, setPhoneNumbersLoaded] = useState(false)
   const [getNumberDialogOpen, setGetNumberDialogOpen] = useState(false)
 
   useEffect(() => {
@@ -447,9 +448,12 @@ export default function DialerPage() {
           if (!ids.includes(selectedPhone)) {
             setSelectedPhone(loaded[0].id)
           }
+        } else {
+          setPhoneNumbers([])
         }
       })
       .catch(() => {})
+      .finally(() => setPhoneNumbersLoaded(true))
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleNumberAdded = (number: { id: string; number: string; friendlyName: string }) => {
@@ -1803,7 +1807,7 @@ export default function DialerPage() {
           )}
 
           {!sessionActive ? (
-            phoneNumbers.length === 0 ? (
+            !(phoneNumbersLoaded || phoneNumbers.length > 0) ? null : phoneNumbers.length === 0 ? (
               <a href="/settings?tab=calling-numbers">
                 <Button variant="outline" className="gap-2">
                   <Phone className="h-4 w-4" />

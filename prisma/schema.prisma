@@ -781,18 +781,19 @@ model LinkedInCampaign {
 // ============================================
 
 model MockCall {
-  id         String   @id @default(cuid())
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  difficulty String   // easy, medium, hard
-  character  String   // e.g. "mike_reynolds"
-  messages   Json     @default("[]")
-  score      Int?
-  feedback   String?  @db.Text
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  difficulty  String   // easy, medium, hard
+  character   String   // e.g. "mike_reynolds"
+  whatYouSell String?  @db.Text
+  messages    Json     @default("[]")
+  score       Int?
+  feedback    String?  @db.Text
   scoringBreakdown Json?
-  status     String   @default("active") // active, completed
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  status      String   @default("active") // active, completed
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@index([userId])
   @@map("mock_calls")

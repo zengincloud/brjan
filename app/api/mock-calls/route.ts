@@ -32,7 +32,7 @@ export const GET = withAuth(async (_request: NextRequest, userId: string) => {
 // POST /api/mock-calls - Start a new mock call session
 export const POST = withAuth(async (request: NextRequest, userId: string) => {
   const body = await request.json()
-  const { difficulty, character } = body
+  const { difficulty, character, whatYouSell } = body
 
   if (!difficulty || !character) {
     return NextResponse.json({ error: "difficulty and character are required" }, { status: 400 })
@@ -54,6 +54,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       userId,
       difficulty,
       character,
+      whatYouSell: whatYouSell?.trim() || null,
       messages: [{ role: "prospect", content: openingLine }],
     },
   })

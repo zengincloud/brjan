@@ -1,9 +1,8 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
-import { Phone, PhoneOff, Mic, MicOff, ChevronRight, AlertTriangle, Trophy, RotateCcw, Zap } from "lucide-react"
+import { useState, useEffect, useRef } from "react"
+import { Phone, PhoneOff, Zap, AlertTriangle, Trophy, RotateCcw, Mic } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 import { toast } from "sonner"
@@ -12,7 +11,7 @@ import { toast } from "sonner"
 
 type Difficulty = "easy" | "medium" | "hard"
 type View = "setup" | "calling" | "scoring" | "results"
-type CallStatus = "idle" | "recording" | "transcribing" | "thinking" | "speaking"
+type CallStatus = "connecting" | "listening" | "thinking" | "speaking"
 type Message = { role: "user" | "prospect"; content: string }
 
 type ScoringCriterion = {
@@ -41,9 +40,10 @@ const CHARACTERS = {
     company: "Launchpad Co.",
     initials: "MR",
     difficulty: "easy" as Difficulty,
-    description: "Friendly and open. He'll give you a fair shot.",
-    traits: ["Has 3 minutes", "Curious", "One soft objection"],
-    color: "bg-emerald-500",
+    description: "Friendly and open. Gives you a fair shot — but still needs to see the value.",
+    traits: ["Has 3 minutes", "Curious by nature", "One soft objection"],
+    avatarClass: "from-emerald-400 to-emerald-600",
+    dotClass: "bg-emerald-500",
   },
   jessica_park: {
     id: "jessica_park",
@@ -52,9 +52,10 @@ const CHARACTERS = {
     company: "GrowthForce",
     initials: "JP",
     difficulty: "medium" as Difficulty,
-    description: "Busy and skeptical. Needs to see real value fast.",
-    traits: ["Results-focused", "Two objections", "Wants proof"],
-    color: "bg-amber-500",
+    description: "Busy and results-focused. No fluff — lead with proof or lose her.",
+    traits: ["Results over features", "Two objections", "Wants hard numbers"],
+    avatarClass: "from-amber-400 to-amber-600",
+    dotClass: "bg-amber-500",
   },
   derek_walsh: {
     id: "derek_walsh",
@@ -63,16 +64,23 @@ const CHARACTERS = {
     company: "Enterprise Corp",
     initials: "DW",
     difficulty: "hard" as Difficulty,
-    description: "Hostile to cold calls. Won't give an inch without proof.",
-    traits: ["Locked-in vendor", "Three objections", "Almost impossible"],
-    color: "bg-red-500",
+    description: "Hostile to cold calls. Locked-in vendor, high BS radar, no patience.",
+    traits: ["Locked-in contract", "Three objections", "Almost impossible"],
+    avatarClass: "from-red-400 to-red-600",
+    dotClass: "bg-red-500",
   },
 }
 
-const DIFFICULTY_CONFIG: Record<Difficulty, { label: string; color: string; bgColor: string; borderColor: string }> = {
-  easy:   { label: "Easy",   color: "text-emerald-400", bgColor: "bg-emerald-500/10", borderColor: "border-emerald-500/30" },
-  medium: { label: "Medium", color: "text-amber-400",   bgColor: "bg-amber-500/10",  borderColor: "border-amber-500/30"  },
-  hard:   { label: "Hard",   color: "text-red-400",     bgColor: "bg-red-500/10",    borderColor: "border-red-500/30"    },
+const DIFFICULTY_BY_ID: Record<Difficulty, keyof typeof CHARACTERS> = {
+  easy: "mike_reynolds",
+  medium: "jessica_park",
+  hard: "derek_walsh",
+}
+
+const DIFF_STYLE: Record<Difficulty, { label: string; pill: string; activeBg: string; activeBorder: string; dot: string }> = {
+  easy:   { label: "Easy",   pill: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30", activeBg: "bg-emerald-500/10", activeBorder: "border-emerald-500/40", dot: "bg-emerald-500" },
+  medium: { label: "Medium", pill: "bg-amber-500/10 text-amber-400 border-amber-500/30",       activeBg: "bg-amber-500/10",   activeBorder: "border-amber-500/40",   dot: "bg-amber-500"   },
+  hard:   { label: "Hard",   pill: "bg-red-500/10 text-red-400 border-red-500/30",             activeBg: "bg-red-500/10",     activeBorder: "border-red-500/40",     dot: "bg-red-500"     },
 }
 
 const CRITERIA_LABELS: Record<keyof ScoringBreakdown, string> = {
@@ -84,14 +92,6 @@ const CRITERIA_LABELS: Record<keyof ScoringBreakdown, string> = {
   close:              "Asked for Meeting",
 }
 
-const STATUS_LABELS: Record<CallStatus, string> = {
-  idle:         "Tap the mic to speak",
-  recording:    "Listening…",
-  transcribing: "Processing…",
-  thinking:     "Thinking…",
-  speaking:     "Speaking…",
-}
-
 const FREE_CALL_LIMIT = 12
 const WARNING_THRESHOLD = 5
 
@@ -99,46 +99,53 @@ const WARNING_THRESHOLD = 5
 
 export default function ColdCallPracticePage() {
   const [view, setView]                         = useState<View>("setup")
-  const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty | null>(null)
-  const [selectedCharacter, setSelectedCharacter]   = useState<string | null>(null)
-  const [mockCallId, setMockCallId]             = useState<string | null>(null)
+  const [selectedDifficulty, setSelected]       = useState<Difficulty>("easy")
+  const [whatYouSell, setWhatYouSell]           = useState("")
   const [messages, setMessages]                 = useState<Message[]>([])
-  const [callStatus, setCallStatus]             = useState<CallStatus>("idle")
+  const [callStatus, setCallStatus]             = useState<CallStatus>("connecting")
   const [callSeconds, setCallSeconds]           = useState(0)
   const [completedCount, setCompletedCount]     = useState(0)
   const [score, setScore]                       = useState<number | null>(null)
   const [feedback, setFeedback]                 = useState<string | null>(null)
   const [scoringBreakdown, setScoringBreakdown] = useState<ScoringBreakdown | null>(null)
-  const [micAllowed, setMicAllowed]             = useState<boolean | null>(null)
+  const [speechSupported, setSpeechSupported]   = useState(true)
+  const [isStarting, setIsStarting]             = useState(false)
 
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const audioChunksRef   = useRef<Blob[]>([])
+  // Refs that don't need to trigger re-renders
+  const isCallActiveRef  = useRef(false)
+  const isSpeakingRef    = useRef(false)
+  const isProcessingRef  = useRef(false)
+  const mockCallIdRef    = useRef<string | null>(null)
+  const recognitionRef   = useRef<any>(null)
+  const currentAudioRef  = useRef<HTMLAudioElement | null>(null)
   const timerRef         = useRef<ReturnType<typeof setInterval> | null>(null)
   const transcriptRef    = useRef<HTMLDivElement>(null)
-  const currentAudioRef  = useRef<HTMLAudioElement | null>(null)
 
-  const character  = selectedCharacter ? CHARACTERS[selectedCharacter as keyof typeof CHARACTERS] : null
-  const diffConfig = selectedDifficulty ? DIFFICULTY_CONFIG[selectedDifficulty] : null
+  const character      = CHARACTERS[DIFFICULTY_BY_ID[selectedDifficulty]]
+  const diffStyle      = DIFF_STYLE[selectedDifficulty]
   const callsRemaining = Math.max(0, FREE_CALL_LIMIT - completedCount)
   const isNearLimit    = completedCount >= WARNING_THRESHOLD
 
-  // Fetch stats on mount
+  // ── Init ──────────────────────────────────────────────────────────────────
+
   useEffect(() => {
     fetch("/api/mock-calls")
-      .then((r) => r.json())
-      .then((data) => { if (data.completedCount !== undefined) setCompletedCount(data.completedCount) })
+      .then(r => r.json())
+      .then(d => { if (d.completedCount !== undefined) setCompletedCount(d.completedCount) })
       .catch(() => {})
+
+    if (!("webkitSpeechRecognition" in window) && !("SpeechRecognition" in window)) {
+      setSpeechSupported(false)
+    }
   }, [])
 
-  // Auto-scroll transcript
   useEffect(() => {
     transcriptRef.current?.scrollTo({ top: transcriptRef.current.scrollHeight, behavior: "smooth" })
   }, [messages])
 
-  // Call timer
   useEffect(() => {
     if (view === "calling") {
-      timerRef.current = setInterval(() => setCallSeconds((s) => s + 1), 1000)
+      timerRef.current = setInterval(() => setCallSeconds(s => s + 1), 1000)
     } else {
       if (timerRef.current) clearInterval(timerRef.current)
       setCallSeconds(0)
@@ -150,549 +157,680 @@ export default function ColdCallPracticePage() {
     return `${Math.floor(s / 60).toString().padStart(2, "0")}:${(s % 60).toString().padStart(2, "0")}`
   }
 
-  // ─── Voice helpers ─────────────────────────────────────────────────────────
+  // ── Recognition ───────────────────────────────────────────────────────────
 
-  async function playProspectAudio(id: string, text: string) {
-    setCallStatus("speaking")
-    try {
-      const res = await fetch(`/api/mock-calls/${id}/speak`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
-      })
-      if (!res.ok) { setCallStatus("idle"); return }
+  function buildRecognition(callId: string) {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SR) return null
 
-      const blob = await res.blob()
-      const url  = URL.createObjectURL(blob)
-      const audio = new Audio(url)
-      currentAudioRef.current = audio
-      audio.play()
-      audio.onended = () => {
-        URL.revokeObjectURL(url)
-        currentAudioRef.current = null
-        setCallStatus("idle")
-      }
-    } catch {
-      setCallStatus("idle")
-    }
-  }
+    const rec = new SR()
+    rec.continuous = false
+    rec.interimResults = false
+    rec.lang = "en-US"
 
-  async function startRecording() {
-    if (callStatus !== "idle") return
-    // Stop any playing audio first
-    if (currentAudioRef.current) {
-      currentAudioRef.current.pause()
-      currentAudioRef.current = null
-    }
+    rec.onresult = async (event: any) => {
+      if (!isCallActiveRef.current) return
+      const transcript = event.results[0][0].transcript?.trim()
+      if (!transcript) return
 
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      setMicAllowed(true)
-      audioChunksRef.current = []
-      const recorder = new MediaRecorder(stream, { mimeType: "audio/webm" })
-      recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data) }
-      recorder.start()
-      mediaRecorderRef.current = stream as any
-      // Store stream on recorder for cleanup
-      ;(recorder as any)._stream = stream
-      mediaRecorderRef.current = recorder as any
-      setCallStatus("recording")
-    } catch {
-      setMicAllowed(false)
-      toast.error("Microphone access denied. Please allow mic access and try again.")
-    }
-  }
-
-  const stopRecording = useCallback(async () => {
-    const recorder = mediaRecorderRef.current as unknown as MediaRecorder
-    if (!recorder || recorder.state === "inactive") return
-    if (!mockCallId) return
-
-    setCallStatus("transcribing")
-
-    await new Promise<void>((resolve) => {
-      recorder.onstop = () => resolve()
-      recorder.stop()
-      ;(recorder as any)._stream?.getTracks().forEach((t: MediaStreamTrack) => t.stop())
-    })
-
-    const blob = new Blob(audioChunksRef.current, { type: "audio/webm" })
-    audioChunksRef.current = []
-
-    try {
-      const form = new FormData()
-      form.append("audio", blob, "recording.webm")
-
-      const transcribeRes = await fetch(`/api/mock-calls/${mockCallId}/transcribe`, {
-        method: "POST",
-        body: form,
-      })
-      const { transcript } = await transcribeRes.json()
-
-      if (!transcript?.trim()) {
-        setCallStatus("idle")
-        return
-      }
-
-      // Add user message optimistically
-      setMessages((prev) => [...prev, { role: "user", content: transcript }])
+      isProcessingRef.current = true
+      setMessages(prev => [...prev, { role: "user", content: transcript }])
       setCallStatus("thinking")
 
-      // Get AI response
-      const chatRes = await fetch(`/api/mock-calls/${mockCallId}/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userMessage: transcript }),
-      })
-      const { reply } = await chatRes.json()
+      try {
+        const chatRes = await fetch(`/api/mock-calls/${callId}/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userMessage: transcript }),
+        })
+        const { reply } = await chatRes.json()
+        if (!reply || !isCallActiveRef.current) {
+          isProcessingRef.current = false
+          return
+        }
 
-      if (!reply) { setCallStatus("idle"); return }
+        setMessages(prev => [...prev, { role: "prospect", content: reply }])
+        isSpeakingRef.current = true
+        setCallStatus("speaking")
 
-      setMessages((prev) => [...prev, { role: "prospect", content: reply }])
-      await playProspectAudio(mockCallId, reply)
-    } catch {
-      toast.error("Something went wrong. Try again.")
-      setCallStatus("idle")
+        const ttsRes = await fetch(`/api/mock-calls/${callId}/speak`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: reply }),
+        })
+
+        if (!ttsRes.ok) throw new Error("TTS failed")
+
+        const blob = await ttsRes.blob()
+        const url  = URL.createObjectURL(blob)
+        const audio = new Audio(url)
+        currentAudioRef.current = audio
+
+        const onDone = () => {
+          URL.revokeObjectURL(url)
+          currentAudioRef.current = null
+          isSpeakingRef.current = false
+          isProcessingRef.current = false
+          if (isCallActiveRef.current) {
+            setCallStatus("listening")
+            try { rec.start() } catch {}
+          }
+        }
+
+        audio.onended = onDone
+        audio.onerror = onDone
+        audio.play()
+      } catch {
+        isProcessingRef.current = false
+        isSpeakingRef.current = false
+        if (isCallActiveRef.current) {
+          toast.error("Something went wrong.")
+          setCallStatus("listening")
+          try { rec.start() } catch {}
+        }
+      }
     }
-  }, [mockCallId])
 
-  // ─── Call flow ─────────────────────────────────────────────────────────────
+    rec.onend = () => {
+      if (isCallActiveRef.current && !isProcessingRef.current && !isSpeakingRef.current) {
+        setCallStatus("listening")
+        setTimeout(() => {
+          if (isCallActiveRef.current && !isProcessingRef.current) {
+            try { rec.start() } catch {}
+          }
+        }, 150)
+      }
+    }
+
+    rec.onerror = (event: any) => {
+      if (!isCallActiveRef.current) return
+      if (event.error === "not-allowed") {
+        toast.error("Microphone access denied.")
+        endCall()
+      }
+      // no-speech and aborted are harmless — onend handles restart
+    }
+
+    return rec
+  }
+
+  // ── Call flow ─────────────────────────────────────────────────────────────
 
   async function startCall() {
-    if (!selectedCharacter || !selectedDifficulty || callsRemaining === 0) return
+    if (callsRemaining === 0 || isStarting) return
+    setIsStarting(true)
 
     try {
       const res = await fetch("/api/mock-calls", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ difficulty: selectedDifficulty, character: selectedCharacter }),
+        body: JSON.stringify({
+          difficulty: selectedDifficulty,
+          character: DIFFICULTY_BY_ID[selectedDifficulty],
+          whatYouSell: whatYouSell.trim() || null,
+        }),
       })
       const data = await res.json()
 
       if (!res.ok) {
         toast.error(data.error ?? "Failed to start call. Check your credits.")
+        setIsStarting(false)
         return
       }
 
       const call = data.mockCall
-      setMockCallId(call.id)
+      mockCallIdRef.current = call.id
       setMessages(call.messages as Message[])
+      isCallActiveRef.current = true
+      setCallStatus("connecting")
       setView("calling")
+      setIsStarting(false)
 
-      // Play the prospect's opening line
+      // Build recognition bound to this callId
+      recognitionRef.current = buildRecognition(call.id)
+
+      // Play opener, then start listening
       const opener = (call.messages as Message[])[0]?.content
       if (opener) {
-        setTimeout(() => playProspectAudio(call.id, opener), 800)
+        isSpeakingRef.current = true
+        setCallStatus("speaking")
+
+        setTimeout(async () => {
+          try {
+            const ttsRes = await fetch(`/api/mock-calls/${call.id}/speak`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ text: opener }),
+            })
+            if (!ttsRes.ok) throw new Error()
+            const blob  = await ttsRes.blob()
+            const url   = URL.createObjectURL(blob)
+            const audio = new Audio(url)
+            currentAudioRef.current = audio
+
+            const onDone = () => {
+              URL.revokeObjectURL(url)
+              currentAudioRef.current = null
+              isSpeakingRef.current = false
+              if (isCallActiveRef.current) {
+                setCallStatus("listening")
+                try { recognitionRef.current?.start() } catch {}
+              }
+            }
+            audio.onended = onDone
+            audio.onerror = onDone
+            audio.play()
+          } catch {
+            isSpeakingRef.current = false
+            if (isCallActiveRef.current) {
+              setCallStatus("listening")
+              try { recognitionRef.current?.start() } catch {}
+            }
+          }
+        }, 600)
+      } else {
+        isSpeakingRef.current = false
+        setCallStatus("listening")
+        setTimeout(() => { try { recognitionRef.current?.start() } catch {} }, 600)
       }
 
       if (data.showWarning) {
         setTimeout(() => {
-          toast.warning("Heads up — you're running low on free practice calls.", {
-            description: `You've used ${completedCount + 1} of ${FREE_CALL_LIMIT} free calls.`,
+          toast.warning("Running low on free practice calls.", {
+            description: `${completedCount + 1} of ${FREE_CALL_LIMIT} used.`,
             duration: 6000,
           })
-        }, 3000)
+        }, 4000)
       }
     } catch {
-      toast.error("Something went wrong. Try again.")
+      toast.error("Something went wrong.")
+      setIsStarting(false)
     }
   }
 
-  async function endCall() {
-    if (!mockCallId) return
-    // Stop any recording or audio
-    const recorder = mediaRecorderRef.current as unknown as MediaRecorder
-    if (recorder?.state !== "inactive") {
-      recorder?.stop()
-      ;(recorder as any)?._stream?.getTracks().forEach((t: MediaStreamTrack) => t.stop())
-    }
+  function endCall() {
+    isCallActiveRef.current = false
+    isSpeakingRef.current   = false
+    isProcessingRef.current = false
+
+    try { recognitionRef.current?.stop() } catch {}
+    recognitionRef.current = null
+
     if (currentAudioRef.current) {
       currentAudioRef.current.pause()
       currentAudioRef.current = null
     }
 
+    const callId = mockCallIdRef.current
+    if (!callId) return
+
     setView("scoring")
 
-    try {
-      const res = await fetch(`/api/mock-calls/${mockCallId}/end`, { method: "POST" })
-      const data = await res.json()
-
-      setScore(data.score)
-      setFeedback(data.feedback)
-      setScoringBreakdown(data.scoringBreakdown)
-      setCompletedCount((c) => c + 1)
-      setView("results")
-    } catch {
-      toast.error("Scoring failed.")
-      setView("results")
-    }
+    fetch(`/api/mock-calls/${callId}/end`, { method: "POST" })
+      .then(r => r.json())
+      .then(data => {
+        setScore(data.score)
+        setFeedback(data.feedback)
+        setScoringBreakdown(data.scoringBreakdown)
+        setCompletedCount(c => c + 1)
+        setView("results")
+      })
+      .catch(() => {
+        toast.error("Scoring failed.")
+        setView("results")
+      })
   }
 
   function resetToSetup() {
+    isCallActiveRef.current = false
+    mockCallIdRef.current   = null
     setView("setup")
-    setMockCallId(null)
     setMessages([])
-    setCallStatus("idle")
+    setCallStatus("connecting")
     setScore(null)
     setFeedback(null)
     setScoringBreakdown(null)
-    setSelectedCharacter(null)
-    setSelectedDifficulty(null)
   }
 
-  // ─── Render ────────────────────────────────────────────────────────────────
+  // ─── SETUP VIEW ───────────────────────────────────────────────────────────
 
-  return (
-    <div className="space-y-6 max-w-2xl mx-auto">
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">Cold Call Practice</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Speak your pitch. The prospect talks back. Get scored after every call.
+  if (view === "setup") {
+    return (
+      <div className="flex rounded-xl border border-white/[0.07] overflow-hidden" style={{ minHeight: 540 }}>
+
+        {/* Left panel — character preview */}
+        <div className="w-[260px] shrink-0 flex flex-col items-center p-6 bg-white/[0.02] border-r border-white/[0.06]">
+          {/* Avatar */}
+          <div className={cn(
+            "w-[88px] h-[88px] rounded-full bg-gradient-to-br flex items-center justify-center text-white font-bold text-2xl select-none",
+            character.avatarClass
+          )}>
+            {character.initials}
+          </div>
+
+          <p className="mt-4 text-[15px] font-semibold text-white text-center leading-tight">{character.name}</p>
+          <p className="mt-1 text-xs text-white/50 text-center">{character.role}</p>
+          <p className="text-xs text-white/30 text-center">{character.company}</p>
+
+          {/* Tags */}
+          <div className="flex flex-wrap gap-1.5 justify-center mt-3">
+            <span className={cn("text-[10px] px-2.5 py-0.5 rounded-full border font-medium", diffStyle.pill)}>
+              {diffStyle.label}
+            </span>
+            <span className="text-[10px] px-2.5 py-0.5 rounded-full border border-white/10 bg-white/[0.05] text-white/40">
+              Cold Call
+            </span>
+          </div>
+
+          <p className="mt-4 text-xs text-white/45 text-center leading-relaxed">{character.description}</p>
+
+          {/* Traits */}
+          <div className="w-full mt-4 space-y-1.5">
+            {character.traits.map(t => (
+              <div key={t} className="flex items-center gap-2 text-[11px] text-white/40">
+                <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", character.dotClass)} />
+                {t}
+              </div>
+            ))}
+          </div>
+
+          <div className="flex-1" />
+
+          {/* Credit info */}
+          {isNearLimit && callsRemaining > 0 && (
+            <div className="w-full flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-400 mt-4">
+              <AlertTriangle className="h-3 w-3 shrink-0" />
+              <span>{callsRemaining} call{callsRemaining !== 1 ? "s" : ""} remaining</span>
+            </div>
+          )}
+          <p className="text-[10px] text-white/20 text-center mt-2">2 credits per call</p>
+        </div>
+
+        {/* Right panel — configuration */}
+        <div className="flex-1 flex flex-col min-h-0">
+          <div className="flex-1 overflow-y-auto p-6 space-y-5">
+            <div>
+              <h2 className="text-[15px] font-semibold text-white flex items-center gap-2">
+                Quick Start <span className="text-white/25">✦</span> Set Up Your Cold Call
+              </h2>
+              <p className="text-xs text-white/35 mt-0.5">
+                These are preset prospects. Customize your pitch below, then start.
+              </p>
+            </div>
+
+            {/* What you're selling */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-white/60 uppercase tracking-wider">
+                What are you selling?
+              </label>
+              <textarea
+                value={whatYouSell}
+                onChange={e => setWhatYouSell(e.target.value)}
+                placeholder="e.g. A B2B SaaS platform that helps sales teams automate outreach and book 3x more meetings…"
+                rows={3}
+                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white/80 placeholder:text-white/20 resize-none focus:outline-none focus:border-white/20 focus:bg-white/[0.06] transition-colors leading-relaxed"
+              />
+            </div>
+
+            {/* Prospect selection */}
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-white/60 uppercase tracking-wider">
+                Select your prospect
+              </label>
+              <div className="space-y-2">
+                {(Object.values(CHARACTERS) as (typeof CHARACTERS)[keyof typeof CHARACTERS][]).map(char => {
+                  const ds        = DIFF_STYLE[char.difficulty]
+                  const isSelected = selectedDifficulty === char.difficulty
+                  return (
+                    <button
+                      key={char.id}
+                      onClick={() => setSelected(char.difficulty)}
+                      className={cn(
+                        "w-full flex items-center gap-3.5 p-3.5 rounded-xl border text-left transition-all",
+                        isSelected
+                          ? `${ds.activeBg} ${ds.activeBorder}`
+                          : "bg-white/[0.02] border-white/[0.07] hover:bg-white/[0.04] hover:border-white/[0.12]"
+                      )}
+                    >
+                      {/* Mini avatar */}
+                      <div className={cn(
+                        "w-9 h-9 rounded-full bg-gradient-to-br flex items-center justify-center text-white font-bold text-xs shrink-0",
+                        char.avatarClass
+                      )}>
+                        {char.initials}
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-sm font-medium text-white/90 leading-tight">{char.name}</p>
+                          <span className={cn("text-[9px] px-1.5 py-0.5 rounded-full border font-semibold", ds.pill)}>
+                            {ds.label}
+                          </span>
+                        </div>
+                        <p className="text-xs text-white/35 truncate mt-0.5">{char.role} · {char.company}</p>
+                      </div>
+
+                      {/* Radio indicator */}
+                      <div className={cn(
+                        "w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center transition-all",
+                        isSelected ? ds.activeBorder : "border-white/20"
+                      )}>
+                        {isSelected && <div className={cn("w-2 h-2 rounded-full", ds.dot)} />}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Browser warning */}
+            {!speechSupported && (
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-400">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                <span>Voice recognition requires Chrome or Edge. Other browsers are not supported.</span>
+              </div>
+            )}
+          </div>
+
+          {/* Start button — pinned to bottom */}
+          <div className="p-4 border-t border-white/[0.06]">
+            {callsRemaining === 0 ? (
+              <div className="space-y-2 text-center">
+                <p className="text-xs text-white/40">You've used all {FREE_CALL_LIMIT} free practice calls.</p>
+                <Link href="/upgrade">
+                  <Button className="w-full bg-[hsl(100,78%,44%)] hover:bg-[hsl(100,78%,38%)] text-white font-semibold">
+                    <Zap className="h-4 w-4 mr-2" />
+                    Upgrade for Unlimited Practice
+                  </Button>
+                </Link>
+              </div>
+            ) : (
+              <Button
+                onClick={startCall}
+                disabled={!speechSupported || isStarting}
+                size="lg"
+                className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-semibold text-sm"
+              >
+                <Phone className="h-4 w-4 mr-2" />
+                {isStarting ? "Connecting…" : `Start Cold Call Practice with ${character.name}`}
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ─── CALLING VIEW ─────────────────────────────────────────────────────────
+
+  if (view === "calling") {
+    return (
+      <div className="max-w-md mx-auto flex flex-col" style={{ minHeight: 560 }}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between pb-4 border-b border-white/[0.06]">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <div className={cn(
+                "w-10 h-10 rounded-full bg-gradient-to-br flex items-center justify-center text-white font-bold text-sm transition-all",
+                character.avatarClass,
+                callStatus === "speaking" && "ring-2 ring-offset-2 ring-offset-[hsl(240,10%,8%)] ring-white/25 scale-110"
+              )}>
+                {character.initials}
+              </div>
+              {callStatus === "speaking" && (
+                <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-[hsl(240,10%,8%)] animate-pulse" />
+              )}
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-white leading-tight">{character.name}</p>
+              <p className="text-xs text-white/40 leading-tight">{character.role} · {character.company}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-mono text-white/35">{formatTime(callSeconds)}</span>
+            <Button variant="destructive" size="sm" onClick={endCall} className="gap-1.5">
+              <PhoneOff className="h-3.5 w-3.5" />
+              Hang Up
+            </Button>
+          </div>
+        </div>
+
+        {/* Status bar */}
+        <div className="flex items-center justify-center gap-2 py-2.5">
+          {callStatus === "listening" && (
+            <>
+              <div className="flex gap-0.5 items-end h-3.5">
+                {[60, 100, 80, 100, 70].map((h, i) => (
+                  <span
+                    key={i}
+                    className="w-0.5 bg-red-400 rounded-full animate-pulse"
+                    style={{ height: `${h}%`, animationDelay: `${i * 120}ms` }}
+                  />
+                ))}
+              </div>
+              <p className="text-[11px] text-red-400 font-medium">Listening…</p>
+            </>
+          )}
+          {callStatus === "speaking" && (
+            <>
+              <div className="flex gap-0.5 items-end h-3.5">
+                {[50, 90, 70, 100, 60].map((h, i) => (
+                  <span
+                    key={i}
+                    className="w-0.5 bg-emerald-400 rounded-full animate-bounce"
+                    style={{ height: `${h}%`, animationDelay: `${i * 100}ms` }}
+                  />
+                ))}
+              </div>
+              <p className="text-[11px] text-emerald-400 font-medium">Speaking…</p>
+            </>
+          )}
+          {callStatus === "thinking" && (
+            <p className="text-[11px] text-amber-400 font-medium">Thinking…</p>
+          )}
+          {callStatus === "connecting" && (
+            <p className="text-[11px] text-white/30 font-medium">Connecting…</p>
+          )}
+        </div>
+
+        {/* Transcript */}
+        <div
+          ref={transcriptRef}
+          className="flex-1 overflow-y-auto space-y-3 py-3 min-h-[280px] max-h-[380px]"
+        >
+          {messages.length === 0 && (
+            <p className="text-xs text-white/20 text-center mt-10">Connecting to {character.name}…</p>
+          )}
+          {messages.map((msg, i) => (
+            <div key={i} className={cn("flex items-end gap-2", msg.role === "user" ? "justify-end" : "justify-start")}>
+              {msg.role === "prospect" && (
+                <div className={cn(
+                  "w-6 h-6 rounded-full bg-gradient-to-br flex items-center justify-center text-white font-bold text-[9px] shrink-0 mb-0.5",
+                  character.avatarClass
+                )}>
+                  {character.initials}
+                </div>
+              )}
+              <div className={cn(
+                "max-w-[80%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed",
+                msg.role === "user"
+                  ? "bg-blue-600 text-white rounded-br-sm"
+                  : "bg-white/[0.07] text-white/80 rounded-bl-sm"
+              )}>
+                {msg.content}
+              </div>
+            </div>
+          ))}
+          {callStatus === "thinking" && (
+            <div className="flex items-end gap-2 justify-start">
+              <div className={cn(
+                "w-6 h-6 rounded-full bg-gradient-to-br flex items-center justify-center text-white font-bold text-[9px] shrink-0 mb-0.5",
+                character.avatarClass
+              )}>
+                {character.initials}
+              </div>
+              <div className="bg-white/[0.07] px-3.5 py-2.5 rounded-2xl rounded-bl-sm">
+                <div className="flex gap-1 items-center h-4">
+                  <span className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce [animation-delay:0ms]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce [animation-delay:150ms]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce [animation-delay:300ms]" />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Mic indicator */}
+        <div className="flex flex-col items-center gap-2 pt-4 border-t border-white/[0.06]">
+          <div className={cn(
+            "w-14 h-14 rounded-full flex items-center justify-center transition-all duration-300",
+            callStatus === "listening"
+              ? "bg-red-500/15 border-2 border-red-500/40 scale-110"
+              : "bg-white/[0.04] border border-white/10"
+          )}>
+            <Mic className={cn(
+              "h-6 w-6 transition-colors",
+              callStatus === "listening" ? "text-red-400" : "text-white/20"
+            )} />
+          </div>
+          <p className="text-[11px] text-white/25">
+            {callStatus === "listening" ? "Speak naturally — just like a real call" : ""}
           </p>
         </div>
-        {view === "setup" && (
-          <div className="text-right shrink-0">
-            <p className={cn("text-sm font-medium", isNearLimit ? "text-amber-400" : "text-muted-foreground")}>
-              {callsRemaining} call{callsRemaining !== 1 ? "s" : ""} remaining
-            </p>
-            <p className="text-xs text-muted-foreground">2 credits per call</p>
-          </div>
-        )}
       </div>
+    )
+  }
 
-      {/* Warning banner */}
-      {isNearLimit && view === "setup" && callsRemaining > 0 && (
-        <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm text-amber-300">
-          <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-          <div>
-            <p className="font-medium">You're running low on free calls</p>
-            <p className="text-amber-400/70">
-              {completedCount} of {FREE_CALL_LIMIT} used.{" "}
-              <Link href="/upgrade" className="underline hover:text-amber-300">Upgrade</Link> for unlimited practice.
-            </p>
-          </div>
-        </div>
-      )}
+  // ─── SCORING VIEW ─────────────────────────────────────────────────────────
 
-      {callsRemaining === 0 && view === "setup" && (
-        <div className="flex items-start gap-3 p-4 rounded-lg bg-white/[0.03] border border-white/10 text-sm">
-          <Zap className="h-4 w-4 shrink-0 mt-0.5 text-[hsl(100,78%,44%)]" />
-          <div>
-            <p className="font-medium text-white/80">You've used all {FREE_CALL_LIMIT} free practice calls</p>
-            <Link href="/upgrade">
-              <Button size="sm" className="mt-3 bg-[hsl(100,78%,44%)] hover:bg-[hsl(100,78%,38%)] text-white">
-                Upgrade Plan
-              </Button>
-            </Link>
-          </div>
-        </div>
-      )}
+  if (view === "scoring") {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4 text-center">
+        <div className="w-12 h-12 rounded-full border-2 border-white/10 border-t-[hsl(100,78%,44%)] animate-spin" />
+        <p className="text-sm text-white/50">Scoring your call…</p>
+        <p className="text-xs text-white/30">Our coach is reviewing your technique</p>
+      </div>
+    )
+  }
 
-      {/* ── SETUP VIEW ──────────────────────────────────────────────────── */}
-      {view === "setup" && (
-        <div className="space-y-5">
-          <div className="space-y-3">
-            <p className="text-sm font-medium text-white/70">Choose your difficulty</p>
-            <div className="grid grid-cols-3 gap-3">
-              {(["easy", "medium", "hard"] as Difficulty[]).map((diff) => {
-                const cfg = DIFFICULTY_CONFIG[diff]
-                const isSelected = selectedDifficulty === diff
-                return (
-                  <button
-                    key={diff}
-                    onClick={() => {
-                      setSelectedDifficulty(diff)
-                      const match = Object.values(CHARACTERS).find((c) => c.difficulty === diff)
-                      if (match) setSelectedCharacter(match.id)
-                    }}
-                    className={cn(
-                      "p-3 rounded-lg border text-left transition-all",
-                      isSelected
-                        ? `${cfg.bgColor} ${cfg.borderColor} ${cfg.color}`
-                        : "bg-white/[0.03] border-white/10 text-white/50 hover:border-white/20 hover:text-white/70"
-                    )}
-                  >
-                    <p className="text-sm font-semibold">{cfg.label}</p>
-                  </button>
-                )
-              })}
+  // ─── RESULTS VIEW ─────────────────────────────────────────────────────────
+
+  if (view === "results" && score !== null) {
+    return (
+      <div className="space-y-5 max-w-lg mx-auto">
+        {/* Score card */}
+        <div className="text-center py-6 rounded-xl bg-white/[0.03] border border-white/[0.06] space-y-2">
+          <div className="flex items-center justify-center gap-2.5 mb-3">
+            <div className={cn(
+              "w-10 h-10 rounded-full bg-gradient-to-br flex items-center justify-center text-white font-bold text-sm",
+              character.avatarClass
+            )}>
+              {character.initials}
+            </div>
+            <div className="text-left">
+              <p className="text-sm font-medium text-white">{character.name}</p>
+              <p className="text-xs text-white/40">{character.company}</p>
             </div>
           </div>
+          <div className={cn("text-5xl font-bold tabular-nums",
+            score >= 80 ? "text-emerald-400" : score >= 50 ? "text-amber-400" : "text-red-400"
+          )}>
+            {score}
+          </div>
+          <p className="text-sm text-white/50">out of 100</p>
+          <p className={cn("text-sm font-medium",
+            score >= 80 ? "text-emerald-400" : score >= 50 ? "text-amber-400" : "text-red-400"
+          )}>
+            {score >= 80 ? "Excellent — booking material" :
+             score >= 60 ? "Good — a few things to sharpen" :
+             score >= 40 ? "Decent start — keep practicing" :
+             "Back to basics — study the framework"}
+          </p>
+        </div>
 
-          {character && (
-            <div className={cn("p-4 rounded-xl border", diffConfig ? `${diffConfig.bgColor} ${diffConfig.borderColor}` : "bg-white/[0.03] border-white/10")}>
-              <div className="flex items-start gap-4">
-                <div className={cn("w-12 h-12 rounded-full flex items-center justify-center shrink-0 text-white font-bold text-lg", character.color)}>
-                  {character.initials}
+        {/* Breakdown */}
+        {scoringBreakdown && (
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-white/40 uppercase tracking-wider">Score Breakdown</p>
+            {(Object.entries(scoringBreakdown) as [keyof ScoringBreakdown, ScoringCriterion][]).map(([key, c]) => (
+              <div key={key} className={cn(
+                "flex items-start gap-3 p-3 rounded-lg border text-sm",
+                c.passed ? "bg-emerald-500/[0.06] border-emerald-500/20" : "bg-white/[0.02] border-white/[0.06]"
+              )}>
+                <div className={cn(
+                  "w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-[10px] font-bold",
+                  c.passed ? "bg-emerald-500 text-white" : "bg-white/10 text-white/30"
+                )}>
+                  {c.passed ? "✓" : "✗"}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-semibold text-white">{character.name}</p>
-                    <Badge variant="outline" className={cn("text-xs border-0", diffConfig?.bgColor, diffConfig?.color)}>
-                      {DIFFICULTY_CONFIG[character.difficulty].label}
-                    </Badge>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className={cn("font-medium", c.passed ? "text-white/80" : "text-white/40")}>
+                      {CRITERIA_LABELS[key]}
+                    </p>
+                    <span className={cn("text-xs font-mono shrink-0", c.passed ? "text-emerald-400" : "text-white/25")}>
+                      +{c.points}/{c.maxPoints}
+                    </span>
                   </div>
-                  <p className="text-sm text-white/50 mt-0.5">{character.role} · {character.company}</p>
-                  <p className="text-sm text-white/70 mt-2">{character.description}</p>
-                  <div className="flex flex-wrap gap-1.5 mt-3">
-                    {character.traits.map((t) => (
-                      <span key={t} className="text-[11px] px-2 py-0.5 rounded-full bg-white/[0.06] text-white/50 border border-white/10">
-                        {t}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {character && (
-            <div className="text-xs text-white/35 bg-white/[0.02] border border-white/[0.06] rounded-lg p-3 space-y-1">
-              <p className="font-medium text-white/50">Tips for a good cold call</p>
-              <ul className="space-y-0.5 list-disc list-inside">
-                <li>Open with a pattern interrupt — skip "How are you?"</li>
-                <li>Ask permission early: "Did I catch you at a bad time?"</li>
-                <li>Lead with the problem you solve, not your product</li>
-                <li>Ask at least one discovery question before pitching</li>
-                <li>Always end with a specific meeting ask</li>
-              </ul>
-            </div>
-          )}
-
-          <Button
-            onClick={startCall}
-            disabled={!selectedCharacter || callsRemaining === 0}
-            className="w-full bg-[hsl(100,78%,44%)] hover:bg-[hsl(100,78%,38%)] text-white font-semibold"
-            size="lg"
-          >
-            <Phone className="h-4 w-4 mr-2" />
-            Dial {character?.name ?? "a prospect"}
-            <ChevronRight className="h-4 w-4 ml-1" />
-          </Button>
-        </div>
-      )}
-
-      {/* ── CALLING VIEW ────────────────────────────────────────────────── */}
-      {view === "calling" && character && (
-        <div className="space-y-4">
-          {/* Top bar */}
-          <div className="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-white/10">
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <div className={cn(
-                  "w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0 transition-all",
-                  character.color,
-                  callStatus === "speaking" && "ring-2 ring-offset-2 ring-offset-[hsl(240,10%,8%)] ring-white/30 scale-110"
-                )}>
-                  {character.initials}
-                </div>
-                {callStatus === "speaking" && (
-                  <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-[hsl(240,10%,8%)] animate-pulse" />
-                )}
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-white leading-tight">{character.name}</p>
-                <p className="text-xs text-white/40 leading-tight">{character.role} · {character.company}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-mono text-white/40">{formatTime(callSeconds)}</span>
-              <Button variant="destructive" size="sm" onClick={endCall} className="gap-1.5">
-                <PhoneOff className="h-3.5 w-3.5" />
-                Hang Up
-              </Button>
-            </div>
-          </div>
-
-          {/* Status */}
-          <div className="text-center py-1">
-            <p className={cn(
-              "text-xs font-medium transition-colors",
-              callStatus === "recording"    ? "text-red-400" :
-              callStatus === "speaking"     ? "text-emerald-400" :
-              callStatus === "thinking" || callStatus === "transcribing" ? "text-amber-400" :
-              "text-white/30"
-            )}>
-              {STATUS_LABELS[callStatus]}
-            </p>
-          </div>
-
-          {/* Transcript */}
-          <div
-            ref={transcriptRef}
-            className="h-[280px] overflow-y-auto space-y-3 p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]"
-          >
-            {messages.length === 0 && (
-              <p className="text-xs text-white/20 text-center mt-8">Connecting…</p>
-            )}
-            {messages.map((msg, i) => (
-              <div key={i} className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start")}>
-                <div className={cn(
-                  "max-w-[82%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed",
-                  msg.role === "user"
-                    ? "bg-[hsl(100,78%,44%)] text-white rounded-br-sm"
-                    : "bg-white/[0.07] text-white/80 rounded-bl-sm"
-                )}>
-                  {msg.content}
+                  <p className="text-xs text-white/40 mt-0.5">{c.note}</p>
                 </div>
               </div>
             ))}
-            {(callStatus === "transcribing" || callStatus === "thinking") && (
-              <div className="flex justify-start">
-                <div className="bg-white/[0.07] px-3.5 py-2.5 rounded-2xl rounded-bl-sm">
-                  <div className="flex gap-1 items-center h-4">
-                    <span className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce [animation-delay:0ms]" />
-                    <span className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce [animation-delay:150ms]" />
-                    <span className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce [animation-delay:300ms]" />
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
+        )}
 
-          {/* Mic button */}
-          <div className="flex flex-col items-center gap-3 pt-2">
-            <button
-              onMouseDown={startRecording}
-              onMouseUp={stopRecording}
-              onTouchStart={(e) => { e.preventDefault(); startRecording() }}
-              onTouchEnd={(e) => { e.preventDefault(); stopRecording() }}
-              disabled={callStatus === "transcribing" || callStatus === "thinking" || callStatus === "speaking"}
-              className={cn(
-                "w-20 h-20 rounded-full flex items-center justify-center transition-all select-none",
-                callStatus === "recording"
-                  ? "bg-red-500 scale-110 shadow-[0_0_30px_rgba(239,68,68,0.5)]"
-                  : callStatus !== "idle"
-                  ? "bg-white/10 opacity-40 cursor-not-allowed"
-                  : "bg-white/10 hover:bg-white/15 hover:scale-105 active:scale-95 cursor-pointer"
-              )}
+        {/* Coach feedback */}
+        {feedback && (
+          <div className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.07] space-y-1.5">
+            <p className="text-xs font-medium text-white/40 uppercase tracking-wider">Coach Feedback</p>
+            <p className="text-sm text-white/70 leading-relaxed">{feedback}</p>
+          </div>
+        )}
+
+        {/* Transcript */}
+        <details>
+          <summary className="text-xs text-white/30 cursor-pointer hover:text-white/50 transition-colors select-none">
+            View call transcript
+          </summary>
+          <div className="mt-3 h-48 overflow-y-auto space-y-2 p-3 rounded-lg bg-white/[0.02] border border-white/[0.05]">
+            {messages.map((msg, i) => (
+              <p key={i} className="text-xs text-white/50 leading-relaxed">
+                <span className={cn("font-semibold", msg.role === "user" ? "text-blue-400" : "text-white/30")}>
+                  {msg.role === "user" ? "You" : character.name}:
+                </span>{" "}
+                {msg.content}
+              </p>
+            ))}
+          </div>
+        </details>
+
+        {/* Actions */}
+        <div className="flex gap-3">
+          <Button
+            onClick={resetToSetup}
+            variant="outline"
+            className="flex-1 border-white/10 text-white/70 hover:bg-white/[0.05] hover:text-white"
+          >
+            <RotateCcw className="h-3.5 w-3.5 mr-2" />
+            Practice Again
+          </Button>
+          {selectedDifficulty !== "hard" && callsRemaining > 0 && (
+            <Button
+              onClick={() => {
+                setSelected(selectedDifficulty === "easy" ? "medium" : "hard")
+                resetToSetup()
+              }}
+              className="flex-1 bg-white/[0.06] hover:bg-white/10 text-white/70 border border-white/10"
             >
-              {callStatus === "recording"
-                ? <MicOff className="h-8 w-8 text-white" />
-                : <Mic className="h-8 w-8 text-white/70" />
-              }
-            </button>
-            <p className="text-xs text-white/30">
-              {callStatus === "recording" ? "Release to send" : "Hold to talk"}
-            </p>
-            {micAllowed === false && (
-              <p className="text-xs text-red-400">Mic access denied — check your browser settings</p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ── SCORING VIEW ────────────────────────────────────────────────── */}
-      {view === "scoring" && (
-        <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
-          <div className="w-12 h-12 rounded-full border-2 border-white/10 border-t-[hsl(100,78%,44%)] animate-spin" />
-          <p className="text-sm text-white/50">Scoring your call…</p>
-          <p className="text-xs text-white/30">Our coach is reviewing your technique</p>
-        </div>
-      )}
-
-      {/* ── RESULTS VIEW ────────────────────────────────────────────────── */}
-      {view === "results" && character && score !== null && (
-        <div className="space-y-5">
-          <div className="text-center py-6 rounded-xl bg-white/[0.03] border border-white/[0.06] space-y-2">
-            <div className="flex items-center justify-center gap-2 mb-3">
-              <div className={cn("w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm", character.color)}>
-                {character.initials}
-              </div>
-              <div className="text-left">
-                <p className="text-sm font-medium text-white">{character.name}</p>
-                <p className="text-xs text-white/40">{character.company}</p>
-              </div>
-            </div>
-            <div className={cn("text-5xl font-bold tabular-nums", score >= 80 ? "text-emerald-400" : score >= 50 ? "text-amber-400" : "text-red-400")}>
-              {score}
-            </div>
-            <p className="text-sm text-white/50">out of 100</p>
-            <p className={cn("text-sm font-medium mt-1", score >= 80 ? "text-emerald-400" : score >= 50 ? "text-amber-400" : "text-red-400")}>
-              {score >= 80 ? "Excellent — booking material" : score >= 60 ? "Good — a few things to sharpen" : score >= 40 ? "Decent start — keep practicing" : "Back to basics — study the tips above"}
-            </p>
-          </div>
-
-          {scoringBreakdown && (
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-white/40 uppercase tracking-wider px-0.5">Score Breakdown</p>
-              {(Object.entries(scoringBreakdown) as [keyof ScoringBreakdown, ScoringCriterion][]).map(([key, criterion]) => (
-                <div
-                  key={key}
-                  className={cn("flex items-start gap-3 p-3 rounded-lg border text-sm", criterion.passed ? "bg-emerald-500/[0.06] border-emerald-500/20" : "bg-white/[0.02] border-white/[0.06]")}
-                >
-                  <div className={cn("w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-[10px] font-bold", criterion.passed ? "bg-emerald-500 text-white" : "bg-white/10 text-white/30")}>
-                    {criterion.passed ? "✓" : "✗"}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className={cn("font-medium", criterion.passed ? "text-white/80" : "text-white/40")}>
-                        {CRITERIA_LABELS[key]}
-                      </p>
-                      <span className={cn("text-xs font-mono shrink-0", criterion.passed ? "text-emerald-400" : "text-white/25")}>
-                        +{criterion.points}/{criterion.maxPoints}
-                      </span>
-                    </div>
-                    <p className="text-xs text-white/40 mt-0.5">{criterion.note}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {feedback && (
-            <div className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.07] space-y-1.5">
-              <p className="text-xs font-medium text-white/40 uppercase tracking-wider">Coach Feedback</p>
-              <p className="text-sm text-white/70 leading-relaxed">{feedback}</p>
-            </div>
-          )}
-
-          <details className="group">
-            <summary className="text-xs text-white/30 cursor-pointer hover:text-white/50 transition-colors select-none">
-              View call transcript
-            </summary>
-            <div className="mt-3 h-48 overflow-y-auto space-y-2 p-3 rounded-lg bg-white/[0.02] border border-white/[0.05]">
-              {messages.map((msg, i) => (
-                <p key={i} className="text-xs text-white/50 leading-relaxed">
-                  <span className={cn("font-semibold", msg.role === "user" ? "text-[hsl(100,78%,44%)]" : "text-white/30")}>
-                    {msg.role === "user" ? "You" : character.name}:
-                  </span>{" "}
-                  {msg.content}
-                </p>
-              ))}
-            </div>
-          </details>
-
-          <div className="flex gap-3">
-            <Button onClick={resetToSetup} variant="outline" className="flex-1 border-white/10 text-white/70 hover:bg-white/[0.05] hover:text-white">
-              <RotateCcw className="h-3.5 w-3.5 mr-2" />
-              Practice Again
+              <Trophy className="h-3.5 w-3.5 mr-2" />
+              Try Harder
             </Button>
-            {selectedDifficulty !== "hard" && callsRemaining > 0 && (
-              <Button
-                onClick={() => {
-                  const next = selectedDifficulty === "easy" ? "medium" : "hard"
-                  setSelectedDifficulty(next)
-                  const match = Object.values(CHARACTERS).find((c) => c.difficulty === next)
-                  if (match) setSelectedCharacter(match.id)
-                  setMessages([])
-                  setScore(null)
-                  setFeedback(null)
-                  setScoringBreakdown(null)
-                  setMockCallId(null)
-                  setView("setup")
-                }}
-                className="flex-1 bg-white/[0.06] hover:bg-white/10 text-white/70 border border-white/10"
-              >
-                <Trophy className="h-3.5 w-3.5 mr-2" />
-                Try Harder
-              </Button>
-            )}
-          </div>
+          )}
         </div>
-      )}
-    </div>
-  )
+      </div>
+    )
+  }
+
+  return null
 }

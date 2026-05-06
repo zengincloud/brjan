@@ -144,10 +144,15 @@ export const POST = withAuth<{ params: { id: string } }>(
 
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 
+    const systemPrompt = character.systemPrompt +
+      (mockCall.whatYouSell
+        ? `\n\nWHAT THE CALLER IS PITCHING:\n"${mockCall.whatYouSell}"\n\nFactor this into how you react — if it's relevant to your role/company, show appropriate interest or skepticism. If it's irrelevant, push back naturally.`
+        : "")
+
     const response = await anthropic.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 150,
-      system: character.systemPrompt,
+      system: systemPrompt,
       messages: anthropicMessages,
     })
 

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { Phone, PhoneOff, Zap, AlertTriangle, Trophy, RotateCcw, Mic } from "lucide-react"
+import { Phone, PhoneOff, Zap, AlertTriangle, Trophy, RotateCcw, Mic, Clock, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
@@ -28,6 +28,22 @@ type ScoringBreakdown = {
   discovery: ScoringCriterion
   objection_handling: ScoringCriterion
   close: ScoringCriterion
+}
+
+type HistoryCall = {
+  id: string
+  difficulty: string
+  character: string
+  whatYouSell: string | null
+  score: number | null
+  feedback: string | null
+  scoringBreakdown: ScoringBreakdown | null
+  status: string
+  createdAt: string
+}
+
+type HistoryCallDetail = HistoryCall & {
+  messages: Message[]
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -99,6 +115,7 @@ const WARNING_THRESHOLD = 5
 
 export default function ColdCallPracticePage() {
   const [view, setView]                         = useState<View>("setup")
+  const [tab, setTab]                           = useState<"practice" | "history">("practice")
   const [selectedDifficulty, setSelected]       = useState<Difficulty>("easy")
   const [whatYouSell, setWhatYouSell]           = useState("")
   const [messages, setMessages]                 = useState<Message[]>([])
@@ -110,6 +127,10 @@ export default function ColdCallPracticePage() {
   const [scoringBreakdown, setScoringBreakdown] = useState<ScoringBreakdown | null>(null)
   const [speechSupported, setSpeechSupported]   = useState(true)
   const [isStarting, setIsStarting]             = useState(false)
+  const [historyCalls, setHistoryCalls]         = useState<HistoryCall[]>([])
+  const [expandedCallId, setExpandedCallId]     = useState<string | null>(null)
+  const [expandedDetail, setExpandedDetail]     = useState<HistoryCallDetail | null>(null)
+  const [loadingDetail, setLoadingDetail]       = useState(false)
 
   // Refs that don't need to trigger re-renders
   const isCallActiveRef  = useRef(false)
@@ -131,7 +152,10 @@ export default function ColdCallPracticePage() {
   useEffect(() => {
     fetch("/api/mock-calls")
       .then(r => r.json())
-      .then(d => { if (d.completedCount !== undefined) setCompletedCount(d.completedCount) })
+      .then(d => {
+        if (d.completedCount !== undefined) setCompletedCount(d.completedCount)
+        if (d.mockCalls) setHistoryCalls(d.mockCalls.filter((c: HistoryCall) => c.status === "completed"))
+      })
       .catch(() => {})
 
     if (!("webkitSpeechRecognition" in window) && !("SpeechRecognition" in window)) {
@@ -254,6 +278,28 @@ export default function ColdCallPracticePage() {
     return rec
   }
 
+  // ── History helpers ───────────────────────────────────────────────────────
+
+  async function toggleCallDetail(id: string) {
+    if (expandedCallId === id) {
+      setExpandedCallId(null)
+      setExpandedDetail(null)
+      return
+    }
+    setExpandedCallId(id)
+    setExpandedDetail(null)
+    setLoadingDetail(true)
+    try {
+      const res = await fetch(`/api/mock-calls/${id}`)
+      const data = await res.json()
+      setExpandedDetail(data.mockCall)
+    } catch {
+      toast.error("Failed to load call details.")
+    } finally {
+      setLoadingDetail(false)
+    }
+  }
+
   // ── Call flow ─────────────────────────────────────────────────────────────
 
   async function startCall() {
@@ -373,6 +419,11 @@ export default function ColdCallPracticePage() {
         setFeedback(data.feedback)
         setScoringBreakdown(data.scoringBreakdown)
         setCompletedCount(c => c + 1)
+        // Refresh history list
+        fetch("/api/mock-calls")
+          .then(r => r.json())
+          .then(d => { if (d.mockCalls) setHistoryCalls(d.mockCalls.filter((c: HistoryCall) => c.status === "completed")) })
+          .catch(() => {})
         setView("results")
       })
       .catch(() => {
@@ -392,10 +443,158 @@ export default function ColdCallPracticePage() {
     setScoringBreakdown(null)
   }
 
+  // ─── HISTORY HELPERS ─────────────────────────────────────────────────────
+
+  const CHARACTER_DISPLAY: Record<string, { name: string; initials: string; avatarClass: string; dotClass: string }> = {
+    mike_reynolds: { name: "Sheldon Cooper",    initials: "SC", avatarClass: "from-emerald-400 to-emerald-600", dotClass: "bg-emerald-500" },
+    jessica_park:  { name: "Adele Adkins",      initials: "AA", avatarClass: "from-amber-400 to-amber-600",    dotClass: "bg-amber-500"   },
+    derek_walsh:   { name: "Paddy Pimblett",    initials: "PP", avatarClass: "from-red-400 to-red-600",        dotClass: "bg-red-500"     },
+  }
+
+  function formatDate(iso: string) {
+    return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })
+  }
+
   // ─── SETUP VIEW ───────────────────────────────────────────────────────────
 
   if (view === "setup") {
     return (
+      <div className="space-y-4">
+        {/* Tab switcher */}
+        <div className="flex gap-1 p-1 rounded-lg bg-white/[0.04] border border-white/[0.06] w-fit">
+          {(["practice", "history"] as const).map(t => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={cn(
+                "px-4 py-1.5 rounded-md text-sm font-medium transition-all capitalize",
+                tab === t
+                  ? "bg-white/10 text-white"
+                  : "text-white/40 hover:text-white/70"
+              )}
+            >
+              {t === "history" ? `Past Calls${historyCalls.length > 0 ? ` (${historyCalls.length})` : ""}` : "Practice"}
+            </button>
+          ))}
+        </div>
+
+      {tab === "history" ? (
+        /* ── HISTORY TAB ──────────────────────────────────────────────── */
+        <div className="space-y-2">
+          {historyCalls.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center rounded-xl border border-white/[0.06] bg-white/[0.02]">
+              <Clock className="h-8 w-8 text-white/10 mb-3" />
+              <p className="text-sm text-white/40">No completed calls yet</p>
+              <p className="text-xs text-white/25 mt-1">Your past sessions will appear here</p>
+            </div>
+          ) : (
+            historyCalls.map(call => {
+              const char  = CHARACTER_DISPLAY[call.character] ?? CHARACTER_DISPLAY.mike_reynolds
+              const ds    = DIFF_STYLE[(call.difficulty as Difficulty) ?? "easy"]
+              const isExp = expandedCallId === call.id
+
+              return (
+                <div key={call.id} className="rounded-xl border border-white/[0.07] overflow-hidden">
+                  {/* Call summary row */}
+                  <button
+                    onClick={() => toggleCallDetail(call.id)}
+                    className="w-full flex items-center gap-3.5 p-4 text-left hover:bg-white/[0.03] transition-colors"
+                  >
+                    <div className={cn("w-9 h-9 rounded-full bg-gradient-to-br flex items-center justify-center text-white font-bold text-xs shrink-0", char.avatarClass)}>
+                      {char.initials}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-medium text-white/90">{char.name}</p>
+                        <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full border font-semibold", ds.pill)}>{ds.label}</span>
+                      </div>
+                      <p className="text-xs text-white/35 mt-0.5">{formatDate(call.createdAt)}</p>
+                      {call.whatYouSell && (
+                        <p className="text-xs text-white/25 truncate mt-0.5">{call.whatYouSell}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      {call.score !== null && (
+                        <div className={cn(
+                          "text-lg font-bold tabular-nums",
+                          call.score >= 80 ? "text-emerald-400" : call.score >= 50 ? "text-amber-400" : "text-red-400"
+                        )}>
+                          {call.score}
+                          <span className="text-xs font-normal text-white/30">/100</span>
+                        </div>
+                      )}
+                      <ChevronDown className={cn("h-4 w-4 text-white/25 transition-transform", isExp && "rotate-180")} />
+                    </div>
+                  </button>
+
+                  {/* Expanded detail */}
+                  {isExp && (
+                    <div className="border-t border-white/[0.06] p-4 space-y-4 bg-white/[0.01]">
+                      {loadingDetail && !expandedDetail ? (
+                        <div className="flex items-center gap-2 py-4 justify-center">
+                          <div className="w-4 h-4 rounded-full border-2 border-white/10 border-t-white/40 animate-spin" />
+                          <p className="text-xs text-white/30">Loading…</p>
+                        </div>
+                      ) : expandedDetail ? (
+                        <>
+                          {/* Coach feedback */}
+                          {expandedDetail.feedback && (
+                            <div className="space-y-1.5">
+                              <p className="text-[10px] font-medium text-white/35 uppercase tracking-wider">Coach Feedback</p>
+                              <p className="text-sm text-white/65 leading-relaxed">{expandedDetail.feedback}</p>
+                            </div>
+                          )}
+
+                          {/* Scoring breakdown */}
+                          {expandedDetail.scoringBreakdown && (
+                            <div className="space-y-1.5">
+                              <p className="text-[10px] font-medium text-white/35 uppercase tracking-wider">Score Breakdown</p>
+                              {(Object.entries(expandedDetail.scoringBreakdown) as [keyof ScoringBreakdown, ScoringCriterion][]).map(([key, c]) => (
+                                <div key={key} className={cn(
+                                  "flex items-center gap-3 px-3 py-2 rounded-lg border text-xs",
+                                  c.passed ? "bg-emerald-500/[0.06] border-emerald-500/20" : "bg-white/[0.02] border-white/[0.05]"
+                                )}>
+                                  <div className={cn(
+                                    "w-4 h-4 rounded-full flex items-center justify-center shrink-0 text-[9px] font-bold",
+                                    c.passed ? "bg-emerald-500 text-white" : "bg-white/10 text-white/30"
+                                  )}>
+                                    {c.passed ? "✓" : "✗"}
+                                  </div>
+                                  <p className={cn("flex-1", c.passed ? "text-white/70" : "text-white/35")}>{CRITERIA_LABELS[key]}</p>
+                                  <span className={cn("font-mono shrink-0", c.passed ? "text-emerald-400" : "text-white/20")}>
+                                    +{c.points}/{c.maxPoints}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Transcript */}
+                          {expandedDetail.messages.length > 0 && (
+                            <div className="space-y-1.5">
+                              <p className="text-[10px] font-medium text-white/35 uppercase tracking-wider">Transcript</p>
+                              <div className="max-h-52 overflow-y-auto space-y-2 p-3 rounded-lg bg-white/[0.02] border border-white/[0.05]">
+                                {expandedDetail.messages.map((msg, i) => (
+                                  <p key={i} className="text-xs text-white/50 leading-relaxed">
+                                    <span className={cn("font-semibold", msg.role === "user" ? "text-blue-400" : "text-white/30")}>
+                                      {msg.role === "user" ? "You" : char.name}:
+                                    </span>{" "}
+                                    {msg.content}
+                                  </p>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+              )
+            })
+          )}
+        </div>
+      ) : (
       <div className="flex rounded-xl border border-white/[0.07] overflow-hidden" style={{ minHeight: 540 }}>
 
         {/* Left panel — character preview */}
@@ -557,6 +756,8 @@ export default function ColdCallPracticePage() {
             )}
           </div>
         </div>
+      </div>
+      )}
       </div>
     )
   }

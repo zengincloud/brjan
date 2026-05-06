@@ -6,9 +6,9 @@ export const dynamic = "force-dynamic"
 
 // ElevenLabs premade voices — available on all plans
 const CHARACTER_VOICE_IDS: Record<string, string> = {
-  mike_reynolds: "pNInz6obpgDQGcFmaJgB", // Adam — warm, friendly American male
-  jessica_park:  "21m00Tcm4TlvDq8ikWAM", // Rachel — professional American female
-  derek_walsh:   "VR6AewLTigWG4xSOukaG", // Arnold — deep, authoritative male
+  mike_reynolds: "xKhbyU7E3bC6T89Kn26c", // Sheldon Cooper — easy
+  jessica_park:  "NbkKnEAZ7Bqw4EAkVEaz", // Adele Adkins — medium
+  derek_walsh:   "gE0owC0H9C8SzfDyIUtB", // Ivanna Kissenhog — hard
 }
 
 export const POST = withAuth<{ params: { id: string } }>(

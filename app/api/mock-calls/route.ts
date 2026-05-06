@@ -73,8 +73,8 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
 function getCharacterOpener(character: string): string {
   const openers: Record<string, string> = {
     mike_reynolds: "Yeah, hello?",
-    jessica_park: "Jessica Park.",
-    derek_walsh: "Walsh.",
+    jessica_park: "Adele Adkins.",
+    derek_walsh: "Kissenhog.",
   }
   return openers[character] ?? "Hello?"
 }

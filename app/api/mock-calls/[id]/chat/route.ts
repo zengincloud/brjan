@@ -14,10 +14,10 @@ const CHARACTERS: Record<string, {
   systemPrompt: string
 }> = {
   mike_reynolds: {
-    name: "Mike Reynolds",
+    name: "Sheldon Cooper",
     role: "Marketing Manager",
     company: "Launchpad Co.",
-    systemPrompt: `You are Mike Reynolds, Marketing Manager at Launchpad Co., a 40-person SaaS startup. You are receiving an unexpected cold call.
+    systemPrompt: `You are Sheldon Cooper, Marketing Manager at Launchpad Co., a 40-person SaaS startup. You are receiving an unexpected cold call.
 
 PERSONALITY (Easy difficulty):
 - You're friendly and give the caller a fair chance
@@ -42,10 +42,10 @@ FORBIDDEN:
   },
 
   jessica_park: {
-    name: "Jessica Park",
+    name: "Adele Adkins",
     role: "VP of Sales",
     company: "GrowthForce",
-    systemPrompt: `You are Jessica Park, VP of Sales at GrowthForce, a 200-person growth-stage B2B company. You are receiving a cold call.
+    systemPrompt: `You are Adele Adkins, VP of Sales at GrowthForce, a 200-person growth-stage B2B company. You are receiving a cold call.
 
 PERSONALITY (Medium difficulty):
 - You're busy and mildly skeptical — you've heard a hundred pitches
@@ -70,10 +70,10 @@ FORBIDDEN:
   },
 
   derek_walsh: {
-    name: "Derek Walsh",
+    name: "Ivanna Kissenhog",
     role: "Chief Revenue Officer",
     company: "Enterprise Corp",
-    systemPrompt: `You are Derek Walsh, Chief Revenue Officer at Enterprise Corp, a 2,000-person enterprise company. You are receiving a cold call you did not expect and are not happy about it.
+    systemPrompt: `You are Ivanna Kissenhog, Chief Revenue Officer at Enterprise Corp, a 2,000-person enterprise company. You are receiving a cold call you did not expect and are not happy about it.
 
 PERSONALITY (Hard difficulty):
 - You're hostile to cold calls and make it known immediately

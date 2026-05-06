@@ -35,10 +35,10 @@ type ScoringBreakdown = {
 const CHARACTERS = {
   mike_reynolds: {
     id: "mike_reynolds",
-    name: "Mike Reynolds",
+    name: "Sheldon Cooper",
     role: "Marketing Manager",
     company: "Launchpad Co.",
-    initials: "MR",
+    initials: "SC",
     difficulty: "easy" as Difficulty,
     description: "Friendly and open. Gives you a fair shot — but still needs to see the value.",
     traits: ["Has 3 minutes", "Curious by nature", "One soft objection"],
@@ -47,10 +47,10 @@ const CHARACTERS = {
   },
   jessica_park: {
     id: "jessica_park",
-    name: "Jessica Park",
+    name: "Adele Adkins",
     role: "VP of Sales",
     company: "GrowthForce",
-    initials: "JP",
+    initials: "AA",
     difficulty: "medium" as Difficulty,
     description: "Busy and results-focused. No fluff — lead with proof or lose her.",
     traits: ["Results over features", "Two objections", "Wants hard numbers"],
@@ -59,10 +59,10 @@ const CHARACTERS = {
   },
   derek_walsh: {
     id: "derek_walsh",
-    name: "Derek Walsh",
+    name: "Ivanna Kissenhog",
     role: "Chief Revenue Officer",
     company: "Enterprise Corp",
-    initials: "DW",
+    initials: "IK",
     difficulty: "hard" as Difficulty,
     description: "Hostile to cold calls. Locked-in vendor, high BS radar, no patience.",
     traits: ["Locked-in contract", "Three objections", "Almost impossible"],

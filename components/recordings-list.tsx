@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Phone, Search, User, Building2, CalendarIcon, Clock, Download, Play, FileText, X, Mic, PhoneOutgoing, TrendingUp, UserCheck, MessageSquare, Mail, Loader2, AlertTriangle } from "lucide-react"
+import { Phone, Search, User, Building2, CalendarIcon, Clock, Download, Play, FileText, X, Mic, PhoneOutgoing, TrendingUp, UserCheck, MessageSquare, Mail, Loader2, AlertTriangle, UserPlus, Link2 } from "lucide-react"
 import { useUser } from "@/hooks/use-user"
 import { TrialLimitBanner } from "@/components/trial-limit-banner"
 import { TRIAL_LIMITS } from "@/lib/trial-limits"
@@ -52,6 +52,96 @@ export function RecordingsList() {
   const [filter, setFilter] = useState<"all" | "recordings">("all")
   const [metricFilter, setMetricFilter] = useState<"none" | "calls_this_week" | "connected" | "conversations" | "intros_booked">("none")
   const [draftingEmail, setDraftingEmail] = useState(false)
+
+  // Attribution state
+  const [attributing, setAttributing] = useState(false)
+  const [attributeMode, setAttributeMode] = useState<"search" | "new" | null>(null)
+  const [attrSearch, setAttrSearch] = useState("")
+  const [attrResults, setAttrResults] = useState<{ id: string; name: string; company: string | null; title: string | null }[]>([])
+  const [attrSearchLoading, setAttrSearchLoading] = useState(false)
+  const [attrName, setAttrName] = useState("")
+  const [attrCompany, setAttrCompany] = useState("")
+  const [attrEmail, setAttrEmail] = useState("")
+  const [attrTitle, setAttrTitle] = useState("")
+  const [attrSaving, setAttrSaving] = useState(false)
+
+  // Reset attribution UI when selected recording changes
+  useEffect(() => {
+    setAttributeMode(null)
+    setAttrSearch("")
+    setAttrResults([])
+    setAttrName("")
+    setAttrCompany("")
+    setAttrEmail("")
+    setAttrTitle("")
+  }, [selectedRecording?.id])
+
+  // Debounced prospect search for attribution
+  useEffect(() => {
+    if (!attrSearch.trim()) { setAttrResults([]); return }
+    const t = setTimeout(async () => {
+      setAttrSearchLoading(true)
+      try {
+        const res = await fetch(`/api/prospects?search=${encodeURIComponent(attrSearch)}&pageSize=8`)
+        const data = await res.json()
+        setAttrResults(data.prospects || [])
+      } catch {}
+      finally { setAttrSearchLoading(false) }
+    }, 300)
+    return () => clearTimeout(t)
+  }, [attrSearch])
+
+  const attributeCall = async (prospectId: string, prospectData: { name: string; company: string | null; title: string | null; email: string | null }) => {
+    if (!selectedRecording) return
+    setAttrSaving(true)
+    try {
+      const res = await fetch(`/api/calls/${selectedRecording.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prospectId }),
+      })
+      if (!res.ok) throw new Error("Failed to attribute call")
+
+      // Update local state so the list and detail both reflect the new contact immediately
+      const updated: CallRecording = {
+        ...selectedRecording,
+        prospect: { id: prospectId, name: prospectData.name, email: prospectData.email || "", company: prospectData.company, title: prospectData.title },
+      }
+      setRecordings((prev) => prev.map((r) => r.id === selectedRecording.id ? updated : r))
+      setSelectedRecording(updated)
+      setAttributeMode(null)
+    } catch {
+      // show nothing — the call is still there, just not attributed
+    } finally {
+      setAttrSaving(false)
+    }
+  }
+
+  const attributeToNewContact = async () => {
+    if (!attrName.trim() || !selectedRecording) return
+    setAttrSaving(true)
+    try {
+      const res = await fetch("/api/prospects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: attrName.trim(),
+          phone: selectedRecording.to,
+          company: attrCompany.trim() || undefined,
+          email: attrEmail.trim() || undefined,
+          title: attrTitle.trim() || undefined,
+          status: "contacted",
+        }),
+      })
+      if (!res.ok) throw new Error("Failed to create contact")
+      const { prospect } = await res.json()
+      await attributeCall(prospect.id, { name: prospect.name, company: prospect.company, title: prospect.title, email: prospect.email })
+    } catch {
+      // silent
+    } finally {
+      setAttrSaving(false)
+    }
+  }
 
   const draftEmailFromCall = async (recording: CallRecording) => {
     if (!recording.prospect?.email) return
@@ -435,7 +525,116 @@ export function RecordingsList() {
                             )}
                           </>
                         ) : (
-                          <span className="text-[15px] font-semibold text-foreground">Unknown Contact</span>
+                          <div className="space-y-2">
+                            <span className="text-[15px] font-semibold text-foreground text-muted-foreground/60">Unknown Contact</span>
+                            {!attributeMode && (
+                              <div className="flex items-center gap-2 pt-0.5">
+                                <button
+                                  onClick={() => setAttributeMode("search")}
+                                  className="inline-flex items-center gap-1.5 text-[12px] text-accent hover:text-accent/80 transition-colors"
+                                >
+                                  <Link2 className="h-3.5 w-3.5" />
+                                  Link to existing contact
+                                </button>
+                                <span className="text-muted-foreground/40 text-[12px]">·</span>
+                                <button
+                                  onClick={() => setAttributeMode("new")}
+                                  className="inline-flex items-center gap-1.5 text-[12px] text-accent hover:text-accent/80 transition-colors"
+                                >
+                                  <UserPlus className="h-3.5 w-3.5" />
+                                  Save as new contact
+                                </button>
+                              </div>
+                            )}
+
+                            {/* Link to existing */}
+                            {attributeMode === "search" && (
+                              <div className="space-y-2 pt-1">
+                                <div className="relative">
+                                  <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
+                                  <input
+                                    autoFocus
+                                    placeholder="Search by name, email, or company..."
+                                    value={attrSearch}
+                                    onChange={(e) => setAttrSearch(e.target.value)}
+                                    className="w-full pl-8 pr-3 h-8 rounded-md border border-border bg-background text-[13px] text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-accent transition-colors"
+                                  />
+                                </div>
+                                {attrSearch.trim() && (
+                                  <div className="rounded-md border border-border overflow-hidden">
+                                    {attrSearchLoading ? (
+                                      <p className="text-[12px] text-muted-foreground px-3 py-2">Searching...</p>
+                                    ) : attrResults.length === 0 ? (
+                                      <p className="text-[12px] text-muted-foreground px-3 py-2">No results</p>
+                                    ) : (
+                                      attrResults.map((p) => (
+                                        <button
+                                          key={p.id}
+                                          disabled={attrSaving}
+                                          onClick={() => attributeCall(p.id, { name: p.name, company: p.company, title: p.title, email: null })}
+                                          className="w-full text-left px-3 py-2 hover:bg-secondary/50 border-b border-border last:border-0 transition-colors disabled:opacity-50"
+                                        >
+                                          <p className="text-[13px] font-medium">{p.name}</p>
+                                          {(p.title || p.company) && (
+                                            <p className="text-[11px] text-muted-foreground">{[p.title, p.company].filter(Boolean).join(" · ")}</p>
+                                          )}
+                                        </button>
+                                      ))
+                                    )}
+                                  </div>
+                                )}
+                                <button onClick={() => setAttributeMode(null)} className="text-[11px] text-muted-foreground hover:text-foreground transition-colors">
+                                  Cancel
+                                </button>
+                              </div>
+                            )}
+
+                            {/* Save as new contact */}
+                            {attributeMode === "new" && (
+                              <div className="space-y-2 pt-1 p-3 rounded-lg bg-secondary/30 border border-border">
+                                <input
+                                  autoFocus
+                                  placeholder="Full name *"
+                                  value={attrName}
+                                  onChange={(e) => setAttrName(e.target.value)}
+                                  className="w-full px-2.5 h-8 rounded-md border border-border bg-background text-[13px] text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-accent transition-colors"
+                                />
+                                <div className="grid grid-cols-2 gap-2">
+                                  <input
+                                    placeholder="Company"
+                                    value={attrCompany}
+                                    onChange={(e) => setAttrCompany(e.target.value)}
+                                    className="w-full px-2.5 h-8 rounded-md border border-border bg-background text-[13px] text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-accent transition-colors"
+                                  />
+                                  <input
+                                    placeholder="Job title"
+                                    value={attrTitle}
+                                    onChange={(e) => setAttrTitle(e.target.value)}
+                                    className="w-full px-2.5 h-8 rounded-md border border-border bg-background text-[13px] text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-accent transition-colors"
+                                  />
+                                </div>
+                                <input
+                                  placeholder="Email"
+                                  type="email"
+                                  value={attrEmail}
+                                  onChange={(e) => setAttrEmail(e.target.value)}
+                                  className="w-full px-2.5 h-8 rounded-md border border-border bg-background text-[13px] text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-accent transition-colors"
+                                />
+                                <div className="flex items-center gap-2 pt-1">
+                                  <button
+                                    onClick={attributeToNewContact}
+                                    disabled={!attrName.trim() || attrSaving}
+                                    className="px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-[12px] font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                                  >
+                                    {attrSaving ? "Saving..." : "Save contact"}
+                                  </button>
+                                  <button onClick={() => setAttributeMode(null)} className="text-[12px] text-muted-foreground hover:text-foreground transition-colors">
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         )}
 
                         <div className="flex items-center gap-3 pt-1">

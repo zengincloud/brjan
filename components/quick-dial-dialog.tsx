@@ -1,11 +1,10 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
 import {
   Phone,
@@ -19,6 +18,8 @@ import {
   UserPlus,
   Search,
   X,
+  Delete,
+  Building2,
 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { Device, Call as TwilioCall } from "@twilio/voice-sdk"
@@ -49,6 +50,15 @@ type ExistingProspect = {
   phone: string | null
 }
 
+type AccountMatch = {
+  id: string
+  name: string
+  industry: string | null
+  location: string | null
+}
+
+const DIALPAD_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#"] as const
+
 export function QuickDialDialog({
   open,
   onOpenChange,
@@ -74,9 +84,20 @@ export function QuickDialDialog({
 
   // New contact form
   const [newName, setNewName] = useState("")
-  const [newCompany, setNewCompany] = useState("")
   const [newEmail, setNewEmail] = useState("")
   const [newTitle, setNewTitle] = useState("")
+
+  // Company autocomplete
+  const [companyInput, setCompanyInput] = useState("")
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null)
+  const [accountResults, setAccountResults] = useState<AccountMatch[]>([])
+  const [accountSearchLoading, setAccountSearchLoading] = useState(false)
+  const [showAccountDropdown, setShowAccountDropdown] = useState(false)
+  const accountTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Name match suggestions (did you mean?)
+  const [nameSuggestions, setNameSuggestions] = useState<ExistingProspect[]>([])
+  const nameTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   // Existing contact search
   const [prospectSearch, setProspectSearch] = useState("")
@@ -89,7 +110,7 @@ export function QuickDialDialog({
 
   const deviceRef = useRef<Device | null>(null)
   const activeCallRef = useRef<TwilioCall | null>(null)
-  const searchTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const prospectTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   // Initialize Twilio Device when dialog opens
   useEffect(() => {
@@ -106,28 +127,17 @@ export function QuickDialDialog({
           codecPreferences: ["opus", "pcmu"],
         })
 
-        device.on("registered", () => {
-          setDeviceReady(true)
-        })
-
+        device.on("registered", () => setDeviceReady(true))
         device.on("error", (error) => {
           console.error("Twilio Device error:", error)
-          toast({
-            title: "Device Error",
-            description: error.message || "Failed to initialize calling device",
-            variant: "destructive",
-          })
+          toast({ title: "Device Error", description: error.message || "Failed to initialize calling device", variant: "destructive" })
         })
 
         await device.register()
         deviceRef.current = device
       } catch (error: any) {
         console.error("Failed to initialize device:", error)
-        toast({
-          title: "Initialization Error",
-          description: "Failed to initialize calling device. Please refresh.",
-          variant: "destructive",
-        })
+        toast({ title: "Initialization Error", description: "Failed to initialize calling device. Please refresh.", variant: "destructive" })
       }
     }
 
@@ -146,14 +156,12 @@ export function QuickDialDialog({
   useEffect(() => {
     let interval: NodeJS.Timeout
     if (callStatus === "in_progress" && startTime) {
-      interval = setInterval(() => {
-        setCallDuration(Math.floor((Date.now() - startTime) / 1000))
-      }, 1000)
+      interval = setInterval(() => setCallDuration(Math.floor((Date.now() - startTime) / 1000)), 1000)
     }
     return () => clearInterval(interval)
   }, [callStatus, startTime])
 
-  // Reset state when dialog closes
+  // Reset on close
   useEffect(() => {
     if (!open) {
       setTimeout(() => {
@@ -167,9 +175,12 @@ export function QuickDialDialog({
         setSelectedOutcome(null)
         setContactAction(null)
         setNewName("")
-        setNewCompany("")
         setNewEmail("")
         setNewTitle("")
+        setCompanyInput("")
+        setSelectedAccountId(null)
+        setAccountResults([])
+        setNameSuggestions([])
         setProspectSearch("")
         setProspectResults([])
         setSelectedProspect(null)
@@ -178,14 +189,55 @@ export function QuickDialDialog({
     }
   }, [open])
 
-  // Debounced prospect search
+  // Debounced account search for company field
+  useEffect(() => {
+    if (!companyInput.trim() || selectedAccountId) {
+      setAccountResults([])
+      setShowAccountDropdown(false)
+      return
+    }
+    if (accountTimerRef.current) clearTimeout(accountTimerRef.current)
+    accountTimerRef.current = setTimeout(async () => {
+      setAccountSearchLoading(true)
+      try {
+        const res = await fetch(`/api/accounts?search=${encodeURIComponent(companyInput.trim())}&pageSize=6`)
+        const data = await res.json()
+        setAccountResults(data.accounts || [])
+        setShowAccountDropdown(true)
+      } catch {
+        // silently fail
+      } finally {
+        setAccountSearchLoading(false)
+      }
+    }, 250)
+  }, [companyInput, selectedAccountId])
+
+  // Debounced name suggestion search
+  useEffect(() => {
+    if (!newName.trim() || newName.length < 2) {
+      setNameSuggestions([])
+      return
+    }
+    if (nameTimerRef.current) clearTimeout(nameTimerRef.current)
+    nameTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/prospects?search=${encodeURIComponent(newName.trim())}&pageSize=3`)
+        const data = await res.json()
+        setNameSuggestions(data.prospects || [])
+      } catch {
+        // silently fail
+      }
+    }, 300)
+  }, [newName])
+
+  // Debounced existing prospect search
   useEffect(() => {
     if (!prospectSearch.trim()) {
       setProspectResults([])
       return
     }
-    if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
-    searchTimerRef.current = setTimeout(async () => {
+    if (prospectTimerRef.current) clearTimeout(prospectTimerRef.current)
+    prospectTimerRef.current = setTimeout(async () => {
       setSearchLoading(true)
       try {
         const res = await fetch(`/api/prospects?search=${encodeURIComponent(prospectSearch)}&pageSize=8`)
@@ -199,18 +251,14 @@ export function QuickDialDialog({
     }, 300)
   }, [prospectSearch])
 
+  const pressKey = (key: string) => setPhoneNumber((prev) => prev + key)
+  const backspace = () => setPhoneNumber((prev) => prev.slice(0, -1))
+
   const makeCall = async () => {
     const cleaned = phoneNumber.trim()
-    if (!cleaned) {
-      toast({ title: "Enter a phone number", variant: "destructive" })
-      return
-    }
+    if (!cleaned) { toast({ title: "Enter a phone number", variant: "destructive" }); return }
     if (!deviceRef.current || !deviceReady) {
-      toast({
-        title: "Not Ready",
-        description: "Calling device is still initializing.",
-        variant: "destructive",
-      })
+      toast({ title: "Not Ready", description: "Calling device is still initializing.", variant: "destructive" })
       return
     }
 
@@ -227,9 +275,7 @@ export function QuickDialDialog({
 
       setCallId(data.callId)
 
-      const call = await deviceRef.current.connect({
-        params: { To: cleaned, callId: data.callId },
-      })
+      const call = await deviceRef.current.connect({ params: { To: cleaned, callId: data.callId } })
       activeCallRef.current = call
 
       call.on("accept", async () => {
@@ -241,52 +287,25 @@ export function QuickDialDialog({
             await fetch(`/api/calls/${data.callId}`, {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                twilioSid: twilioCallSid,
-                status: "ringing",
-                startedAt: new Date().toISOString(),
-              }),
+              body: JSON.stringify({ twilioSid: twilioCallSid, status: "ringing", startedAt: new Date().toISOString() }),
             })
           } catch {}
         }
       })
 
-      call.on("disconnect", () => {
-        setCallStatus("completed")
-        activeCallRef.current = null
-      })
-
-      call.on("cancel", () => {
-        setCallStatus("failed")
-        activeCallRef.current = null
-      })
-
-      call.on("reject", () => {
-        setCallStatus("failed")
-        activeCallRef.current = null
-      })
-
+      call.on("disconnect", () => { setCallStatus("completed"); activeCallRef.current = null })
+      call.on("cancel", () => { setCallStatus("failed"); activeCallRef.current = null })
+      call.on("reject", () => { setCallStatus("failed"); activeCallRef.current = null })
       call.on("error", (error) => {
         console.error("Call error:", error)
         setCallStatus("failed")
         activeCallRef.current = null
-        toast({
-          title: "Call Error",
-          description: error.message || "An error occurred during the call",
-          variant: "destructive",
-        })
+        toast({ title: "Call Error", description: error.message || "An error occurred during the call", variant: "destructive" })
       })
-
-      call.on("sample", () => {
-        setCallStatus((prev) => (prev === "ringing" ? "in_progress" : prev))
-      })
+      call.on("sample", () => setCallStatus((prev) => prev === "ringing" ? "in_progress" : prev))
     } catch (error: any) {
       setCallStatus("failed")
-      toast({
-        title: "Call failed",
-        description: error.message || "Failed to initiate call",
-        variant: "destructive",
-      })
+      toast({ title: "Call failed", description: error.message || "Failed to initiate call", variant: "destructive" })
     }
   }
 
@@ -312,7 +331,6 @@ export function QuickDialDialog({
     try {
       let prospectId: string | null = null
 
-      // Create new contact if requested
       if (contactAction === "new" && newName.trim()) {
         const res = await fetch("/api/prospects", {
           method: "POST",
@@ -320,10 +338,12 @@ export function QuickDialDialog({
           body: JSON.stringify({
             name: newName.trim(),
             phone: phoneNumber.trim(),
-            company: newCompany.trim() || undefined,
+            company: companyInput.trim() || undefined,
             email: newEmail.trim() || undefined,
             title: newTitle.trim() || undefined,
             status: "contacted",
+            // Pass accountId if user selected an existing account — this pins by UUID, not name
+            ...(selectedAccountId && { accountId: selectedAccountId }),
           }),
         })
         if (res.ok) {
@@ -331,19 +351,13 @@ export function QuickDialDialog({
           prospectId = prospect.id
         } else {
           const err = await res.json()
-          // Non-fatal — proceed with logging the call
           console.error("Failed to create prospect:", err.error)
-          toast({
-            title: "Contact not saved",
-            description: err.error || "Failed to create contact",
-            variant: "destructive",
-          })
+          toast({ title: "Contact not saved", description: err.error || "Failed to create contact", variant: "destructive" })
         }
       } else if (contactAction === "existing" && selectedProspect) {
         prospectId = selectedProspect.id
       }
 
-      // Log the call
       const patchRes = await fetch(`/api/calls/${callId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -361,11 +375,7 @@ export function QuickDialDialog({
       toast({ title: "Call logged", description: "Call outcome has been recorded." })
       onOpenChange(false)
     } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to save call",
-        variant: "destructive",
-      })
+      toast({ title: "Error", description: error.message || "Failed to save call", variant: "destructive" })
     } finally {
       setSaving(false)
     }
@@ -377,11 +387,10 @@ export function QuickDialDialog({
     return `${mins}:${secs.toString().padStart(2, "0")}`
   }
 
-  const isCallActive =
-    callStatus === "calling" || callStatus === "ringing" || callStatus === "in_progress"
+  const isCallActive = callStatus === "calling" || callStatus === "ringing" || callStatus === "in_progress"
 
   const handleOpenChange = (value: boolean) => {
-    if (!value && isCallActive) return // prevent close during active call
+    if (!value && isCallActive) return
     onOpenChange(value)
   }
 
@@ -396,20 +405,47 @@ export function QuickDialDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Phase 1: Phone number input */}
+          {/* Phase 1: Phone input + dialpad row */}
           {callStatus === "idle" && (
             <div className="space-y-3">
               <div className="space-y-1.5">
                 <Label htmlFor="phone-input">Phone Number</Label>
-                <Input
-                  id="phone-input"
-                  placeholder="+1 555 000 0000"
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && makeCall()}
-                  autoFocus
-                />
+                <div className="flex gap-2">
+                  <Input
+                    id="phone-input"
+                    placeholder="+1 555 000 0000"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && makeCall()}
+                    autoFocus
+                    className="flex-1"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="shrink-0 text-muted-foreground hover:text-foreground"
+                    onClick={backspace}
+                    tabIndex={-1}
+                    disabled={!phoneNumber}
+                  >
+                    <Delete className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
+
+              {/* Dialpad row */}
+              <div className="flex gap-1.5">
+                {DIALPAD_KEYS.map((key) => (
+                  <button
+                    key={key}
+                    onClick={() => pressKey(key)}
+                    className="flex-1 h-9 rounded-md border border-border bg-secondary/40 hover:bg-secondary text-sm font-medium text-foreground transition-colors"
+                  >
+                    {key}
+                  </button>
+                ))}
+              </div>
+
               <Button
                 onClick={makeCall}
                 className="w-full"
@@ -434,23 +470,16 @@ export function QuickDialDialog({
                     {callStatus === "in_progress" && formatDuration(callDuration)}
                   </p>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  {callStatus === "calling" || callStatus === "ringing" ? (
-                    <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
-                  ) : (
-                    <span className="w-2 h-2 rounded-full bg-[hsl(100,78%,44%)] animate-pulse" />
-                  )}
-                </div>
+                <span className={cn(
+                  "w-2 h-2 rounded-full animate-pulse",
+                  callStatus === "in_progress" ? "bg-[hsl(100,78%,44%)]" : "bg-yellow-400"
+                )} />
               </div>
 
               <div className="space-y-2">
                 {callStatus === "in_progress" && (
                   <Button onClick={toggleMute} variant="outline" className="w-full">
-                    {isMuted ? (
-                      <><MicOff className="mr-2 h-4 w-4" /> Unmute</>
-                    ) : (
-                      <><Mic className="mr-2 h-4 w-4" /> Mute</>
-                    )}
+                    {isMuted ? <><MicOff className="mr-2 h-4 w-4" /> Unmute</> : <><Mic className="mr-2 h-4 w-4" /> Mute</>}
                   </Button>
                 )}
                 <Button onClick={endCall} variant="destructive" className="w-full" size="lg">
@@ -459,7 +488,6 @@ export function QuickDialDialog({
                 </Button>
               </div>
 
-              {/* Notes during call */}
               <div className="space-y-1.5">
                 <Label>Notes</Label>
                 <Textarea
@@ -478,15 +506,12 @@ export function QuickDialDialog({
               {/* Call info */}
               <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/40 border border-border">
                 <span className="text-sm font-medium">{phoneNumber}</span>
-                <span className="text-xs text-muted-foreground">
-                  Duration: {formatDuration(callDuration)}
-                </span>
+                <span className="text-xs text-muted-foreground">Duration: {formatDuration(callDuration)}</span>
               </div>
 
               {/* Outcome selection */}
               <div className="space-y-3">
                 <Label className="text-sm font-medium">Call Outcome</Label>
-
                 <div className="space-y-2">
                   <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium">Connected</p>
                   <div className="grid grid-cols-2 gap-2">
@@ -496,20 +521,13 @@ export function QuickDialDialog({
                       { value: "connected_not_interested", label: "Not Interested", icon: UserX },
                       { value: "connected_info_gathered", label: "Info Gathered", icon: UserCheck },
                     ] as { value: CallOutcome; label: string; icon: any }[]).map(({ value, label, icon: Icon }) => (
-                      <Button
-                        key={value}
-                        variant={selectedOutcome === value ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setSelectedOutcome(value)}
-                        className="justify-start text-xs h-8"
-                      >
-                        <Icon className="mr-1.5 h-3 w-3" />
-                        {label}
+                      <Button key={value} variant={selectedOutcome === value ? "default" : "outline"} size="sm"
+                        onClick={() => setSelectedOutcome(value)} className="justify-start text-xs h-8">
+                        <Icon className="mr-1.5 h-3 w-3" />{label}
                       </Button>
                     ))}
                   </div>
                 </div>
-
                 <div className="space-y-2">
                   <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium">Other</p>
                   <div className="grid grid-cols-2 gap-2">
@@ -521,15 +539,9 @@ export function QuickDialDialog({
                       { value: "wrong_number", label: "Wrong Number", icon: PhoneOff },
                       { value: "failed", label: "Failed", icon: PhoneOff },
                     ] as { value: CallOutcome; label: string; icon: any }[]).map(({ value, label, icon: Icon }) => (
-                      <Button
-                        key={value}
-                        variant={selectedOutcome === value ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setSelectedOutcome(value)}
-                        className="justify-start text-xs h-8"
-                      >
-                        <Icon className="mr-1.5 h-3 w-3" />
-                        {label}
+                      <Button key={value} variant={selectedOutcome === value ? "default" : "outline"} size="sm"
+                        onClick={() => setSelectedOutcome(value)} className="justify-start text-xs h-8">
+                        <Icon className="mr-1.5 h-3 w-3" />{label}
                       </Button>
                     ))}
                   </div>
@@ -551,30 +563,19 @@ export function QuickDialDialog({
               <div className="space-y-3">
                 <Label className="text-sm font-medium">Contact</Label>
                 <div className="grid grid-cols-3 gap-2">
-                  <Button
-                    variant={contactAction === "new" ? "default" : "outline"}
-                    size="sm"
+                  <Button variant={contactAction === "new" ? "default" : "outline"} size="sm"
                     onClick={() => setContactAction(contactAction === "new" ? null : "new")}
-                    className="text-xs h-8"
-                  >
-                    <UserPlus className="mr-1.5 h-3 w-3" />
-                    New contact
+                    className="text-xs h-8">
+                    <UserPlus className="mr-1.5 h-3 w-3" />New contact
                   </Button>
-                  <Button
-                    variant={contactAction === "existing" ? "default" : "outline"}
-                    size="sm"
+                  <Button variant={contactAction === "existing" ? "default" : "outline"} size="sm"
                     onClick={() => setContactAction(contactAction === "existing" ? null : "existing")}
-                    className="text-xs h-8"
-                  >
-                    <Search className="mr-1.5 h-3 w-3" />
-                    Existing
+                    className="text-xs h-8">
+                    <Search className="mr-1.5 h-3 w-3" />Existing
                   </Button>
-                  <Button
-                    variant={contactAction === "skip" ? "default" : "outline"}
-                    size="sm"
+                  <Button variant={contactAction === "skip" ? "default" : "outline"} size="sm"
                     onClick={() => setContactAction("skip")}
-                    className="text-xs h-8"
-                  >
+                    className="text-xs h-8">
                     Skip
                   </Button>
                 </div>
@@ -582,6 +583,7 @@ export function QuickDialDialog({
                 {/* New contact form */}
                 {contactAction === "new" && (
                   <div className="space-y-2 p-3 rounded-lg bg-secondary/30 border border-border">
+                    {/* Name field with duplicate suggestions */}
                     <div className="space-y-1.5">
                       <Label className="text-xs">Name <span className="text-destructive">*</span></Label>
                       <Input
@@ -591,17 +593,98 @@ export function QuickDialDialog({
                         className="h-8 text-sm"
                         autoFocus
                       />
+                      {/* Name match suggestions */}
+                      {nameSuggestions.length > 0 && (
+                        <div className="rounded-md border border-amber-500/30 bg-amber-500/5 overflow-hidden">
+                          <p className="text-[10px] text-amber-400 uppercase tracking-wide font-medium px-2.5 pt-2 pb-1">
+                            Possible matches in your contacts
+                          </p>
+                          {nameSuggestions.map((s) => (
+                            <button
+                              key={s.id}
+                              className="w-full text-left px-2.5 py-1.5 hover:bg-secondary/50 transition-colors flex items-center justify-between group"
+                              onClick={() => {
+                                setSelectedProspect(s)
+                                setContactAction("existing")
+                              }}
+                            >
+                              <span>
+                                <span className="text-[13px] font-medium">{s.name}</span>
+                                {(s.title || s.company) && (
+                                  <span className="text-[11px] text-muted-foreground ml-2">
+                                    {[s.title, s.company].filter(Boolean).join(" · ")}
+                                  </span>
+                                )}
+                              </span>
+                              <span className="text-[10px] text-amber-400 opacity-0 group-hover:opacity-100 shrink-0 ml-2">
+                                Use this one →
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
+
                     <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-1.5">
+                      {/* Company field with account autocomplete */}
+                      <div className="space-y-1.5 relative">
                         <Label className="text-xs">Company</Label>
-                        <Input
-                          placeholder="Company"
-                          value={newCompany}
-                          onChange={(e) => setNewCompany(e.target.value)}
-                          className="h-8 text-sm"
-                        />
+                        <div className="relative">
+                          {selectedAccountId && (
+                            <Building2 className="absolute left-2 top-2 h-3.5 w-3.5 text-accent pointer-events-none" />
+                          )}
+                          <Input
+                            placeholder="Company name"
+                            value={companyInput}
+                            onChange={(e) => {
+                              setCompanyInput(e.target.value)
+                              setSelectedAccountId(null)
+                            }}
+                            className={cn("h-8 text-sm", selectedAccountId && "pl-7 border-accent/50")}
+                          />
+                        </div>
+                        {/* Account dropdown */}
+                        {showAccountDropdown && !selectedAccountId && (
+                          <div className="absolute z-50 w-full rounded-md border border-border bg-popover shadow-md overflow-hidden">
+                            {accountSearchLoading ? (
+                              <p className="text-xs text-muted-foreground px-3 py-2">Searching...</p>
+                            ) : accountResults.length === 0 ? (
+                              <p className="text-xs text-muted-foreground px-3 py-2">No existing accounts — will create new</p>
+                            ) : (
+                              <>
+                                {accountResults.map((a) => (
+                                  <button
+                                    key={a.id}
+                                    className="w-full text-left px-3 py-2 hover:bg-secondary/50 border-b border-border last:border-0 transition-colors"
+                                    onMouseDown={(e) => {
+                                      e.preventDefault()
+                                      setCompanyInput(a.name)
+                                      setSelectedAccountId(a.id)
+                                      setShowAccountDropdown(false)
+                                    }}
+                                  >
+                                    <p className="text-[13px] font-medium">{a.name}</p>
+                                    {(a.industry || a.location) && (
+                                      <p className="text-[11px] text-muted-foreground">
+                                        {[a.industry, a.location].filter(Boolean).join(" · ")}
+                                      </p>
+                                    )}
+                                  </button>
+                                ))}
+                                <div className="px-3 py-1.5 border-t border-border">
+                                  <p className="text-[10px] text-muted-foreground">
+                                    Not seeing the right one? Keep typing or leave blank to create new.
+                                  </p>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )}
+                        {selectedAccountId && (
+                          <p className="text-[10px] text-accent mt-0.5">Pinned to existing account</p>
+                        )}
                       </div>
+
                       <div className="space-y-1.5">
                         <Label className="text-xs">Title</Label>
                         <Input
@@ -612,6 +695,7 @@ export function QuickDialDialog({
                         />
                       </div>
                     </div>
+
                     <div className="space-y-1.5">
                       <Label className="text-xs">Email</Label>
                       <Input
@@ -633,12 +717,9 @@ export function QuickDialDialog({
                       <Input
                         placeholder="Search by name, email, or company..."
                         value={prospectSearch}
-                        onChange={(e) => {
-                          setProspectSearch(e.target.value)
-                          setSelectedProspect(null)
-                        }}
+                        onChange={(e) => { setProspectSearch(e.target.value); setSelectedProspect(null) }}
                         className="h-8 text-sm pl-8"
-                        autoFocus
+                        autoFocus={!selectedProspect}
                       />
                     </div>
 
@@ -650,12 +731,7 @@ export function QuickDialDialog({
                             {[selectedProspect.title, selectedProspect.company].filter(Boolean).join(" · ")}
                           </p>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={() => setSelectedProspect(null)}
-                        >
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setSelectedProspect(null)}>
                           <X className="h-3 w-3" />
                         </Button>
                       </div>
@@ -672,10 +748,7 @@ export function QuickDialDialog({
                             <button
                               key={p.id}
                               className="w-full text-left px-3 py-2 hover:bg-secondary/50 border-b border-border last:border-0 transition-colors"
-                              onClick={() => {
-                                setSelectedProspect(p)
-                                setProspectSearch("")
-                              }}
+                              onClick={() => { setSelectedProspect(p); setProspectSearch("") }}
                             >
                               <p className="text-sm font-medium">{p.name}</p>
                               <p className="text-xs text-muted-foreground">
@@ -691,14 +764,9 @@ export function QuickDialDialog({
                 )}
               </div>
 
-              {/* Save button */}
+              {/* Save */}
               <div className="flex gap-2 pt-1">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => onOpenChange(false)}
-                  disabled={saving}
-                >
+                <Button variant="outline" className="flex-1" onClick={() => onOpenChange(false)} disabled={saving}>
                   Discard
                 </Button>
                 <Button
@@ -725,14 +793,7 @@ export function QuickDialDialog({
                 <p className="text-xs text-muted-foreground mt-1">The call could not be connected.</p>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setCallStatus("idle")
-                    setCallId(null)
-                    setCallDuration(0)
-                  }}
-                >
+                <Button variant="outline" onClick={() => { setCallStatus("idle"); setCallId(null); setCallDuration(0) }}>
                   Try Again
                 </Button>
                 <Button onClick={() => onOpenChange(false)}>Close</Button>

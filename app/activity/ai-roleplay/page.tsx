@@ -58,6 +58,8 @@ const CHARACTERS = {
     difficulty: "easy" as Difficulty,
     description: "Friendly and open. Gives you a fair shot — but still needs to see the value.",
     traits: ["Has 3 minutes", "Curious by nature", "One soft objection"],
+    tip: "Lead with a problem, not a product. He responds well to confidence and brevity. Handle his 'not a priority' objection with a specific reason why now — vague reassurance won't cut it.",
+    sampleQuestion: "Quick question — how are you currently handling [the problem you solve]?",
     avatarClass: "from-emerald-400 to-emerald-600",
     dotClass: "bg-emerald-500",
   },
@@ -71,6 +73,8 @@ const CHARACTERS = {
     difficulty: "medium" as Difficulty,
     description: "Busy and results-focused. No fluff — lead with proof or lose her.",
     traits: ["Results over features", "Two objections", "Wants hard numbers"],
+    tip: "She'll shut you down if you pitch without understanding her situation. Skip buzzwords — lead with a measurable outcome. When she objects, give her specifics, not promises.",
+    sampleQuestion: "Before I go further — what does your current process for [relevant area] look like?",
     avatarClass: "from-amber-400 to-amber-600",
     dotClass: "bg-amber-500",
   },
@@ -84,6 +88,8 @@ const CHARACTERS = {
     difficulty: "hard" as Difficulty,
     description: "Hostile to cold calls. Locked-in vendor, high BS radar, no patience.",
     traits: ["Locked-in contract", "Three objections", "Almost impossible"],
+    tip: "He will try to end the call in the first 10 seconds. Your only goal early on is to say something specific enough to earn 30 more. Never ramble, never be vague — one weak answer and he's gone.",
+    sampleQuestion: "I'll keep it short — are you currently using anything for [specific problem]?",
     avatarClass: "from-red-400 to-red-600",
     dotClass: "bg-red-500",
   },
@@ -613,6 +619,16 @@ export default function ColdCallPracticePage() {
                 {t}
               </div>
             ))}
+          </div>
+
+          {/* Tips box */}
+          <div className="w-full mt-4 p-3 rounded-lg bg-white/[0.03] border border-white/[0.06] space-y-2.5">
+            <p className="text-[10px] font-medium text-white/35 uppercase tracking-wider">Tips</p>
+            <p className="text-[11px] text-white/50 leading-relaxed">{character.tip}</p>
+            <div className="pt-1 border-t border-white/[0.05]">
+              <p className="text-[10px] text-white/30 mb-1">Try asking:</p>
+              <p className="text-[11px] text-white/45 italic leading-relaxed">"{character.sampleQuestion}"</p>
+            </div>
           </div>
 
           <div className="flex-1" />

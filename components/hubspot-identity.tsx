@@ -26,9 +26,11 @@ declare global {
 export function HubSpotIdentity() {
   const { user } = useUser()
   const [chatVisible, setChatVisible] = useState(false)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => setMounted(true), [])
 
   useEffect(() => {
-    // Prevent widget from auto-loading
     window.hsConversationsSettings = {
       ...window.hsConversationsSettings,
       loadImmediately: false,
@@ -50,16 +52,13 @@ export function HubSpotIdentity() {
       }
     }
 
-    // If user previously opened chat, restore the bubble (but don't re-open)
     if (localStorage.getItem(STORAGE_KEY) === "true") {
-      whenReady(() => { activate(false); setChatVisible(true) })
+      whenReady(() => activate(false))
     }
 
-    // Expose global so sidebar can trigger it
-    window.openHubSpotChat = () => whenReady(() => { activate(true); setChatVisible(true) })
+    window.openHubSpotChat = () => whenReady(() => activate(true))
   }, [])
 
-  // Pass identity once user is available
   useEffect(() => {
     if (!user?.email) return
     window.hsConversationsSettings = {
@@ -69,7 +68,7 @@ export function HubSpotIdentity() {
     }
   }, [user])
 
-  if (!chatVisible) return null
+  if (!chatVisible || !mounted) return null
 
   return createPortal(
     <button
@@ -79,7 +78,7 @@ export function HubSpotIdentity() {
         setChatVisible(false)
       }}
       style={{ zIndex: 2147483647 }}
-      className="fixed bottom-[76px] left-[16px] w-4 h-4 rounded-full bg-zinc-800 border border-white/20 flex items-center justify-center hover:bg-zinc-700 transition-colors"
+      className="fixed bottom-2 left-[112px] w-4 h-4 rounded-full bg-zinc-800 border border-white/20 flex items-center justify-center hover:bg-zinc-700 transition-colors"
       title="Hide chat"
     >
       <X className="h-2.5 w-2.5 text-white/70" />

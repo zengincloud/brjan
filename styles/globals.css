@@ -121,7 +121,6 @@
   pointer-events: none !important;
 }
 
-/* Re-enable clicks on the actual iframe (the bubble) */
 #hubspot-messages-iframe-container iframe {
   pointer-events: all !important;
 }

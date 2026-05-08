@@ -4,13 +4,14 @@ import { withSuperAdmin } from "@/lib/auth/api-middleware"
 
 export const dynamic = "force-dynamic"
 
-export const GET = withSuperAdmin(async (_request: NextRequest) => {
+export const GET = withSuperAdmin(async (_request: NextRequest, user) => {
   const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
 
   const [notableCalls, recentMeetings] = await Promise.all([
     prisma.call.findMany({
       where: {
         createdAt: { gte: oneDayAgo },
+        user: { organizationId: user.organizationId },
         outcome: {
           in: [
             "connected_intro_booked",
@@ -44,6 +45,7 @@ export const GET = withSuperAdmin(async (_request: NextRequest) => {
       where: {
         status: "meeting_scheduled",
         updatedAt: { gte: oneDayAgo },
+        user: { organizationId: user.organizationId },
       },
       orderBy: { updatedAt: "desc" },
       take: 20,

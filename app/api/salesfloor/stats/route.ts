@@ -4,12 +4,12 @@ import { withSuperAdmin } from "@/lib/auth/api-middleware"
 
 export const dynamic = "force-dynamic"
 
-export const GET = withSuperAdmin(async (_request: NextRequest) => {
+export const GET = withSuperAdmin(async (_request: NextRequest, user) => {
   const now = new Date()
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
 
   const users = await prisma.user.findMany({
-    where: { role: { not: "super_admin" } },
+    where: { organizationId: user.organizationId, role: { not: "super_admin" } },
     select: {
       id: true,
       email: true,

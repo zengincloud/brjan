@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -17,6 +17,9 @@ import {
   Trash2,
   Zap,
   Radio,
+  Headphones,
+  PhoneOff,
+  Clock,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -36,6 +39,19 @@ type FloorUser = {
     connectsToday: number
     meetingsBooked: number
   }
+}
+
+type ActiveCall = {
+  id: string
+  startedAt: string | null
+  user: {
+    id: string
+    firstName: string | null
+    lastName: string | null
+    email: string
+    avatarUrl: string | null
+  }
+  prospect: { name: string; company: string | null } | null
 }
 
 type ActivityEvent = {
@@ -72,6 +88,14 @@ function timeAgo(isoString: string): string {
   const hrs = Math.floor(mins / 60)
   if (hrs < 24) return `${hrs}h ago`
   return `${Math.floor(hrs / 24)}d ago`
+}
+
+function callDuration(startedAt: string | null): string {
+  if (!startedAt) return "0:00"
+  const secs = Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000)
+  const m = Math.floor(secs / 60)
+  const s = secs % 60
+  return `${m}:${String(s).padStart(2, "0")}`
 }
 
 function getInitials(user: Pick<FloorUser, "firstName" | "lastName" | "email">): string {
@@ -212,6 +236,111 @@ function UserCard({ user, rank }: { user: FloorUser; rank: number }) {
   )
 }
 
+function ActiveCallsSection({
+  calls,
+  listeningCallId,
+  deviceReady,
+  onListenIn,
+  onStopListening,
+}: {
+  calls: ActiveCall[]
+  listeningCallId: string | null
+  deviceReady: boolean
+  onListenIn: (callId: string) => void
+  onStopListening: () => void
+}) {
+  const [tick, setTick] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setTick((n) => n + 1), 1000)
+    return () => clearInterval(t)
+  }, [])
+
+  if (calls.length === 0) return null
+
+  return (
+    <div className="mb-6">
+      <div className="flex items-center gap-2 mb-3">
+        <span className="w-2 h-2 rounded-full bg-red-400 animate-pulse" />
+        <p className="text-[11px] font-medium text-white/40 uppercase tracking-wider">
+          Live Calls — {calls.length}
+        </p>
+      </div>
+      <div className="space-y-2">
+        {calls.map((call) => {
+          const isListening = listeningCallId === call.id
+          return (
+            <div
+              key={call.id}
+              className={cn(
+                "flex items-center gap-3 px-4 py-3 rounded-xl border transition-colors",
+                isListening
+                  ? "border-blue-500/30 bg-blue-500/[0.08]"
+                  : "border-red-500/20 bg-red-500/[0.04]"
+              )}
+            >
+              <div className="relative shrink-0">
+                <Avatar className="h-8 w-8">
+                  <AvatarImage src={call.user.avatarUrl || undefined} />
+                  <AvatarFallback className="bg-accent/20 text-accent text-xs font-bold">
+                    {getInitials(call.user)}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-card bg-red-400 animate-pulse" />
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] font-medium text-white/90 truncate">
+                  {getDisplayName(call.user)}
+                </p>
+                <p className="text-[11px] text-white/40 truncate">
+                  {call.prospect
+                    ? `${call.prospect.name}${call.prospect.company ? ` · ${call.prospect.company}` : ""}`
+                    : "Unknown prospect"}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-1 text-[11px] text-white/30">
+                  <Clock className="h-3 w-3" />
+                  <span className="font-mono">{callDuration(call.startedAt)}</span>
+                </div>
+
+                {isListening ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={onStopListening}
+                    className="h-7 px-3 text-[11px] border-blue-500/30 text-blue-400 hover:bg-blue-500/10 hover:text-blue-300"
+                  >
+                    <PhoneOff className="h-3 w-3 mr-1" />
+                    Stop
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onListenIn(call.id)}
+                    disabled={!deviceReady || listeningCallId !== null}
+                    className="h-7 px-3 text-[11px] border-white/10 text-white/50 hover:border-white/20 hover:text-white/80 disabled:opacity-30"
+                  >
+                    <Headphones className="h-3 w-3 mr-1" />
+                    Listen In
+                  </Button>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      {listeningCallId && (
+        <p className="text-[11px] text-blue-400/60 mt-2 text-center">
+          Listening in — muted, the rep cannot hear you
+        </p>
+      )}
+    </div>
+  )
+}
+
 function ActivityFeed({ events }: { events: ActivityEvent[] }) {
   if (events.length === 0) {
     return (
@@ -254,9 +383,6 @@ function ActivityFeed({ events }: { events: ActivityEvent[] }) {
                 <span className="text-[11px] text-white/25">
                   · {Math.floor(event.duration / 60)}:{String(event.duration % 60).padStart(2, "0")}
                 </span>
-              )}
-              {event.user.org && (
-                <span className="text-[11px] text-white/20">· {(event.user as any).org?.name}</span>
               )}
             </div>
           </div>
@@ -373,17 +499,34 @@ type Tab = "floor" | "activity" | "rooms"
 export function SalesfloorView() {
   const [tab, setTab] = useState<Tab>("floor")
   const [users, setUsers] = useState<FloorUser[]>([])
+  const [activeCalls, setActiveCalls] = useState<ActiveCall[]>([])
   const [events, setEvents] = useState<ActivityEvent[]>([])
   const [rooms, setRooms] = useState<Room[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date())
 
+  // Twilio Device for listen-in
+  const deviceRef = useRef<any>(null)
+  const activeConnectionRef = useRef<any>(null)
+  const [deviceReady, setDeviceReady] = useState(false)
+  const [listeningCallId, setListeningCallId] = useState<string | null>(null)
+
+  // ── Data loading ───────────────────────────────────────────────────────
+
   const loadStats = useCallback(async () => {
     const res = await fetch("/api/salesfloor/stats")
     if (res.ok) {
       const data = await res.json()
       setUsers(data.users || [])
+    }
+  }, [])
+
+  const loadActiveCalls = useCallback(async () => {
+    const res = await fetch("/api/salesfloor/active-calls")
+    if (res.ok) {
+      const data = await res.json()
+      setActiveCalls(data.calls || [])
     }
   }, [])
 
@@ -411,18 +554,90 @@ export function SalesfloorView() {
     if (showRefreshing) setRefreshing(true)
     else setLoading(true)
 
-    await Promise.all([loadStats(), loadActivity(), loadRooms()])
+    await Promise.all([loadStats(), loadActiveCalls(), loadActivity(), loadRooms()])
     setLastRefreshed(new Date())
 
     if (showRefreshing) setRefreshing(false)
     else setLoading(false)
-  }, [loadStats, loadActivity, loadRooms])
+  }, [loadStats, loadActiveCalls, loadActivity, loadRooms])
 
   useEffect(() => {
     loadAll()
     const interval = setInterval(() => loadAll(), 30_000)
     return () => clearInterval(interval)
   }, [loadAll])
+
+  // ── Twilio Device init (browser-only) ──────────────────────────────────
+
+  useEffect(() => {
+    let destroyed = false
+
+    async function initDevice() {
+      try {
+        const tokenRes = await fetch("/api/calls/token")
+        if (!tokenRes.ok) return
+        const { token } = await tokenRes.json()
+
+        // Dynamic import — avoids SSR issues
+        const { Device } = await import("@twilio/voice-sdk")
+        if (destroyed) return
+
+        const device = new Device(token, { logLevel: "error" })
+        await device.register()
+        if (destroyed) { device.destroy(); return }
+
+        deviceRef.current = device
+        setDeviceReady(true)
+
+        device.on("error", (err: Error) => {
+          console.error("[salesfloor] device error:", err)
+        })
+      } catch (err) {
+        console.error("[salesfloor] device init failed:", err)
+      }
+    }
+
+    initDevice()
+
+    return () => {
+      destroyed = true
+      if (deviceRef.current) {
+        deviceRef.current.destroy()
+        deviceRef.current = null
+      }
+      setDeviceReady(false)
+    }
+  }, [])
+
+  // ── Listen-in ──────────────────────────────────────────────────────────
+
+  const handleListenIn = useCallback(async (callId: string) => {
+    if (!deviceRef.current || !deviceReady) return
+    try {
+      const connection = await deviceRef.current.connect({
+        params: { role: "listener", callId },
+      })
+      activeConnectionRef.current = connection
+      setListeningCallId(callId)
+
+      connection.on("disconnect", () => {
+        activeConnectionRef.current = null
+        setListeningCallId(null)
+      })
+    } catch (err) {
+      console.error("[salesfloor] listen-in failed:", err)
+    }
+  }, [deviceReady])
+
+  const handleStopListening = useCallback(() => {
+    if (activeConnectionRef.current) {
+      activeConnectionRef.current.disconnect()
+      activeConnectionRef.current = null
+    }
+    setListeningCallId(null)
+  }, [])
+
+  // ── Rooms ──────────────────────────────────────────────────────────────
 
   const handleCreateRoom = useCallback(async (name: string, emoji: string) => {
     const res = await fetch("/api/salesfloor/rooms", {
@@ -441,7 +656,8 @@ export function SalesfloorView() {
     setRooms((prev) => prev.filter((r) => r.id !== id))
   }, [])
 
-  // Summary numbers
+  // ── Summary numbers ────────────────────────────────────────────────────
+
   const totalCallsToday = users.reduce((s, u) => s + u.stats.callsToday, 0)
   const totalConnectsToday = users.reduce((s, u) => s + u.stats.connectsToday, 0)
   const totalEmailsToday = users.reduce((s, u) => s + u.stats.emailsToday, 0)
@@ -471,7 +687,9 @@ export function SalesfloorView() {
             </Badge>
           </div>
           <p className="text-sm text-white/35">
-            {activeReps} active rep{activeReps !== 1 ? "s" : ""} today · refreshes every 30s
+            {activeReps} active rep{activeReps !== 1 ? "s" : ""} today
+            {activeCalls.length > 0 && ` · ${activeCalls.length} on a call right now`}
+            {" · "}refreshes every 30s
           </p>
         </div>
         <Button
@@ -546,6 +764,15 @@ export function SalesfloorView() {
         <>
           {tab === "floor" && (
             <div>
+              {/* Active calls at the top */}
+              <ActiveCallsSection
+                calls={activeCalls}
+                listeningCallId={listeningCallId}
+                deviceReady={deviceReady}
+                onListenIn={handleListenIn}
+                onStopListening={handleStopListening}
+              />
+
               {users.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20 text-center">
                   <Users className="h-10 w-10 text-white/10 mb-3" />
@@ -555,11 +782,18 @@ export function SalesfloorView() {
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {users.map((user, i) => (
-                    <UserCard key={user.id} user={user} rank={i + 1} />
-                  ))}
-                </div>
+                <>
+                  {activeCalls.length > 0 && (
+                    <p className="text-[11px] font-medium text-white/30 uppercase tracking-wider mb-3">
+                      Leaderboard
+                    </p>
+                  )}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {users.map((user, i) => (
+                      <UserCard key={user.id} user={user} rank={i + 1} />
+                    ))}
+                  </div>
+                </>
               )}
             </div>
           )}

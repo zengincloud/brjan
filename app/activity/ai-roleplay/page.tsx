@@ -303,7 +303,7 @@ export default function ColdCallPracticePage() {
   // ── Call flow ─────────────────────────────────────────────────────────────
 
   async function startCall() {
-    if (callsRemaining === 0 || isStarting) return
+    if (isStarting) return
     setIsStarting(true)
 
     try {

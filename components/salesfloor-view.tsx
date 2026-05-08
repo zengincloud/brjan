@@ -10,7 +10,6 @@ import {
   Phone,
   Mail,
   Users,
-  Trophy,
   Handshake,
   CalendarCheck,
   RefreshCw,

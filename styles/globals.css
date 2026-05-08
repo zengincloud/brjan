@@ -113,3 +113,15 @@
 .ProseMirror img {
   @apply max-w-full h-auto rounded;
 }
+
+/* Move HubSpot chat widget to bottom-left */
+#hubspot-messages-iframe-container {
+  left: 16px !important;
+  right: auto !important;
+  pointer-events: none !important;
+}
+
+/* Re-enable clicks on the actual iframe (the bubble) */
+#hubspot-messages-iframe-container iframe {
+  pointer-events: all !important;
+}

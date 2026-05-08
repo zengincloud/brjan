@@ -5,6 +5,7 @@ import { GeistMono } from "geist/font/mono"
 import { Toaster } from "@/components/ui/toaster"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { ToastContextProvider } from "@/components/ui/toast"
+import Script from "next/script"
 
 export const metadata = {
   title: "boilerroom.ai",
@@ -28,6 +29,7 @@ export default function RootLayout({
           <DashboardShell>{children}</DashboardShell>
           <Toaster />
         </ToastContextProvider>
+        <Script id="hs-script-loader" src="//js-na3.hs-scripts.com/342995899.js" strategy="afterInteractive" />
       </body>
     </html>
   )

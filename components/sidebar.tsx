@@ -27,6 +27,8 @@ import {
   Users,
   CircleDot,
   Dumbbell,
+  HelpCircle,
+  MessageCircle,
 } from "lucide-react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { useState } from "react"
@@ -34,6 +36,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
 import { useUser } from "@/hooks/use-user"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 function NavItem({
   href,
@@ -83,6 +86,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 export function Sidebar({ className }: { className?: string }) {
   const [isActivityOpen, setIsActivityOpen] = useState(false)
   const [isLinkedInOpen, setIsLinkedInOpen] = useState(false)
+  const [isHelpOpen, setIsHelpOpen] = useState(false)
   const { user, creditStatus, userRole, isLoading } = useUser()
   const pathname = usePathname()
 
@@ -222,6 +226,15 @@ export function Sidebar({ className }: { className?: string }) {
               </Link>
             )}
 
+            {/* Help & Support */}
+            <button
+              onClick={() => setIsHelpOpen(true)}
+              className="flex items-center justify-center w-full py-2 px-3 rounded-lg text-white/50 hover:text-white/80 hover:bg-white/[0.05] text-[13px] transition-colors"
+            >
+              <HelpCircle className="h-3.5 w-3.5 mr-2 shrink-0" />
+              Help & Support
+            </button>
+
             {/* Invite Team / Settings row */}
             <Link
               href="/settings?tab=team"
@@ -247,6 +260,57 @@ export function Sidebar({ className }: { className?: string }) {
           </>
         )}
       </div>
+
+<Dialog open={isHelpOpen} onOpenChange={setIsHelpOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Help & Support</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-2 pt-1">
+            <button
+              onClick={() => {
+                setIsHelpOpen(false)
+                window.openHubSpotChat?.()
+              }}
+              className="flex items-center gap-3 w-full px-4 py-3 rounded-lg border border-white/10 hover:bg-white/[0.05] transition-colors text-left"
+            >
+              <MessageCircle className="h-4 w-4 text-[hsl(100,78%,44%)] shrink-0" />
+              <div>
+                <p className="text-[13px] font-medium text-white/90">Live Chat</p>
+                <p className="text-[12px] text-white/40">Chat with our support team</p>
+              </div>
+            </button>
+
+            <a
+              href="https://mail.google.com/mail/?view=cm&to=sadid@boilerroom.ai"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setIsHelpOpen(false)}
+              className="flex items-center gap-3 w-full px-4 py-3 rounded-lg border border-white/10 hover:bg-white/[0.05] transition-colors"
+            >
+              <Mail className="h-4 w-4 text-[hsl(100,78%,44%)] shrink-0" />
+              <div>
+                <p className="text-[13px] font-medium text-white/90">Email the Founder</p>
+                <p className="text-[12px] text-white/40">sadid@boilerroom.ai</p>
+              </div>
+            </a>
+
+            <a
+              href="https://www.linkedin.com/in/sadid-rahimi/"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setIsHelpOpen(false)}
+              className="flex items-center gap-3 w-full px-4 py-3 rounded-lg border border-white/10 hover:bg-white/[0.05] transition-colors"
+            >
+              <Linkedin className="h-4 w-4 text-[hsl(100,78%,44%)] shrink-0" />
+              <div>
+                <p className="text-[13px] font-medium text-white/90">Connect on LinkedIn</p>
+                <p className="text-[12px] text-white/40">Message Sadid directly</p>
+              </div>
+            </a>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

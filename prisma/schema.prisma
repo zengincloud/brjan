@@ -52,6 +52,7 @@ model User {
   linkedInPendingMessages LinkedInPendingMessage[]
   linkedInCampaigns LinkedInCampaign[]
   mockCalls         MockCall[]
+  salesfloorPresence SalesfloorPresence?
 
   @@index([organizationId])
   @@map("users")
@@ -811,6 +812,15 @@ model SalesfloorRoom {
   updatedAt DateTime @updatedAt
 
   @@map("salesfloor_rooms")
+}
+
+model SalesfloorPresence {
+  id       String   @id @default(cuid())
+  userId   String   @unique
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastSeen DateTime @default(now())
+
+  @@map("salesfloor_presence")
 }
 
 model LinkedInCampaignProspect {

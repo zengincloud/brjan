@@ -65,10 +65,12 @@ import {
   Linkedin,
   Search,
   Plus,
+  Radio,
 } from "lucide-react"
 import { SendEmailDialog } from "@/components/send-email-dialog"
 import { GetNumberDialog } from "@/components/get-number-dialog"
 import { QuickDialDialog } from "@/components/quick-dial-dialog"
+import { SalesfloorSheet } from "@/components/salesfloor-sheet"
 import { Calendar as CalendarIcon, CalendarClock } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -212,6 +214,7 @@ export default function DialerPage() {
   const [emailDialogOpen, setEmailDialogOpen] = useState(false)
   const [emailProspect, setEmailProspect] = useState<{ id: string; name: string; email: string; title?: string; company?: string } | null>(null)
   const [quickDialOpen, setQuickDialOpen] = useState(false)
+  const [salesfloorOpen, setSalesfloorOpen] = useState(false)
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
   const [editingNoteType, setEditingNoteType] = useState<"prospect" | "account" | null>(null)
   const [apiProspects, setApiProspects] = useSessionState<DialerProspect[]>("dialer_api_prospects", [])
@@ -413,6 +416,18 @@ export default function DialerPage() {
       stopRingingSound()
     }
   }, [stopRingingSound])
+
+  // Salesfloor presence heartbeat — ping while on the dialer page
+  useEffect(() => {
+    fetch("/api/salesfloor/presence", { method: "POST" }).catch(() => {})
+    const interval = setInterval(() => {
+      fetch("/api/salesfloor/presence", { method: "POST" }).catch(() => {})
+    }, 30_000)
+    return () => {
+      clearInterval(interval)
+      fetch("/api/salesfloor/presence", { method: "DELETE" }).catch(() => {})
+    }
+  }, [])
 
   // Fetch call count for trial users to show limit banner
   useEffect(() => {
@@ -1787,6 +1802,15 @@ export default function DialerPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-[15px] font-semibold text-foreground">Power Dialer</h1>
         <div className="flex items-center gap-2">
+          {user?.role === "super_admin" && (
+            <button
+              onClick={() => setSalesfloorOpen(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-[hsl(100,78%,44%,0.08)] text-[hsl(100,78%,44%)] border border-[hsl(100,78%,44%,0.2)] hover:bg-[hsl(100,78%,44%,0.15)] transition-colors"
+            >
+              <Radio className="h-3 w-3" />
+              Salesfloor
+            </button>
+          )}
           {/* Device Status */}
           {deviceError && !deviceReady ? (
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-red-500/10 text-red-400 border border-red-500/20">
@@ -3812,6 +3836,8 @@ export default function DialerPage() {
       />
 
       <QuickDialDialog open={quickDialOpen} onOpenChange={setQuickDialOpen} />
+
+      <SalesfloorSheet open={salesfloorOpen} onOpenChange={setSalesfloorOpen} />
 
       {/* Callback date picker overlay */}
       {callbackPickerSlotId && (

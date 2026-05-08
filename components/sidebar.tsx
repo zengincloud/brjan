@@ -29,6 +29,7 @@ import {
   Dumbbell,
   HelpCircle,
   MessageCircle,
+  Radio,
 } from "lucide-react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { useState } from "react"
@@ -182,6 +183,7 @@ export function Sidebar({ className }: { className?: string }) {
         {userRole === "super_admin" && (
           <>
             <SectionLabel>Admin</SectionLabel>
+            <NavItem href="/salesfloor" icon={Radio} label="Salesfloor" active={pathname.startsWith("/salesfloor")} badge="beta" />
             <NavItem href="/admin" icon={Shield} label="Admin" active={pathname.startsWith("/admin")} />
           </>
         )}

@@ -4,7 +4,7 @@ import { withAuth } from "@/lib/auth/api-middleware"
 import { advanceSequenceStep } from "@/lib/sequences"
 import { pushContact, logCall as hubspotLogCall } from "@/lib/hubspot/client"
 import { getValidAccessToken } from "@/lib/hubspot/oauth"
-import { upsertLead, logCallTask } from "@/lib/salesforce/client"
+import { upsertLead, upsertAccount, logCallTask } from "@/lib/salesforce/client"
 import { getValidAccessToken as getSfToken } from "@/lib/salesforce/oauth"
 
 export const dynamic = 'force-dynamic'
@@ -247,8 +247,42 @@ export const PATCH = withAuth<{ params: { id: string } }>(async (
               })
             }
 
+            // Upsert account if prospect is linked to one
+            let sfAccountId: string | null = null
+            if (call.prospect!.accountId) {
+              const account = await prisma.account.findUnique({
+                where: { id: call.prospect!.accountId },
+                select: { id: true, name: true, industry: true, website: true, employees: true, location: true, insights: true },
+              })
+              if (account) {
+                const existingSfAccountId = (account.insights as any)?.salesforceAccountId
+                const sfAccount = existingSfAccountId
+                  ? { accountId: existingSfAccountId, created: false }
+                  : await upsertAccount(sfCreds.token, sfCreds.instanceUrl, {
+                      name: account.name,
+                      industry: account.industry,
+                      website: account.website,
+                      employees: account.employees,
+                      location: account.location,
+                    })
+                sfAccountId = sfAccount.accountId
+                if (sfAccount.created) {
+                  await prisma.account.update({
+                    where: { id: account.id },
+                    data: {
+                      insights: {
+                        ...(typeof account.insights === "object" && account.insights !== null ? account.insights : {}),
+                        salesforceAccountId: sfAccount.accountId,
+                      } as any,
+                    },
+                  })
+                }
+              }
+            }
+
             const taskResult = await logCallTask(sfCreds.token, sfCreds.instanceUrl, {
               leadId: sfData.leadId,
+              accountId: sfAccountId,
               outcome,
               notes,
               duration: updatedCall.duration,

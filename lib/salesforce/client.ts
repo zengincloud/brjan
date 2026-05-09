@@ -96,6 +96,60 @@ export async function upsertLead(
   return { leadId: data.id, created: true }
 }
 
+// Find an existing Salesforce Account by name
+async function findAccountByName(
+  token: string,
+  instanceUrl: string,
+  name: string
+): Promise<string | null> {
+  try {
+    const query = encodeURIComponent(
+      `SELECT Id FROM Account WHERE Name = '${name.replace(/'/g, "\\'")}' LIMIT 1`
+    )
+    const data = await sfFetch(token, instanceUrl, `/services/data/v59.0/query?q=${query}`)
+    return data?.records?.[0]?.Id || null
+  } catch {
+    return null
+  }
+}
+
+// Create or update a Salesforce Account from a Boilerroom Account
+export async function upsertAccount(
+  token: string,
+  instanceUrl: string,
+  account: {
+    name: string
+    industry?: string | null
+    website?: string | null
+    employees?: number | null
+    location?: string | null
+  }
+): Promise<{ accountId: string; created: boolean }> {
+  const fields: Record<string, string> = {
+    Name: account.name,
+  }
+  if (account.industry) fields.Industry = account.industry
+  if (account.website) fields.Website = account.website
+  if (account.employees) fields.NumberOfEmployees = String(account.employees)
+  if (account.location) fields.BillingCity = account.location.split(",")[0]?.trim() || ""
+
+  const existingId = await findAccountByName(token, instanceUrl, account.name)
+  if (existingId) {
+    await sfFetch(token, instanceUrl, `/services/data/v59.0/sobjects/Account/${existingId}`, {
+      method: "PATCH",
+      body: JSON.stringify(fields),
+    })
+    return { accountId: existingId, created: false }
+  }
+
+  const data = await sfFetch(token, instanceUrl, `/services/data/v59.0/sobjects/Account`, {
+    method: "POST",
+    body: JSON.stringify(fields),
+  })
+
+  return { accountId: data.id, created: true }
+}
+
 const callDispositionMap: Record<string, string> = {
   connected: "Connected",
   connected_intro_booked: "Connected",
@@ -117,6 +171,7 @@ export async function logCallTask(
   instanceUrl: string,
   params: {
     leadId: string
+    accountId?: string | null
     outcome: string
     notes?: string | null
     duration?: number | null
@@ -134,19 +189,22 @@ export async function logCallTask(
 
   const activityDate = (params.startedAt || new Date()).toISOString().split("T")[0]
 
+  const body: Record<string, any> = {
+    Subject: `Call - ${outcomeLabel}`,
+    Type: "Call",
+    Status: "Completed",
+    ActivityDate: activityDate,
+    WhoId: params.leadId,
+    CallType: "Outbound",
+    CallDisposition: callDispositionMap[params.outcome] || "Connected",
+    CallDurationInSeconds: params.duration || 0,
+    Description: description || "",
+  }
+  if (params.accountId) body.WhatId = params.accountId
+
   const data = await sfFetch(token, instanceUrl, `/services/data/v59.0/sobjects/Task`, {
     method: "POST",
-    body: JSON.stringify({
-      Subject: `Call - ${outcomeLabel}`,
-      Type: "Call",
-      Status: "Completed",
-      ActivityDate: activityDate,
-      WhoId: params.leadId,
-      CallType: "Outbound",
-      CallDisposition: callDispositionMap[params.outcome] || "Connected",
-      CallDurationInSeconds: params.duration || 0,
-      Description: description || "",
-    }),
+    body: JSON.stringify(body),
   })
 
   return { taskId: data.id }
@@ -158,6 +216,7 @@ export async function logEmailTask(
   instanceUrl: string,
   params: {
     leadId: string
+    accountId?: string | null
     subject: string
     bodyText: string
     sentAt?: Date | null
@@ -165,16 +224,19 @@ export async function logEmailTask(
 ): Promise<{ taskId: string }> {
   const activityDate = (params.sentAt || new Date()).toISOString().split("T")[0]
 
+  const body: Record<string, any> = {
+    Subject: `Email - ${params.subject}`,
+    Type: "Email",
+    Status: "Completed",
+    ActivityDate: activityDate,
+    WhoId: params.leadId,
+    Description: params.bodyText || "",
+  }
+  if (params.accountId) body.WhatId = params.accountId
+
   const data = await sfFetch(token, instanceUrl, `/services/data/v59.0/sobjects/Task`, {
     method: "POST",
-    body: JSON.stringify({
-      Subject: `Email - ${params.subject}`,
-      Type: "Email",
-      Status: "Completed",
-      ActivityDate: activityDate,
-      WhoId: params.leadId,
-      Description: params.bodyText || "",
-    }),
+    body: JSON.stringify(body),
   })
 
   return { taskId: data.id }

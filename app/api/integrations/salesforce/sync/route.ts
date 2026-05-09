@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
 import { withAuth } from "@/lib/auth/api-middleware"
 import { getValidAccessToken } from "@/lib/salesforce/oauth"
-import { upsertLead, logCallTask, logEmailTask } from "@/lib/salesforce/client"
+import { upsertLead, upsertAccount, logCallTask, logEmailTask } from "@/lib/salesforce/client"
 import { prisma } from "@/lib/prisma"
 
 export const dynamic = "force-dynamic"
-// Bulk syncs can take a while
 export const maxDuration = 60
 
 // POST /api/integrations/salesforce/sync
-// Bulk syncs all prospects, calls, and emails to Salesforce
+// Bulk syncs all accounts, prospects, calls, and emails to Salesforce
 export const POST = withAuth(async (request: NextRequest, userId: string) => {
   const sfCreds = await getValidAccessToken(userId)
   if (!sfCreds) {
@@ -17,12 +16,63 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
   }
 
   const results = {
+    accounts: { synced: 0, failed: 0 },
     prospects: { synced: 0, failed: 0 },
     calls: { synced: 0, skipped: 0, failed: 0 },
     emails: { synced: 0, skipped: 0, failed: 0 },
   }
 
-  // 1. Upsert all prospects as Leads
+  // 1. Upsert all Boilerroom Accounts as Salesforce Accounts
+  const accounts = await prisma.account.findMany({
+    where: { userId },
+    select: {
+      id: true,
+      name: true,
+      industry: true,
+      website: true,
+      employees: true,
+      location: true,
+      insights: true,
+    },
+  })
+
+  const accountIdMap = new Map<string, string>() // accountId → sfAccountId
+
+  for (const account of accounts) {
+    try {
+      const existingSfAccountId = (account.insights as any)?.salesforceAccountId
+      const sfData = existingSfAccountId
+        ? { accountId: existingSfAccountId, created: false }
+        : await upsertAccount(sfCreds.token, sfCreds.instanceUrl, {
+            name: account.name,
+            industry: account.industry,
+            website: account.website,
+            employees: account.employees,
+            location: account.location,
+          })
+
+      accountIdMap.set(account.id, sfData.accountId)
+
+      if (sfData.created) {
+        await prisma.account.update({
+          where: { id: account.id },
+          data: {
+            insights: {
+              ...(typeof account.insights === "object" && account.insights !== null ? account.insights : {}),
+              salesforceAccountId: sfData.accountId,
+            } as any,
+          },
+        })
+      }
+
+      results.accounts.synced++
+    } catch (err: any) {
+      console.error(`SF sync: account ${account.id} failed — ${err?.message}`)
+      results.accounts.failed++
+    }
+  }
+
+  // 2. Upsert all Prospects as Salesforce Leads
   const prospects = await prisma.prospect.findMany({
     where: { userId },
     select: {
@@ -33,6 +83,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       title: true,
       company: true,
       location: true,
+      accountId: true,
       wizaData: true,
     },
   })
@@ -74,7 +125,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
     }
   }
 
-  // 2. Sync calls that haven't been logged yet
+  // 3. Sync calls that haven't been logged yet
   const calls = await prisma.call.findMany({
     where: {
       userId,
@@ -84,6 +135,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
     select: {
       id: true,
       prospectId: true,
+      accountId: true,
       outcome: true,
       notes: true,
       duration: true,
@@ -106,8 +158,11 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
         continue
       }
 
+      const sfAccountId = call.accountId ? accountIdMap.get(call.accountId) : null
+
       const taskResult = await logCallTask(sfCreds.token, sfCreds.instanceUrl, {
         leadId,
+        accountId: sfAccountId,
         outcome: call.outcome!,
         notes: call.notes,
         duration: call.duration,
@@ -132,7 +187,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
     }
   }
 
-  // 3. Sync emails that haven't been logged yet
+  // 4. Sync emails that haven't been logged yet
   const emails = await prisma.email.findMany({
     where: {
       userId,
@@ -142,6 +197,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
     select: {
       id: true,
       prospectId: true,
+      accountId: true,
       subject: true,
       bodyText: true,
       sentAt: true,
@@ -162,8 +218,11 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
         continue
       }
 
+      const sfAccountId = email.accountId ? accountIdMap.get(email.accountId) : null
+
       const taskResult = await logEmailTask(sfCreds.token, sfCreds.instanceUrl, {
         leadId,
+        accountId: sfAccountId,
         subject: email.subject,
         bodyText: email.bodyText,
         sentAt: email.sentAt,

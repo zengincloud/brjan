@@ -6,6 +6,8 @@ import sgMail from "@sendgrid/mail"
 import { sendEmailViaGmail } from "@/lib/gmail/send"
 import { advanceSequenceStep } from "@/lib/sequences"
 import { replaceEmailVariables } from "@/lib/template-variables"
+import { upsertLead, logEmailTask } from "@/lib/salesforce/client"
+import { getValidAccessToken as getSfToken } from "@/lib/salesforce/oauth"
 
 export const dynamic = 'force-dynamic'
 
@@ -163,6 +165,52 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
         } else {
           console.error(`Failed to advance sequence:`, advanceResult.error)
         }
+      }
+
+      // Sync to Salesforce in background (non-blocking)
+      if (prospectId) {
+        getSfToken(userId).then((sfCreds) => {
+          if (!sfCreds) return
+          ;(async () => {
+            try {
+              const prospect = await prisma.prospect.findUnique({ where: { id: prospectId } })
+              if (!prospect) return
+
+              const existingSfLeadId = (prospect.wizaData as any)?.salesforceLeadId
+              const sfData = existingSfLeadId
+                ? { leadId: existingSfLeadId, created: false }
+                : await upsertLead(sfCreds.token, sfCreds.instanceUrl, {
+                    name: prospect.name,
+                    email: prospect.email,
+                    phone: prospect.phone,
+                    title: prospect.title,
+                    company: prospect.company,
+                    location: prospect.location,
+                  })
+
+              if (sfData.created) {
+                await prisma.prospect.update({
+                  where: { id: prospectId },
+                  data: {
+                    wizaData: {
+                      ...(typeof prospect.wizaData === "object" && prospect.wizaData !== null ? prospect.wizaData : {}),
+                      salesforceLeadId: sfData.leadId,
+                    } as any,
+                  },
+                })
+              }
+
+              await logEmailTask(sfCreds.token, sfCreds.instanceUrl, {
+                leadId: sfData.leadId,
+                subject: finalSubject,
+                bodyText: finalBodyText,
+                sentAt: new Date(),
+              })
+            } catch (err: any) {
+              console.error("Salesforce email sync error (non-blocking):", err?.message || err)
+            }
+          })()
+        })
       }
 
       return NextResponse.json({

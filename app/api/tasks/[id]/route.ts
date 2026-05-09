@@ -3,6 +3,8 @@ import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { withAuth } from "@/lib/auth/api-middleware"
 import { advanceSequenceStep } from "@/lib/sequences"
+import { upsertLead, logCallTask } from "@/lib/salesforce/client"
+import { getValidAccessToken as getSfToken } from "@/lib/salesforce/oauth"
 
 export const dynamic = 'force-dynamic'
 
@@ -109,6 +111,56 @@ export const PATCH = withAuth<{ params: { id: string } }>(async (
         } else {
           console.error(`Failed to advance sequence:`, advanceResult.error)
         }
+      }
+    }
+
+    // Sync completed task to Salesforce in background (non-blocking)
+    if (status === "done" && existingTask.status !== "done") {
+      const contact = existingTask.contact as any
+      const prospectId = contact?.prospectId
+      if (prospectId) {
+        getSfToken(userId).then((sfCreds) => {
+          if (!sfCreds) return
+          ;(async () => {
+            try {
+              const prospect = await prisma.prospect.findUnique({ where: { id: prospectId } })
+              if (!prospect) return
+
+              const existingSfLeadId = (prospect.wizaData as any)?.salesforceLeadId
+              const sfData = existingSfLeadId
+                ? { leadId: existingSfLeadId, created: false }
+                : await upsertLead(sfCreds.token, sfCreds.instanceUrl, {
+                    name: prospect.name,
+                    email: prospect.email,
+                    phone: prospect.phone,
+                    title: prospect.title,
+                    company: prospect.company,
+                    location: prospect.location,
+                  })
+
+              if (sfData.created) {
+                await prisma.prospect.update({
+                  where: { id: prospectId },
+                  data: {
+                    wizaData: {
+                      ...(typeof prospect.wizaData === "object" && prospect.wizaData !== null ? prospect.wizaData : {}),
+                      salesforceLeadId: sfData.leadId,
+                    } as any,
+                  },
+                })
+              }
+
+              await logCallTask(sfCreds.token, sfCreds.instanceUrl, {
+                leadId: sfData.leadId,
+                outcome: existingTask.type,
+                notes: `${existingTask.title}\n\n${existingTask.description}`,
+                startedAt: new Date(),
+              })
+            } catch (err: any) {
+              console.error("Salesforce task sync error (non-blocking):", err?.message || err)
+            }
+          })()
+        })
       }
     }
 

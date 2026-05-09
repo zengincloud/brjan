@@ -152,6 +152,34 @@ export async function logCallTask(
   return { taskId: data.id }
 }
 
+// Log a sent email as a Salesforce Task linked to a Lead
+export async function logEmailTask(
+  token: string,
+  instanceUrl: string,
+  params: {
+    leadId: string
+    subject: string
+    bodyText: string
+    sentAt?: Date | null
+  }
+): Promise<{ taskId: string }> {
+  const activityDate = (params.sentAt || new Date()).toISOString().split("T")[0]
+
+  const data = await sfFetch(token, instanceUrl, `/services/data/v59.0/sobjects/Task`, {
+    method: "POST",
+    body: JSON.stringify({
+      Subject: `Email - ${params.subject}`,
+      Type: "Email",
+      Status: "Completed",
+      ActivityDate: activityDate,
+      WhoId: params.leadId,
+      Description: params.bodyText || "",
+    }),
+  })
+
+  return { taskId: data.id }
+}
+
 // Fetch Leads owned by the connected Salesforce user (for import)
 export async function fetchOwnedLeads(
   token: string,

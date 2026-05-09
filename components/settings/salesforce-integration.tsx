@@ -84,12 +84,19 @@ export function SalesforceIntegration() {
 
   const handleConnect = async () => {
     setIsConnecting(true)
+    // Open the popup immediately in the click handler before any async work
+    // so the browser doesn't treat it as a blocked popup
+    const popup = window.open("about:blank", "_blank", "noopener,noreferrer")
     try {
       const res = await fetch("/api/integrations/salesforce/connect")
       const data = await res.json()
 
       if (data.authUrl) {
-        window.open(data.authUrl, "_blank", "noopener,noreferrer")
+        if (popup) {
+          popup.location.href = data.authUrl
+        } else {
+          window.open(data.authUrl, "_blank", "noopener,noreferrer")
+        }
 
         const pollInterval = setInterval(async () => {
           const newStatus = await fetchStatus()
@@ -116,9 +123,11 @@ export function SalesforceIntegration() {
         }
         window.addEventListener("focus", handleFocus)
       } else {
+        popup?.close()
         throw new Error(data.error || "No auth URL received")
       }
     } catch (error: any) {
+      popup?.close()
       console.error("Failed to initiate Salesforce connection:", error)
       toast.error(error.message || "Failed to connect Salesforce")
       setIsConnecting(false)

@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useSearchParams } from "next/navigation"
+import { useState, useEffect, useCallback } from "react"
+import { useSearchParams, useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -50,7 +50,13 @@ function ManageSubscriptionButton() {
 
 export default function SettingsPage() {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const [activeTab, setActiveTab] = useState(() => searchParams.get("tab") ?? "profile")
+
+  const handleTabChange = useCallback((id: string) => {
+    setActiveTab(id)
+    router.replace(`/settings?tab=${id}`, { scroll: false })
+  }, [router])
   const [deliverabilityOpen, setDeliverabilityOpen] = useState(true)
   const [callingOpen, setCallingOpen] = useState(true)
   const [currentPassword, setCurrentPassword] = useState("")
@@ -213,7 +219,7 @@ export default function SettingsPage() {
   const navBtn = (id: string, label: string) => (
     <button
       key={id}
-      onClick={() => setActiveTab(id)}
+      onClick={() => handleTabChange(id)}
       className={`text-left px-4 py-2 text-sm rounded-md mx-2 transition-colors ${
         activeTab === id
           ? "bg-secondary text-foreground font-medium"
@@ -249,7 +255,7 @@ export default function SettingsPage() {
                 {deliverabilityItems.map((item) => (
                   <button
                     key={item.id}
-                    onClick={() => setActiveTab(item.id)}
+                    onClick={() => handleTabChange(item.id)}
                     className={`text-left px-4 py-1.5 text-sm rounded-md mx-2 transition-colors ${
                       activeTab === item.id
                         ? "bg-secondary text-foreground font-medium"
@@ -280,7 +286,7 @@ export default function SettingsPage() {
                 {callingItems.map((item) => (
                   <button
                     key={item.id}
-                    onClick={() => setActiveTab(item.id)}
+                    onClick={() => handleTabChange(item.id)}
                     className={`text-left px-4 py-1.5 text-sm rounded-md mx-2 transition-colors ${
                       activeTab === item.id
                         ? "bg-secondary text-foreground font-medium"

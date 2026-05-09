@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Check, Loader2, AlertCircle, ExternalLink, X } from "lucide-react"
+import { Check, Loader2, AlertCircle, ExternalLink, X, Download } from "lucide-react"
 import { toast } from "sonner"
 
 function SalesforceIcon({ className }: { className?: string }) {
@@ -40,6 +40,7 @@ export function SalesforceIntegration() {
   const [isLoading, setIsLoading] = useState(true)
   const [isConnecting, setIsConnecting] = useState(false)
   const [isDisconnecting, setIsDisconnecting] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -121,6 +122,20 @@ export function SalesforceIntegration() {
       console.error("Failed to initiate Salesforce connection:", error)
       toast.error(error.message || "Failed to connect Salesforce")
       setIsConnecting(false)
+    }
+  }
+
+  const handleImportLeads = async () => {
+    setIsImporting(true)
+    try {
+      const res = await fetch("/api/integrations/salesforce/import-leads", { method: "POST" })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Import failed")
+      toast.success(`Imported ${data.imported} lead${data.imported !== 1 ? "s" : ""} from Salesforce${data.skipped ? ` (${data.skipped} already existed)` : ""}`)
+    } catch (error: any) {
+      toast.error(error.message || "Failed to import Salesforce leads")
+    } finally {
+      setIsImporting(false)
     }
   }
 
@@ -209,19 +224,34 @@ export function SalesforceIntegration() {
                 </p>
               </div>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleDisconnect}
-              disabled={isDisconnecting}
-            >
-              {isDisconnecting ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
-              ) : (
-                <X className="h-3.5 w-3.5 mr-1.5" />
-              )}
-              Disconnect
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleImportLeads}
+                disabled={isImporting}
+              >
+                {isImporting ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                ) : (
+                  <Download className="h-3.5 w-3.5 mr-1.5" />
+                )}
+                {isImporting ? "Importing..." : "Import Leads"}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDisconnect}
+                disabled={isDisconnecting}
+              >
+                {isDisconnecting ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                ) : (
+                  <X className="h-3.5 w-3.5 mr-1.5" />
+                )}
+                Disconnect
+              </Button>
+            </div>
           </div>
         ) : status?.connected && status.integration && !status.integration.tokenValid ? (
           <div className="flex items-center justify-between p-3 border border-yellow-500/30 bg-yellow-500/5 rounded-lg">

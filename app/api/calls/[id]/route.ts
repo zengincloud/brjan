@@ -4,6 +4,8 @@ import { withAuth } from "@/lib/auth/api-middleware"
 import { advanceSequenceStep } from "@/lib/sequences"
 import { pushContact, logCall as hubspotLogCall } from "@/lib/hubspot/client"
 import { getValidAccessToken } from "@/lib/hubspot/oauth"
+import { upsertLead, logCallTask } from "@/lib/salesforce/client"
+import { getValidAccessToken as getSfToken } from "@/lib/salesforce/oauth"
 
 export const dynamic = 'force-dynamic'
 
@@ -206,6 +208,72 @@ export const PATCH = withAuth<{ params: { id: string } }>(async (
       })
     } else if (outcome) {
       console.log(`HubSpot: skipping sync - no prospect linked to call ${params.id}`)
+    }
+
+    // Sync to Salesforce in background (non-blocking)
+    if (outcome && call.prospect) {
+      getSfToken(userId).then((sfCreds) => {
+        if (!sfCreds) {
+          console.log("Salesforce: no valid token, skipping sync")
+          return
+        }
+        console.log(`Salesforce: syncing call outcome "${outcome}" for prospect ${call.prospectId}`)
+        ;(async () => {
+          try {
+            const existingSfLeadId = (call.prospect!.wizaData as any)?.salesforceLeadId
+            const sfData = existingSfLeadId
+              ? { leadId: existingSfLeadId, created: false }
+              : await upsertLead(sfCreds.token, sfCreds.instanceUrl, {
+                  name: call.prospect!.name,
+                  email: call.prospect!.email,
+                  phone: call.prospect!.phone,
+                  title: call.prospect!.title,
+                  company: call.prospect!.company,
+                  linkedin: call.prospect!.linkedin,
+                  location: call.prospect!.location,
+                })
+
+            console.log(`Salesforce: lead ${sfData.leadId} (created=${sfData.created})`)
+
+            if (sfData.created && call.prospectId) {
+              await prisma.prospect.update({
+                where: { id: call.prospectId },
+                data: {
+                  wizaData: {
+                    ...(typeof call.prospect!.wizaData === "object" && call.prospect!.wizaData !== null ? call.prospect!.wizaData : {}),
+                    salesforceLeadId: sfData.leadId,
+                  } as any,
+                },
+              })
+            }
+
+            const taskResult = await logCallTask(sfCreds.token, sfCreds.instanceUrl, {
+              leadId: sfData.leadId,
+              outcome,
+              notes,
+              duration: updatedCall.duration,
+              startedAt: updatedCall.startedAt,
+              transcription: updatedCall.transcription,
+            })
+
+            await prisma.call.update({
+              where: { id: params.id },
+              data: {
+                metadata: {
+                  ...(typeof updatedCall.metadata === "object" && updatedCall.metadata !== null ? updatedCall.metadata : {}),
+                  salesforceTaskId: taskResult.taskId,
+                } as any,
+              },
+            })
+
+            console.log(`Salesforce: logged call task ${taskResult.taskId} for prospect ${call.prospectId}`)
+          } catch (err: any) {
+            console.error("Salesforce sync error (non-blocking):", err?.message || err)
+          }
+        })()
+      })
+    } else if (outcome) {
+      console.log(`Salesforce: skipping sync - no prospect linked to call ${params.id}`)
     }
 
     return NextResponse.json({ call: updatedCall, sequenceAdvanced })

@@ -59,7 +59,14 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const tokens = await exchangeCodeForTokens(code)
+    const codeVerifier = request.cookies.get("salesforce_pkce_verifier")?.value
+    if (!codeVerifier) {
+      return NextResponse.redirect(
+        `${origin}/settings?tab=integrations&salesforce_error=missing_verifier`
+      )
+    }
+
+    const tokens = await exchangeCodeForTokens(code, codeVerifier)
 
     if (!tokens.access_token || !tokens.refresh_token) {
       return NextResponse.redirect(
@@ -73,6 +80,7 @@ export async function GET(request: NextRequest) {
       `${origin}/settings?tab=integrations&salesforce_success=true`
     )
     response.cookies.delete("salesforce_oauth_state")
+    response.cookies.delete("salesforce_pkce_verifier")
 
     return response
   } catch (error: any) {

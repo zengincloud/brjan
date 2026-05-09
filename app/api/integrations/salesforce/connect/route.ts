@@ -21,10 +21,23 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
     const stateData = JSON.stringify({ userId, nonce })
     const encodedState = Buffer.from(stateData).toString("base64url")
 
-    const authUrl = getAuthUrl(encodedState)
+    // PKCE
+    const codeVerifier = crypto.randomBytes(32).toString("base64url")
+    const codeChallenge = crypto
+      .createHash("sha256")
+      .update(codeVerifier)
+      .digest("base64url")
+
+    const authUrl = getAuthUrl(encodedState, codeChallenge)
 
     const response = NextResponse.json({ authUrl })
     response.cookies.set("salesforce_oauth_state", encodedState, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 600,
+    })
+    response.cookies.set("salesforce_pkce_verifier", codeVerifier, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",

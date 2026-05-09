@@ -18,19 +18,21 @@ function getRedirectUri(): string {
   return process.env.SALESFORCE_REDIRECT_URI || ""
 }
 
-export function getAuthUrl(state: string): string {
+export function getAuthUrl(state: string, codeChallenge: string): string {
   const params = new URLSearchParams({
     client_id: getClientId(),
     redirect_uri: getRedirectUri(),
     response_type: "code",
     scope: SCOPES.join(" "),
     state,
+    code_challenge: codeChallenge,
+    code_challenge_method: "S256",
   })
 
   return `${SF_AUTH_URL}?${params.toString()}`
 }
 
-export async function exchangeCodeForTokens(code: string) {
+export async function exchangeCodeForTokens(code: string, codeVerifier: string) {
   const res = await fetch(SF_TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -40,6 +42,7 @@ export async function exchangeCodeForTokens(code: string) {
       client_secret: getClientSecret(),
       redirect_uri: getRedirectUri(),
       code,
+      code_verifier: codeVerifier,
     }),
   })
 

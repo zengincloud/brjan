@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Check, Loader2, AlertCircle, ExternalLink, X, Download } from "lucide-react"
+import { Check, Loader2, AlertCircle, ExternalLink, X, Download, RefreshCw } from "lucide-react"
 import { toast } from "sonner"
 
 function SalesforceIcon({ className }: { className?: string }) {
@@ -41,6 +41,7 @@ export function SalesforceIntegration() {
   const [isConnecting, setIsConnecting] = useState(false)
   const [isDisconnecting, setIsDisconnecting] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
+  const [isSyncing, setIsSyncing] = useState(false)
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -148,6 +149,23 @@ export function SalesforceIntegration() {
     }
   }
 
+  const handleSyncAll = async () => {
+    setIsSyncing(true)
+    try {
+      const res = await fetch("/api/integrations/salesforce/sync", { method: "POST" })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Sync failed")
+      const { results } = data
+      toast.success(
+        `Sync complete — ${results.prospects.synced} prospects, ${results.calls.synced} calls, ${results.emails.synced} emails pushed to Salesforce`
+      )
+    } catch (error: any) {
+      toast.error(error.message || "Failed to sync to Salesforce")
+    } finally {
+      setIsSyncing(false)
+    }
+  }
+
   const handleDisconnect = async () => {
     setIsDisconnecting(true)
     try {
@@ -234,6 +252,19 @@ export function SalesforceIntegration() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSyncAll}
+                disabled={isSyncing}
+              >
+                {isSyncing ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                ) : (
+                  <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                )}
+                {isSyncing ? "Syncing..." : "Sync All"}
+              </Button>
               <Button
                 variant="outline"
                 size="sm"

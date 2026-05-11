@@ -1,5 +1,13 @@
 import { getValidAccessToken } from "./oauth"
 
+class SalesforceDuplicateError extends Error {
+  existingId: string
+  constructor(existingId: string) {
+    super("DUPLICATES_DETECTED")
+    this.existingId = existingId
+  }
+}
+
 async function sfFetch(
   token: string,
   instanceUrl: string,
@@ -17,6 +25,17 @@ async function sfFetch(
 
   if (!res.ok) {
     const errBody = await res.text().catch(() => "")
+    // Extract existing record ID from duplicate detection error
+    try {
+      const parsed = JSON.parse(errBody)
+      const first = Array.isArray(parsed) ? parsed[0] : parsed
+      if (first?.errorCode === "DUPLICATES_DETECTED") {
+        const existingId = first?.duplicateResult?.matchResults?.[0]?.matchRecords?.[0]?.record?.Id
+        if (existingId) throw new SalesforceDuplicateError(existingId)
+      }
+    } catch (e) {
+      if (e instanceof SalesforceDuplicateError) throw e
+    }
     throw new Error(`Salesforce API error ${res.status}: ${errBody}`)
   }
 
@@ -88,12 +107,19 @@ export async function upsertLead(
     }
   }
 
-  const data = await sfFetch(token, instanceUrl, `/services/data/v59.0/sobjects/Lead`, {
-    method: "POST",
-    body: JSON.stringify(fields),
-  })
-
-  return { leadId: data.id, created: true }
+  try {
+    const data = await sfFetch(token, instanceUrl, `/services/data/v59.0/sobjects/Lead`, {
+      method: "POST",
+      body: JSON.stringify(fields),
+    })
+    return { leadId: data.id, created: true }
+  } catch (err) {
+    // Salesforce duplicate rule blocked creation — use the existing lead
+    if (err instanceof SalesforceDuplicateError) {
+      return { leadId: err.existingId, created: false }
+    }
+    throw err
+  }
 }
 
 // Find an existing Salesforce Account by name
@@ -142,12 +168,18 @@ export async function upsertAccount(
     return { accountId: existingId, created: false }
   }
 
-  const data = await sfFetch(token, instanceUrl, `/services/data/v59.0/sobjects/Account`, {
-    method: "POST",
-    body: JSON.stringify(fields),
-  })
-
-  return { accountId: data.id, created: true }
+  try {
+    const data = await sfFetch(token, instanceUrl, `/services/data/v59.0/sobjects/Account`, {
+      method: "POST",
+      body: JSON.stringify(fields),
+    })
+    return { accountId: data.id, created: true }
+  } catch (err) {
+    if (err instanceof SalesforceDuplicateError) {
+      return { accountId: err.existingId, created: false }
+    }
+    throw err
+  }
 }
 
 const callDispositionMap: Record<string, string> = {

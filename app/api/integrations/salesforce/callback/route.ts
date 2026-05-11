@@ -17,8 +17,10 @@ export async function GET(request: NextRequest) {
   const origin = request.nextUrl.origin
 
   if (error) {
+    const errorDescription = searchParams.get("error_description") || ""
+    console.error("SF callback: Salesforce returned error:", error, "| description:", errorDescription)
     return NextResponse.redirect(
-      `${origin}/settings?tab=integrations&salesforce_error=access_denied`
+      `${origin}/settings?tab=integrations&salesforce_error=${encodeURIComponent(error)}&salesforce_error_description=${encodeURIComponent(errorDescription)}`
     )
   }
 

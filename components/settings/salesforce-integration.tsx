@@ -71,6 +71,7 @@ export function SalesforceIntegration() {
     }
     if (params.get("salesforce_error")) {
       const error = params.get("salesforce_error")
+      const description = params.get("salesforce_error_description")
       const errorMessages: Record<string, string> = {
         access_denied: "You declined the Salesforce connection request",
         missing_params: "Missing OAuth parameters",
@@ -79,7 +80,9 @@ export function SalesforceIntegration() {
         token_error: "Failed to get Salesforce tokens",
         callback_failed: "OAuth callback failed",
       }
-      const msg = errorMessages[error!] || `Salesforce connection failed: ${error}`
+      const msg = description
+        ? `Salesforce error: ${description}`
+        : errorMessages[error!] || `Salesforce connection failed: ${error}`
       setAuthError(msg)
       window.history.replaceState({}, "", "/settings?tab=integrations")
     }

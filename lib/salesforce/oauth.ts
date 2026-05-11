@@ -15,7 +15,7 @@ function getClientSecret(): string {
 }
 
 function getRedirectUri(): string {
-  return process.env.SALESFORCE_REDIRECT_URI || ""
+  return (process.env.SALESFORCE_REDIRECT_URI || "").trim()
 }
 
 export function getAuthUrl(state: string, codeChallenge: string): string {

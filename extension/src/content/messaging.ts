@@ -1144,7 +1144,7 @@ async function initMessagingSync() {
   }, 3000)
 
   if (!syncInterval) syncInterval = setInterval(doSync, 30000)
-  if (!pendingInterval) pendingInterval = setInterval(checkPendingMessages, 300000)
+  if (!pendingInterval) pendingInterval = setInterval(checkPendingMessages, 86400000)
 }
 
 // Handle URL changes (LinkedIn SPA navigation)

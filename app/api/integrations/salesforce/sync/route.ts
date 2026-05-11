@@ -31,10 +31,10 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
   }
 
   const results = {
-    accounts: { synced: 0, failed: 0 },
-    prospects: { synced: 0, failed: 0 },
-    calls: { synced: 0, skipped: 0, failed: 0 },
-    emails: { synced: 0, skipped: 0, failed: 0 },
+    accounts: { synced: 0, failed: 0, errors: [] as string[] },
+    prospects: { synced: 0, failed: 0, errors: [] as string[] },
+    calls: { synced: 0, skipped: 0, failed: 0, errors: [] as string[] },
+    emails: { synced: 0, skipped: 0, failed: 0, errors: [] as string[] },
   }
 
   // 1. Upsert Accounts — only ones not yet synced (first 50 per run)
@@ -74,7 +74,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
   const accountResults = await runConcurrent(accountTasks)
   accountResults.forEach((r) => {
     if (r.status === "fulfilled") results.accounts.synced++
-    else { results.accounts.failed++; console.error("SF sync account:", (r as any).reason?.message) }
+    else { results.accounts.failed++; results.accounts.errors.push((r as any).reason?.message) }
   })
 
   // 2. Upsert Prospects as Leads — only ones not yet synced (up to 200 per run)
@@ -116,7 +116,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
   const prospectResults = await runConcurrent(prospectTasks)
   prospectResults.forEach((r) => {
     if (r.status === "fulfilled") results.prospects.synced++
-    else { results.prospects.failed++; console.error("SF sync prospect:", (r as any).reason?.message) }
+    else { results.prospects.failed++; results.prospects.errors.push((r as any).reason?.message) }
   })
 
   // 3. Sync calls not yet logged
@@ -159,7 +159,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
   const callResults = await runConcurrent(callTasks)
   callResults.forEach((r) => {
     if (r.status === "fulfilled") results.calls.synced++
-    else { results.calls.failed++; console.error("SF sync call:", (r as any).reason?.message) }
+    else { results.calls.failed++; results.calls.errors.push((r as any).reason?.message) }
   })
 
   // 4. Sync emails not yet logged
@@ -200,7 +200,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
   const emailResults = await runConcurrent(emailTasks)
   emailResults.forEach((r) => {
     if (r.status === "fulfilled") results.emails.synced++
-    else { results.emails.failed++; console.error("SF sync email:", (r as any).reason?.message) }
+    else { results.emails.failed++; results.emails.errors.push((r as any).reason?.message) }
   })
 
   return NextResponse.json({ success: true, results })

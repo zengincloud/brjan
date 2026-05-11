@@ -42,6 +42,7 @@ export function SalesforceIntegration() {
   const [isDisconnecting, setIsDisconnecting] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
   const [isSyncing, setIsSyncing] = useState(false)
+  const [authError, setAuthError] = useState<string | null>(null)
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -78,57 +79,24 @@ export function SalesforceIntegration() {
         token_error: "Failed to get Salesforce tokens",
         callback_failed: "OAuth callback failed",
       }
-      toast.error(errorMessages[error!] || `Salesforce connection failed: ${error}`)
+      const msg = errorMessages[error!] || `Salesforce connection failed: ${error}`
+      setAuthError(msg)
       window.history.replaceState({}, "", "/settings?tab=integrations")
     }
   }, [fetchStatus])
 
   const handleConnect = async () => {
     setIsConnecting(true)
-    // Open the popup immediately in the click handler before any async work
-    // so the browser doesn't treat it as a blocked popup
-    const popup = window.open("about:blank", "_blank", "noopener,noreferrer")
     try {
       const res = await fetch("/api/integrations/salesforce/connect")
       const data = await res.json()
 
       if (data.authUrl) {
-        if (popup) {
-          popup.location.href = data.authUrl
-        } else {
-          window.open(data.authUrl, "_blank", "noopener,noreferrer")
-        }
-
-        const pollInterval = setInterval(async () => {
-          const newStatus = await fetchStatus()
-          if (newStatus?.connected) {
-            clearInterval(pollInterval)
-            setIsConnecting(false)
-            toast.success("Salesforce connected successfully!")
-          }
-        }, 2000)
-
-        setTimeout(() => {
-          clearInterval(pollInterval)
-          setIsConnecting(false)
-        }, 5 * 60 * 1000)
-
-        const handleFocus = async () => {
-          const newStatus = await fetchStatus()
-          if (newStatus?.connected) {
-            clearInterval(pollInterval)
-            setIsConnecting(false)
-            window.removeEventListener("focus", handleFocus)
-            toast.success("Salesforce connected successfully!")
-          }
-        }
-        window.addEventListener("focus", handleFocus)
+        window.location.href = data.authUrl
       } else {
-        popup?.close()
         throw new Error(data.error || "No auth URL received")
       }
     } catch (error: any) {
-      popup?.close()
       console.error("Failed to initiate Salesforce connection:", error)
       toast.error(error.message || "Failed to connect Salesforce")
       setIsConnecting(false)
@@ -341,6 +309,12 @@ export function SalesforceIntegration() {
               )}
               {isConnecting ? "Connecting..." : "Connect"}
             </Button>
+          </div>
+        )}
+        {authError && (
+          <div className="flex items-center gap-2 p-3 mb-3 border border-red-500/30 bg-red-500/10 rounded-lg text-sm text-red-600">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            <span>{authError}</span>
           </div>
         )}
         <div className="text-sm text-muted-foreground bg-secondary/30 p-3 rounded-lg">

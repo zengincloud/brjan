@@ -303,6 +303,16 @@ export function HubspotIntegration() {
             </Button>
           </div>
         )}
+
+        <div className="text-sm text-muted-foreground bg-secondary/30 p-3 rounded-lg">
+          <p className="font-medium mb-1">What this enables</p>
+          <ul className="list-disc list-inside space-y-1 text-xs">
+            <li>Prospects synced as HubSpot Contacts automatically</li>
+            <li>Accounts synced as HubSpot Companies linked to their contacts</li>
+            <li>Every call logged as a HubSpot engagement with outcome and duration</li>
+            <li>Every sent email logged as a HubSpot engagement</li>
+          </ul>
+        </div>
       </CardContent>
     </Card>
   )

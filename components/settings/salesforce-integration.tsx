@@ -343,6 +343,16 @@ export function SalesforceIntegration() {
             </Button>
           </div>
         )}
+        <div className="text-sm text-muted-foreground bg-secondary/30 p-3 rounded-lg">
+          <p className="font-medium mb-1">What this enables</p>
+          <ul className="list-disc list-inside space-y-1 text-xs">
+            <li>Accounts synced to Salesforce Accounts automatically</li>
+            <li>Prospects synced as Salesforce Contacts linked to their Account</li>
+            <li>Every call logged as a Salesforce Task with outcome and duration</li>
+            <li>Every sent email logged as a Salesforce Task with subject and body</li>
+            <li>Import your Salesforce Leads directly into your prospects list</li>
+          </ul>
+        </div>
       </CardContent>
     </Card>
   )

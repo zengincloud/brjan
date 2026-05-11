@@ -201,7 +201,7 @@ export function HubspotIntegration() {
             </div>
             <div>
               <CardTitle className="text-base">HubSpot CRM</CardTitle>
-              <CardDescription>Auto-sync prospects and call activities</CardDescription>
+              <CardDescription>Sync contacts, companies, calls, and emails to your HubSpot portal in real time</CardDescription>
             </div>
           </div>
           {isConnected ? (

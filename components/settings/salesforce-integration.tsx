@@ -224,7 +224,7 @@ export function SalesforceIntegration() {
             </div>
             <div>
               <CardTitle className="text-base">Salesforce</CardTitle>
-              <CardDescription>Sync contacts, leads, and call activities</CardDescription>
+              <CardDescription>Sync accounts, contacts, calls, and emails to your Salesforce org in real time</CardDescription>
             </div>
           </div>
           {isConnected ? (

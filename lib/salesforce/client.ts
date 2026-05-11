@@ -122,6 +122,76 @@ export async function upsertLead(
   }
 }
 
+// Find an existing Contact by email using SOQL
+async function findContactByEmail(
+  token: string,
+  instanceUrl: string,
+  email: string
+): Promise<string | null> {
+  try {
+    const query = encodeURIComponent(
+      `SELECT Id FROM Contact WHERE Email = '${email.replace(/'/g, "\\'")}' LIMIT 1`
+    )
+    const data = await sfFetch(token, instanceUrl, `/services/data/v59.0/query?q=${query}`)
+    return data?.records?.[0]?.Id || null
+  } catch {
+    return null
+  }
+}
+
+// Create or update a Salesforce Contact from a Boilerroom prospect
+export async function upsertContact(
+  token: string,
+  instanceUrl: string,
+  prospect: {
+    name: string
+    email?: string | null
+    phone?: string | null
+    title?: string | null
+    location?: string | null
+    sfAccountId?: string | null
+  }
+): Promise<{ contactId: string; created: boolean }> {
+  const nameParts = (prospect.name || "").trim().split(" ")
+  const firstName = nameParts[0] || ""
+  const lastName = nameParts.slice(1).join(" ") || nameParts[0] || "Unknown"
+
+  const fields: Record<string, string> = {
+    FirstName: firstName,
+    LastName: lastName,
+  }
+  if (prospect.email) fields.Email = prospect.email
+  if (prospect.phone) fields.Phone = prospect.phone
+  if (prospect.title) fields.Title = prospect.title
+  if (prospect.location) fields.MailingCity = prospect.location.split(",")[0]?.trim() || ""
+  if (prospect.sfAccountId) fields.AccountId = prospect.sfAccountId
+
+  // Try to find existing Contact by email
+  if (prospect.email) {
+    const existingId = await findContactByEmail(token, instanceUrl, prospect.email)
+    if (existingId) {
+      await sfFetch(token, instanceUrl, `/services/data/v59.0/sobjects/Contact/${existingId}`, {
+        method: "PATCH",
+        body: JSON.stringify(fields),
+      })
+      return { contactId: existingId, created: false }
+    }
+  }
+
+  try {
+    const data = await sfFetch(token, instanceUrl, `/services/data/v59.0/sobjects/Contact`, {
+      method: "POST",
+      body: JSON.stringify(fields),
+    })
+    return { contactId: data.id, created: true }
+  } catch (err) {
+    if (err instanceof SalesforceDuplicateError) {
+      return { contactId: err.existingId, created: false }
+    }
+    throw err
+  }
+}
+
 // Find an existing Salesforce Account by name
 async function findAccountByName(
   token: string,
@@ -202,7 +272,7 @@ export async function logCallTask(
   token: string,
   instanceUrl: string,
   params: {
-    leadId: string
+    contactId: string
     accountId?: string | null
     outcome: string
     notes?: string | null
@@ -226,7 +296,7 @@ export async function logCallTask(
     Type: "Call",
     Status: "Completed",
     ActivityDate: activityDate,
-    WhoId: params.leadId,
+    WhoId: params.contactId,
     CallType: "Outbound",
     CallDisposition: callDispositionMap[params.outcome] || "Connected",
     CallDurationInSeconds: params.duration || 0,
@@ -247,7 +317,7 @@ export async function logEmailTask(
   token: string,
   instanceUrl: string,
   params: {
-    leadId: string
+    contactId: string
     accountId?: string | null
     subject: string
     bodyText: string
@@ -261,7 +331,7 @@ export async function logEmailTask(
     Type: "Email",
     Status: "Completed",
     ActivityDate: activityDate,
-    WhoId: params.leadId,
+    WhoId: params.contactId,
     Description: params.bodyText || "",
   }
   if (params.accountId) body.WhatId = params.accountId

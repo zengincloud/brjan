@@ -3,7 +3,7 @@ import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { withAuth } from "@/lib/auth/api-middleware"
 import { advanceSequenceStep } from "@/lib/sequences"
-import { upsertLead, logCallTask } from "@/lib/salesforce/client"
+import { upsertContact, logCallTask } from "@/lib/salesforce/client"
 import { getValidAccessToken as getSfToken } from "@/lib/salesforce/oauth"
 
 export const dynamic = 'force-dynamic'
@@ -126,15 +126,14 @@ export const PATCH = withAuth<{ params: { id: string } }>(async (
               const prospect = await prisma.prospect.findUnique({ where: { id: prospectId } })
               if (!prospect) return
 
-              const existingSfLeadId = (prospect.wizaData as any)?.salesforceLeadId
+              const existingSfLeadId = (prospect.wizaData as any)?.salesforceContactId
               const sfData = existingSfLeadId
-                ? { leadId: existingSfLeadId, created: false }
-                : await upsertLead(sfCreds.token, sfCreds.instanceUrl, {
+                ? { contactId: existingSfLeadId, created: false }
+                : await upsertContact(sfCreds.token, sfCreds.instanceUrl, {
                     name: prospect.name,
                     email: prospect.email,
                     phone: prospect.phone,
                     title: prospect.title,
-                    company: prospect.company,
                     location: prospect.location,
                   })
 
@@ -144,14 +143,14 @@ export const PATCH = withAuth<{ params: { id: string } }>(async (
                   data: {
                     wizaData: {
                       ...(typeof prospect.wizaData === "object" && prospect.wizaData !== null ? prospect.wizaData : {}),
-                      salesforceLeadId: sfData.leadId,
+                      salesforceContactId: sfData.contactId,
                     } as any,
                   },
                 })
               }
 
               await logCallTask(sfCreds.token, sfCreds.instanceUrl, {
-                leadId: sfData.leadId,
+                contactId: sfData.contactId,
                 outcome: existingTask.type,
                 notes: `${existingTask.title}\n\n${existingTask.description}`,
                 startedAt: new Date(),

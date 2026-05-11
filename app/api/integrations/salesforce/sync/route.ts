@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { withAuth } from "@/lib/auth/api-middleware"
 import { getValidAccessToken } from "@/lib/salesforce/oauth"
-import { upsertLead, upsertAccount, logCallTask, logEmailTask } from "@/lib/salesforce/client"
+import { upsertContact, upsertAccount, logCallTask, logEmailTask } from "@/lib/salesforce/client"
 import { prisma } from "@/lib/prisma"
 
 export const dynamic = "force-dynamic"
@@ -82,29 +82,30 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
     take: 200,
   })
 
-  const leadIdMap = new Map<string, string>()
+  const contactIdMap = new Map<string, string>()
 
   const prospectTasks = prospects.map((prospect) => async () => {
-    const existingSfLeadId = (prospect.wizaData as any)?.salesforceLeadId
+    const existingSfLeadId = (prospect.wizaData as any)?.salesforceContactId
     if (existingSfLeadId) {
-      leadIdMap.set(prospect.id, existingSfLeadId)
+      contactIdMap.set(prospect.id, existingSfLeadId)
       return
     }
-    const sfData = await upsertLead(sfCreds.token, sfCreds.instanceUrl, {
+    const sfAccountId = prospect.accountId ? accountIdMap.get(prospect.accountId) : null
+    const sfData = await upsertContact(sfCreds.token, sfCreds.instanceUrl, {
       name: prospect.name,
       email: prospect.email,
       phone: prospect.phone,
       title: prospect.title,
-      company: prospect.company,
       location: prospect.location,
+      sfAccountId,
     })
-    leadIdMap.set(prospect.id, sfData.leadId)
+    contactIdMap.set(prospect.id, sfData.contactId)
     await prisma.prospect.update({
       where: { id: prospect.id },
       data: {
         wizaData: {
           ...(typeof prospect.wizaData === "object" && prospect.wizaData !== null ? prospect.wizaData : {}),
-          salesforceLeadId: sfData.leadId,
+          salesforceContactId: sfData.contactId,
         } as any,
       },
     })
@@ -127,12 +128,12 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       results.calls.skipped++
       return
     }
-    const leadId = call.prospectId ? leadIdMap.get(call.prospectId) : null
+    const contactId = call.prospectId ? contactIdMap.get(call.prospectId) : null
     if (!leadId) { results.calls.skipped++; return }
 
     const sfAccountId = call.accountId ? accountIdMap.get(call.accountId) : null
     const taskResult = await logCallTask(sfCreds.token, sfCreds.instanceUrl, {
-      leadId,
+      contactId,
       accountId: sfAccountId,
       outcome: call.outcome!,
       notes: call.notes,
@@ -168,12 +169,12 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       results.emails.skipped++
       return
     }
-    const leadId = email.prospectId ? leadIdMap.get(email.prospectId) : null
+    const contactId = email.prospectId ? contactIdMap.get(email.prospectId) : null
     if (!leadId) { results.emails.skipped++; return }
 
     const sfAccountId = email.accountId ? accountIdMap.get(email.accountId) : null
     const taskResult = await logEmailTask(sfCreds.token, sfCreds.instanceUrl, {
-      leadId,
+      contactId,
       accountId: sfAccountId,
       subject: email.subject,
       bodyText: email.bodyText,

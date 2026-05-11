@@ -6,7 +6,7 @@ import sgMail from "@sendgrid/mail"
 import { sendEmailViaGmail } from "@/lib/gmail/send"
 import { advanceSequenceStep } from "@/lib/sequences"
 import { replaceEmailVariables } from "@/lib/template-variables"
-import { upsertLead, logEmailTask } from "@/lib/salesforce/client"
+import { upsertContact, logEmailTask } from "@/lib/salesforce/client"
 import { getValidAccessToken as getSfToken } from "@/lib/salesforce/oauth"
 
 export const dynamic = 'force-dynamic'
@@ -176,15 +176,14 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
               const prospect = await prisma.prospect.findUnique({ where: { id: prospectId } })
               if (!prospect) return
 
-              const existingSfLeadId = (prospect.wizaData as any)?.salesforceLeadId
+              const existingSfLeadId = (prospect.wizaData as any)?.salesforceContactId
               const sfData = existingSfLeadId
-                ? { leadId: existingSfLeadId, created: false }
-                : await upsertLead(sfCreds.token, sfCreds.instanceUrl, {
+                ? { contactId: existingSfLeadId, created: false }
+                : await upsertContact(sfCreds.token, sfCreds.instanceUrl, {
                     name: prospect.name,
                     email: prospect.email,
                     phone: prospect.phone,
                     title: prospect.title,
-                    company: prospect.company,
                     location: prospect.location,
                   })
 
@@ -194,14 +193,14 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
                   data: {
                     wizaData: {
                       ...(typeof prospect.wizaData === "object" && prospect.wizaData !== null ? prospect.wizaData : {}),
-                      salesforceLeadId: sfData.leadId,
+                      salesforceContactId: sfData.contactId,
                     } as any,
                   },
                 })
               }
 
               await logEmailTask(sfCreds.token, sfCreds.instanceUrl, {
-                leadId: sfData.leadId,
+                contactId: sfData.contactId,
                 subject: finalSubject,
                 bodyText: finalBodyText,
                 sentAt: new Date(),

@@ -4,7 +4,7 @@ import { withAuth } from "@/lib/auth/api-middleware"
 import { advanceSequenceStep } from "@/lib/sequences"
 import { pushContact, logCall as hubspotLogCall } from "@/lib/hubspot/client"
 import { getValidAccessToken } from "@/lib/hubspot/oauth"
-import { upsertLead, upsertAccount, logCallTask } from "@/lib/salesforce/client"
+import { upsertContact, upsertAccount, logCallTask } from "@/lib/salesforce/client"
 import { getValidAccessToken as getSfToken } from "@/lib/salesforce/oauth"
 
 export const dynamic = 'force-dynamic'
@@ -150,8 +150,6 @@ export const PATCH = withAuth<{ params: { id: string } }>(async (
                   email: call.prospect!.email,
                   phone: call.prospect!.phone,
                   title: call.prospect!.title,
-                  company: call.prospect!.company,
-                  linkedin: call.prospect!.linkedin,
                 })
 
             console.log(`HubSpot: contact ${hubspotData.hubspotContactId} (created=${hubspotData.created})`)
@@ -220,20 +218,18 @@ export const PATCH = withAuth<{ params: { id: string } }>(async (
         console.log(`Salesforce: syncing call outcome "${outcome}" for prospect ${call.prospectId}`)
         ;(async () => {
           try {
-            const existingSfLeadId = (call.prospect!.wizaData as any)?.salesforceLeadId
+            const existingSfLeadId = (call.prospect!.wizaData as any)?.salesforceContactId
             const sfData = existingSfLeadId
-              ? { leadId: existingSfLeadId, created: false }
-              : await upsertLead(sfCreds.token, sfCreds.instanceUrl, {
+              ? { contactId: existingSfLeadId, created: false }
+              : await upsertContact(sfCreds.token, sfCreds.instanceUrl, {
                   name: call.prospect!.name,
                   email: call.prospect!.email,
                   phone: call.prospect!.phone,
                   title: call.prospect!.title,
-                  company: call.prospect!.company,
-                  linkedin: call.prospect!.linkedin,
                   location: call.prospect!.location,
                 })
 
-            console.log(`Salesforce: lead ${sfData.leadId} (created=${sfData.created})`)
+            console.log(`Salesforce: lead ${sfData.contactId} (created=${sfData.created})`)
 
             if (sfData.created && call.prospectId) {
               await prisma.prospect.update({
@@ -241,7 +237,7 @@ export const PATCH = withAuth<{ params: { id: string } }>(async (
                 data: {
                   wizaData: {
                     ...(typeof call.prospect!.wizaData === "object" && call.prospect!.wizaData !== null ? call.prospect!.wizaData : {}),
-                    salesforceLeadId: sfData.leadId,
+                    salesforceContactId: sfData.contactId,
                   } as any,
                 },
               })
@@ -281,7 +277,7 @@ export const PATCH = withAuth<{ params: { id: string } }>(async (
             }
 
             const taskResult = await logCallTask(sfCreds.token, sfCreds.instanceUrl, {
-              leadId: sfData.leadId,
+              contactId: sfData.contactId,
               accountId: sfAccountId,
               outcome,
               notes,

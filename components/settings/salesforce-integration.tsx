@@ -156,8 +156,11 @@ export function SalesforceIntegration() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "Sync failed")
       const { results } = data
+      const total = results.prospects.synced + results.accounts.synced + results.calls.synced + results.emails.synced
       toast.success(
-        `Sync complete — ${results.prospects.synced} prospects, ${results.calls.synced} calls, ${results.emails.synced} emails pushed to Salesforce`
+        total > 0
+          ? `Synced ${results.accounts.synced} accounts, ${results.prospects.synced} contacts, ${results.calls.synced} calls, ${results.emails.synced} emails — click again if more remain`
+          : "Everything is already synced"
       )
     } catch (error: any) {
       toast.error(error.message || "Failed to sync to Salesforce")

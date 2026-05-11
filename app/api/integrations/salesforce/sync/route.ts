@@ -10,7 +10,7 @@ export const maxDuration = 60
 // Run an array of async tasks with max N concurrent at a time
 async function runConcurrent<T>(
   tasks: (() => Promise<T>)[],
-  concurrency = 5
+  concurrency = 10
 ): Promise<PromiseSettledResult<T>[]> {
   const results: PromiseSettledResult<T>[] = []
   for (let i = 0; i < tasks.length; i += concurrency) {
@@ -20,6 +20,8 @@ async function runConcurrent<T>(
   }
   return results
 }
+
+const PER_RUN_LIMIT = 30
 
 // POST /api/integrations/salesforce/sync
 export const POST = withAuth(async (request: NextRequest, userId: string) => {
@@ -39,7 +41,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
   const accounts = await prisma.account.findMany({
     where: { userId },
     select: { id: true, name: true, industry: true, website: true, employees: true, location: true, insights: true },
-    take: 200,
+    take: PER_RUN_LIMIT,
   })
 
   const accountIdMap = new Map<string, string>()
@@ -79,7 +81,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
   const prospects = await prisma.prospect.findMany({
     where: { userId },
     select: { id: true, name: true, email: true, phone: true, title: true, company: true, location: true, accountId: true, wizaData: true },
-    take: 200,
+    take: PER_RUN_LIMIT,
   })
 
   const contactIdMap = new Map<string, string>()
@@ -121,6 +123,8 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
   const calls = await prisma.call.findMany({
     where: { userId, outcome: { not: null }, prospectId: { not: null } },
     select: { id: true, prospectId: true, accountId: true, outcome: true, notes: true, duration: true, startedAt: true, transcription: true, metadata: true },
+    take: PER_RUN_LIMIT,
+    orderBy: { createdAt: "desc" },
   })
 
   const callTasks = calls.map((call) => async () => {
@@ -129,7 +133,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       return
     }
     const contactId = call.prospectId ? contactIdMap.get(call.prospectId) : null
-    if (!leadId) { results.calls.skipped++; return }
+    if (!contactId) { results.calls.skipped++; return }
 
     const sfAccountId = call.accountId ? accountIdMap.get(call.accountId) : null
     const taskResult = await logCallTask(sfCreds.token, sfCreds.instanceUrl, {
@@ -162,6 +166,8 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
   const emails = await prisma.email.findMany({
     where: { userId, status: "sent", prospectId: { not: null } },
     select: { id: true, prospectId: true, accountId: true, subject: true, bodyText: true, sentAt: true, metadata: true },
+    take: PER_RUN_LIMIT,
+    orderBy: { sentAt: "desc" },
   })
 
   const emailTasks = emails.map((email) => async () => {
@@ -170,7 +176,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       return
     }
     const contactId = email.prospectId ? contactIdMap.get(email.prospectId) : null
-    if (!leadId) { results.emails.skipped++; return }
+    if (!contactId) { results.emails.skipped++; return }
 
     const sfAccountId = email.accountId ? accountIdMap.get(email.accountId) : null
     const taskResult = await logEmailTask(sfCreds.token, sfCreds.instanceUrl, {

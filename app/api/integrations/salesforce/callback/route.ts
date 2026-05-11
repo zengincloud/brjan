@@ -30,7 +30,9 @@ export async function GET(request: NextRequest) {
 
   try {
     const storedState = request.cookies.get("salesforce_oauth_state")?.value
+    console.log("SF callback: storedState present:", !!storedState, "| stateMatch:", storedState === state)
     if (!storedState || storedState !== state) {
+      console.log("SF callback: invalid_state — storedState:", storedState?.slice(0, 20), "| state:", state?.slice(0, 20))
       return NextResponse.redirect(
         `${origin}/settings?tab=integrations&salesforce_error=invalid_state`
       )
@@ -45,6 +47,7 @@ export async function GET(request: NextRequest) {
       data: { user: supabaseUser },
     } = await supabase.auth.getUser()
 
+    console.log("SF callback: supabaseUser present:", !!supabaseUser)
     if (!supabaseUser) {
       return NextResponse.redirect(`${origin}/login`)
     }
@@ -53,6 +56,7 @@ export async function GET(request: NextRequest) {
       where: { supabaseId: supabaseUser.id },
     })
 
+    console.log("SF callback: user present:", !!user, "| idMatch:", user?.id === stateData.userId)
     if (!user || user.id !== stateData.userId) {
       return NextResponse.redirect(
         `${origin}/settings?tab=integrations&salesforce_error=user_mismatch`
@@ -60,6 +64,7 @@ export async function GET(request: NextRequest) {
     }
 
     const codeVerifier = request.cookies.get("salesforce_pkce_verifier")?.value
+    console.log("SF callback: codeVerifier present:", !!codeVerifier)
     if (!codeVerifier) {
       return NextResponse.redirect(
         `${origin}/settings?tab=integrations&salesforce_error=missing_verifier`

@@ -293,7 +293,6 @@ export async function logCallTask(
 
   const body: Record<string, any> = {
     Subject: `Call - ${outcomeLabel}`,
-    Type: "Call",
     Status: "Completed",
     ActivityDate: activityDate,
     WhoId: params.contactId,
@@ -328,7 +327,6 @@ export async function logEmailTask(
 
   const body: Record<string, any> = {
     Subject: `Email - ${params.subject}`,
-    Type: "Email",
     Status: "Completed",
     ActivityDate: activityDate,
     WhoId: params.contactId,

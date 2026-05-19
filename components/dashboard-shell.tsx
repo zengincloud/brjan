@@ -7,7 +7,7 @@ import { useRouter, usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Sidebar } from "@/components/sidebar"
 import { ImpersonationBanner } from "@/components/impersonation-banner"
-import { Menu, Mail, Phone, Search, Bell, Zap, User, Building2, Loader2, ClipboardList } from "lucide-react"
+import { Menu, Search, Zap, User, Building2, Loader2, ClipboardList } from "lucide-react"
 import { UserProvider, useUser } from "@/hooks/use-user"
 import { VoiceOrb } from "@/components/voice-orb"
 import { HubSpotIdentity } from "@/components/hubspot-identity"
@@ -98,10 +98,6 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
   const { user } = useUser()
   const router = useRouter()
   const supabase = createClient()
-
-  const handleCall = () => {}
-
-  const handleEmail = () => {}
 
   const handleLogout = async () => {
     try {
@@ -194,30 +190,6 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="relative text-muted-foreground hover:text-foreground"
-            >
-              <Bell className="h-4 w-4" />
-              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-accent" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleCall}
-              className="text-muted-foreground hover:text-accent hover:bg-accent/10"
-            >
-              <Phone className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleEmail}
-              className="text-muted-foreground hover:text-accent hover:bg-accent/10"
-            >
-              <Mail className="h-4 w-4" />
-            </Button>
             <Button
               variant="ghost"
               size="sm"

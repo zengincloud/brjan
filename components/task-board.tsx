@@ -24,7 +24,6 @@ import {
   MousePointerClick,
   Clock,
   CalendarClock,
-  MoreHorizontal,
   Building2,
   Phone,
   Mail,
@@ -39,13 +38,7 @@ import {
   Maximize2,
   Loader2,
 } from "lucide-react"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
 import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd"
 import { cn } from "@/lib/utils"
@@ -673,6 +666,7 @@ export function TaskBoard() {
   }
 
   return (
+    <TooltipProvider delayDuration={300}>
     <Card className="border-border bg-card overflow-hidden">
       {/* Window Controls Bar */}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-secondary/20">
@@ -832,44 +826,32 @@ export function TaskBoard() {
                                             <Linkedin className="h-3 w-3 text-[#0A66C2]" />
                                           </Button>
                                         )}
-                                        <DropdownMenu>
-                                          <DropdownMenuTrigger asChild>
-                                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => e.stopPropagation()}>
-                                              <MoreHorizontal className="h-3 w-3" />
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); setDatePickerTask(task); setDatePickerOpen(true); setDateViewMode("week") }}>
+                                              <Calendar className="h-3 w-3" />
                                             </Button>
-                                          </DropdownMenuTrigger>
-                                          <DropdownMenuContent align="end">
-                                            <DropdownMenuItem onClick={(e) => {
-                                              e.stopPropagation()
-                                              setDatePickerTask(task)
-                                              setDatePickerOpen(true)
-                                              setDateViewMode("week")
-                                            }}>
-                                              <Calendar className="h-4 w-4 mr-2" />
-                                              Change Due Date
-                                            </DropdownMenuItem>
-                                            {task.status !== "done" && (
-                                              <DropdownMenuItem onClick={(e) => {
-                                                e.stopPropagation()
-                                                handleMarkDone(task.id)
-                                              }}>
-                                                <Check className="h-4 w-4 mr-2" />
-                                                Mark as Done
-                                              </DropdownMenuItem>
-                                            )}
-                                            <DropdownMenuSeparator />
-                                            <DropdownMenuItem
-                                              className="text-destructive focus:text-destructive"
-                                              onClick={(e) => {
-                                                e.stopPropagation()
-                                                handleDeleteTask(task.id)
-                                              }}
-                                            >
-                                              <Trash2 className="h-4 w-4 mr-2" />
-                                              Delete
-                                            </DropdownMenuItem>
-                                          </DropdownMenuContent>
-                                        </DropdownMenu>
+                                          </TooltipTrigger>
+                                          <TooltipContent>Change Due Date</TooltipContent>
+                                        </Tooltip>
+                                        {task.status !== "done" && (
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); handleMarkDone(task.id) }}>
+                                                <Check className="h-3 w-3" />
+                                              </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Mark as Done</TooltipContent>
+                                          </Tooltip>
+                                        )}
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <Button variant="ghost" size="icon" className="h-6 w-6 hover:text-destructive" onClick={(e) => { e.stopPropagation(); handleDeleteTask(task.id) }}>
+                                              <Trash2 className="h-3 w-3" />
+                                            </Button>
+                                          </TooltipTrigger>
+                                          <TooltipContent>Delete</TooltipContent>
+                                        </Tooltip>
                                       </div>
                                     </div>
                                   )}
@@ -984,44 +966,32 @@ export function TaskBoard() {
                               <Linkedin className="h-3 w-3 text-[#0A66C2]" />
                             </Button>
                           )}
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => e.stopPropagation()}>
-                                <MoreHorizontal className="h-3 w-3" />
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); setDatePickerTask(task); setDatePickerOpen(true); setDateViewMode("week") }}>
+                                <Calendar className="h-3 w-3" />
                               </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={(e) => {
-                                e.stopPropagation()
-                                setDatePickerTask(task)
-                                setDatePickerOpen(true)
-                                setDateViewMode("week")
-                              }}>
-                                <Calendar className="h-4 w-4 mr-2" />
-                                Change Due Date
-                              </DropdownMenuItem>
-                              {task.status !== "done" && (
-                                <DropdownMenuItem onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleMarkDone(task.id)
-                                }}>
-                                  <Check className="h-4 w-4 mr-2" />
-                                  Mark as Done
-                                </DropdownMenuItem>
-                              )}
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                className="text-destructive focus:text-destructive"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleDeleteTask(task.id)
-                                }}
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                            </TooltipTrigger>
+                            <TooltipContent>Change Due Date</TooltipContent>
+                          </Tooltip>
+                          {task.status !== "done" && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); handleMarkDone(task.id) }}>
+                                  <Check className="h-3 w-3" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Mark as Done</TooltipContent>
+                            </Tooltip>
+                          )}
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive" onClick={(e) => { e.stopPropagation(); handleDeleteTask(task.id) }}>
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Delete</TooltipContent>
+                          </Tooltip>
                         </div>
                       </td>
                     </tr>
@@ -1296,5 +1266,6 @@ export function TaskBoard() {
         </DialogContent>
       </Dialog>
     </Card>
+    </TooltipProvider>
   )
 }

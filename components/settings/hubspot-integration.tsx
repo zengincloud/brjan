@@ -34,9 +34,9 @@ interface HubspotStatus {
   } | null
 }
 
-export function HubspotIntegration() {
-  const [status, setStatus] = useState<HubspotStatus | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+export function HubspotIntegration({ initialStatus }: { initialStatus?: HubspotStatus }) {
+  const [status, setStatus] = useState<HubspotStatus | null>(initialStatus ?? null)
+  const [isLoading, setIsLoading] = useState(!initialStatus)
   const [isConnecting, setIsConnecting] = useState(false)
   const [isDisconnecting, setIsDisconnecting] = useState(false)
   const [syncing, setSyncing] = useState(false)
@@ -58,7 +58,7 @@ export function HubspotIntegration() {
   }, [])
 
   useEffect(() => {
-    fetchStatus()
+    if (!initialStatus) fetchStatus()
 
     // Check for success/error from OAuth callback
     const params = new URLSearchParams(window.location.search)
@@ -178,7 +178,7 @@ export function HubspotIntegration() {
             </div>
             <div>
               <CardTitle className="text-base">HubSpot CRM</CardTitle>
-              <CardDescription>Loading...</CardDescription>
+              <CardDescription>Sync contacts and activity to your HubSpot CRM</CardDescription>
             </div>
           </div>
         </CardHeader>

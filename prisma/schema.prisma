@@ -53,6 +53,7 @@ model User {
   linkedInCampaigns LinkedInCampaign[]
   mockCalls         MockCall[]
   salesfloorPresence SalesfloorPresence?
+  todos             Todo[]
 
   @@index([organizationId])
   @@map("users")
@@ -847,4 +848,20 @@ model LinkedInCampaignProspect {
   @@index([userId])
   @@index([prospectId])
   @@map("linkedin_campaign_prospects")
+}
+
+// ============================================
+// Personal Todo List
+// ============================================
+
+model Todo {
+  id        String   @id @default(cuid())
+  title     String
+  completed Boolean  @default(false)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("todos")
 }

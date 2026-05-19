@@ -35,9 +35,9 @@ interface SalesforceStatus {
   } | null
 }
 
-export function SalesforceIntegration() {
-  const [status, setStatus] = useState<SalesforceStatus | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+export function SalesforceIntegration({ initialStatus }: { initialStatus?: SalesforceStatus }) {
+  const [status, setStatus] = useState<SalesforceStatus | null>(initialStatus ?? null)
+  const [isLoading, setIsLoading] = useState(!initialStatus)
   const [isConnecting, setIsConnecting] = useState(false)
   const [isDisconnecting, setIsDisconnecting] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
@@ -61,7 +61,7 @@ export function SalesforceIntegration() {
   }, [])
 
   useEffect(() => {
-    fetchStatus()
+    if (!initialStatus) fetchStatus()
 
     const params = new URLSearchParams(window.location.search)
     if (params.get("salesforce_success") === "true") {
@@ -169,7 +169,7 @@ export function SalesforceIntegration() {
             </div>
             <div>
               <CardTitle className="text-base">Salesforce</CardTitle>
-              <CardDescription>Loading...</CardDescription>
+              <CardDescription>Sync accounts, contacts, calls, and emails to your Salesforce org</CardDescription>
             </div>
           </div>
         </CardHeader>

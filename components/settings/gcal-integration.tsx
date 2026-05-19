@@ -28,9 +28,9 @@ interface GcalStatus {
   } | null
 }
 
-export function GcalIntegration() {
-  const [status, setStatus] = useState<GcalStatus | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+export function GcalIntegration({ initialStatus }: { initialStatus?: GcalStatus }) {
+  const [status, setStatus] = useState<GcalStatus | null>(initialStatus ?? null)
+  const [isLoading, setIsLoading] = useState(!initialStatus)
   const [isConnecting, setIsConnecting] = useState(false)
   const [isDisconnecting, setIsDisconnecting] = useState(false)
 
@@ -51,7 +51,7 @@ export function GcalIntegration() {
   }, [])
 
   useEffect(() => {
-    fetchStatus()
+    if (!initialStatus) fetchStatus()
 
     const params = new URLSearchParams(window.location.search)
     if (params.get("gcal_success") === "true") {
@@ -134,11 +134,18 @@ export function GcalIntegration() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Google Calendar</CardTitle>
-          <CardDescription>Loading...</CardDescription>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded bg-secondary flex items-center justify-center">
+              <GoogleIcon className="h-6 w-6" />
+            </div>
+            <div>
+              <CardTitle className="text-base">Google Calendar</CardTitle>
+              <CardDescription>Sync your calendar to schedule and manage meetings</CardDescription>
+            </div>
+          </div>
         </CardHeader>
-        <CardContent className="flex justify-center py-6">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <CardContent className="flex justify-center py-4">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </CardContent>
       </Card>
     )

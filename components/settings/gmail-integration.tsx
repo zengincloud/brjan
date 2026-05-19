@@ -47,9 +47,9 @@ interface GmailStatus {
   } | null
 }
 
-export function GmailIntegration() {
-  const [status, setStatus] = useState<GmailStatus | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+export function GmailIntegration({ initialStatus }: { initialStatus?: GmailStatus }) {
+  const [status, setStatus] = useState<GmailStatus | null>(initialStatus ?? null)
+  const [isLoading, setIsLoading] = useState(!initialStatus)
   const [isConnecting, setIsConnecting] = useState(false)
   const [isDisconnecting, setIsDisconnecting] = useState(false)
 
@@ -70,7 +70,7 @@ export function GmailIntegration() {
   }, [])
 
   useEffect(() => {
-    fetchStatus()
+    if (!initialStatus) fetchStatus()
 
     // Check for success/error from OAuth callback
     const params = new URLSearchParams(window.location.search)
@@ -162,11 +162,18 @@ export function GmailIntegration() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Email Integration</CardTitle>
-          <CardDescription>Loading...</CardDescription>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded bg-secondary flex items-center justify-center">
+              <GoogleIcon className="h-6 w-6" />
+            </div>
+            <div>
+              <CardTitle className="text-base">Gmail</CardTitle>
+              <CardDescription>Connect your Gmail to send emails from your own inbox</CardDescription>
+            </div>
+          </div>
         </CardHeader>
-        <CardContent className="flex justify-center py-6">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <CardContent className="flex justify-center py-4">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </CardContent>
       </Card>
     )

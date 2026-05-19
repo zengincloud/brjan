@@ -7,10 +7,11 @@ import { useRouter, usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Sidebar } from "@/components/sidebar"
 import { ImpersonationBanner } from "@/components/impersonation-banner"
-import { Menu, Mail, Phone, Search, Bell, Zap, User, Building2, Loader2 } from "lucide-react"
+import { Menu, Mail, Phone, Search, Bell, Zap, User, Building2, Loader2, ClipboardList } from "lucide-react"
 import { UserProvider, useUser } from "@/hooks/use-user"
 import { VoiceOrb } from "@/components/voice-orb"
 import { HubSpotIdentity } from "@/components/hubspot-identity"
+import { TodoPanel } from "@/components/todo-panel"
 import { UserRoleProvider } from "@/hooks/use-user-role"
 import { DashboardStatsProvider } from "@/hooks/use-dashboard-stats"
 import { Input } from "@/components/ui/input"
@@ -54,6 +55,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 function DashboardShellInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const [todoOpen, setTodoOpen] = useState(false)
   const { toast } = useToast()
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
@@ -97,19 +99,9 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const supabase = createClient()
 
-  const handleCall = () => {
-    toast({
-      title: "Initiating Call",
-      description: "Opening dialer...",
-    })
-  }
+  const handleCall = () => {}
 
-  const handleEmail = () => {
-    toast({
-      title: "New Email",
-      description: "Opening email composer...",
-    })
-  }
+  const handleEmail = () => {}
 
   const handleLogout = async () => {
     try {
@@ -225,6 +217,15 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
               className="text-muted-foreground hover:text-accent hover:bg-accent/10"
             >
               <Mail className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setTodoOpen(true)}
+              className="gap-1.5 text-muted-foreground hover:text-accent hover:bg-accent/10 px-2"
+            >
+              <ClipboardList className="h-4 w-4" />
+              <span className="text-xs font-medium">To Do</span>
             </Button>
             <div className="h-6 w-px bg-border mx-1" />
             <DropdownMenu>
@@ -366,6 +367,8 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
         {/* Main Content Area */}
         <main className="flex-1 overflow-auto p-5">{children}</main>
       </div>
+
+      <TodoPanel open={todoOpen} onOpenChange={setTodoOpen} />
     </div>
   )
 }

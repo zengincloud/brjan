@@ -77,6 +77,9 @@ export default function SettingsPage() {
   })
   const [isSavingProfile, setIsSavingProfile] = useState(false)
   const [isSavingWorkingHours, setIsSavingWorkingHours] = useState(false)
+  const [integrationStatuses, setIntegrationStatuses] = useState<{
+    gmail?: any; gcal?: any; hubspot?: any; salesforce?: any
+  } | null>(null)
   const supabase = createClient()
 
   useEffect(() => {
@@ -102,6 +105,11 @@ export default function SettingsPage() {
     fetch("/api/credits")
       .then((r) => r.ok ? r.json() : null)
       .then((data) => { if (data) setCreditStatus(data) })
+      .catch(() => {})
+
+    fetch("/api/integrations/all-status")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data) setIntegrationStatuses(data) })
       .catch(() => {})
   }, [])
 
@@ -549,10 +557,10 @@ export default function SettingsPage() {
 
         {/* Integrations Tab */}
         {activeTab === "integrations" && <div className="space-y-4">
-          <GmailIntegration />
-          <GcalIntegration />
-          <HubspotIntegration />
-          <SalesforceIntegration />
+          <GmailIntegration initialStatus={integrationStatuses?.gmail} />
+          <GcalIntegration initialStatus={integrationStatuses?.gcal} />
+          <HubspotIntegration initialStatus={integrationStatuses?.hubspot} />
+          <SalesforceIntegration initialStatus={integrationStatuses?.salesforce} />
 
           <Card>
             <CardHeader>

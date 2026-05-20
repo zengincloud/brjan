@@ -86,6 +86,9 @@ export function useVoiceAction() {
 
       case "unknown":
         return voiceAction.message ?? "Sorry, I didn't understand that"
+
+      default:
+        return (voiceAction as any).message ?? "I'm not sure what to do with that."
     }
   }, [router])
 

@@ -18,7 +18,7 @@ export function useVoiceCommand() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }),
       })
-      if (!res.ok) return
+      if (!res.ok) { setAgentState(null); return }
       const audioBlob = await res.blob()
       const url = URL.createObjectURL(audioBlob)
       const audio = new Audio(url)

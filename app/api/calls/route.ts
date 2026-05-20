@@ -72,6 +72,7 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
               email: true,
               company: true,
               title: true,
+              accountId: true,
             },
           },
           user: {

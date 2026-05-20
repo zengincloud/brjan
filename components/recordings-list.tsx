@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -39,6 +40,7 @@ type CallRecording = {
     email: string
     company: string | null
     title: string | null
+    accountId: string | null
   } | null
 }
 
@@ -472,11 +474,27 @@ export function RecordingsList() {
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
                             <p className="text-[13px] font-medium truncate text-foreground">
-                              {recording.prospect?.name ?? "Unknown Contact"}
+                              {recording.prospect ? (
+                                <Link
+                                  href={`/prospects/${recording.prospect.id}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="hover:underline"
+                                >
+                                  {recording.prospect.name}
+                                </Link>
+                              ) : "Unknown Contact"}
                             </p>
                             {recording.prospect?.company && (
                               <p className="text-[11px] text-muted-foreground truncate">
-                                {recording.prospect.company}
+                                {recording.prospect.accountId ? (
+                                  <Link
+                                    href={`/accounts/${recording.prospect.accountId}`}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="hover:underline"
+                                  >
+                                    {recording.prospect.company}
+                                  </Link>
+                                ) : recording.prospect.company}
                               </p>
                             )}
                             <p className="text-[11px] text-muted-foreground mt-0.5">
@@ -512,14 +530,26 @@ export function RecordingsList() {
                           <>
                             <div className="flex items-center gap-2">
                               <User className="h-4 w-4 text-muted-foreground" />
-                              <span className="text-[15px] font-semibold text-foreground">{selectedRecording.prospect.name}</span>
+                              <Link
+                                href={`/prospects/${selectedRecording.prospect.id}`}
+                                className="text-[15px] font-semibold text-foreground hover:underline"
+                              >
+                                {selectedRecording.prospect.name}
+                              </Link>
                             </div>
                             {selectedRecording.prospect.company && (
                               <div className="flex items-center gap-2">
                                 <Building2 className="h-4 w-4 text-muted-foreground" />
                                 <span className="text-[13px] text-muted-foreground">
                                   {selectedRecording.prospect.title && `${selectedRecording.prospect.title} · `}
-                                  {selectedRecording.prospect.company}
+                                  {selectedRecording.prospect.accountId ? (
+                                    <Link
+                                      href={`/accounts/${selectedRecording.prospect.accountId}`}
+                                      className="hover:underline"
+                                    >
+                                      {selectedRecording.prospect.company}
+                                    </Link>
+                                  ) : selectedRecording.prospect.company}
                                 </span>
                               </div>
                             )}

@@ -106,9 +106,34 @@ export const GET = withAuth(async (request: NextRequest, userId: string, context
       : []
 
     // Merge into a unified activity timeline
+    // Fetch meetings linked to this account OR its prospects
+    const meetings = await prisma.meeting.findMany({
+      where: {
+        userId,
+        OR: [
+          { accountId },
+          ...(prospectIds.length > 0 ? [{ prospectId: { in: prospectIds } }] : []),
+        ],
+      },
+      orderBy: { startedAt: "desc" },
+      take: 20,
+      select: {
+        id: true,
+        title: true,
+        summary: true,
+        actionItems: true,
+        duration: true,
+        startedAt: true,
+        createdAt: true,
+        followUpSentAt: true,
+        prospectId: true,
+        prospect: { select: { name: true } },
+      },
+    })
+
     type ActivityItem = {
       id: string
-      type: "call" | "email" | "linkedin"
+      type: "call" | "email" | "linkedin" | "meeting"
       contactName: string | null
       detail: string
       time: string
@@ -119,6 +144,10 @@ export const GET = withAuth(async (request: NextRequest, userId: string, context
       subject?: string | null
       sdrName?: string | null
       notes?: string | null
+      // meeting-specific
+      summary?: string | null
+      actionItems?: string[] | null
+      followUpSentAt?: string | null
     }
 
     const activity: ActivityItem[] = []
@@ -217,6 +246,21 @@ export const GET = withAuth(async (request: NextRequest, userId: string, context
           time: li.repliedAt.toISOString(),
         })
       }
+    }
+
+    for (const m of meetings) {
+      const contactName = m.prospect?.name || (m.prospectId ? prospectNameMap.get(m.prospectId) : null) || null
+      activity.push({
+        id: m.id,
+        type: "meeting",
+        contactName,
+        detail: m.title || "Meeting",
+        time: (m.startedAt || m.createdAt).toISOString(),
+        duration: m.duration,
+        summary: m.summary,
+        actionItems: m.actionItems as string[] | null,
+        followUpSentAt: m.followUpSentAt?.toISOString() || null,
+      })
     }
 
     // Sort by time descending

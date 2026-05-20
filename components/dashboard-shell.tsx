@@ -7,7 +7,7 @@ import { useRouter, usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Sidebar } from "@/components/sidebar"
 import { ImpersonationBanner } from "@/components/impersonation-banner"
-import { Menu, Search, Phone, Zap, User, Building2, Loader2, ClipboardList } from "lucide-react"
+import { Menu, Search, Phone, Zap, User, Building2, Loader2, ClipboardList, Send, X } from "lucide-react"
 import { UserProvider, useUser } from "@/hooks/use-user"
 import { VoiceOrb } from "@/components/voice-orb"
 import { HubSpotIdentity } from "@/components/hubspot-identity"
@@ -15,6 +15,7 @@ import { TodoPanel } from "@/components/todo-panel"
 import { UserRoleProvider } from "@/hooks/use-user-role"
 import { DashboardStatsProvider } from "@/hooks/use-dashboard-stats"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
@@ -59,6 +60,8 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
   const { toast } = useToast()
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
+  const [halCompose, setHalCompose] = useState<{ to: string; subject: string; body: string; meetingId?: string } | null>(null)
+  const [sendingHalEmail, setSendingHalEmail] = useState(false)
   const [searchResults, setSearchResults] = useState<{ prospects: any[]; accounts: any[] }>({ prospects: [], accounts: [] })
   const [searchLoading, setSearchLoading] = useState(false)
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -128,10 +131,43 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
         setIsSearchOpen(true)
       }
     }
-
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [])
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (detail) setHalCompose(detail)
+    }
+    window.addEventListener("hal:compose", handler)
+    return () => window.removeEventListener("hal:compose", handler)
+  }, [])
+
+  const sendHalEmail = async () => {
+    if (!halCompose) return
+    setSendingHalEmail(true)
+    try {
+      const endpoint = halCompose.meetingId
+        ? `/api/meetings/${halCompose.meetingId}/send-followup`
+        : "/api/emails/send"
+      const body = halCompose.meetingId
+        ? { to: halCompose.to, subject: halCompose.subject, bodyText: halCompose.body }
+        : { to: halCompose.to, subject: halCompose.subject, bodyText: halCompose.body }
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) throw new Error()
+      toast({ title: "Email sent" })
+      setHalCompose(null)
+    } catch {
+      toast({ title: "Failed to send", variant: "destructive" })
+    } finally {
+      setSendingHalEmail(false)
+    }
+  }
 
   const getUserInitials = () => {
     if (!user) return "U"
@@ -341,6 +377,55 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
       </div>
 
       <TodoPanel open={todoOpen} onOpenChange={setTodoOpen} />
+
+      {/* HAL6900 compose modal */}
+      {halCompose && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-card border border-border rounded-xl w-full max-w-lg shadow-xl">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <p className="text-sm font-medium">HAL6900 — Draft Ready</p>
+              <button onClick={() => setHalCompose(null)} className="text-muted-foreground hover:text-foreground">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="p-4 space-y-3">
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">To</p>
+                <Input
+                  value={halCompose.to}
+                  onChange={(e) => setHalCompose({ ...halCompose, to: e.target.value })}
+                  className="h-8 text-sm"
+                  placeholder="recipient@example.com"
+                />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Subject</p>
+                <Input
+                  value={halCompose.subject}
+                  onChange={(e) => setHalCompose({ ...halCompose, subject: e.target.value })}
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Body</p>
+                <Textarea
+                  value={halCompose.body}
+                  onChange={(e) => setHalCompose({ ...halCompose, body: e.target.value })}
+                  rows={6}
+                  className="text-sm resize-none"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <Button variant="outline" size="sm" onClick={() => setHalCompose(null)}>Cancel</Button>
+                <Button size="sm" onClick={sendHalEmail} disabled={sendingHalEmail || !halCompose.to}>
+                  {sendingHalEmail ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-2" /> : <Send className="h-3.5 w-3.5 mr-2" />}
+                  Send
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

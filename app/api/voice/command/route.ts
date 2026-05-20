@@ -1,166 +1,450 @@
 import { NextRequest, NextResponse } from "next/server"
 import { withSuperAdmin } from "@/lib/auth/api-middleware"
 import { prisma } from "@/lib/prisma"
-import Anthropic from "@anthropic-ai/sdk"
 import type { User } from "@prisma/client"
 
 export const dynamic = "force-dynamic"
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+async function grokChat(system: string, userMessage: string, maxTokens = 512): Promise<string> {
+  const res = await fetch("https://api.x.ai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.GROK_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "grok-3",
+      max_tokens: maxTokens,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: userMessage },
+      ],
+    }),
+  })
+  if (!res.ok) throw new Error(`Grok API error: ${res.status}`)
+  const data = await res.json()
+  return data.choices?.[0]?.message?.content ?? ""
+}
 
-const SYSTEM_PROMPT = `You are a voice command parser for Boilerroom, a B2B sales prospecting tool.
+const SYSTEM_PROMPT = `You are HAL6900, an intelligent voice assistant built into Boilerroom, a B2B sales CRM. You speak like a sharp, no-bullshit sales colleague who knows everything about the user's pipeline. Be concise and direct.
 
-Given a transcribed voice command, return a JSON object with the action to execute.
+Given a transcribed voice command, return a JSON object with the action to execute. For general questions you can answer without data, use "speak_only".
 
 Available actions:
-- { "action": "search_people", "params": { "name": string, "title": string, "location": string, "company": string, "keyword": string } }
-- { "action": "search_companies", "params": { "industry": string, "location": string, "size": string, "keyword": string } }
-- { "action": "navigate", "params": { "page": "leads" | "accounts" | "prospecting" | "people" | "companies" | "settings" | "sequences" | "calls" | "dialer" | "activity" } }
-- { "action": "get_recent_calls", "params": { "contact": string, "limit": number } }
-- { "action": "get_call_summary", "params": { "contact": string } }
-- { "action": "search_my_prospects", "params": { "name": string, "company": string } }
-- { "action": "add_lead", "params": { "name": string, "company": string } }
-- { "action": "add_account", "params": { "company": string } }
-- { "action": "unknown", "params": {}, "message": string }
+
+NAVIGATION (frontend handles):
+{ "action": "navigate", "params": { "page": "leads" | "accounts" | "prospecting" | "sequences" | "calls" | "dialer" | "activity" | "settings" | "tasks" | "meetings" | "reports" } }
+{ "action": "search_people", "params": { "name"?: string, "title"?: string, "company"?: string, "location"?: string, "keyword"?: string } }
+{ "action": "search_companies", "params": { "industry"?: string, "location"?: string, "size"?: string, "keyword"?: string } }
+{ "action": "open_prospect", "params": { "name": string } }
+
+DATA RETRIEVAL (backend fetches, HAL speaks result):
+{ "action": "get_recent_calls", "params": { "contact"?: string, "limit"?: number } }
+{ "action": "get_call_summary", "params": { "contact"?: string } }
+{ "action": "get_recent_meetings", "params": { "limit"?: number } }
+{ "action": "get_meeting_summary", "params": { "contact"?: string, "company"?: string } }
+{ "action": "get_stats", "params": { "period"?: "today" | "week" | "month" } }
+{ "action": "get_tasks", "params": { "status"?: "pending" | "done" } }
+{ "action": "get_emails", "params": { "contact"?: string, "limit"?: number } }
+{ "action": "get_prospect_info", "params": { "name": string } }
+{ "action": "search_my_prospects", "params": { "name"?: string, "company"?: string, "status"?: string } }
+
+WRITE ACTIONS (backend executes, HAL confirms):
+{ "action": "add_note", "params": { "name": string, "note": string } }
+{ "action": "create_task", "params": { "title": string, "contactName"?: string, "priority"?: "high" | "medium" | "low", "dueDate"?: string } }
+{ "action": "update_prospect_status", "params": { "name": string, "status": "new_lead" | "in_sequence" | "contacted" | "meeting_scheduled" | "qualified" | "unqualified" } }
+{ "action": "draft_followup", "params": { "contact"?: string, "company"?: string } }
+
+CONVERSATIONAL:
+{ "action": "speak_only", "message": string }
+{ "action": "unknown", "message": string }
 
 Rules:
-- Only return valid JSON, no explanation, no markdown
-- All params are optional — only include what was mentioned
-- For questions about past calls, transcriptions, or call history → use get_recent_calls or get_call_summary
-- For searching existing prospects in the database → use search_my_prospects
-- If the command is unclear or not supported, use action "unknown" with a helpful message
+- Return ONLY valid JSON, no markdown, no explanation
+- Be conversational and punchy in any message fields — never robotic
+- Extract note/task content verbatim from what the user said
+- Relative dates ("tomorrow", "next Monday", "next week") pass through as-is in dueDate
+- If genuinely unclear, use "unknown" with a helpful one-liner
 
 Examples:
-"search for CTOs in San Francisco" → { "action": "search_people", "params": { "title": "CTO", "location": "San Francisco" } }
-"go to my leads" → { "action": "navigate", "params": { "page": "leads" } }
-"what happened in my last call with John" → { "action": "get_call_summary", "params": { "contact": "John" } }
-"show me recent calls" → { "action": "get_recent_calls", "params": { "limit": 5 } }
-"find Jason Smith in my prospects" → { "action": "search_my_prospects", "params": { "name": "Jason Smith" } }`
+"add a note for Bob Ross that he's interested in our Q3 pricing" → { "action": "add_note", "params": { "name": "Bob Ross", "note": "Interested in Q3 pricing" } }
+"create a task to follow up with Sarah next Monday" → { "action": "create_task", "params": { "title": "Follow up with Sarah", "contactName": "Sarah", "dueDate": "next Monday", "priority": "medium" } }
+"how many calls did I make this week" → { "action": "get_stats", "params": { "period": "week" } }
+"what are my open tasks" → { "action": "get_tasks", "params": { "status": "pending" } }
+"mark Bob Ross as qualified" → { "action": "update_prospect_status", "params": { "name": "Bob Ross", "status": "qualified" } }
+"open Bob Ross" → { "action": "open_prospect", "params": { "name": "Bob Ross" } }
+"what happened in my last meeting with Acme" → { "action": "get_meeting_summary", "params": { "company": "Acme" } }
+"what should I say on a cold call" → { "action": "speak_only", "message": "Lead with a pattern interrupt, connect it to a pain point fast, and ask one tight question. Don't pitch on the first call." }`
 
-async function handleDataRetrieval(action: string, params: Record<string, any>, userId: string): Promise<string> {
-  if (action === "get_recent_calls" || action === "get_call_summary") {
+function resolveDueDate(raw: string | undefined): Date | undefined {
+  if (!raw) return undefined
+  const lower = raw.toLowerCase().trim()
+  const now = new Date()
+
+  if (lower === "today") return now
+  if (lower === "tomorrow") {
+    const d = new Date(now); d.setDate(d.getDate() + 1); return d
+  }
+  if (lower === "next week") {
+    const d = new Date(now); d.setDate(d.getDate() + 7); return d
+  }
+  if (lower === "next monday") {
+    const d = new Date(now)
+    const day = d.getDay()
+    d.setDate(d.getDate() + ((1 + 7 - day) % 7 || 7))
+    return d
+  }
+
+  const inDays = lower.match(/in (\d+) days?/)
+  if (inDays) {
+    const d = new Date(now); d.setDate(d.getDate() + parseInt(inDays[1])); return d
+  }
+
+  const parsed = new Date(raw)
+  return isNaN(parsed.getTime()) ? undefined : parsed
+}
+
+async function handleAction(
+  action: string,
+  params: Record<string, any>,
+  userId: string
+): Promise<string> {
+
+  // ── CALLS ──────────────────────────────────────────────────────────────
+  if (action === "get_recent_calls") {
     const where: any = { userId }
     if (params.contact) {
-      where.prospect = {
-        name: { contains: params.contact, mode: "insensitive" },
-      }
+      where.prospect = { name: { contains: params.contact, mode: "insensitive" } }
     }
-
     const calls = await prisma.call.findMany({
       where,
-      include: {
-        prospect: { select: { name: true, company: true, title: true } },
-      },
+      include: { prospect: { select: { name: true, company: true } } },
       orderBy: { createdAt: "desc" },
-      take: action === "get_recent_calls" ? (params.limit || 5) : 1,
+      take: params.limit || 5,
     })
+    if (!calls.length) return params.contact ? `No calls found with ${params.contact}.` : "No recent calls."
+    const lines = calls.map(c => {
+      const who = c.prospect?.name || "unknown"
+      const outcome = c.outcome?.replace(/_/g, " ") || c.status
+      return `${who} — ${outcome}`
+    }).join(", ")
+    return `Your last ${calls.length} call${calls.length > 1 ? "s" : ""}: ${lines}.`
+  }
 
-    if (calls.length === 0) {
-      return params.contact
-        ? `No calls found with ${params.contact}.`
-        : "You have no recent calls."
+  if (action === "get_call_summary") {
+    const where: any = { userId }
+    if (params.contact) {
+      where.prospect = { name: { contains: params.contact, mode: "insensitive" } }
     }
-
-    if (action === "get_recent_calls") {
-      const names = calls.map(c => c.prospect?.name || "Unknown").join(", ")
-      return `Your ${calls.length} most recent calls were with: ${names}.`
-    }
-
-    // get_call_summary — summarize the transcript
-    const call = calls[0]
-    const prospectName = call.prospect?.name || "the prospect"
-
+    const call = await prisma.call.findFirst({
+      where,
+      include: { prospect: { select: { name: true } } },
+      orderBy: { createdAt: "desc" },
+    })
+    if (!call) return `No call found${params.contact ? ` with ${params.contact}` : ""}.`
+    const prospectName = call.prospect?.name || "that prospect"
     let transcriptText = ""
     if (call.transcription) {
       try {
         const parsed = JSON.parse(call.transcription)
         transcriptText = parsed.fullText || parsed.text || call.transcription
-      } catch {
-        transcriptText = call.transcription
-      }
+      } catch { transcriptText = call.transcription }
     }
-
-    if (!transcriptText) {
-      return `Your last call with ${prospectName} has no transcription yet.`
-    }
-
-    const summary = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 150,
-      messages: [{
-        role: "user",
-        content: `Summarize this sales call in 2-3 spoken sentences max, as if telling a colleague verbally. No bullet points.\n\nTranscript:\n${transcriptText.slice(0, 3000)}`,
-      }],
-    })
-
-    return summary.content[0].type === "text" ? summary.content[0].text.trim() : `Call with ${prospectName} found but couldn't summarize.`
+    if (!transcriptText) return `Call with ${prospectName} has no transcript yet.`
+    return await grokChat(
+      "Summarize this sales call in 2-3 spoken sentences, like telling a colleague. No bullet points.",
+      transcriptText.slice(0, 3000),
+      150
+    )
   }
 
-  if (action === "search_my_prospects") {
+  // ── MEETINGS ───────────────────────────────────────────────────────────
+  if (action === "get_recent_meetings") {
+    const meetings = await prisma.meeting.findMany({
+      where: { userId },
+      include: { prospect: { select: { name: true } }, account: { select: { name: true } } },
+      orderBy: { startedAt: "desc" },
+      take: params.limit || 5,
+    })
+    if (!meetings.length) return "No meetings on record yet."
+    const lines = meetings.map(m => {
+      const who = m.prospect?.name || m.account?.name || "unknown"
+      return `${m.title || "Meeting"} with ${who}`
+    }).join(", ")
+    return `Your last ${meetings.length} meeting${meetings.length > 1 ? "s" : ""}: ${lines}.`
+  }
+
+  if (action === "get_meeting_summary") {
+    const where: any = { userId }
+    if (params.contact) where.prospect = { name: { contains: params.contact, mode: "insensitive" } }
+    if (params.company) where.account = { name: { contains: params.company, mode: "insensitive" } }
+    const meeting = await prisma.meeting.findFirst({
+      where,
+      include: { prospect: { select: { name: true } }, account: { select: { name: true } } },
+      orderBy: { startedAt: "desc" },
+    })
+    if (!meeting) return "No meeting found for that."
+    if (!meeting.summary) return `Found the meeting but it hasn't been summarized yet.`
+    const actionItems = (meeting.actionItems as string[] | null) || []
+    const aiText = actionItems.length ? ` Action items: ${actionItems.join("; ")}.` : ""
+    return `${meeting.summary}${aiText}`
+  }
+
+  // ── STATS ──────────────────────────────────────────────────────────────
+  if (action === "get_stats") {
+    const period = params.period || "week"
+    const now = new Date()
+    let since = new Date()
+    if (period === "today") since.setHours(0, 0, 0, 0)
+    else if (period === "week") since.setDate(now.getDate() - 7)
+    else if (period === "month") since.setDate(now.getDate() - 30)
+
+    const [calls, emails, meetings, tasks, prospects] = await Promise.all([
+      prisma.call.count({ where: { userId, createdAt: { gte: since } } }),
+      prisma.email.count({ where: { userId, sentAt: { gte: since } } }),
+      prisma.meeting.count({ where: { userId, startedAt: { gte: since } } }),
+      prisma.task.count({ where: { userId, status: "to_do" } }),
+      prisma.prospect.count({ where: { userId, createdAt: { gte: since } } }),
+    ])
+
+    const periodLabel = period === "today" ? "today" : `this ${period}`
+    return await grokChat(
+      "You are HAL6900. Give a punchy 2-sentence sales performance summary. Be direct, skip fluff.",
+      `Stats ${periodLabel}: ${calls} calls, ${emails} emails sent, ${meetings} meetings, ${prospects} new prospects added. ${tasks} tasks still pending.`,
+      120
+    )
+  }
+
+  // ── TASKS ──────────────────────────────────────────────────────────────
+  if (action === "get_tasks") {
+    const status = params.status === "done" ? "done" : "to_do"
+    const tasks = await prisma.task.findMany({
+      where: { userId, status },
+      orderBy: { dueDate: "asc" },
+      take: 5,
+    })
+    if (!tasks.length) return status === "to_do" ? "No pending tasks. Clean slate." : "No completed tasks found."
+    const lines = tasks.map(t => t.title).join(", ")
+    return `You have ${tasks.length} ${status === "to_do" ? "pending" : "completed"} task${tasks.length > 1 ? "s" : ""}: ${lines}.`
+  }
+
+  // ── EMAILS ─────────────────────────────────────────────────────────────
+  if (action === "get_emails") {
+    const where: any = { userId, status: "sent" }
+    if (params.contact) where.to = { contains: params.contact, mode: "insensitive" }
+    const emails = await prisma.email.findMany({
+      where,
+      orderBy: { sentAt: "desc" },
+      take: params.limit || 5,
+      select: { to: true, subject: true, sentAt: true, openedAt: true },
+    })
+    if (!emails.length) return "No emails found."
+    const lines = emails.map(e => `"${e.subject}" to ${e.to}${e.openedAt ? " (opened)" : ""}`).join(", ")
+    return `Last ${emails.length} email${emails.length > 1 ? "s" : ""}: ${lines}.`
+  }
+
+  // ── PROSPECT INFO ──────────────────────────────────────────────────────
+  if (action === "get_prospect_info" || action === "search_my_prospects") {
     const where: any = { userId }
     if (params.name) where.name = { contains: params.name, mode: "insensitive" }
     if (params.company) where.company = { contains: params.company, mode: "insensitive" }
+    if (params.status) where.status = params.status
 
     const prospects = await prisma.prospect.findMany({
       where,
-      select: { name: true, company: true, title: true },
       take: 5,
+      select: { name: true, title: true, company: true, status: true, email: true, notes: true, lastActivity: true },
     })
-
-    if (prospects.length === 0) return `No prospects found matching your search.`
+    if (!prospects.length) return "No prospects found matching that."
+    if (prospects.length === 1) {
+      const p = prospects[0]
+      const notes = p.notes ? ` Notes: ${p.notes.slice(0, 120)}.` : ""
+      return `${p.name}${p.title ? `, ${p.title}` : ""}${p.company ? ` at ${p.company}` : ""}. Status: ${p.status?.replace(/_/g, " ")}.${notes}`
+    }
     const list = prospects.map(p => `${p.name}${p.company ? ` at ${p.company}` : ""}`).join(", ")
-    return `Found ${prospects.length} prospect${prospects.length > 1 ? "s" : ""}: ${list}.`
+    return `Found ${prospects.length}: ${list}.`
   }
 
-  return "I couldn't retrieve that data."
+  // ── ADD NOTE ───────────────────────────────────────────────────────────
+  if (action === "add_note") {
+    if (!params.name || !params.note) return "I need a name and what to note."
+    const prospect = await prisma.prospect.findFirst({
+      where: { userId, name: { contains: params.name, mode: "insensitive" } },
+      select: { id: true, name: true, notes: true },
+    })
+    if (!prospect) return `Couldn't find anyone named ${params.name}.`
+    const existing = prospect.notes ? `${prospect.notes}\n` : ""
+    await prisma.prospect.update({
+      where: { id: prospect.id },
+      data: { notes: `${existing}${params.note}`, lastActivity: new Date() },
+    })
+    return `Got it. Note added to ${prospect.name}: "${params.note}".`
+  }
+
+  // ── CREATE TASK ────────────────────────────────────────────────────────
+  if (action === "create_task") {
+    if (!params.title) return "I need a title for the task."
+    const dueDate = resolveDueDate(params.dueDate)
+
+    let contact: { id: string; name: string; company: string | null } | null = null
+    if (params.contactName) {
+      const prospect = await prisma.prospect.findFirst({
+        where: { userId, name: { contains: params.contactName, mode: "insensitive" } },
+        select: { id: true, name: true, company: true },
+      })
+      contact = prospect
+    }
+
+    await prisma.task.create({
+      data: {
+        userId,
+        title: params.title,
+        description: params.title,
+        type: "follow_up",
+        status: "to_do",
+        priority: params.priority || "medium",
+        dueDate: dueDate || null,
+        contact: contact ? { id: contact.id, name: contact.name, company: contact.company } : undefined,
+      },
+    })
+    const when = dueDate ? ` due ${params.dueDate}` : ""
+    return `Task created: "${params.title}"${when}.`
+  }
+
+  // ── DRAFT FOLLOW-UP (opens compose modal) ──────────────────────────────
+  if (action === "draft_followup") {
+    const where: any = { userId, summary: { not: null } }
+    if (params.contact) where.prospect = { name: { contains: params.contact, mode: "insensitive" } }
+    if (params.company) where.account = { name: { contains: params.company, mode: "insensitive" } }
+
+    const meeting = await prisma.meeting.findFirst({
+      where,
+      include: {
+        prospect: { select: { name: true, email: true, company: true } },
+        account: { select: { name: true } },
+      },
+      orderBy: { startedAt: "desc" },
+    })
+
+    if (!meeting) return "__compose__" + JSON.stringify({ action: "speak_only", message: "No summarized meeting found to follow up on." })
+
+    const prospectName = meeting.prospect?.name || "the prospect"
+    const prospectCompany = meeting.prospect?.company || meeting.account?.name || ""
+    const actionItems = (meeting.actionItems as string[] | null) || []
+
+    const draft = await grokChat(
+      "Draft a short follow-up email (2-3 sentences, casual and professional) from Sadid. Reference the meeting specifically. Return JSON only: {\"subject\": \"...\", \"body\": \"...\"}",
+      `To: ${prospectName}${prospectCompany ? ` at ${prospectCompany}` : ""}
+Summary: ${meeting.summary}
+Action items: ${actionItems.join("; ") || "none"}`,
+      300
+    )
+
+    let emailDraft: { subject: string; body: string }
+    try { emailDraft = JSON.parse(draft) } catch {
+      const match = draft.match(/\{[\s\S]*\}/)
+      if (!match) return "Couldn't draft the email."
+      emailDraft = JSON.parse(match[0])
+    }
+
+    // Return a special marker so the route knows to return open_compose
+    return "__compose__" + JSON.stringify({
+      to: meeting.prospect?.email || "",
+      subject: emailDraft.subject,
+      body: emailDraft.body,
+      meetingId: meeting.id,
+    })
+  }
+
+  // ── UPDATE STATUS ──────────────────────────────────────────────────────
+  if (action === "update_prospect_status") {
+    if (!params.name || !params.status) return "I need a name and a status."
+    const prospect = await prisma.prospect.findFirst({
+      where: { userId, name: { contains: params.name, mode: "insensitive" } },
+      select: { id: true, name: true },
+    })
+    if (!prospect) return `Couldn't find ${params.name}.`
+    await prisma.prospect.update({
+      where: { id: prospect.id },
+      data: { status: params.status, lastActivity: new Date() },
+    })
+    return `${prospect.name} marked as ${params.status.replace(/_/g, " ")}.`
+  }
+
+  return "I couldn't handle that one."
 }
 
+// For open_prospect — looks up the ID so frontend can navigate
+async function resolveProspectPath(name: string, userId: string): Promise<string | null> {
+  const prospect = await prisma.prospect.findFirst({
+    where: { userId, name: { contains: name, mode: "insensitive" } },
+    select: { id: true },
+  })
+  return prospect ? `/prospects?highlight=${prospect.id}` : null
+}
+
+const DATA_ACTIONS = [
+  "get_recent_calls", "get_call_summary",
+  "get_recent_meetings", "get_meeting_summary",
+  "get_stats", "get_tasks", "get_emails",
+  "get_prospect_info", "search_my_prospects",
+  "add_note", "create_task", "update_prospect_status",
+  "draft_followup",
+]
+
 export const POST = withSuperAdmin(async (request: NextRequest, user: User) => {
-  let transcript: string
-  try {
-    const body = await request.json()
-    transcript = body.transcript
-  } catch {
-    return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+  const body = await request.json().catch(() => null)
+  const transcript = body?.transcript
+  if (!transcript?.trim()) {
+    return NextResponse.json({ action: "speak_only", message: "I didn't catch that." })
   }
 
-  if (!transcript || typeof transcript !== "string") {
-    return NextResponse.json({ error: "transcript is required" }, { status: 400 })
-  }
-
-  let aiMessage
+  let text: string
   try {
-    aiMessage = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 256,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: transcript }],
-    })
+    text = await grokChat(SYSTEM_PROMPT, transcript)
   } catch (err) {
-    console.error("Anthropic API error:", err)
-    return NextResponse.json({ error: "AI request failed" }, { status: 500 })
+    console.error("Grok API error:", err)
+    return NextResponse.json({ action: "speak_only", message: "Something went wrong on my end." })
   }
 
-  const text = aiMessage.content[0].type === "text" ? aiMessage.content[0].text : ""
   const clean = text.replace(/^```(?:json)?\n?/i, "").replace(/\n?```$/i, "").trim()
 
-  let parsed
+  let parsed: { action: string; params?: Record<string, any>; message?: string }
   try {
     parsed = JSON.parse(clean)
   } catch {
-    return NextResponse.json({ error: "Failed to parse command" }, { status: 500 })
+    const match = clean.match(/\{[\s\S]*\}/)
+    if (!match) return NextResponse.json({ action: "speak_only", message: "I couldn't parse that." })
+    try { parsed = JSON.parse(match[0]) } catch {
+      return NextResponse.json({ action: "speak_only", message: "I couldn't parse that." })
+    }
   }
 
-  // Handle data retrieval actions server-side
-  const dataActions = ["get_recent_calls", "get_call_summary", "search_my_prospects"]
-  if (dataActions.includes(parsed.action)) {
-    try {
-      const message = await handleDataRetrieval(parsed.action, parsed.params || {}, user.id)
-      return NextResponse.json({ action: "speak_only", message })
-    } catch (err) {
-      console.error("Data retrieval error:", err)
-      return NextResponse.json({ action: "speak_only", message: "I had trouble fetching that data." })
+  // open_prospect needs a backend lookup to get the path
+  if (parsed.action === "open_prospect" && parsed.params?.name) {
+    const path = await resolveProspectPath(parsed.params.name, user.id)
+    if (path) return NextResponse.json({ action: "navigate_url", params: { path } })
+    return NextResponse.json({ action: "speak_only", message: `Couldn't find ${parsed.params.name} in your prospects.` })
+  }
+
+  // Data/write actions — backend handles, HAL speaks
+  if (DATA_ACTIONS.includes(parsed.action)) {
+    const result = await handleAction(parsed.action, parsed.params || {}, user.id).catch((err) => {
+      console.error("HAL action error:", err)
+      return "I ran into an issue fetching that."
+    })
+    // draft_followup returns a compose payload prefixed with __compose__
+    if (result.startsWith("__compose__")) {
+      const payload = result.slice("__compose__".length)
+      try {
+        const data = JSON.parse(payload)
+        if (data.action === "speak_only") return NextResponse.json(data)
+        return NextResponse.json({ action: "open_compose", params: data })
+      } catch {
+        return NextResponse.json({ action: "speak_only", message: "Couldn't open the draft." })
+      }
     }
+    return NextResponse.json({ action: "speak_only", message: result })
   }
 
   return NextResponse.json(parsed)

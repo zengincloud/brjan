@@ -31,6 +31,7 @@ export interface CalendarEvent {
   attendees: { email: string; name?: string; responseStatus?: string }[]
   htmlLink: string
   status: string
+  hangoutLink?: string // Google Meet URL if present
 }
 
 export async function listUpcomingEvents(
@@ -109,5 +110,6 @@ function mapEvent(item: any): CalendarEvent {
     })),
     htmlLink: item.htmlLink || "",
     status: item.status || "confirmed",
+    hangoutLink: item.hangoutLink || undefined,
   }
 }

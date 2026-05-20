@@ -6,11 +6,13 @@ import { useCallback } from "react"
 export type VoiceAction =
   | { action: "search_people"; params: { title?: string; location?: string; company?: string; keyword?: string; name?: string } }
   | { action: "search_companies"; params: { industry?: string; location?: string; size?: string; keyword?: string } }
-  | { action: "navigate"; params: { page: "leads" | "accounts" | "prospecting" | "people" | "companies" | "settings" | "sequences" | "calls" | "dialer" | "activity" } }
+  | { action: "navigate"; params: { page: "leads" | "accounts" | "prospecting" | "people" | "companies" | "settings" | "sequences" | "calls" | "dialer" | "activity" | "tasks" | "meetings" | "reports" } }
+  | { action: "navigate_url"; params: { path: string } }
+  | { action: "open_compose"; params: { to: string; subject: string; body: string; meetingId?: string } }
   | { action: "add_lead"; params: { name?: string; company?: string } }
   | { action: "add_account"; params: { company?: string } }
   | { action: "speak_only"; message: string }
-  | { action: "unknown"; params: Record<string, never>; message: string }
+  | { action: "unknown"; message: string }
 
 const PAGE_ROUTES: Record<string, string> = {
   leads: "/prospects",
@@ -23,6 +25,9 @@ const PAGE_ROUTES: Record<string, string> = {
   calls: "/activity/calls",
   dialer: "/dialer",
   activity: "/activity/calls",
+  tasks: "/tasks",
+  meetings: "/activity/meetings",
+  reports: "/reports",
 }
 
 export function useVoiceAction() {
@@ -65,6 +70,16 @@ export function useVoiceAction() {
       case "add_account":
         router.push("/accounts")
         return `Opening accounts`
+
+      case "navigate_url": {
+        router.push(voiceAction.params.path)
+        return "On it."
+      }
+
+      case "open_compose": {
+        window.dispatchEvent(new CustomEvent("hal:compose", { detail: voiceAction.params }))
+        return "Draft's ready."
+      }
 
       case "speak_only":
         return voiceAction.message

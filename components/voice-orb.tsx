@@ -35,12 +35,12 @@ export function VoiceOrb() {
   if (!isSuperAdmin) return null
 
   const label = agentState === "listening"
-    ? "Listening..."
+    ? "HAL6900 listening..."
     : agentState === "thinking"
-    ? "Thinking..."
+    ? "HAL6900 thinking..."
     : agentState === "talking"
-    ? "Speaking..."
-    : "Hold to talk"
+    ? "HAL6900 speaking..."
+    : "HAL6900"
 
   return (
     <div

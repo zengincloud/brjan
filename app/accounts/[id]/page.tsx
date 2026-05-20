@@ -29,7 +29,15 @@ import {
   BookOpen,
   Mic,
   Clock,
+  Video,
+  ChevronDown,
+  ChevronUp,
+  CheckCircle,
+  Send,
+  X,
 } from "lucide-react"
+import { Textarea } from "@/components/ui/textarea"
+import { Input } from "@/components/ui/input"
 import { formatDistanceToNow } from "date-fns"
 import { BRLoader } from "@/components/ui/br-loader"
 
@@ -80,7 +88,7 @@ type Contact = {
 
 type ActivityItem = {
   id: string
-  type: "call" | "email" | "linkedin"
+  type: "call" | "email" | "linkedin" | "meeting"
   contactName: string | null
   detail: string
   time: string
@@ -89,6 +97,9 @@ type ActivityItem = {
   recordingUrl?: string | null
   emailStatus?: string | null
   subject?: string | null
+  summary?: string | null
+  actionItems?: string[] | null
+  followUpSentAt?: string | null
 }
 
 export default function AccountDetailPage() {
@@ -105,6 +116,15 @@ export default function AccountDetailPage() {
   const [loadingPov, setLoadingPov] = useState(false)
   const [loadingContacts, setLoadingContacts] = useState(false)
   const [loadingActivity, setLoadingActivity] = useState(false)
+  const [expandedMeetings, setExpandedMeetings] = useState<Set<string>>(new Set())
+  const [draftingFollowUp, setDraftingFollowUp] = useState<string | null>(null)
+  const [followUpModal, setFollowUpModal] = useState<{
+    meetingId: string
+    to: string
+    subject: string
+    body: string
+  } | null>(null)
+  const [sendingFollowUp, setSendingFollowUp] = useState(false)
 
   useEffect(() => {
     if (accountId) {
@@ -220,6 +240,58 @@ export default function AccountDetailPage() {
       return formatDistanceToNow(new Date(dateString), { addSuffix: true })
     } catch {
       return "Recently"
+    }
+  }
+
+  const toggleMeeting = (id: string) => {
+    setExpandedMeetings((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const draftFollowUp = async (meetingId: string) => {
+    setDraftingFollowUp(meetingId)
+    try {
+      const res = await fetch(`/api/meetings/${meetingId}/draft-followup`, { method: "POST" })
+      if (!res.ok) throw new Error("Failed to draft follow-up")
+      const data = await res.json()
+      setFollowUpModal({
+        meetingId,
+        to: data.prospectEmail || "",
+        subject: data.emailSubject,
+        body: data.emailBody,
+      })
+    } catch {
+      toast({ title: "Error", description: "Could not draft follow-up", variant: "destructive" })
+    } finally {
+      setDraftingFollowUp(null)
+    }
+  }
+
+  const sendFollowUp = async () => {
+    if (!followUpModal) return
+    setSendingFollowUp(true)
+    try {
+      const res = await fetch(`/api/meetings/${followUpModal.meetingId}/send-followup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: followUpModal.to,
+          subject: followUpModal.subject,
+          bodyText: followUpModal.body,
+        }),
+      })
+      if (!res.ok) throw new Error("Failed to send")
+      toast({ title: "Follow-up sent" })
+      setFollowUpModal(null)
+      loadActivity()
+    } catch {
+      toast({ title: "Error", description: "Could not send follow-up", variant: "destructive" })
+    } finally {
+      setSendingFollowUp(false)
     }
   }
 
@@ -467,44 +539,124 @@ export default function AccountDetailPage() {
             </div>
           ) : activity.length > 0 ? (
             <div className="divide-y">
-              {activity.map((item) => (
-                <div key={`${item.type}-${item.id}`} className="flex items-center gap-4 py-2.5">
-                  <div className="flex items-center gap-2 w-40 shrink-0">
-                    {item.type === "call" ? (
-                      <Phone className="h-3.5 w-3.5 text-primary shrink-0" />
-                    ) : item.type === "linkedin" ? (
-                      <Linkedin className="h-3.5 w-3.5 text-[#0A66C2] shrink-0" />
-                    ) : (
-                      <Mail className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-                    )}
-                    <span className="text-sm font-medium truncate">
-                      {item.contactName || "Unknown"}
+              {activity.map((item) => {
+                if (item.type === "meeting") {
+                  const isExpanded = expandedMeetings.has(item.id)
+                  const actionItems = item.actionItems || []
+                  return (
+                    <div key={`meeting-${item.id}`} className="py-3">
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2 w-40 shrink-0">
+                          <Video className="h-3.5 w-3.5 text-violet-500 shrink-0" />
+                          <span className="text-sm font-medium truncate">
+                            {item.contactName || "Meeting"}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <span className="text-sm text-muted-foreground truncate">{item.detail}</span>
+                          {item.duration && item.duration > 0 && (
+                            <span className="text-xs text-muted-foreground shrink-0">
+                              {formatDuration(item.duration)}
+                            </span>
+                          )}
+                          {item.summary && (
+                            <button
+                              onClick={() => toggleMeeting(item.id)}
+                              className="text-xs text-primary flex items-center gap-1 shrink-0 hover:underline"
+                            >
+                              {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                              {isExpanded ? "Hide" : "Summary"}
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {item.followUpSentAt ? (
+                            <Badge variant="secondary" className="text-xs gap-1">
+                              <CheckCircle className="h-3 w-3" />
+                              Followed up
+                            </Badge>
+                          ) : item.summary ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs"
+                              disabled={draftingFollowUp === item.id}
+                              onClick={() => draftFollowUp(item.id)}
+                            >
+                              {draftingFollowUp === item.id ? (
+                                <RefreshCw className="h-3 w-3 animate-spin mr-1" />
+                              ) : (
+                                <Send className="h-3 w-3 mr-1" />
+                              )}
+                              Follow up
+                            </Button>
+                          ) : null}
+                          <span className="text-xs text-muted-foreground">
+                            {formatLastActivity(item.time)}
+                          </span>
+                        </div>
+                      </div>
+                      {isExpanded && item.summary && (
+                        <div className="mt-2 ml-[160px] space-y-2">
+                          <p className="text-sm text-muted-foreground leading-relaxed">{item.summary}</p>
+                          {actionItems.length > 0 && (
+                            <div>
+                              <p className="text-xs font-medium text-muted-foreground mb-1">Action items</p>
+                              <ul className="space-y-0.5">
+                                {actionItems.map((ai, i) => (
+                                  <li key={i} className="text-xs text-muted-foreground flex items-start gap-1.5">
+                                    <span className="text-primary mt-0.5">•</span>
+                                    {ai}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                }
+
+                return (
+                  <div key={`${item.type}-${item.id}`} className="flex items-center gap-4 py-2.5">
+                    <div className="flex items-center gap-2 w-40 shrink-0">
+                      {item.type === "call" ? (
+                        <Phone className="h-3.5 w-3.5 text-primary shrink-0" />
+                      ) : item.type === "linkedin" ? (
+                        <Linkedin className="h-3.5 w-3.5 text-[#0A66C2] shrink-0" />
+                      ) : (
+                        <Mail className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                      )}
+                      <span className="text-sm font-medium truncate">
+                        {item.contactName || "Unknown"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      {item.type === "call" && item.outcome && (
+                        <Badge variant={getOutcomeVariant(item.outcome)} className="text-xs shrink-0">
+                          {item.detail.replace("Call — ", "")}
+                        </Badge>
+                      )}
+                      {(item.type === "email" || item.type === "linkedin") && (
+                        <span className="text-sm text-muted-foreground truncate">{item.detail}</span>
+                      )}
+                      {item.type === "call" && item.duration != null && item.duration > 0 && (
+                        <span className="text-xs text-muted-foreground shrink-0">{formatDuration(item.duration)}</span>
+                      )}
+                      {item.type === "call" && item.recordingUrl && (
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Mic className="h-3 w-3 text-primary" />
+                          <audio controls className="h-6 w-32" src={`/api/calls/${item.id}/recording`} />
+                        </div>
+                      )}
+                    </div>
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      {formatLastActivity(item.time)}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    {item.type === "call" && item.outcome && (
-                      <Badge variant={getOutcomeVariant(item.outcome)} className="text-xs shrink-0">
-                        {item.detail.replace("Call — ", "")}
-                      </Badge>
-                    )}
-                    {(item.type === "email" || item.type === "linkedin") && (
-                      <span className="text-sm text-muted-foreground truncate">{item.detail}</span>
-                    )}
-                    {item.type === "call" && item.duration != null && item.duration > 0 && (
-                      <span className="text-xs text-muted-foreground shrink-0">{formatDuration(item.duration)}</span>
-                    )}
-                    {item.type === "call" && item.recordingUrl && (
-                      <div className="flex items-center gap-1 shrink-0">
-                        <Mic className="h-3 w-3 text-primary" />
-                        <audio controls className="h-6 w-32" src={`/api/calls/${item.id}/recording`} />
-                      </div>
-                    )}
-                  </div>
-                  <span className="text-xs text-muted-foreground shrink-0">
-                    {formatLastActivity(item.time)}
-                  </span>
-                </div>
-              ))}
+                )
+              })}
             </div>
           ) : (
             <div className="text-center py-8 text-muted-foreground">
@@ -513,6 +665,63 @@ export default function AccountDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Follow-up email modal */}
+      {followUpModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-lg">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base">Send Follow-up</CardTitle>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setFollowUpModal(null)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">To</p>
+                <Input
+                  value={followUpModal.to}
+                  onChange={(e) => setFollowUpModal({ ...followUpModal, to: e.target.value })}
+                  placeholder="recipient@example.com"
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Subject</p>
+                <Input
+                  value={followUpModal.subject}
+                  onChange={(e) => setFollowUpModal({ ...followUpModal, subject: e.target.value })}
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Body</p>
+                <Textarea
+                  value={followUpModal.body}
+                  onChange={(e) => setFollowUpModal({ ...followUpModal, body: e.target.value })}
+                  rows={6}
+                  className="text-sm resize-none"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <Button variant="outline" size="sm" onClick={() => setFollowUpModal(null)}>
+                  Cancel
+                </Button>
+                <Button size="sm" onClick={sendFollowUp} disabled={sendingFollowUp || !followUpModal.to}>
+                  {sendingFollowUp ? (
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin mr-2" />
+                  ) : (
+                    <Send className="h-3.5 w-3.5 mr-2" />
+                  )}
+                  Send
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Contacts - Linked Prospects */}
       <Card>

@@ -10,6 +10,7 @@ export function useVoiceCommand() {
   const currentAudioRef = useRef<HTMLAudioElement | null>(null)
   const currentAudioUrlRef = useRef<string | null>(null)
   const pendingTranscriptRef = useRef<string>("")
+  const historyRef = useRef<{ role: "user" | "assistant"; content: string }[]>([])
   const { execute } = useVoiceAction()
 
   const interrupt = useCallback(() => {
@@ -55,15 +56,24 @@ export function useVoiceCommand() {
   const processTranscript = useCallback(async (transcript: string) => {
     setAgentState("thinking")
     try {
+      // Add user turn to history
+      historyRef.current = [...historyRef.current, { role: "user", content: transcript }].slice(-10)
+
       const commandRes = await fetch("/api/voice/command", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transcript }),
+        body: JSON.stringify({ transcript, history: historyRef.current.slice(0, -1) }),
       })
       if (!commandRes.ok) { await speak("Something went wrong."); return }
 
       const voiceAction: VoiceAction = await commandRes.json()
       const message = execute(voiceAction)
+
+      // Add HAL's response to history
+      if (message) {
+        historyRef.current = [...historyRef.current, { role: "assistant", content: message }].slice(-10)
+      }
+
       await speak(message)
     } catch {
       setAgentState(null)

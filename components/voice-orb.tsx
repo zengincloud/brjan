@@ -38,11 +38,8 @@ export function VoiceOrb() {
   return (
     <div
       className="fixed bottom-6 right-6 z-50 w-20 h-20 cursor-pointer group select-none"
-      onMouseDown={startListening}
-      onMouseUp={stopListening}
-      onTouchStart={startListening}
-      onTouchEnd={stopListening}
       onClick={toggleListening}
+      onTouchEnd={(e) => { e.preventDefault(); toggleListening() }}
     >
       <div className={`w-full h-full rounded-full overflow-hidden transition-opacity ${agentState ? "opacity-100" : "opacity-70 hover:opacity-100"}`}>
         <Orb agentState={agentState} colors={["#6366f1", "#8b5cf6"]} />

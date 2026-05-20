@@ -5,7 +5,13 @@ import type { User } from "@prisma/client"
 
 export const dynamic = "force-dynamic"
 
-async function grokChat(system: string, userMessage: string, maxTokens = 512): Promise<string> {
+type ChatMessage = { role: "user" | "assistant" | "system"; content: string }
+
+async function grokChat(
+  system: string,
+  messages: ChatMessage[],
+  maxTokens = 512
+): Promise<string> {
   const res = await fetch("https://api.x.ai/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -15,10 +21,7 @@ async function grokChat(system: string, userMessage: string, maxTokens = 512): P
     body: JSON.stringify({
       model: "grok-3-mini",
       max_tokens: maxTokens,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: userMessage },
-      ],
+      messages: [{ role: "system", content: system }, ...messages],
     }),
   })
   if (!res.ok) throw new Error(`Grok API error: ${res.status}`)
@@ -151,9 +154,15 @@ async function handleAction(
       } catch { transcriptText = call.transcription }
     }
     if (!transcriptText) return `Call with ${prospectName} has no transcript yet.`
+
+    // Use cached AI analysis if available — avoids a second Grok call
+    const meta = call.metadata as any
+    if (meta?.analysis?.summary) return meta.analysis.summary
+    if (meta?.analysis?.keyPoints?.length) return meta.analysis.keyPoints.join(". ")
+
     return await grokChat(
       "Summarize this sales call in 2-3 spoken sentences, like telling a colleague. No bullet points.",
-      transcriptText.slice(0, 3000),
+      [{ role: "user", content: transcriptText.slice(0, 3000) }],
       150
     )
   }
@@ -210,7 +219,7 @@ async function handleAction(
     const periodLabel = period === "today" ? "today" : `this ${period}`
     return await grokChat(
       "You are HAL6900. Give a punchy 2-sentence sales performance summary. Be direct, skip fluff.",
-      `Stats ${periodLabel}: ${calls} calls, ${emails} emails sent, ${meetings} meetings, ${prospects} new prospects added. ${tasks} tasks still pending.`,
+      [{ role: "user", content: `Stats ${periodLabel}: ${calls} calls, ${emails} emails sent, ${meetings} meetings, ${prospects} new prospects added. ${tasks} tasks still pending.` }],
       120
     )
   }
@@ -334,9 +343,7 @@ async function handleAction(
 
     const draft = await grokChat(
       "Draft a short follow-up email (2-3 sentences, casual and professional) from Sadid. Reference the meeting specifically. Return JSON only: {\"subject\": \"...\", \"body\": \"...\"}",
-      `To: ${prospectName}${prospectCompany ? ` at ${prospectCompany}` : ""}
-Summary: ${meeting.summary}
-Action items: ${actionItems.join("; ") || "none"}`,
+      [{ role: "user", content: `To: ${prospectName}${prospectCompany ? ` at ${prospectCompany}` : ""}\nSummary: ${meeting.summary}\nAction items: ${actionItems.join("; ") || "none"}` }],
       300
     )
 
@@ -380,7 +387,7 @@ async function resolveProspectPath(name: string, userId: string): Promise<string
     where: { userId, name: { contains: name, mode: "insensitive" } },
     select: { id: true },
   })
-  return prospect ? `/prospects?highlight=${prospect.id}` : null
+  return prospect ? `/prospects/${prospect.id}` : null
 }
 
 const DATA_ACTIONS = [
@@ -395,13 +402,21 @@ const DATA_ACTIONS = [
 export const POST = withSuperAdmin(async (request: NextRequest, user: User) => {
   const body = await request.json().catch(() => null)
   const transcript = body?.transcript
+  const history: ChatMessage[] = body?.history || []
+
   if (!transcript?.trim()) {
     return NextResponse.json({ action: "speak_only", message: "I didn't catch that." })
   }
 
+  // Build messages: prior conversation + current command
+  const messages: ChatMessage[] = [
+    ...history.slice(-10), // keep last 5 exchanges (10 messages)
+    { role: "user", content: transcript },
+  ]
+
   let text: string
   try {
-    text = await grokChat(SYSTEM_PROMPT, transcript)
+    text = await grokChat(SYSTEM_PROMPT, messages)
   } catch (err) {
     console.error("Grok API error:", err)
     return NextResponse.json({ action: "speak_only", message: "Something went wrong on my end." })

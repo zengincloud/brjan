@@ -13,7 +13,7 @@ async function grokChat(system: string, userMessage: string, maxTokens = 512): P
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "grok-3",
+      model: "grok-3-mini",
       max_tokens: maxTokens,
       messages: [
         { role: "system", content: system },

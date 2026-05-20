@@ -9,7 +9,7 @@ const Orb = dynamic(() => import("@/components/ui/orb").then((m) => m.Orb), { ss
 
 export function VoiceOrb() {
   const { isSuperAdmin } = useUserRole()
-  const { agentState, startListening, stopListening } = useVoiceCommand()
+  const { agentState, toggleListening, startListening, stopListening } = useVoiceCommand()
 
   useEffect(() => {
     if (!isSuperAdmin) return
@@ -17,20 +17,13 @@ export function VoiceOrb() {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.code === "Space" && e.target === document.body) {
         e.preventDefault()
-        startListening()
+        toggleListening()
       }
-    }
-    const onKeyUp = (e: KeyboardEvent) => {
-      if (e.code === "Space") stopListening()
     }
 
     window.addEventListener("keydown", onKeyDown)
-    window.addEventListener("keyup", onKeyUp)
-    return () => {
-      window.removeEventListener("keydown", onKeyDown)
-      window.removeEventListener("keyup", onKeyUp)
-    }
-  }, [isSuperAdmin, startListening, stopListening])
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [isSuperAdmin, toggleListening])
 
   if (!isSuperAdmin) return null
 
@@ -49,6 +42,7 @@ export function VoiceOrb() {
       onMouseUp={stopListening}
       onTouchStart={startListening}
       onTouchEnd={stopListening}
+      onClick={toggleListening}
     >
       <div className={`w-full h-full rounded-full overflow-hidden transition-opacity ${agentState ? "opacity-100" : "opacity-70 hover:opacity-100"}`}>
         <Orb agentState={agentState} colors={["#6366f1", "#8b5cf6"]} />

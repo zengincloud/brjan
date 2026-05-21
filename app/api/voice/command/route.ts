@@ -7,6 +7,15 @@ export const dynamic = "force-dynamic"
 
 type ChatMessage = { role: "user" | "assistant" | "system"; content: string }
 
+function formatNoteStamp(): string {
+  const now = new Date()
+  const formatted = now.toLocaleString("en-US", {
+    month: "short", day: "numeric", year: "numeric",
+    hour: "numeric", minute: "2-digit", hour12: true,
+  })
+  return `[HAL6900 — ${formatted}]`
+}
+
 async function grokChat(
   system: string,
   messages: ChatMessage[],
@@ -298,12 +307,13 @@ async function handleAction(
       select: { id: true, name: true, notes: true },
     })
     if (prospect) {
-      const existing = prospect.notes ? `${prospect.notes}\n` : ""
+      const stamp = formatNoteStamp()
+      const existing = prospect.notes ? `${prospect.notes}\n\n` : ""
       await prisma.prospect.update({
         where: { id: prospect.id },
-        data: { notes: `${existing}${params.note}`, lastActivity: new Date() },
+        data: { notes: `${existing}${stamp}\n${params.note}`, lastActivity: new Date() },
       })
-      return `Got it. Note added to ${prospect.name}: "${params.note}".`
+      return `Got it. Note added to ${prospect.name}.`
     }
 
     const account = await prisma.account.findFirst({
@@ -311,12 +321,13 @@ async function handleAction(
       select: { id: true, name: true, notes: true },
     })
     if (account) {
-      const existing = account.notes ? `${account.notes}\n` : ""
+      const stamp = formatNoteStamp()
+      const existing = account.notes ? `${account.notes}\n\n` : ""
       await prisma.account.update({
         where: { id: account.id },
-        data: { notes: `${existing}${params.note}`, lastActivity: new Date() },
+        data: { notes: `${existing}${stamp}\n${params.note}`, lastActivity: new Date() },
       })
-      return `Got it. Note added to ${account.name}: "${params.note}".`
+      return `Got it. Note added to ${account.name}.`
     }
 
     return `Couldn't find anyone named ${params.name} in prospects or companies.`
@@ -447,24 +458,58 @@ const DATA_ACTIONS = [
   "draft_followup",
 ]
 
+async function resolveCurrentEntity(path: string, userId: string): Promise<string> {
+  const prospectMatch = path.match(/^\/prospects\/([a-z0-9]+)$/i)
+  if (prospectMatch) {
+    const prospect = await prisma.prospect.findUnique({
+      where: { id: prospectMatch[1] },
+      select: { name: true, title: true, company: true, status: true, notes: true },
+    }).catch(() => null)
+    if (prospect) {
+      return `User is viewing prospect: ${prospect.name}${prospect.title ? `, ${prospect.title}` : ""}${prospect.company ? ` at ${prospect.company}` : ""}. Status: ${prospect.status?.replace(/_/g, " ")}. When the user says "him", "her", "them", "this person" — they mean ${prospect.name}.`
+    }
+  }
+
+  const accountMatch = path.match(/^\/accounts\/([a-z0-9]+)$/i)
+  if (accountMatch) {
+    const account = await prisma.account.findUnique({
+      where: { id: accountMatch[1] },
+      select: { name: true, industry: true, status: true },
+    }).catch(() => null)
+    if (account) {
+      return `User is viewing account: ${account.name}${account.industry ? ` (${account.industry})` : ""}. When the user says "them", "this company", "this account" — they mean ${account.name}.`
+    }
+  }
+
+  return ""
+}
+
 export const POST = withSuperAdmin(async (request: NextRequest, user: User) => {
   const body = await request.json().catch(() => null)
   const transcript = body?.transcript
   const history: ChatMessage[] = body?.history || []
+  const currentPath: string = body?.currentPath || ""
 
   if (!transcript?.trim()) {
     return NextResponse.json({ action: "speak_only", message: "I didn't catch that." })
   }
 
+  // Resolve what the user is currently looking at
+  const pageContext = currentPath ? await resolveCurrentEntity(currentPath, user.id) : ""
+
+  const systemWithContext = pageContext
+    ? `${SYSTEM_PROMPT}\n\nCURRENT PAGE CONTEXT: ${pageContext}`
+    : SYSTEM_PROMPT
+
   // Build messages: prior conversation + current command
   const messages: ChatMessage[] = [
-    ...history.slice(-10), // keep last 5 exchanges (10 messages)
+    ...history.slice(-10),
     { role: "user", content: transcript },
   ]
 
   let text: string
   try {
-    text = await grokChat(SYSTEM_PROMPT, messages)
+    text = await grokChat(systemWithContext, messages)
   } catch (err) {
     console.error("Grok API error:", err)
     return NextResponse.json({ action: "speak_only", message: "Something went wrong on my end." })

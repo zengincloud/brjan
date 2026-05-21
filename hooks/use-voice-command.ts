@@ -75,7 +75,11 @@ export function useVoiceCommand() {
       const commandRes = await fetch("/api/voice/command", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transcript, history: historyRef.current.slice(0, -1) }),
+        body: JSON.stringify({
+          transcript,
+          history: historyRef.current.slice(0, -1),
+          currentPath: window.location.pathname,
+        }),
       })
       if (!commandRes.ok) { await speak("Something went wrong."); return }
 

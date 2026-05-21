@@ -6,10 +6,10 @@ import type { AgentState } from "@/components/ui/orb"
 
 export function useVoiceCommand() {
   const [agentState, setAgentState] = useState<AgentState>(null)
-  const recognitionRef = useRef<any>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const chunksRef = useRef<Blob[]>([])
   const currentAudioRef = useRef<HTMLAudioElement | null>(null)
   const currentAudioUrlRef = useRef<string | null>(null)
-  const pendingTranscriptRef = useRef<string>("")
   const historyRef = useRef<{ role: "user" | "assistant"; content: string }[]>([])
   const { execute } = useVoiceAction()
 
@@ -22,7 +22,9 @@ export function useVoiceCommand() {
       URL.revokeObjectURL(currentAudioUrlRef.current)
       currentAudioUrlRef.current = null
     }
-    recognitionRef.current?.abort()
+    if (mediaRecorderRef.current?.state === "recording") {
+      mediaRecorderRef.current.stop()
+    }
     setAgentState(null)
   }, [])
 
@@ -53,10 +55,21 @@ export function useVoiceCommand() {
     }
   }, [])
 
-  const processTranscript = useCallback(async (transcript: string) => {
+  const processAudio = useCallback(async (audioBlob: Blob) => {
     setAgentState("thinking")
     try {
-      // Add user turn to history
+      const formData = new FormData()
+      formData.append("audio", audioBlob, "recording.webm")
+
+      const transcribeRes = await fetch("/api/voice/transcribe", {
+        method: "POST",
+        body: formData,
+      })
+      if (!transcribeRes.ok) { await speak("Sorry, I couldn't hear that clearly."); return }
+
+      const { transcript } = await transcribeRes.json()
+      if (!transcript?.trim()) { await speak("I didn't catch that."); return }
+
       historyRef.current = [...historyRef.current, { role: "user", content: transcript }].slice(-10)
 
       const commandRes = await fetch("/api/voice/command", {
@@ -69,7 +82,6 @@ export function useVoiceCommand() {
       const voiceAction: VoiceAction = await commandRes.json()
       const message = execute(voiceAction)
 
-      // Add HAL's response to history
       if (message) {
         historyRef.current = [...historyRef.current, { role: "assistant", content: message }].slice(-10)
       }
@@ -80,65 +92,45 @@ export function useVoiceCommand() {
     }
   }, [execute, speak])
 
-  const toggleListening = useCallback(() => {
-    // Interrupt HAL mid-response
+  const toggleListening = useCallback(async () => {
     if (agentState === "talking" || agentState === "thinking") {
       interrupt()
       return
     }
 
-    // Second press — stop recording and process
     if (agentState === "listening") {
-      recognitionRef.current?.stop()
+      if (mediaRecorderRef.current?.state === "recording") {
+        mediaRecorderRef.current.stop()
+      }
       return
     }
 
-    // First press — start recording via Web Speech API
-    const SpeechRecognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      chunksRef.current = []
+      const recorder = new MediaRecorder(stream)
+      mediaRecorderRef.current = recorder
 
-    if (!SpeechRecognition) {
-      console.warn("Web Speech API not supported in this browser")
-      return
-    }
-
-    const recognition = new SpeechRecognition()
-    recognitionRef.current = recognition
-    recognition.continuous = true   // keep listening until second press
-    recognition.interimResults = false
-    recognition.lang = "en-US"
-    pendingTranscriptRef.current = ""
-
-    recognition.onstart = () => setAgentState("listening")
-
-    recognition.onresult = (event: any) => {
-      // Accumulate results in case of multiple segments
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        if (event.results[i].isFinal) {
-          pendingTranscriptRef.current += event.results[i][0].transcript + " "
-        }
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data)
       }
-    }
-
-    recognition.onend = () => {
-      const transcript = pendingTranscriptRef.current.trim()
-      pendingTranscriptRef.current = ""
-      if (transcript) {
-        processTranscript(transcript)
-      } else {
-        setAgentState(null)
+      recorder.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop())
+        const blob = new Blob(chunksRef.current, { type: "audio/webm" })
+        processAudio(blob)
       }
-    }
 
-    recognition.onerror = (e: any) => {
-      if (e.error !== "aborted") setAgentState(null)
+      recorder.start()
+      setAgentState("listening")
+    } catch {
+      setAgentState(null)
     }
-
-    recognition.start()
-  }, [agentState, interrupt, processTranscript])
+  }, [agentState, interrupt, processAudio])
 
   const stopListening = useCallback(() => {
-    recognitionRef.current?.stop()
+    if (mediaRecorderRef.current?.state === "recording") {
+      mediaRecorderRef.current.stop()
+    }
   }, [])
 
   return { agentState, toggleListening, startListening: toggleListening, stopListening }

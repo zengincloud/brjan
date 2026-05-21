@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation"
 import { useCallback } from "react"
 
 export type VoiceAction =
-  | { action: "search_people"; params: { title?: string; location?: string; company?: string; keyword?: string; name?: string } }
+  | { action: "search_people"; params: { title?: string; location?: string; company?: string; keyword?: string; name?: string; seniorityLevels?: string[] } }
   | { action: "search_companies"; params: { industry?: string; location?: string; size?: string; keyword?: string } }
   | { action: "navigate"; params: { page: "leads" | "accounts" | "prospecting" | "people" | "companies" | "settings" | "sequences" | "calls" | "dialer" | "activity" | "tasks" | "meetings" | "reports" } }
   | { action: "navigate_url"; params: { path: string } }
@@ -48,9 +48,14 @@ export function useVoiceAction() {
         if (voiceAction.params.company) params.set("company", voiceAction.params.company)
         if (voiceAction.params.keyword) params.set("keyword", voiceAction.params.keyword)
         if (voiceAction.params.name) params.set("name", voiceAction.params.name)
+        if (voiceAction.params.seniorityLevels?.length) {
+          params.set("seniorityLevels", JSON.stringify(voiceAction.params.seniorityLevels))
+        }
         params.set("autoSearch", "true")
-        router.push(`/prospecting/outbound?${params.toString()}`)
-        return `Searching for ${voiceAction.params.name || voiceAction.params.title || "people"}`
+        router.push(`/prospecting/outbound?tab=leads&${params.toString()}`)
+        const who = voiceAction.params.seniorityLevels?.join(" and ") || voiceAction.params.title || "people"
+        const where = voiceAction.params.location ? ` in ${voiceAction.params.location}` : ""
+        return `Searching for ${who}${where}.`
       }
 
       case "search_companies": {

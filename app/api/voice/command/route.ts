@@ -284,23 +284,38 @@ async function handleAction(
   if (action === "add_note") {
     if (!params.name || !params.note) return "I need a name and what to note."
     const nameWords = params.name.split(/\s+/).filter((w: string) => w.length > 2)
+    const nameConditions = [
+      { name: { contains: params.name, mode: "insensitive" as const } },
+      ...nameWords.map((w: string) => ({ name: { contains: w, mode: "insensitive" as const } })),
+    ]
+
     const prospect = await prisma.prospect.findFirst({
-      where: {
-        userId,
-        OR: [
-          { name: { contains: params.name, mode: "insensitive" } },
-          ...nameWords.map((w: string) => ({ name: { contains: w, mode: "insensitive" } })),
-        ],
-      },
+      where: { userId, OR: nameConditions },
       select: { id: true, name: true, notes: true },
     })
-    if (!prospect) return `Couldn't find anyone named ${params.name}.`
-    const existing = prospect.notes ? `${prospect.notes}\n` : ""
-    await prisma.prospect.update({
-      where: { id: prospect.id },
-      data: { notes: `${existing}${params.note}`, lastActivity: new Date() },
+    if (prospect) {
+      const existing = prospect.notes ? `${prospect.notes}\n` : ""
+      await prisma.prospect.update({
+        where: { id: prospect.id },
+        data: { notes: `${existing}${params.note}`, lastActivity: new Date() },
+      })
+      return `Got it. Note added to ${prospect.name}: "${params.note}".`
+    }
+
+    const account = await prisma.account.findFirst({
+      where: { userId, OR: nameConditions },
+      select: { id: true, name: true, notes: true },
     })
-    return `Got it. Note added to ${prospect.name}: "${params.note}".`
+    if (account) {
+      const existing = account.notes ? `${account.notes}\n` : ""
+      await prisma.account.update({
+        where: { id: account.id },
+        data: { notes: `${existing}${params.note}`, lastActivity: new Date() },
+      })
+      return `Got it. Note added to ${account.name}: "${params.note}".`
+    }
+
+    return `Couldn't find anyone named ${params.name} in prospects or companies.`
   }
 
   // ── CREATE TASK ────────────────────────────────────────────────────────

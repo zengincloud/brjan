@@ -429,7 +429,7 @@ export function LeadsProspecting() {
     if (!pendingVoiceSearch) return
     setPendingVoiceSearch(false)
     handleSearch()
-  }, [pendingVoiceSearch, jobTitles, cities, query, currentCompany])
+  }, [pendingVoiceSearch, jobTitles, cities, query, currentCompany, seniorityLevels])
 
   const handleSearch = async (page = 0, scrollToken?: string) => {
     setIsLoading(true)

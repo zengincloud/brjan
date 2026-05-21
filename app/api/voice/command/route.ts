@@ -255,7 +255,13 @@ async function handleAction(
   // ── PROSPECT INFO ──────────────────────────────────────────────────────
   if (action === "get_prospect_info" || action === "search_my_prospects") {
     const where: any = { userId }
-    if (params.name) where.name = { contains: params.name, mode: "insensitive" }
+    if (params.name) {
+      const words = params.name.split(/\s+/).filter((w: string) => w.length > 2)
+      where.OR = [
+        { name: { contains: params.name, mode: "insensitive" } },
+        ...words.map((w: string) => ({ name: { contains: w, mode: "insensitive" } })),
+      ]
+    }
     if (params.company) where.company = { contains: params.company, mode: "insensitive" }
     if (params.status) where.status = params.status
 
@@ -277,8 +283,15 @@ async function handleAction(
   // ── ADD NOTE ───────────────────────────────────────────────────────────
   if (action === "add_note") {
     if (!params.name || !params.note) return "I need a name and what to note."
+    const nameWords = params.name.split(/\s+/).filter((w: string) => w.length > 2)
     const prospect = await prisma.prospect.findFirst({
-      where: { userId, name: { contains: params.name, mode: "insensitive" } },
+      where: {
+        userId,
+        OR: [
+          { name: { contains: params.name, mode: "insensitive" } },
+          ...nameWords.map((w: string) => ({ name: { contains: w, mode: "insensitive" } })),
+        ],
+      },
       select: { id: true, name: true, notes: true },
     })
     if (!prospect) return `Couldn't find anyone named ${params.name}.`
@@ -366,8 +379,15 @@ async function handleAction(
   // ── UPDATE STATUS ──────────────────────────────────────────────────────
   if (action === "update_prospect_status") {
     if (!params.name || !params.status) return "I need a name and a status."
+    const nameWords = params.name.split(/\s+/).filter((w: string) => w.length > 2)
     const prospect = await prisma.prospect.findFirst({
-      where: { userId, name: { contains: params.name, mode: "insensitive" } },
+      where: {
+        userId,
+        OR: [
+          { name: { contains: params.name, mode: "insensitive" } },
+          ...nameWords.map((w: string) => ({ name: { contains: w, mode: "insensitive" } })),
+        ],
+      },
       select: { id: true, name: true },
     })
     if (!prospect) return `Couldn't find ${params.name}.`
@@ -383,9 +403,18 @@ async function handleAction(
 
 // For open_prospect — looks up the ID so frontend can navigate
 async function resolveProspectPath(name: string, userId: string): Promise<string | null> {
+  // Try full name first, then fall back to individual words (handles STT mishearing)
+  const words = name.split(/\s+/).filter((w) => w.length > 2)
+
   const prospect = await prisma.prospect.findFirst({
-    where: { userId, name: { contains: name, mode: "insensitive" } },
-    select: { id: true },
+    where: {
+      userId,
+      OR: [
+        { name: { contains: name, mode: "insensitive" } },
+        ...words.map((w) => ({ name: { contains: w, mode: "insensitive" } })),
+      ],
+    },
+    select: { id: true, name: true },
   })
   return prospect ? `/prospects/${prospect.id}` : null
 }

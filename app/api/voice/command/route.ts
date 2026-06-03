@@ -47,7 +47,7 @@ Available actions:
 NAVIGATION (frontend handles):
 { "action": "navigate", "params": { "page": "leads" | "accounts" | "prospecting" | "sequences" | "calls" | "dialer" | "activity" | "settings" | "tasks" | "meetings" | "reports" } }
 { "action": "search_people", "params": { "name"?: string, "title"?: string, "company"?: string, "location"?: string, "keyword"?: string, "seniorityLevels"?: ("C-Suite" | "VP" | "Director" | "Manager" | "Individual Contributor")[] } }
-{ "action": "search_companies", "params": { "industry"?: string, "location"?: string, "size"?: string, "keyword"?: string } }
+{ "action": "search_companies", "params": { "industry"?: string, "location"?: string, "keyword"?: string, "minHeadcount"?: number, "maxHeadcount"?: number } }
 { "action": "open_prospect", "params": { "name": string } }
 
 DATA RETRIEVAL (backend fetches, HAL speaks result):
@@ -90,7 +90,9 @@ Examples:
 "search for directors and VPs at fintech companies in London" → { "action": "search_people", "params": { "keyword": "fintech", "location": "London", "seniorityLevels": ["VP", "Director"] } }
 "find C-suite at Series B startups in San Francisco" → { "action": "search_people", "params": { "keyword": "Series B startup", "location": "San Francisco", "seniorityLevels": ["C-Suite"] } }
 "look for heads of engineering in Austin" → { "action": "search_people", "params": { "title": "Engineering", "location": "Austin", "seniorityLevels": ["VP", "Director"] } }
-"what should I say on a cold call" → { "action": "speak_only", "message": "Lead with a pattern interrupt, connect it to a pain point fast, and ask one tight question. Don't pitch on the first call." }`
+"what should I say on a cold call" → { "action": "speak_only", "message": "Lead with a pattern interrupt, connect it to a pain point fast, and ask one tight question. Don't pitch on the first call." }
+"find fintech companies with less than 100 employees in London" → { "action": "search_companies", "params": { "industry": "fintech", "location": "London", "maxHeadcount": 100 } }
+"search for SaaS companies between 50 and 500 employees" → { "action": "search_companies", "params": { "industry": "SaaS", "minHeadcount": 50, "maxHeadcount": 500 } }`
 
 function resolveDueDate(raw: string | undefined): Date | undefined {
   if (!raw) return undefined

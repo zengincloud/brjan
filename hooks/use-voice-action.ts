@@ -5,7 +5,7 @@ import { useCallback } from "react"
 
 export type VoiceAction =
   | { action: "search_people"; params: { title?: string; location?: string; company?: string; keyword?: string; name?: string; seniorityLevels?: string[] } }
-  | { action: "search_companies"; params: { industry?: string; location?: string; size?: string; keyword?: string } }
+  | { action: "search_companies"; params: { industry?: string; location?: string; keyword?: string; minHeadcount?: number; maxHeadcount?: number } }
   | { action: "navigate"; params: { page: "leads" | "accounts" | "prospecting" | "people" | "companies" | "settings" | "sequences" | "calls" | "dialer" | "activity" | "tasks" | "meetings" | "reports" } }
   | { action: "navigate_url"; params: { path: string } }
   | { action: "open_compose"; params: { to: string; subject: string; body: string; meetingId?: string } }
@@ -62,10 +62,17 @@ export function useVoiceAction() {
         const params = new URLSearchParams()
         if (voiceAction.params.industry) params.set("industry", voiceAction.params.industry)
         if (voiceAction.params.location) params.set("location", voiceAction.params.location)
-        if (voiceAction.params.size) params.set("size", voiceAction.params.size)
         if (voiceAction.params.keyword) params.set("keyword", voiceAction.params.keyword)
-        router.push(`/prospecting?tab=companies&${params.toString()}`)
-        return `Searching for companies`
+        if (voiceAction.params.minHeadcount) params.set("minHeadcount", String(voiceAction.params.minHeadcount))
+        if (voiceAction.params.maxHeadcount) params.set("maxHeadcount", String(voiceAction.params.maxHeadcount))
+        params.set("autoSearch", "true")
+        router.push(`/prospecting/outbound?tab=companies&${params.toString()}`)
+        const desc = [
+          voiceAction.params.industry,
+          voiceAction.params.maxHeadcount ? `under ${voiceAction.params.maxHeadcount} employees` : null,
+          voiceAction.params.location ? `in ${voiceAction.params.location}` : null,
+        ].filter(Boolean).join(", ")
+        return `Searching for companies${desc ? ` — ${desc}` : ""}.`
       }
 
       case "add_lead":

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, Fragment, ElementType } from "react"
+import { useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -198,6 +199,8 @@ export function AccountsProspecting() {
   const [openFilters, setOpenFilters] = useState<Set<string>>(new Set())
   const [columnSettingsOpen, setColumnSettingsOpen] = useState(false)
   const [visibleResultCols, setVisibleResultCols] = useState<Set<string>>(new Set(DEFAULT_ACCT_RESULT_COLS))
+  const [pendingVoiceSearch, setPendingVoiceSearch] = useState(false)
+  const searchParams = useSearchParams()
 
   // Load saved search state on mount
   useEffect(() => {
@@ -223,6 +226,43 @@ export function AccountsProspecting() {
       }
     }
   }, [])
+
+  // Apply URL params from HAL voice commands
+  useEffect(() => {
+    const keyword = searchParams.get('keyword')
+    const industry = searchParams.get('industry')
+    const location = searchParams.get('location')
+    const maxHeadcount = searchParams.get('maxHeadcount')
+    const minHeadcount = searchParams.get('minHeadcount')
+    const autoSearch = searchParams.get('autoSearch')
+
+    const hasVoiceParams = !!(keyword || industry || location || maxHeadcount || minHeadcount)
+    if (!hasVoiceParams && autoSearch !== 'true') return
+
+    if (keyword) setQuery(keyword)
+    if (industry) setIndustries([industry])
+    if (location) { setLocation(location); setCities([location]) }
+
+    if (maxHeadcount) {
+      const max = parseInt(maxHeadcount)
+      const maxIdx = HEADCOUNT_VALUES.reduce((best, val, i) => val <= max ? i : best, 0)
+      setHeadcountRange(prev => [prev[0], maxIdx])
+    }
+    if (minHeadcount) {
+      const min = parseInt(minHeadcount)
+      const minIdx = HEADCOUNT_VALUES.findIndex(val => val >= min)
+      setHeadcountRange(prev => [minIdx >= 0 ? minIdx : 0, prev[1]])
+    }
+
+    setPendingVoiceSearch(true)
+  }, [searchParams])
+
+  // Fire search after state has settled from URL params
+  useEffect(() => {
+    if (!pendingVoiceSearch) return
+    setPendingVoiceSearch(false)
+    handleSearch()
+  }, [pendingVoiceSearch, query, industries, cities, headcountRange])
 
   const handleSearch = async () => {
     setIsLoading(true)

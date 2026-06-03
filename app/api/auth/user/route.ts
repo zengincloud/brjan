@@ -96,6 +96,7 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
       jobRole: metadata.jobRole ?? null,
       usageType: metadata.usageType ?? null,
       primaryGoal: metadata.primaryGoal ?? null,
+      checklistDismissed: metadata.checklist_dismissed ?? false,
     }
 
     return NextResponse.json({ user: userWithMeta, isImpersonating: impersonationResult, creditStatus })

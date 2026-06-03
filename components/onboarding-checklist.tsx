@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 import type { ChecklistItem } from '@/app/api/onboarding-checklist/route'
 import { useUser } from '@/hooks/use-user'
 import { CTA_BY_ROLE, DEFAULT_CTA } from '@/lib/onboarding-cta'
+import { createClient } from '@/lib/supabase/client'
 
 const DISMISSED_KEY = 'checklist_dismissed'
 const COLLAPSED_KEY = 'checklist_collapsed'
@@ -27,6 +28,12 @@ export function OnboardingChecklist({ showHero }: OnboardingChecklistProps) {
   const [collapsed, setCollapsed] = useState(false)
 
   const { user } = useUser()
+
+  useEffect(() => {
+    if (user?.checklistDismissed) {
+      setDismissed(true)
+    }
+  }, [user?.checklistDismissed])
 
   useEffect(() => {
     if (localStorage.getItem(DISMISSED_KEY) === 'true') {
@@ -55,6 +62,9 @@ export function OnboardingChecklist({ showHero }: OnboardingChecklistProps) {
     e.stopPropagation()
     localStorage.setItem(DISMISSED_KEY, 'true')
     setDismissed(true)
+    // Save permanently to Supabase so it survives browser clears and other devices
+    const supabase = createClient()
+    supabase.auth.updateUser({ data: { checklist_dismissed: true } }).catch(() => {})
   }
 
   const handleToggleCollapse = () => {

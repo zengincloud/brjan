@@ -19,6 +19,7 @@ interface UserData {
   jobRole: string | null
   usageType: 'personal' | 'team' | null
   primaryGoal: string | null
+  checklistDismissed: boolean
 }
 
 interface CreditStatus {

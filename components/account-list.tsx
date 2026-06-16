@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
-import { MoreHorizontal, Filter, Users, Globe, Upload, Plus, Pencil, Trash2, FolderInput, ExternalLink, Linkedin } from "lucide-react"
+import { MoreHorizontal, Filter, Users, Globe, Upload, Plus, Pencil, Trash2, FolderInput, ExternalLink, Linkedin, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -66,6 +66,9 @@ export function AccountList() {
   const pageSize = 50
   const [selectedRows, setSelectedRows] = useState<string[]>([])
   const [searchTerm, setSearchTerm] = useState("")
+  const [searchResults, setSearchResults] = useState<Account[]>([])
+  const [searchLoading, setSearchLoading] = useState(false)
+  const searchTimerRef = useRef<NodeJS.Timeout | null>(null)
   const [selectedSequence, setSelectedSequence] = useState<string>("")
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
@@ -75,6 +78,28 @@ export function AccountList() {
   useEffect(() => {
     loadAccounts()
   }, [])
+
+  // Server-side search so all accounts are reachable regardless of pagination
+  useEffect(() => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+    if (!searchTerm.trim()) {
+      setSearchResults([])
+      return
+    }
+    searchTimerRef.current = setTimeout(async () => {
+      setSearchLoading(true)
+      try {
+        const params = new URLSearchParams({ search: searchTerm.trim(), pageSize: "50" })
+        const res = await fetch(`/api/accounts?${params}`)
+        if (res.ok) {
+          const data = await res.json()
+          setSearchResults(data.accounts || [])
+        }
+      } catch {}
+      finally { setSearchLoading(false) }
+    }, 300)
+    return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current) }
+  }, [searchTerm])
 
   const loadAccounts = async (loadPage = 1, append = false) => {
     try {
@@ -112,12 +137,10 @@ export function AccountList() {
     setSelectedRows((prev) => (prev.length === accounts.length ? [] : accounts.map((a) => a.id)))
   }
 
-  const filteredAccounts = accounts.filter(
+  const baseAccounts = searchTerm.trim() ? searchResults : accounts
+  const filteredAccounts = baseAccounts.filter(
     (account) =>
-      (account.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (account.industry?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-        (account.location?.toLowerCase() || "").includes(searchTerm.toLowerCase())) &&
-      (selectedSequence === "" || account.sequence === sequences.find((s) => s.id === selectedSequence)?.name),
+      selectedSequence === "" || account.sequence === sequences.find((s) => s.id === selectedSequence)?.name,
   )
 
   const handleAction = (action: string, name: string) => {
@@ -216,8 +239,11 @@ export function AccountList() {
                 e.currentTarget.blur()
               }
             }}
-            className="max-w-sm"
+            className="max-w-sm pr-8"
           />
+          {searchLoading && (
+            <Loader2 className="h-3.5 w-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground animate-spin" />
+          )}
         </div>
         <div className="flex items-center gap-2">
           <Select value={selectedSequence} onValueChange={setSelectedSequence}>

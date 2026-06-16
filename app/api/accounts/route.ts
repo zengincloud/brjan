@@ -21,9 +21,9 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
 
     if (search) {
       where.OR = [
-        { name: { contains: search } },
-        { industry: { contains: search } },
-        { location: { contains: search } },
+        { name: { contains: search, mode: "insensitive" } },
+        { industry: { contains: search, mode: "insensitive" } },
+        { location: { contains: search, mode: "insensitive" } },
       ]
     }
 

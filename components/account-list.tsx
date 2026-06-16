@@ -66,7 +66,6 @@ export function AccountList() {
   const pageSize = 50
   const [selectedRows, setSelectedRows] = useState<string[]>([])
   const [searchTerm, setSearchTerm] = useState("")
-  const [searchResults, setSearchResults] = useState<Account[]>([])
   const [searchLoading, setSearchLoading] = useState(false)
   const searchTimerRef = useRef<NodeJS.Timeout | null>(null)
   const [selectedSequence, setSelectedSequence] = useState<string>("")
@@ -79,36 +78,25 @@ export function AccountList() {
     loadAccounts()
   }, [])
 
-  // Server-side search so all accounts are reachable regardless of pagination
   useEffect(() => {
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
     if (!searchTerm.trim()) {
-      setSearchResults([])
+      loadAccounts(1, false)
       return
     }
-    searchTimerRef.current = setTimeout(async () => {
-      setSearchLoading(true)
-      try {
-        const params = new URLSearchParams({ search: searchTerm.trim(), pageSize: "50" })
-        const res = await fetch(`/api/accounts?${params}`)
-        if (res.ok) {
-          const data = await res.json()
-          setSearchResults(data.accounts || [])
-        }
-      } catch {}
-      finally { setSearchLoading(false) }
-    }, 300)
+    setSearchLoading(true)
+    setAccounts([])
+    searchTimerRef.current = setTimeout(() => loadAccounts(1, false, searchTerm.trim()), 300)
     return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current) }
   }, [searchTerm])
 
-  const loadAccounts = async (loadPage = 1, append = false) => {
+  const loadAccounts = async (loadPage = 1, append = false, search?: string) => {
     try {
       if (!append) setLoading(true)
       const params = new URLSearchParams({ page: String(loadPage), pageSize: String(pageSize) })
+      if (search) params.set("search", search)
       const response = await fetch(`/api/accounts?${params}`)
-      if (!response.ok) {
-        throw new Error("Failed to load accounts")
-      }
+      if (!response.ok) throw new Error("Failed to load accounts")
       const data = await response.json()
       if (append) {
         setAccounts((prev) => [...prev, ...data.accounts])
@@ -119,13 +107,10 @@ export function AccountList() {
       setPage(loadPage)
     } catch (error) {
       console.error(error)
-      toast({
-        title: "Error",
-        description: "Failed to load accounts",
-        variant: "destructive",
-      })
+      toast({ title: "Error", description: "Failed to load accounts", variant: "destructive" })
     } finally {
       setLoading(false)
+      setSearchLoading(false)
     }
   }
 
@@ -137,8 +122,7 @@ export function AccountList() {
     setSelectedRows((prev) => (prev.length === accounts.length ? [] : accounts.map((a) => a.id)))
   }
 
-  const baseAccounts = searchTerm.trim() ? searchResults : accounts
-  const filteredAccounts = baseAccounts.filter(
+  const filteredAccounts = accounts.filter(
     (account) =>
       selectedSequence === "" || account.sequence === sequences.find((s) => s.id === selectedSequence)?.name,
   )
@@ -396,7 +380,7 @@ export function AccountList() {
           ))}
         </TableBody>
       </Table>
-      {accounts.length < totalCount && (
+      {!searchTerm.trim() && accounts.length < totalCount && (
         <div className="flex justify-center py-4">
           <button
             onClick={() => loadAccounts(page + 1, true)}

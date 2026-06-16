@@ -54,7 +54,6 @@ export function ProspectList() {
   const pageSize = 50
   const [selectedRows, setSelectedRows] = useState<string[]>([])
   const [searchTerm, setSearchTerm] = useState("")
-  const [searchResults, setSearchResults] = useState<Prospect[]>([])
   const [searchLoading, setSearchLoading] = useState(false)
   const searchTimerRef = useRef<NodeJS.Timeout | null>(null)
   const [selectedSequence, setSelectedSequence] = useState<string>("")
@@ -90,36 +89,26 @@ export function ProspectList() {
     }
   }
 
-  // Server-side search when searchTerm changes — avoids missing prospects outside the loaded page
+  // Debounced server-side search — replaces the prospect list with filtered results
   useEffect(() => {
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
     if (!searchTerm.trim()) {
-      setSearchResults([])
+      loadProspects(1, false)
       return
     }
-    searchTimerRef.current = setTimeout(async () => {
-      setSearchLoading(true)
-      try {
-        const params = new URLSearchParams({ search: searchTerm.trim(), pageSize: "50" })
-        const res = await fetch(`/api/prospects?${params}`)
-        if (res.ok) {
-          const data = await res.json()
-          setSearchResults(data.prospects || [])
-        }
-      } catch {}
-      finally { setSearchLoading(false) }
-    }, 300)
+    setSearchLoading(true)
+    setProspects([])
+    searchTimerRef.current = setTimeout(() => loadProspects(1, false, searchTerm.trim()), 300)
     return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current) }
   }, [searchTerm])
 
-  const loadProspects = async (loadPage = 1, append = false) => {
+  const loadProspects = async (loadPage = 1, append = false, search?: string) => {
     try {
       if (!append) setLoading(true)
       const params = new URLSearchParams({ page: String(loadPage), pageSize: String(pageSize) })
+      if (search) params.set("search", search)
       const response = await fetch(`/api/prospects?${params}`)
-      if (!response.ok) {
-        throw new Error("Failed to load prospects")
-      }
+      if (!response.ok) throw new Error("Failed to load prospects")
       const data = await response.json()
       if (append) {
         setProspects((prev) => [...prev, ...data.prospects])
@@ -130,13 +119,10 @@ export function ProspectList() {
       setPage(loadPage)
     } catch (error) {
       console.error(error)
-      toast({
-        title: "Error",
-        description: "Failed to load prospects",
-        variant: "destructive",
-      })
+      toast({ title: "Error", description: "Failed to load prospects", variant: "destructive" })
     } finally {
       setLoading(false)
+      setSearchLoading(false)
     }
   }
 
@@ -148,8 +134,7 @@ export function ProspectList() {
     setSelectedRows((prev) => (prev.length === prospects.length ? [] : prospects.map((p) => p.id)))
   }
 
-  const baseProspects = searchTerm.trim() ? searchResults : prospects
-  const filteredProspects = baseProspects.filter(
+  const filteredProspects = prospects.filter(
     (prospect) =>
       selectedSequence === "" || selectedSequence === "all" || prospect.sequence === sequences.find((s) => s.id === selectedSequence)?.name,
   )
@@ -550,7 +535,7 @@ export function ProspectList() {
           ))}
         </TableBody>
       </Table>
-      {prospects.length < totalCount && (
+      {!searchTerm.trim() && prospects.length < totalCount && (
         <div className="flex justify-center py-4">
           <button
             onClick={() => loadProspects(page + 1, true)}

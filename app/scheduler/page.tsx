@@ -366,6 +366,9 @@ export default function SchedulerPage() {
   const [newParticipantTimezone, setNewParticipantTimezone] = useState("utc")
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [createPrefill, setCreatePrefill] = useState<{ startHour: number; participantEmails: string[] } | undefined>()
+  const [participantSuggestions, setParticipantSuggestions] = useState<{ name: string; email: string }[]>([])
+  const [showParticipantSuggestions, setShowParticipantSuggestions] = useState(false)
+  const participantSuggestionsRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     // Silently dispatch notetaker bots for upcoming meetings with video links
@@ -525,11 +528,48 @@ export default function SchedulerPage() {
                 <div className="space-y-4 pb-4 border-b">
                   <h3 className="text-sm font-medium">Add Participant</h3>
                   <div className="space-y-2">
-                    <Input
-                      placeholder="Name"
-                      value={newParticipantName}
-                      onChange={(e) => setNewParticipantName(e.target.value)}
-                    />
+                    <div className="relative" ref={participantSuggestionsRef}>
+                      <Input
+                        placeholder="Name or email"
+                        value={newParticipantName}
+                        onChange={async (e) => {
+                          const v = e.target.value
+                          setNewParticipantName(v)
+                          if (v.trim().length >= 2) {
+                            const res = await fetch(`/api/prospects?search=${encodeURIComponent(v)}&pageSize=6`)
+                            if (res.ok) {
+                              const data = await res.json()
+                              const matches = (data.prospects || []).filter((p: any) => p.name || p.email)
+                              setParticipantSuggestions(matches.map((p: any) => ({ name: p.name || "", email: p.email || "" })))
+                              setShowParticipantSuggestions(matches.length > 0)
+                            }
+                          } else {
+                            setShowParticipantSuggestions(false)
+                          }
+                        }}
+                        onBlur={() => setTimeout(() => setShowParticipantSuggestions(false), 150)}
+                      />
+                      {showParticipantSuggestions && (
+                        <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-md overflow-hidden">
+                          {participantSuggestions.map((s, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              className="w-full flex flex-col px-3 py-2 text-left text-sm hover:bg-accent"
+                              onMouseDown={(e) => {
+                                e.preventDefault()
+                                setNewParticipantName(s.name)
+                                setNewParticipantEmail(s.email)
+                                setShowParticipantSuggestions(false)
+                              }}
+                            >
+                              <span className="font-medium">{s.name}</span>
+                              <span className="text-xs text-muted-foreground">{s.email}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                     <Input
                       placeholder="Email (optional)"
                       value={newParticipantEmail}

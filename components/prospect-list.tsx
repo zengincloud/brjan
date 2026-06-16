@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
-import { Mail, Pencil, Phone, Filter, ChevronDown, Upload, Plus, Check, X, Zap, Linkedin, Trash2, MoreHorizontal } from "lucide-react"
+import { Mail, Pencil, Phone, Filter, ChevronDown, Upload, Plus, Check, X, Zap, Linkedin, Trash2, MoreHorizontal, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
@@ -54,6 +54,9 @@ export function ProspectList() {
   const pageSize = 50
   const [selectedRows, setSelectedRows] = useState<string[]>([])
   const [searchTerm, setSearchTerm] = useState("")
+  const [searchResults, setSearchResults] = useState<Prospect[]>([])
+  const [searchLoading, setSearchLoading] = useState(false)
+  const searchTimerRef = useRef<NodeJS.Timeout | null>(null)
   const [selectedSequence, setSelectedSequence] = useState<string>("")
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
@@ -86,6 +89,28 @@ export function ProspectList() {
       console.error("Error loading sequences:", error)
     }
   }
+
+  // Server-side search when searchTerm changes — avoids missing prospects outside the loaded page
+  useEffect(() => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+    if (!searchTerm.trim()) {
+      setSearchResults([])
+      return
+    }
+    searchTimerRef.current = setTimeout(async () => {
+      setSearchLoading(true)
+      try {
+        const params = new URLSearchParams({ search: searchTerm.trim(), pageSize: "50" })
+        const res = await fetch(`/api/prospects?${params}`)
+        if (res.ok) {
+          const data = await res.json()
+          setSearchResults(data.prospects || [])
+        }
+      } catch {}
+      finally { setSearchLoading(false) }
+    }, 300)
+    return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current) }
+  }, [searchTerm])
 
   const loadProspects = async (loadPage = 1, append = false) => {
     try {
@@ -123,12 +148,10 @@ export function ProspectList() {
     setSelectedRows((prev) => (prev.length === prospects.length ? [] : prospects.map((p) => p.id)))
   }
 
-  const filteredProspects = prospects.filter(
+  const baseProspects = searchTerm.trim() ? searchResults : prospects
+  const filteredProspects = baseProspects.filter(
     (prospect) =>
-      ((prospect.name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-        (prospect.company?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-        (prospect.email?.toLowerCase() || "").includes(searchTerm.toLowerCase())) &&
-      (selectedSequence === "" || selectedSequence === "all" || prospect.sequence === sequences.find((s) => s.id === selectedSequence)?.name),
+      selectedSequence === "" || selectedSequence === "all" || prospect.sequence === sequences.find((s) => s.id === selectedSequence)?.name,
   )
 
   const handleAction = (action: string, name: string) => {
@@ -291,8 +314,11 @@ export function ProspectList() {
                 e.currentTarget.blur()
               }
             }}
-            className="max-w-sm"
+            className="max-w-sm pr-8"
           />
+          {searchLoading && (
+            <Loader2 className="h-3.5 w-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground animate-spin" />
+          )}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {selectedRows.length > 0 ? (

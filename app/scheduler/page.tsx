@@ -581,8 +581,8 @@ export default function SchedulerPage() {
                                 e.preventDefault()
                                 setNewParticipantName(s.name)
                                 setNewParticipantEmail(s.email)
-                                const detectedTz = ianaToSchedulerTz(s.timezone) ?? ianaToSchedulerTz(getTimezoneFromLocation(s.location))
-                                if (detectedTz) setNewParticipantTimezone(detectedTz)
+                                const detectedTz = ianaToSchedulerTz(s.timezone) ?? ianaToSchedulerTz(getTimezoneFromLocation(s.location)) ?? "utc-5"
+                                setNewParticipantTimezone(detectedTz)
                                 setShowParticipantSuggestions(false)
                               }}
                             >

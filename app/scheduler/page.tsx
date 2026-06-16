@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
 import Link from "next/link"
 import { BRLoader } from "@/components/ui/br-loader"
+import { getTimezoneFromLocation } from "@/lib/timezone"
 
 const timeZones = [
   { value: "utc-8", label: "Pacific Time (UTC-8)", offset: -8 },
@@ -39,6 +40,26 @@ const timezoneMap: Record<string, string> = {
   mst: "utc-7",
   cst: "utc-6",
   est: "utc-5",
+}
+
+function ianaToSchedulerTz(ianaTimezone: string | null | undefined): string | null {
+  if (!ianaTimezone) return null
+  try {
+    const now = new Date()
+    const utcMs = now.getTime()
+    const localMs = new Date(now.toLocaleString("en-US", { timeZone: ianaTimezone })).getTime()
+    const offsetHours = (localMs - utcMs) / 3_600_000
+    // Find closest scheduler timezone by offset
+    let best = timeZones[0]
+    let bestDiff = Math.abs(timeZones[0].offset - offsetHours)
+    for (const tz of timeZones) {
+      const diff = Math.abs(tz.offset - offsetHours)
+      if (diff < bestDiff) { best = tz; bestDiff = diff }
+    }
+    return best.value
+  } catch {
+    return null
+  }
 }
 
 const hours = Array.from({ length: 24 }, (_, i) => i)
@@ -366,7 +387,7 @@ export default function SchedulerPage() {
   const [newParticipantTimezone, setNewParticipantTimezone] = useState("utc")
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [createPrefill, setCreatePrefill] = useState<{ startHour: number; participantEmails: string[] } | undefined>()
-  const [participantSuggestions, setParticipantSuggestions] = useState<{ name: string; email: string }[]>([])
+  const [participantSuggestions, setParticipantSuggestions] = useState<{ name: string; email: string; timezone?: string | null; location?: string | null }[]>([])
   const [showParticipantSuggestions, setShowParticipantSuggestions] = useState(false)
   const participantSuggestionsRef = useRef<HTMLDivElement>(null)
 
@@ -540,7 +561,7 @@ export default function SchedulerPage() {
                             if (res.ok) {
                               const data = await res.json()
                               const matches = (data.prospects || []).filter((p: any) => p.name || p.email)
-                              setParticipantSuggestions(matches.map((p: any) => ({ name: p.name || "", email: p.email || "" })))
+                              setParticipantSuggestions(matches.map((p: any) => ({ name: p.name || "", email: p.email || "", timezone: p.timezone, location: p.location })))
                               setShowParticipantSuggestions(matches.length > 0)
                             }
                           } else {
@@ -560,11 +581,20 @@ export default function SchedulerPage() {
                                 e.preventDefault()
                                 setNewParticipantName(s.name)
                                 setNewParticipantEmail(s.email)
+                                const detectedTz = ianaToSchedulerTz(s.timezone) ?? ianaToSchedulerTz(getTimezoneFromLocation(s.location))
+                                if (detectedTz) setNewParticipantTimezone(detectedTz)
                                 setShowParticipantSuggestions(false)
                               }}
                             >
                               <span className="font-medium">{s.name}</span>
-                              <span className="text-xs text-muted-foreground">{s.email}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {s.email}
+                                {(s.timezone || s.location) && (() => {
+                                  const tz = ianaToSchedulerTz(s.timezone) ?? ianaToSchedulerTz(getTimezoneFromLocation(s.location))
+                                  const label = timeZones.find(t => t.value === tz)?.label
+                                  return label ? ` · ${label}` : null
+                                })()}
+                              </span>
                             </button>
                           ))}
                         </div>

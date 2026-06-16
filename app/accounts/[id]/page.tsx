@@ -46,6 +46,7 @@ type Account = {
   name: string
   industry?: string | null
   location?: string | null
+  timezone?: string | null
   website?: string | null
   linkedin?: string | null
   employees?: number | null
@@ -398,6 +399,21 @@ export default function AccountDetailPage() {
                 <div>
                   <p className="text-xs text-muted-foreground">Location</p>
                   <p className="font-medium">{account.location}</p>
+                </div>
+              </div>
+            )}
+            {account.timezone && (
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Local time</p>
+                  <p className="font-medium">
+                    {(() => {
+                      try {
+                        return new Intl.DateTimeFormat('en-US', { timeZone: account.timezone!, hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short' }).format(new Date())
+                      } catch { return account.timezone }
+                    })()}
+                  </p>
                 </div>
               </div>
             )}

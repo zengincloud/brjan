@@ -118,7 +118,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
   try {
     const body = await request.json()
 
-    const { name, email, title, company, phone, location, linkedin, notes, status, sequence, sequenceStep, wizaData } = body
+    const { name, email, title, company, phone, location, timezone: tzParam, linkedin, notes, status, sequence, sequenceStep, wizaData } = body
 
     if (!name) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 })
@@ -160,7 +160,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       employees: wizaData?.companySize || null,
     }) : null
 
-    const timezone = getTimezoneFromLocation(location) || null
+    const timezone = tzParam || getTimezoneFromLocation(location) || null
 
     const prospect = await prisma.prospect.create({
       data: {

@@ -29,6 +29,8 @@ type Prospect = {
   title?: string | null
   company?: string | null
   phone?: string | null
+  location?: string | null
+  timezone?: string | null
   status: string
   linkedin?: string | null
   sequence?: string | null
@@ -351,9 +353,19 @@ function OverviewTab({ prospect, pov, loadingPov, onRefreshPov, isEditing, onCal
     onCall({ ...prospect, phone: number })
   }
 
+  const localTime = (() => {
+    const tz = prospect.timezone
+    if (!tz) return null
+    try {
+      return new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short' }).format(new Date())
+    } catch { return null }
+  })()
+
   const plainRows = [
     { label: 'Company', value: prospect.company || '—' },
     { label: 'Title', value: prospect.title || '—' },
+    { label: 'Location', value: prospect.location || '—' },
+    { label: 'Local time', value: localTime || '—' },
     { label: 'Status', value: <StatusBadge status={prospect.status} /> },
     { label: 'Sequence', value: prospect.sequence || '—' },
     { label: 'Step', value: prospect.sequenceStep || '—' },

@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/components/ui/use-toast"
 import { CompanyAutocomplete } from "@/components/company-autocomplete"
 import { ChevronUp } from "lucide-react"
+import { getTimezoneFromLocation } from "@/lib/timezone"
 
 type AddProspectDialogProps = {
   open: boolean
@@ -34,10 +35,19 @@ export function AddProspectDialog({ open, onOpenChange, onProspectAdded }: AddPr
     phoneNotes: "",
     linkedin: "",
     location: "",
+    timezone: "",
   })
 
   const handleChange = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
+    setFormData((prev) => {
+      const next = { ...prev, [field]: value }
+      if (field === "location") {
+        const derived = getTimezoneFromLocation(value)
+        if (derived && !prev.timezone) next.timezone = derived
+        else if (derived) next.timezone = derived
+      }
+      return next
+    })
   }
 
   const resetForm = () => {
@@ -53,6 +63,7 @@ export function AddProspectDialog({ open, onOpenChange, onProspectAdded }: AddPr
       phoneNotes: "",
       linkedin: "",
       location: "",
+      timezone: "",
     })
   }
 
@@ -84,6 +95,7 @@ export function AddProspectDialog({ open, onOpenChange, onProspectAdded }: AddPr
           notes: formData.phoneNotes || null,
           linkedin: formData.linkedin || null,
           location: formData.location || null,
+          timezone: formData.timezone || null,
           status: formData.status,
         }),
       })
@@ -198,6 +210,13 @@ export function AddProspectDialog({ open, onOpenChange, onProspectAdded }: AddPr
                     <CompanyAutocomplete
                       value={formData.company}
                       onChange={(value) => handleChange("company", value)}
+                      onAccountSelected={(account) => {
+                        setFormData((prev) => {
+                          const loc = !prev.location && account.location ? account.location : prev.location
+                          const tz = loc ? (getTimezoneFromLocation(loc) ?? prev.timezone) : prev.timezone
+                          return { ...prev, location: loc, timezone: tz }
+                        })
+                      }}
                       placeholder="Choose / type Company name"
                       disabled={submitting}
                     />
@@ -300,10 +319,13 @@ export function AddProspectDialog({ open, onOpenChange, onProspectAdded }: AddPr
                     />
                   </div>
                   <div className="grid gap-1.5">
-                    <Label className="text-sm font-medium">Time Zone</Label>
+                    <Label htmlFor="timezone" className="text-sm font-medium">Time Zone</Label>
                     <Input
-                      placeholder="Will be decided based on location"
-                      disabled
+                      id="timezone"
+                      value={formData.timezone}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, timezone: e.target.value }))}
+                      placeholder="Auto-filled from location (e.g. America/New_York)"
+                      disabled={submitting}
                     />
                   </div>
                 </div>

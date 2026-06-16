@@ -15,6 +15,7 @@ type AccountSuggestion = {
 type CompanyAutocompleteProps = {
   value: string
   onChange: (value: string) => void
+  onAccountSelected?: (account: AccountSuggestion) => void
   placeholder?: string
   disabled?: boolean
   id?: string
@@ -23,6 +24,7 @@ type CompanyAutocompleteProps = {
 export function CompanyAutocomplete({
   value,
   onChange,
+  onAccountSelected,
   placeholder = "Acme Corp",
   disabled = false,
   id,
@@ -67,10 +69,11 @@ export function CompanyAutocomplete({
     }, 300)
   }
 
-  const selectSuggestion = (name: string) => {
-    onChange(name)
+  const selectSuggestion = (account: AccountSuggestion) => {
+    onChange(account.name)
     setShowDropdown(false)
     setSuggestions([])
+    onAccountSelected?.(account)
   }
 
   const handleFindLeads = (e: React.MouseEvent, account: AccountSuggestion) => {
@@ -98,7 +101,7 @@ export function CompanyAutocomplete({
       setHighlightedIndex((prev) => Math.max(prev - 1, 0))
     } else if (e.key === "Enter" && highlightedIndex >= 0) {
       e.preventDefault()
-      selectSuggestion(suggestions[highlightedIndex].name)
+      selectSuggestion(suggestions[highlightedIndex])
     } else if (e.key === "Escape") {
       setShowDropdown(false)
     }
@@ -147,7 +150,7 @@ export function CompanyAutocomplete({
                 }`}
                 onMouseDown={(e) => {
                   e.preventDefault()
-                  selectSuggestion(s.name)
+                  selectSuggestion(s)
                 }}
                 onMouseEnter={() => setHighlightedIndex(i)}
               >

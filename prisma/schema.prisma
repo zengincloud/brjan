@@ -262,6 +262,7 @@ model Account {
   sequenceStep String?
   lastActivity DateTime      @default(now())
   contacts     Int           @default(0)
+  timezone         String?
   notes            String?   @db.Text
   insights         Json?     // Store cached company insights
   insightsFetchedAt DateTime? // Track when insights were last fetched

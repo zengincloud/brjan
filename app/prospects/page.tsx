@@ -1524,9 +1524,16 @@ export default function ProspectsPage() {
                     <tr>
                       <td colSpan={compact ? 4 : 10} className="text-center py-12">
                         <p className="text-[13px] text-muted-foreground mb-3">No prospects found</p>
-                        <Button size="sm" onClick={() => setAddDialogOpen(true)} className="text-[12px] h-8">
-                          <Plus className="h-3.5 w-3.5 mr-1" /> Add prospect
-                        </Button>
+                        <div className="flex items-center justify-center gap-2">
+                          {searchTerm.trim() && (
+                            <Button size="sm" variant="outline" onClick={() => router.push(`/prospecting/outbound?tab=leads&name=${encodeURIComponent(searchTerm.trim())}&autoSearch=true`)} className="text-[12px] h-8">
+                              <Search className="h-3.5 w-3.5 mr-1" /> Find prospect
+                            </Button>
+                          )}
+                          <Button size="sm" onClick={() => setAddDialogOpen(true)} className="text-[12px] h-8">
+                            <Plus className="h-3.5 w-3.5 mr-1" /> Add prospect manually
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ) : (

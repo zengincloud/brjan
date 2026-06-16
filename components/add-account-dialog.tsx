@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
 import { ChevronUp } from "lucide-react"
+import { getTimezoneFromLocation } from "@/lib/timezone"
 
 type AddAccountDialogProps = {
   open: boolean
@@ -26,12 +27,20 @@ export function AddAccountDialog({ open, onOpenChange, onAccountAdded }: AddAcco
     website: "",
     linkedin: "",
     location: "",
+    timezone: "",
     industry: "",
     employees: "",
   })
 
   const handleChange = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
+    setFormData((prev) => {
+      const next = { ...prev, [field]: value }
+      if (field === "location") {
+        const derived = getTimezoneFromLocation(value)
+        if (derived) next.timezone = derived
+      }
+      return next
+    })
   }
 
   const resetForm = () => {
@@ -41,6 +50,7 @@ export function AddAccountDialog({ open, onOpenChange, onAccountAdded }: AddAcco
       website: "",
       linkedin: "",
       location: "",
+      timezone: "",
       industry: "",
       employees: "",
     })
@@ -67,6 +77,7 @@ export function AddAccountDialog({ open, onOpenChange, onAccountAdded }: AddAcco
           name: formData.name,
           industry: formData.industry || null,
           location: formData.location || null,
+          timezone: formData.timezone || null,
           website: formData.website || null,
           linkedin: formData.linkedin || null,
           employees: formData.employees ? parseInt(formData.employees) : null,
@@ -186,15 +197,27 @@ export function AddAccountDialog({ open, onOpenChange, onAccountAdded }: AddAcco
                   </div>
                 </div>
 
-                <div className="grid gap-1.5">
-                  <Label htmlFor="location" className="text-sm font-medium">Location</Label>
-                  <Input
-                    id="location"
-                    value={formData.location}
-                    onChange={(e) => handleChange("location", e.target.value)}
-                    placeholder="City, State or Country"
-                    disabled={submitting}
-                  />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="location" className="text-sm font-medium">Location</Label>
+                    <Input
+                      id="location"
+                      value={formData.location}
+                      onChange={(e) => handleChange("location", e.target.value)}
+                      placeholder="City, State or Country"
+                      disabled={submitting}
+                    />
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="accountTimezone" className="text-sm font-medium">Time Zone</Label>
+                    <Input
+                      id="accountTimezone"
+                      value={formData.timezone}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, timezone: e.target.value }))}
+                      placeholder="Auto-filled from location"
+                      disabled={submitting}
+                    />
+                  </div>
                 </div>
               </div>
             )}

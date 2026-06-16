@@ -825,9 +825,16 @@ export default function AccountsPage() {
                     <tr>
                       <td colSpan={compact ? 3 : 8} className="text-center py-12">
                         <p className="text-[13px] text-muted-foreground mb-3">No accounts found</p>
-                        <Button size="sm" onClick={() => setAddDialogOpen(true)} className="text-[12px] h-8">
-                          <Plus className="h-3.5 w-3.5 mr-1" /> Add account
-                        </Button>
+                        <div className="flex items-center justify-center gap-2">
+                          {searchTerm.trim() && (
+                            <Button size="sm" variant="outline" onClick={() => router.push(`/prospecting/outbound?tab=accounts&keyword=${encodeURIComponent(searchTerm.trim())}&autoSearch=true`)} className="text-[12px] h-8">
+                              <Search className="h-3.5 w-3.5 mr-1" /> Find account
+                            </Button>
+                          )}
+                          <Button size="sm" onClick={() => setAddDialogOpen(true)} className="text-[12px] h-8">
+                            <Plus className="h-3.5 w-3.5 mr-1" /> Add account manually
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ) : (

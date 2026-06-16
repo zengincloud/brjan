@@ -1256,6 +1256,7 @@ export default function ProspectsPage() {
   const [page, setPage] = useState(1)
   const pageSize = 50
   const hasCachedProspects = useRef(false)
+  const searchTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   const [searchTerm, setSearchTerm] = useSessionState('prospects-search', '')
   const [selectedProspect, setSelectedProspect] = useState<Prospect | null>(null)
@@ -1280,10 +1281,11 @@ export default function ProspectsPage() {
 
   hasCachedProspects.current = prospects.length > 0
 
-  const loadProspects = useCallback(async (loadPage = 1, append = false) => {
+  const loadProspects = useCallback(async (loadPage = 1, append = false, search?: string) => {
     try {
       if (!append && !hasCachedProspects.current) setLoading(true)
       const params = new URLSearchParams({ page: String(loadPage), pageSize: String(pageSize) })
+      if (search) params.set('search', search)
       const res = await fetch(`/api/prospects?${params}`)
       if (!res.ok) throw new Error()
       const data = await res.json()
@@ -1313,9 +1315,20 @@ export default function ProspectsPage() {
 
   useEffect(() => { loadProspects(); loadSequences() }, [loadProspects, loadSequences])
 
+  // Debounced server-side search — replaces the list so all prospects are reachable
+  useEffect(() => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+    if (!searchTerm.trim()) {
+      loadProspects(1, false)
+      return
+    }
+    setProspects([])
+    setLoading(true)
+    searchTimerRef.current = setTimeout(() => loadProspects(1, false, searchTerm.trim()), 300)
+    return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current) }
+  }, [searchTerm])
+
   const filteredProspects = prospects.filter((p) => {
-    const q = searchTerm.toLowerCase()
-    if (q && !((p.name?.toLowerCase() ?? '').includes(q) || (p.company?.toLowerCase() ?? '').includes(q) || (p.email?.toLowerCase() ?? '').includes(q))) return false
     if (filters.name && !(p.name?.toLowerCase() ?? '').includes(filters.name.toLowerCase())) return false
     if (filters.title && !(p.title?.toLowerCase() ?? '').includes(filters.title.toLowerCase())) return false
     if (filters.company && !(p.company?.toLowerCase() ?? '').includes(filters.company.toLowerCase())) return false
@@ -1629,7 +1642,7 @@ export default function ProspectsPage() {
               </table>
 
               {/* Load more */}
-              {prospects.length < totalCount && (
+              {!searchTerm.trim() && prospects.length < totalCount && (
                 <div className="flex justify-center py-4 border-t border-border">
                   <button
                     onClick={() => loadProspects(page + 1, true)}

@@ -272,8 +272,8 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 
         {/* Search Dialog */}
         <Dialog open={isSearchOpen} onOpenChange={setIsSearchOpen}>
-          <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden">
-            <div className="border-b border-border p-4">
+          <DialogContent className="sm:max-w-[600px] p-0 flex flex-col max-h-[85vh]">
+            <div className="border-b border-border p-4 shrink-0">
               <div className="relative">
                 <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -286,7 +286,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
                 {searchLoading && <Loader2 className="h-4 w-4 absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground animate-spin" />}
               </div>
             </div>
-            <div className="max-h-[400px] overflow-auto">
+            <div className="overflow-auto flex-1">
               {!searchQuery.trim() ? (
                 <div className="p-4 space-y-4">
                   <div>
@@ -368,48 +368,50 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 
                   {/* No results */}
                   {!searchLoading && searchResults.prospects.length === 0 && searchResults.accounts.length === 0 && searchQuery.length >= 2 && (
-                    <div className="p-5 space-y-3">
-                      <p className="text-xs text-muted-foreground text-center">No results for &ldquo;{searchQuery}&rdquo;</p>
-                      <div className="space-y-2">
-                        <div className="rounded-lg border border-border p-3">
-                          <div className="flex items-center gap-2 mb-2.5">
-                            <User className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span className="text-sm font-medium">Contact not found — add them?</span>
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => { setIsSearchOpen(false); setAddProspectOpen(true) }}
-                              className="flex-1 text-xs px-3 py-1.5 rounded-md border border-border hover:bg-secondary/50 transition-colors text-center"
-                            >
-                              Add manually
-                            </button>
-                            <button
-                              onClick={() => { setIsSearchOpen(false); router.push(`/prospecting/outbound?tab=leads&name=${encodeURIComponent(searchQuery)}&autoSearch=true`) }}
-                              className="flex-1 text-xs px-3 py-1.5 rounded-md bg-accent/10 text-accent hover:bg-accent/20 transition-colors text-center"
-                            >
-                              Find via prospecting →
-                            </button>
-                          </div>
+                    <div className="p-4 space-y-2">
+                      <p className="text-xs text-muted-foreground text-center pb-1">No results for &ldquo;{searchQuery}&rdquo;</p>
+
+                      {/* Contact */}
+                      <div className="rounded-lg border border-border overflow-hidden">
+                        <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border">
+                          <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <span className="text-sm font-medium">Contact not found — add them?</span>
                         </div>
-                        <div className="rounded-lg border border-border p-3">
-                          <div className="flex items-center gap-2 mb-2.5">
-                            <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span className="text-sm font-medium">Account not found — add them?</span>
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => { setIsSearchOpen(false); setAddAccountOpen(true) }}
-                              className="flex-1 text-xs px-3 py-1.5 rounded-md border border-border hover:bg-secondary/50 transition-colors text-center"
-                            >
-                              Add manually
-                            </button>
-                            <button
-                              onClick={() => { setIsSearchOpen(false); router.push(`/prospecting/outbound?tab=accounts&keyword=${encodeURIComponent(searchQuery)}&autoSearch=true`) }}
-                              className="flex-1 text-xs px-3 py-1.5 rounded-md bg-accent/10 text-accent hover:bg-accent/20 transition-colors text-center"
-                            >
-                              Find via prospecting →
-                            </button>
-                          </div>
+                        <div className="flex divide-x divide-border">
+                          <button
+                            onClick={() => { setIsSearchOpen(false); setAddProspectOpen(true) }}
+                            className="flex-1 text-xs py-2.5 hover:bg-secondary/50 transition-colors text-center text-muted-foreground hover:text-foreground"
+                          >
+                            Add manually
+                          </button>
+                          <button
+                            onClick={() => { setIsSearchOpen(false); router.push(`/prospecting/outbound?tab=leads&name=${encodeURIComponent(searchQuery)}&autoSearch=true`) }}
+                            className="flex-1 text-xs py-2.5 hover:bg-secondary/50 transition-colors text-center font-medium text-foreground"
+                          >
+                            Find via prospecting →
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Account */}
+                      <div className="rounded-lg border border-border overflow-hidden">
+                        <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border">
+                          <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <span className="text-sm font-medium">Account not found — add them?</span>
+                        </div>
+                        <div className="flex divide-x divide-border">
+                          <button
+                            onClick={() => { setIsSearchOpen(false); setAddAccountOpen(true) }}
+                            className="flex-1 text-xs py-2.5 hover:bg-secondary/50 transition-colors text-center text-muted-foreground hover:text-foreground"
+                          >
+                            Add manually
+                          </button>
+                          <button
+                            onClick={() => { setIsSearchOpen(false); router.push(`/prospecting/outbound?tab=accounts&keyword=${encodeURIComponent(searchQuery)}&autoSearch=true`) }}
+                            className="flex-1 text-xs py-2.5 hover:bg-secondary/50 transition-colors text-center font-medium text-foreground"
+                          >
+                            Find via prospecting →
+                          </button>
                         </div>
                       </div>
                     </div>

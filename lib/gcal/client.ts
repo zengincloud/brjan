@@ -57,6 +57,25 @@ export async function listUpcomingEvents(
   return (res.data.items || []).map(mapEvent)
 }
 
+export async function listEventsInRange(
+  userId: string,
+  timeMin: string,
+  timeMax: string
+): Promise<CalendarEvent[]> {
+  const calendar = await getAuthedClient(userId)
+
+  const res = await calendar.events.list({
+    calendarId: "primary",
+    timeMin,
+    timeMax,
+    maxResults: 100,
+    singleEvents: true,
+    orderBy: "startTime",
+  })
+
+  return (res.data.items || []).map(mapEvent)
+}
+
 export async function listPastEvents(
   userId: string,
   maxResults = 20

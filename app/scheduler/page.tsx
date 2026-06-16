@@ -196,7 +196,7 @@ function EventsList({ type }: { type: "upcoming" | "past" }) {
 interface CreateEventDialogProps {
   open: boolean
   onClose: () => void
-  prefill?: { startHour: number; participantEmails: string[] }
+  prefill?: { startHour: number; participantEmails: string[]; date?: string }
   userTzOffset: number
   userTzLabel: string
 }
@@ -221,6 +221,7 @@ function CreateEventDialog({ open, onClose, prefill, userTzOffset, userTzLabel }
   useEffect(() => {
     if (prefill) {
       const h = prefill.startHour
+      if (prefill.date) setDate(prefill.date)
       setStartTime(`${String(h).padStart(2, "0")}:00`)
       setEndTime(`${String((h + 1) % 24).padStart(2, "0")}:00`)
       setAttendees(prefill.participantEmails.map(e => ({ email: e })))
@@ -386,15 +387,49 @@ export default function SchedulerPage() {
   const [newParticipantEmail, setNewParticipantEmail] = useState("")
   const [newParticipantTimezone, setNewParticipantTimezone] = useState("utc")
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
-  const [createPrefill, setCreatePrefill] = useState<{ startHour: number; participantEmails: string[] } | undefined>()
+  const [createPrefill, setCreatePrefill] = useState<{ startHour: number; participantEmails: string[]; date?: string } | undefined>()
+  const [weekStart, setWeekStart] = useState<Date>(() => {
+    const d = new Date()
+    const day = d.getDay()
+    const diff = day === 0 ? 1 : day === 6 ? 2 : 1 - day + (day === 0 ? 0 : 0)
+    // Start from next Monday if today is Mon-Fri, else nearest Monday
+    const monday = new Date(d)
+    monday.setDate(d.getDate() - (day === 0 ? 6 : day - 1))
+    monday.setHours(0, 0, 0, 0)
+    return monday
+  })
+  const [calendarBlocks, setCalendarBlocks] = useState<Set<string>>(new Set())
   const [participantSuggestions, setParticipantSuggestions] = useState<{ name: string; email: string; timezone?: string | null; location?: string | null }[]>([])
   const [showParticipantSuggestions, setShowParticipantSuggestions] = useState(false)
   const participantSuggestionsRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    // Silently dispatch notetaker bots for upcoming meetings with video links
     fetch("/api/meetings/sync", { method: "POST" }).catch(() => {})
   }, [])
+
+  useEffect(() => {
+    const timeMin = weekStart.toISOString()
+    const timeMax = new Date(weekStart.getTime() + 7 * 86_400_000).toISOString()
+    fetch(`/api/integrations/gcal/events?timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}`)
+      .then(r => r.ok ? r.json() : { events: [] })
+      .then(data => {
+        const blocks = new Set<string>()
+        for (const event of data.events || []) {
+          const start = new Date(event.start)
+          const end = new Date(event.end)
+          // Mark every hour slot this event touches as blocked
+          const cur = new Date(start)
+          cur.setMinutes(0, 0, 0)
+          while (cur < end) {
+            const key = `${cur.toISOString().slice(0, 10)}-${cur.getHours()}`
+            blocks.add(key)
+            cur.setHours(cur.getHours() + 1)
+          }
+        }
+        setCalendarBlocks(blocks)
+      })
+      .catch(() => {})
+  }, [weekStart])
 
   useEffect(() => {
     fetch("/api/auth/user")
@@ -485,11 +520,25 @@ export default function SchedulerPage() {
     return results.slice(0, 3)
   }
 
-  const handleCreateFromOptimalTime = (startHour: number) => {
+  const handleCreateFromOptimalTime = (startHour: number, date?: string) => {
     const participantEmails = participants.filter(p => p.email && p.id !== 1).map(p => p.email)
-    setCreatePrefill({ startHour, participantEmails })
+    setCreatePrefill({ startHour, participantEmails, date })
     setCreateDialogOpen(true)
   }
+
+  const weekDays = Array.from({ length: 5 }, (_, i) => {
+    const d = new Date(weekStart)
+    d.setDate(weekStart.getDate() + i)
+    return d
+  })
+
+  const gridHours = Array.from({ length: 11 }, (_, i) => i + 8) // 8am–6pm
+
+  const formatWeekDay = (d: Date) =>
+    d.toLocaleDateString("en-US", { weekday: "short", month: "numeric", day: "numeric" })
+
+  const prevWeek = () => setWeekStart(d => { const n = new Date(d); n.setDate(d.getDate() - 7); return n })
+  const nextWeek = () => setWeekStart(d => { const n = new Date(d); n.setDate(d.getDate() + 7); return n })
 
   const optimalTimes = findOptimalTimes()
   const userTzInfo = getTimezoneInfo(participants[0]?.timezone || "utc-5")
@@ -718,101 +767,87 @@ export default function SchedulerPage() {
                 <CardTitle className="flex items-center justify-between">
                   <span className="flex items-center">
                     <Globe className="h-5 w-5 mr-2" />
-                    Availability Across Time Zones
+                    Availability
                   </span>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <Info className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p className="max-w-xs">
-                          This grid shows when participants are available based on their local working hours.
-                          Darker colors indicate more participants are available at that time.
-                        </p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="icon" className="h-7 w-7" onClick={prevWeek}>
+                      <span className="text-xs">‹</span>
+                    </Button>
+                    <span className="text-sm font-normal text-muted-foreground min-w-[160px] text-center">
+                      {weekDays[0].toLocaleDateString("en-US", { month: "short", day: "numeric" })} – {weekDays[4].toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                    </span>
+                    <Button variant="outline" size="icon" className="h-7 w-7" onClick={nextWeek}>
+                      <span className="text-xs">›</span>
+                    </Button>
+                  </div>
                 </CardTitle>
-                <CardDescription>Find times when all participants are available</CardDescription>
+                <CardDescription>Click any open slot to create a meeting</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
-                  <div className="min-w-[800px]">
-                    <div className="flex border-b mb-2">
-                      <div className="w-24 flex-shrink-0"></div>
-                      {hours.map((hour) => (
-                        <div key={hour} className="flex-1 text-center text-xs py-1">
-                          {formatHour(hour)}
+                  <div className="min-w-[500px]">
+                    {/* Header row: days */}
+                    <div className="flex mb-1">
+                      <div className="w-16 flex-shrink-0" />
+                      {weekDays.map((day, i) => (
+                        <div key={i} className="flex-1 text-center text-xs font-medium py-1 text-muted-foreground">
+                          {formatWeekDay(day)}
                         </div>
                       ))}
                     </div>
 
-                    {participants.map((participant) => {
-                      const tz = getTimezoneInfo(participant.timezone)
-                      return (
-                        <div key={participant.id} className="flex items-center mb-2">
-                          <div className="w-24 flex-shrink-0 text-xs truncate pr-2">
-                            {participant.name}
-                            <div className="text-xs text-muted-foreground">{tz.label.split(" ")[0]}</div>
-                          </div>
-                          {hours.map((hour) => {
-                            const isWorking = isWorkingHour(participant, hour)
-                            return (
-                              <div
-                                key={hour}
-                                className={`flex-1 h-8 border-r ${isWorking ? "bg-primary/30" : "bg-muted/20"}`}
-                              />
-                            )
-                          })}
+                    {/* Hour rows */}
+                    {gridHours.map((hour) => (
+                      <div key={hour} className="flex items-stretch mb-px">
+                        <div className="w-16 flex-shrink-0 text-xs text-muted-foreground pr-2 flex items-center justify-end">
+                          {formatHour(hour)}
                         </div>
-                      )
-                    })}
+                        {weekDays.map((day, di) => {
+                          const dateKey = day.toISOString().slice(0, 10)
+                          const blockKey = `${dateKey}-${hour}`
+                          const isBlocked = calendarBlocks.has(blockKey)
+                          const availableCount = participants.filter(p => isWorkingHour(p, hour)).length
+                          const allAvailable = availableCount === participants.length
+                          const someAvailable = availableCount > 0
 
-                    {participants.length > 1 && (
-                      <div className="flex items-center mt-4 pt-4 border-t">
-                        <div className="w-24 flex-shrink-0 text-xs font-medium">Overlap</div>
-                        {hours.map((hour) => {
-                          const availableCount = countAvailableParticipants(hour)
+                          if (isBlocked) {
+                            return (
+                              <div key={di} className="flex-1 h-8 border border-muted bg-muted/40 flex items-center justify-center mx-px rounded-sm">
+                                <span className="text-xs text-muted-foreground">Blocked</span>
+                              </div>
+                            )
+                          }
+
                           return (
-                            <div
-                              key={hour}
-                              className={`flex-1 h-8 border-r flex items-center justify-center ${
-                                availableCount === participants.length
-                                  ? "bg-green-500/30"
-                                  : availableCount > 0
-                                    ? "bg-primary/30"
-                                    : "bg-muted/20"
+                            <button
+                              key={di}
+                              type="button"
+                              onClick={() => allAvailable || someAvailable ? handleCreateFromOptimalTime(hour, dateKey) : undefined}
+                              className={`flex-1 h-8 border mx-px rounded-sm flex items-center justify-center transition-colors ${
+                                allAvailable
+                                  ? "bg-green-500/20 border-green-500/30 hover:bg-green-500/40 cursor-pointer"
+                                  : someAvailable
+                                  ? "bg-primary/15 border-primary/20 hover:bg-primary/25 cursor-pointer"
+                                  : "bg-muted/20 border-transparent cursor-default"
                               }`}
                             >
-                              {availableCount > 0 && (
-                                <span className="text-xs font-medium">
+                              {participants.length > 1 && someAvailable && (
+                                <span className="text-xs font-medium text-muted-foreground">
                                   {availableCount}/{participants.length}
                                 </span>
                               )}
-                            </div>
+                            </button>
                           )
                         })}
                       </div>
-                    )}
+                    ))}
                   </div>
                 </div>
 
-                <div className="flex items-center justify-end gap-4 mt-4 text-xs text-muted-foreground">
-                  <div className="flex items-center gap-1">
-                    <div className="w-3 h-3 bg-muted/20" />
-                    <span>Unavailable</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <div className="w-3 h-3 bg-primary/30" />
-                    <span>Available</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <div className="w-3 h-3 bg-green-500/30" />
-                    <span>Everyone Available</span>
-                  </div>
+                <div className="flex items-center gap-4 mt-4 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-sm bg-muted/40 border border-muted" /><span>Blocked</span></div>
+                  <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-sm bg-primary/15 border border-primary/20" /><span>Partial</span></div>
+                  <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-sm bg-green-500/20 border border-green-500/30" /><span>Everyone free</span></div>
                 </div>
               </CardContent>
             </Card>

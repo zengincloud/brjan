@@ -455,24 +455,20 @@ function renderRevealResult(result: RevealResponse, fromCache: boolean) {
   html += `<div class="br-actions">`
 
   if (!existing) {
-    html += `<button class="br-btn br-btn-primary" id="br-save-prospect">Save as Prospect</button>`
+    html += `<button class="br-btn br-btn-primary" id="br-save-prospect">Add to CRM</button>`
   }
 
   if (sequences.length > 0) {
     html += `
       <div class="br-sequence-picker">
-        <select class="br-select" id="br-sequence-select">
-          <option value="">Add to Sequence...</option>
-          ${sequences.map((s) => `<option value="${s.id}">${escHtml(s.name)} (${s.prospectCount})</option>`).join('')}
-        </select>
-        <button class="br-btn br-btn-secondary" id="br-add-sequence" disabled>Add</button>
-      </div>
-    `
-  } else {
-    const appUrl = getAppUrl()
-    html += `
-      <div class="br-sequence-empty">
-        No sequences yet — <a href="${appUrl}/sequences" target="_blank" class="br-link">create one in Boilerroom</a>
+        <div class="br-sequence-label">Add to sequence <span style="font-weight:400;opacity:0.6;">(optional)</span></div>
+        <div style="display:flex;gap:6px;margin-top:4px;">
+          <select class="br-select" id="br-sequence-select" style="flex:1;">
+            <option value="">Select a sequence...</option>
+            ${sequences.map((s) => `<option value="${s.id}">${escHtml(s.name)} (${s.prospectCount})</option>`).join('')}
+          </select>
+          <button class="br-btn br-btn-secondary" id="br-add-sequence" disabled style="flex-shrink:0;">Add</button>
+        </div>
       </div>
     `
   }

@@ -28,6 +28,8 @@ import { useToast } from "@/components/ui/use-toast"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { createClient } from "@/lib/supabase/client"
+import { AddProspectDialog } from "@/components/add-prospect-dialog"
+import { AddAccountDialog } from "@/components/add-account-dialog"
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -60,6 +62,8 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
   const { toast } = useToast()
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
+  const [addProspectOpen, setAddProspectOpen] = useState(false)
+  const [addAccountOpen, setAddAccountOpen] = useState(false)
   const [halCompose, setHalCompose] = useState<{ to: string; subject: string; body: string; meetingId?: string } | null>(null)
   const [sendingHalEmail, setSendingHalEmail] = useState(false)
   const [searchResults, setSearchResults] = useState<{ prospects: any[]; accounts: any[] }>({ prospects: [], accounts: [] })
@@ -364,7 +368,51 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 
                   {/* No results */}
                   {!searchLoading && searchResults.prospects.length === 0 && searchResults.accounts.length === 0 && searchQuery.length >= 2 && (
-                    <p className="text-sm text-muted-foreground text-center py-8">No results for &ldquo;{searchQuery}&rdquo;</p>
+                    <div className="p-5 space-y-3">
+                      <p className="text-xs text-muted-foreground text-center">No results for &ldquo;{searchQuery}&rdquo;</p>
+                      <div className="space-y-2">
+                        <div className="rounded-lg border border-border p-3">
+                          <div className="flex items-center gap-2 mb-2.5">
+                            <User className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span className="text-sm font-medium">Contact not found — add them?</span>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => { setIsSearchOpen(false); setAddProspectOpen(true) }}
+                              className="flex-1 text-xs px-3 py-1.5 rounded-md border border-border hover:bg-secondary/50 transition-colors text-center"
+                            >
+                              Add manually
+                            </button>
+                            <button
+                              onClick={() => { setIsSearchOpen(false); router.push(`/prospecting/outbound?tab=leads&name=${encodeURIComponent(searchQuery)}&autoSearch=true`) }}
+                              className="flex-1 text-xs px-3 py-1.5 rounded-md bg-accent/10 text-accent hover:bg-accent/20 transition-colors text-center"
+                            >
+                              Find via prospecting →
+                            </button>
+                          </div>
+                        </div>
+                        <div className="rounded-lg border border-border p-3">
+                          <div className="flex items-center gap-2 mb-2.5">
+                            <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span className="text-sm font-medium">Account not found — add them?</span>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => { setIsSearchOpen(false); setAddAccountOpen(true) }}
+                              className="flex-1 text-xs px-3 py-1.5 rounded-md border border-border hover:bg-secondary/50 transition-colors text-center"
+                            >
+                              Add manually
+                            </button>
+                            <button
+                              onClick={() => { setIsSearchOpen(false); router.push(`/prospecting/outbound?tab=accounts&keyword=${encodeURIComponent(searchQuery)}&autoSearch=true`) }}
+                              className="flex-1 text-xs px-3 py-1.5 rounded-md bg-accent/10 text-accent hover:bg-accent/20 transition-colors text-center"
+                            >
+                              Find via prospecting →
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
               )}
@@ -377,6 +425,9 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
       </div>
 
       <TodoPanel open={todoOpen} onOpenChange={setTodoOpen} />
+
+      <AddProspectDialog open={addProspectOpen} onOpenChange={setAddProspectOpen} />
+      <AddAccountDialog open={addAccountOpen} onOpenChange={setAddAccountOpen} />
 
       {/* HAL6900 compose modal */}
       {halCompose && (

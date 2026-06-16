@@ -393,8 +393,15 @@
 
 /* Sequence picker */
 .br-sequence-picker {
-  display: flex;
-  gap: 8px;
+  margin-top: 2px;
+}
+
+.br-sequence-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #808590;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .br-select {

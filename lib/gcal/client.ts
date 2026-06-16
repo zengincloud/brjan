@@ -108,12 +108,19 @@ export async function createEvent(
   const res = await calendar.events.insert({
     calendarId: "primary",
     sendUpdates: "all",
+    conferenceDataVersion: 1,
     requestBody: {
       summary: event.summary,
       description: event.description,
       start: { dateTime: event.startTime },
       end: { dateTime: event.endTime },
       attendees: (event.attendeeEmails || []).map((email) => ({ email })),
+      conferenceData: {
+        createRequest: {
+          requestId: `br-${Date.now()}`,
+          conferenceSolutionKey: { type: "hangoutsMeet" },
+        },
+      },
     },
   })
 

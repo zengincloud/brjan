@@ -36,13 +36,19 @@ export interface CalendarEvent {
 
 export async function listUpcomingEvents(
   userId: string,
-  maxResults = 20
+  maxResults = 20,
+  daysAhead = 0
 ): Promise<CalendarEvent[]> {
   const calendar = await getAuthedClient(userId)
+
+  const timeMax = daysAhead > 0
+    ? new Date(Date.now() + daysAhead * 86_400_000).toISOString()
+    : undefined
 
   const res = await calendar.events.list({
     calendarId: "primary",
     timeMin: new Date().toISOString(),
+    ...(timeMax ? { timeMax } : {}),
     maxResults,
     singleEvents: true,
     orderBy: "startTime",
@@ -93,6 +99,21 @@ export async function createEvent(
   })
 
   return mapEvent(res.data)
+}
+
+const ZOOM_RE = /https:\/\/[a-z0-9-]+\.zoom\.us\/j\/[^\s"<>]+/i
+const TEAMS_RE = /https:\/\/teams\.microsoft\.com\/l\/meetup-join\/[^\s"<>]+/i
+
+export function extractMeetingUrl(event: CalendarEvent): string | null {
+  if (event.hangoutLink) return event.hangoutLink
+  const sources = [event.location || "", event.description || ""]
+  for (const src of sources) {
+    const zoom = src.match(ZOOM_RE)
+    if (zoom) return zoom[0]
+    const teams = src.match(TEAMS_RE)
+    if (teams) return teams[0]
+  }
+  return null
 }
 
 function mapEvent(item: any): CalendarEvent {

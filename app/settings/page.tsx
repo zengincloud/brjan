@@ -558,7 +558,7 @@ export default function SettingsPage() {
         {/* Integrations Tab */}
         {activeTab === "integrations" && <div className="space-y-4">
           <GmailIntegration initialStatus={integrationStatuses?.gmail} />
-          <GcalIntegration initialStatus={integrationStatuses?.gcal} />
+          <GcalIntegration initialStatus={integrationStatuses?.gcal} userTier={creditStatus?.tier} />
           <HubspotIntegration initialStatus={integrationStatuses?.hubspot} />
           <SalesforceIntegration initialStatus={integrationStatuses?.salesforce} />
 

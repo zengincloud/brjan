@@ -368,6 +368,11 @@ export default function SchedulerPage() {
   const [createPrefill, setCreatePrefill] = useState<{ startHour: number; participantEmails: string[] } | undefined>()
 
   useEffect(() => {
+    // Silently dispatch notetaker bots for upcoming meetings with video links
+    fetch("/api/meetings/sync", { method: "POST" }).catch(() => {})
+  }, [])
+
+  useEffect(() => {
     fetch("/api/auth/user")
       .then((r) => r.ok ? r.json() : null)
       .then((data) => {

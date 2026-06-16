@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Check, X, Loader2, ExternalLink, AlertCircle } from "lucide-react"
+import { Check, X, Loader2, ExternalLink, AlertCircle, Video, Lock } from "lucide-react"
 import { toast } from "sonner"
 
 function GoogleIcon({ className }: { className?: string }) {
@@ -28,7 +28,7 @@ interface GcalStatus {
   } | null
 }
 
-export function GcalIntegration({ initialStatus }: { initialStatus?: GcalStatus }) {
+export function GcalIntegration({ initialStatus, userTier }: { initialStatus?: GcalStatus; userTier?: string }) {
   const [status, setStatus] = useState<GcalStatus | null>(initialStatus ?? null)
   const [isLoading, setIsLoading] = useState(!initialStatus)
   const [isConnecting, setIsConnecting] = useState(false)
@@ -224,13 +224,33 @@ export function GcalIntegration({ initialStatus }: { initialStatus?: GcalStatus 
           </div>
         )}
 
-        <div className="text-sm text-muted-foreground bg-secondary/30 p-3 rounded-lg">
-          <p className="font-medium mb-1">What this enables</p>
-          <ul className="list-disc list-inside space-y-1 text-xs">
-            <li>View upcoming and past meetings in the Scheduler</li>
-            <li>Create calendar events with prospects directly from Boilerroom</li>
-            <li>Real availability detection based on actual calendar events</li>
-          </ul>
+        <div className="text-sm text-muted-foreground bg-secondary/30 p-3 rounded-lg space-y-3">
+          <div>
+            <p className="font-medium text-foreground mb-1">What this enables</p>
+            <ul className="list-disc list-inside space-y-1 text-xs">
+              <li>View upcoming and past meetings in the Scheduler</li>
+              <li>Create calendar events with prospects directly from Boilerroom</li>
+              <li>Real availability detection based on actual calendar events</li>
+            </ul>
+          </div>
+
+          <div className={`rounded-lg border p-3 ${userTier === "pro_max" ? "border-primary/30 bg-primary/5" : "border-border bg-muted/30"}`}>
+            <div className="flex items-center gap-2 mb-1.5">
+              <Video className="h-4 w-4 text-primary" />
+              <p className="font-medium text-foreground text-xs">AI Meeting Notetaker</p>
+              {userTier !== "pro_max" && (
+                <span className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
+                  <Lock className="h-3 w-3" />
+                  Pro Max
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {userTier === "pro_max"
+                ? "Active — a bot will automatically join your Google Meet, Zoom, and Teams calls and generate a transcript, summary, and action items when connected."
+                : "Upgrade to Pro Max to automatically record and transcribe every meeting from your calendar — no manual setup required."}
+            </p>
+          </div>
         </div>
       </CardContent>
     </Card>

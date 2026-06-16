@@ -33,16 +33,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ received: true })
   }
 
-  // Only process when the bot is done
-  if (event === "bot.status_change") {
-    const statusCode =
-      payload.data?.bot?.status_changes?.at(-1)?.code ??
-      payload.data?.status?.code
-
-    if (statusCode !== "done" && statusCode !== "call_ended") {
-      return NextResponse.json({ received: true })
-    }
-
+  // bot.done fires when the bot has shut down and transcript/recording are available
+  if (event === "bot.done") {
     await processMeetingEnd(botId)
   }
 

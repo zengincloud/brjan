@@ -199,6 +199,7 @@ export default function SettingsPage() {
   }
 
   const topNavItems = [
+    { id: "integrations", label: "Integrations" },
     { id: "profile", label: "Profile" },
     { id: "organization", label: "Organization" },
     { id: "team", label: "Team" },
@@ -206,7 +207,6 @@ export default function SettingsPage() {
   ]
 
   const bottomNavItems = [
-    { id: "integrations", label: "Integrations" },
     { id: "security", label: "Security" },
     { id: "billing", label: "Billing" },
   ]

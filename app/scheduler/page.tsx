@@ -466,7 +466,18 @@ export default function SchedulerPage() {
   const [calendarBlocks, setCalendarBlocks] = useState<Set<string>>(new Set())
   const [participantSuggestions, setParticipantSuggestions] = useState<{ name: string; email: string; timezone?: string | null; location?: string | null }[]>([])
   const [showParticipantSuggestions, setShowParticipantSuggestions] = useState(false)
+  const participantInputFocused = useRef(false)
   const participantSuggestionsRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (participantSuggestionsRef.current && !participantSuggestionsRef.current.contains(e.target as Node)) {
+        setShowParticipantSuggestions(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
 
   useEffect(() => {
     fetch("/api/meetings/sync", { method: "POST" }).catch(() => {})
@@ -667,12 +678,14 @@ export default function SchedulerPage() {
                       <Input
                         placeholder="Name or email"
                         value={newParticipantName}
+                        onFocus={() => { participantInputFocused.current = true }}
+                        onBlur={() => { participantInputFocused.current = false }}
                         onChange={async (e) => {
                           const v = e.target.value
                           setNewParticipantName(v)
                           if (v.trim().length >= 2) {
                             const res = await fetch(`/api/prospects?search=${encodeURIComponent(v)}&pageSize=6`)
-                            if (res.ok) {
+                            if (res.ok && participantInputFocused.current) {
                               const data = await res.json()
                               const matches = (data.prospects || []).filter((p: any) => p.name || p.email)
                               setParticipantSuggestions(matches.map((p: any) => ({ name: p.name || "", email: p.email || "", timezone: p.timezone, location: p.location })))
@@ -682,7 +695,6 @@ export default function SchedulerPage() {
                             setShowParticipantSuggestions(false)
                           }
                         }}
-                        onBlur={() => setTimeout(() => setShowParticipantSuggestions(false), 150)}
                       />
                       {showParticipantSuggestions && (
                         <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-md overflow-hidden">

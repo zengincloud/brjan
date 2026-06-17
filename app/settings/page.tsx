@@ -227,7 +227,7 @@ export default function SettingsPage() {
   ]
 
   const meetingItems = [
-    { id: "meetings-templates", label: "Creation Templates" },
+    { id: "meetings-templates", label: "Templates" },
     { id: "meetings-notetaker", label: "Notetaker" },
   ]
 

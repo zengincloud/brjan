@@ -28,6 +28,7 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
         workStartTime: true,
         workEndTime: true,
         workDays: true,
+        notetakerSettings: true,
         createdAt: true,
         creditsUsed: true,
         creditsResetAt: true,
@@ -97,6 +98,7 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
       usageType: metadata.usageType ?? null,
       primaryGoal: metadata.primaryGoal ?? null,
       checklistDismissed: metadata.checklist_dismissed ?? false,
+      notetakerSettings: user.notetakerSettings ?? null,
     }
 
     return NextResponse.json({ user: userWithMeta, isImpersonating: impersonationResult, creditStatus })
@@ -115,7 +117,7 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
 export const PATCH = withAuth(async (request: NextRequest, userId: string) => {
   try {
     const body = await request.json()
-    const { firstName, lastName, timezone, workStartTime, workEndTime, workDays } = body
+    const { firstName, lastName, timezone, workStartTime, workEndTime, workDays, notetakerSettings } = body
 
     const user = await prisma.user.update({
       where: { id: userId },
@@ -126,6 +128,7 @@ export const PATCH = withAuth(async (request: NextRequest, userId: string) => {
         ...(workStartTime !== undefined && { workStartTime }),
         ...(workEndTime !== undefined && { workEndTime }),
         ...(workDays !== undefined && { workDays }),
+        ...(notetakerSettings !== undefined && { notetakerSettings }),
       },
       select: {
         id: true,
@@ -140,6 +143,7 @@ export const PATCH = withAuth(async (request: NextRequest, userId: string) => {
         workStartTime: true,
         workEndTime: true,
         workDays: true,
+        notetakerSettings: true,
         createdAt: true,
       },
     })

@@ -4,15 +4,14 @@ import { prisma } from "@/lib/prisma"
 
 export const dynamic = 'force-dynamic'
 
-// GET /api/search?q=... — Global search across prospects and accounts
 export const GET = withAuth(async (request: NextRequest, userId: string) => {
   try {
     const q = request.nextUrl.searchParams.get("q")?.trim()
     if (!q || q.length < 2) {
-      return NextResponse.json({ prospects: [], accounts: [] })
+      return NextResponse.json({ prospects: [], accounts: [], calls: [] })
     }
 
-    const [prospects, accounts] = await Promise.all([
+    const [prospects, accounts, calls] = await Promise.all([
       prisma.prospect.findMany({
         where: {
           userId,
@@ -24,14 +23,7 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
             { phone: { contains: q, mode: "insensitive" } },
           ],
         },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          company: true,
-          title: true,
-          phone: true,
-        },
+        select: { id: true, name: true, email: true, company: true, title: true, phone: true },
         orderBy: { updatedAt: "desc" },
         take: 8,
       }),
@@ -45,21 +37,36 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
             { location: { contains: q, mode: "insensitive" } },
           ],
         },
+        select: { id: true, name: true, industry: true, location: true, website: true },
+        orderBy: { updatedAt: "desc" },
+        take: 5,
+      }),
+      prisma.call.findMany({
+        where: {
+          userId,
+          recordingUrl: { not: null },
+          OR: [
+            { prospect: { name: { contains: q, mode: "insensitive" } } },
+            { notes: { contains: q, mode: "insensitive" } },
+            { outcome: { contains: q, mode: "insensitive" } },
+          ],
+        },
         select: {
           id: true,
-          name: true,
-          industry: true,
-          location: true,
-          website: true,
+          outcome: true,
+          duration: true,
+          recordingDuration: true,
+          createdAt: true,
+          prospect: { select: { id: true, name: true } },
         },
-        orderBy: { updatedAt: "desc" },
+        orderBy: { createdAt: "desc" },
         take: 5,
       }),
     ])
 
-    return NextResponse.json({ prospects, accounts })
+    return NextResponse.json({ prospects, accounts, calls })
   } catch (error: any) {
     console.error("Global search error:", error)
-    return NextResponse.json({ prospects: [], accounts: [] })
+    return NextResponse.json({ prospects: [], accounts: [], calls: [] })
   }
 })

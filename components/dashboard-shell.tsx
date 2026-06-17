@@ -7,7 +7,7 @@ import { useRouter, usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Sidebar } from "@/components/sidebar"
 import { ImpersonationBanner } from "@/components/impersonation-banner"
-import { Menu, Search, Phone, Zap, User, Building2, Loader2, ClipboardList, Send, X } from "lucide-react"
+import { Menu, Search, Phone, Zap, User, Building2, Loader2, ClipboardList, Send, X, Mic, Mail, MessageSquare, BarChart2, FileText, Users, Calendar, Activity, Settings, UserCircle, Building, Plug, Bell, Shield, CreditCard, LayoutDashboard, type LucideIcon } from "lucide-react"
 import { UserProvider, useUser } from "@/hooks/use-user"
 import { VoiceOrb } from "@/components/voice-orb"
 import { HubSpotIdentity } from "@/components/hubspot-identity"
@@ -30,6 +30,45 @@ import { Badge } from "@/components/ui/badge"
 import { createClient } from "@/lib/supabase/client"
 import { AddProspectDialog } from "@/components/add-prospect-dialog"
 import { AddAccountDialog } from "@/components/add-account-dialog"
+
+type NavPage = { label: string; desc: string; href: string; icon: LucideIcon; keywords: string[] }
+
+const NAV_PAGES: NavPage[] = [
+  { label: "Prospects",                    desc: "View all contacts",                     href: "/prospects",                                   icon: User,           keywords: ["people", "contacts", "leads"] },
+  { label: "Accounts",                     desc: "View all companies",                    href: "/accounts",                                    icon: Building2,      keywords: ["companies", "organizations", "firms"] },
+  { label: "Dialer",                       desc: "Power dialer",                          href: "/dialer",                                      icon: Phone,          keywords: ["call", "calling", "phone", "dial", "power dialer"] },
+  { label: "Sequences",                    desc: "Outreach sequences",                    href: "/sequences",                                   icon: Zap,            keywords: ["automation", "campaign", "cadence", "outreach"] },
+  { label: "Prospecting — Leads",          desc: "Find new leads via Wiza",               href: "/prospecting/outbound?tab=leads",               icon: Search,         keywords: ["find leads", "research", "discover", "wiza", "prospecting"] },
+  { label: "Prospecting — Accounts",       desc: "Find new companies via Wiza",           href: "/prospecting/outbound?tab=accounts",            icon: Search,         keywords: ["find companies", "research", "wiza", "prospecting"] },
+  { label: "Call Recordings",              desc: "Review and search past calls",          href: "/call-recordings",                             icon: Mic,            keywords: ["recordings", "calls", "audio", "replay", "voicemail"] },
+  { label: "Emailer",                      desc: "Draft and send emails",                 href: "/emailer",                                     icon: Mail,           keywords: ["email", "compose", "send", "inbox"] },
+  { label: "LinkedIn",                     desc: "LinkedIn outreach",                     href: "/linkedin",                                    icon: MessageSquare,  keywords: ["linkedin", "social", "messages", "connect"] },
+  { label: "Performance",                  desc: "Team performance metrics",              href: "/performance",                                 icon: BarChart2,      keywords: ["metrics", "analytics", "stats", "kpi", "dashboard"] },
+  { label: "Reports",                      desc: "Activity and pipeline reports",         href: "/reports",                                     icon: FileText,       keywords: ["analytics", "export", "report", "pipeline"] },
+  { label: "Salesfloor",                   desc: "Live team salesfloor",                  href: "/salesfloor",                                  icon: Users,          keywords: ["team", "live", "floor", "leaderboard"] },
+  { label: "Scheduler",                    desc: "Schedule meetings",                     href: "/scheduler",                                   icon: Calendar,       keywords: ["calendar", "book", "schedule", "meeting"] },
+  { label: "Activity",                     desc: "Recent activity feed",                  href: "/activity",                                    icon: Activity,       keywords: ["history", "log", "feed", "recent"] },
+  { label: "Settings",                     desc: "Account settings",                      href: "/settings",                                    icon: Settings,       keywords: ["settings", "preferences", "config", "account"] },
+  { label: "Settings — Profile",           desc: "Update name, avatar, timezone",         href: "/settings?tab=profile",                        icon: UserCircle,     keywords: ["name", "avatar", "profile", "photo", "timezone"] },
+  { label: "Settings — Organization",      desc: "Organization name and details",         href: "/settings?tab=organization",                   icon: Building,       keywords: ["company", "org", "workspace", "organization"] },
+  { label: "Settings — Team",              desc: "Invite and manage team members",        href: "/settings?tab=team",                           icon: Users,          keywords: ["team", "members", "invite", "roles"] },
+  { label: "Settings — Integrations",      desc: "Connect Gmail, HubSpot, Salesforce",   href: "/settings?tab=integrations",                   icon: Plug,           keywords: ["gmail", "hubspot", "salesforce", "connect", "sync", "integration"] },
+  { label: "Settings — Notifications",     desc: "Email and push notifications",          href: "/settings?tab=notifications",                  icon: Bell,           keywords: ["alerts", "email", "push", "notifications"] },
+  { label: "Settings — Security",          desc: "Password and two-factor auth",          href: "/settings?tab=security",                       icon: Shield,         keywords: ["password", "2fa", "security", "auth"] },
+  { label: "Settings — Billing",           desc: "Manage subscription and plan",          href: "/settings?tab=billing",                        icon: CreditCard,     keywords: ["plan", "payment", "upgrade", "subscription", "billing", "credit"] },
+  { label: "Settings — Calling",           desc: "Phone numbers and voicemail",           href: "/settings?tab=calling-overview",               icon: Phone,          keywords: ["phone", "voicemail", "twilio", "numbers", "caller id"] },
+  { label: "Settings — Deliverability",    desc: "Email domains and mailboxes",           href: "/settings?tab=deliverability-overview",        icon: Mail,           keywords: ["domain", "mailbox", "email", "spam", "deliverability", "dns"] },
+  { label: "Settings — Meetings",          desc: "Meeting templates and notetaker bot",   href: "/settings?tab=meetings-templates",              icon: Calendar,       keywords: ["notetaker", "templates", "bot", "meeting", "recording"] },
+]
+
+function matchNavPages(q: string): NavPage[] {
+  const lower = q.toLowerCase()
+  return NAV_PAGES.filter(p =>
+    p.label.toLowerCase().includes(lower) ||
+    p.desc.toLowerCase().includes(lower) ||
+    p.keywords.some(k => k.includes(lower) || lower.includes(k))
+  ).slice(0, 5)
+}
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -66,21 +105,23 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
   const [addAccountOpen, setAddAccountOpen] = useState(false)
   const [halCompose, setHalCompose] = useState<{ to: string; subject: string; body: string; meetingId?: string } | null>(null)
   const [sendingHalEmail, setSendingHalEmail] = useState(false)
-  const [searchResults, setSearchResults] = useState<{ prospects: any[]; accounts: any[] }>({ prospects: [], accounts: [] })
+  const [searchResults, setSearchResults] = useState<{ prospects: any[]; accounts: any[]; calls: any[]; pages: NavPage[] }>({ prospects: [], accounts: [], calls: [], pages: [] })
   const [searchLoading, setSearchLoading] = useState(false)
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const runSearch = useCallback(async (query: string) => {
     if (!query.trim() || query.length < 2) {
-      setSearchResults({ prospects: [], accounts: [] })
+      setSearchResults({ prospects: [], accounts: [], calls: [], pages: [] })
       return
     }
     setSearchLoading(true)
+    const pages = matchNavPages(query)
+    setSearchResults(prev => ({ ...prev, pages }))
     try {
       const res = await fetch(`/api/search?q=${encodeURIComponent(query.trim())}`)
       if (res.ok) {
         const data = await res.json()
-        setSearchResults({ prospects: data.prospects || [], accounts: data.accounts || [] })
+        setSearchResults({ prospects: data.prospects || [], accounts: data.accounts || [], calls: data.calls || [], pages })
       }
     } catch {
       // ignore
@@ -99,7 +140,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!isSearchOpen) {
       setSearchQuery("")
-      setSearchResults({ prospects: [], accounts: [] })
+      setSearchResults({ prospects: [], accounts: [], calls: [], pages: [] })
     }
   }, [isSearchOpen])
   const { user } = useUser()
@@ -278,7 +319,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
                 <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   className="pl-9 bg-transparent border-0 focus-visible:ring-0 text-base"
-                  placeholder="Search people, accounts..."
+                  placeholder="Search people, accounts, pages, recordings..."
                   autoFocus
                   value={searchQuery}
                   onChange={e => handleSearchInput(e.target.value)}
@@ -321,7 +362,30 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
                 </div>
               ) : (
                 <div className="py-2">
-                  {/* Prospects */}
+                  {/* Pages */}
+                  {searchResults.pages.length > 0 && (
+                    <div>
+                      <h3 className="text-xs font-medium text-muted-foreground px-4 py-1.5">Pages</h3>
+                      {searchResults.pages.map((p) => {
+                        const Icon = p.icon
+                        return (
+                          <button
+                            key={p.href}
+                            onClick={() => { setIsSearchOpen(false); router.push(p.href) }}
+                            className="w-full flex items-center gap-3 px-4 py-2 hover:bg-secondary/50 text-left transition-colors"
+                          >
+                            <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium truncate">{p.label}</p>
+                              <p className="text-xs text-muted-foreground truncate">{p.desc}</p>
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {/* People */}
                   {searchResults.prospects.length > 0 && (
                     <div>
                       <h3 className="text-xs font-medium text-muted-foreground px-4 py-1.5">People</h3>
@@ -366,8 +430,35 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
                     </div>
                   )}
 
+                  {/* Call Recordings */}
+                  {searchResults.calls.length > 0 && (
+                    <div>
+                      <h3 className="text-xs font-medium text-muted-foreground px-4 py-1.5">Call Recordings</h3>
+                      {searchResults.calls.map((c: any) => {
+                        const dur = c.recordingDuration || c.duration
+                        const mins = dur ? `${Math.floor(dur / 60)}m` : null
+                        const date = c.createdAt ? new Date(c.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : null
+                        return (
+                          <button
+                            key={c.id}
+                            onClick={() => { setIsSearchOpen(false); router.push(`/call-recordings?callId=${c.id}`) }}
+                            className="w-full flex items-center gap-3 px-4 py-2 hover:bg-secondary/50 text-left transition-colors"
+                          >
+                            <Mic className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium truncate">{c.prospect?.name || "Unknown"}</p>
+                              <p className="text-xs text-muted-foreground truncate">
+                                {[c.outcome?.replace(/_/g, " "), mins, date].filter(Boolean).join(" · ")}
+                              </p>
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+
                   {/* No results */}
-                  {!searchLoading && searchResults.prospects.length === 0 && searchResults.accounts.length === 0 && searchQuery.length >= 2 && (
+                  {!searchLoading && searchResults.pages.length === 0 && searchResults.prospects.length === 0 && searchResults.accounts.length === 0 && searchResults.calls.length === 0 && searchQuery.length >= 2 && (
                     <div className="p-4 space-y-2">
                       <p className="text-xs text-muted-foreground text-center pb-1">No results for &ldquo;{searchQuery}&rdquo;</p>
 

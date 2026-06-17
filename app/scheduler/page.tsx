@@ -196,7 +196,7 @@ function EventsList({ type }: { type: "upcoming" | "past" }) {
 interface CreateEventDialogProps {
   open: boolean
   onClose: () => void
-  prefill?: { startHour: number; startMinute?: number; participantEmails: string[]; date?: string }
+  prefill?: { startHour: number; startMinute?: number; participants: { email: string; name?: string }[]; date?: string }
   userTzOffset: number
   userTzLabel: string
   defaultDuration?: number
@@ -242,7 +242,7 @@ function CreateEventDialog({ open, onClose, prefill, userTzOffset, userTzLabel, 
       const m = prefill.startMinute ?? 0
       if (prefill.date) setDate(prefill.date)
       setStartTime(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`)
-      setAttendees(prefill.participantEmails.map(e => ({ email: e })))
+      setAttendees(prefill.participants.map(p => ({ email: p.email, name: p.name })))
     }
   }, [prefill])
 
@@ -418,7 +418,7 @@ function CreateEventDialog({ open, onClose, prefill, userTzOffset, userTzLabel, 
                           onMouseDown={(e) => {
                             e.preventDefault()
                             const first = attendees[0]
-                            const firstName = first?.name || first?.email?.split("@")[0] || ""
+                            const firstName = first?.name || ""
                             const now = new Date()
                             const filled = t.description
                               .replace(/\[\[name\]\]/gi, firstName)
@@ -462,7 +462,7 @@ export default function SchedulerPage() {
   const [newParticipantEmail, setNewParticipantEmail] = useState("")
   const [newParticipantTimezone, setNewParticipantTimezone] = useState("utc")
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
-  const [createPrefill, setCreatePrefill] = useState<{ startHour: number; startMinute?: number; participantEmails: string[]; date?: string } | undefined>()
+  const [createPrefill, setCreatePrefill] = useState<{ startHour: number; startMinute?: number; participants: { email: string; name?: string }[]; date?: string } | undefined>()
   const [gridDuration, setGridDuration] = useState(30)
   const [weekStart, setWeekStart] = useState<Date>(() => {
     const d = new Date()
@@ -608,8 +608,8 @@ export default function SchedulerPage() {
   }
 
   const handleCreateFromOptimalTime = (startHour: number, startMinute: number = 0, date?: string) => {
-    const participantEmails = participants.filter(p => p.email && p.id !== 1).map(p => p.email)
-    setCreatePrefill({ startHour, startMinute, participantEmails, date })
+    const participantList = participants.filter(p => p.email && p.id !== 1).map(p => ({ email: p.email, name: p.name }))
+    setCreatePrefill({ startHour, startMinute, participants: participantList, date })
     setCreateDialogOpen(true)
   }
 

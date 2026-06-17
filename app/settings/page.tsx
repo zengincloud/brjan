@@ -228,7 +228,27 @@ export default function SettingsPage() {
     <button
       key={id}
       onClick={() => handleTabChange(id)}
-      className={`text-left px-4 py-2 text-sm rounded-md mx-2 transition-colors ${
+      className={`text-left px-3 py-1.5 text-[13px] rounded-md transition-colors ${
+        activeTab === id
+          ? "bg-secondary text-foreground font-medium"
+          : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+      }`}
+    >
+      {label}
+    </button>
+  )
+
+  const sectionLabel = (label: string) => (
+    <p className="px-3 pt-4 pb-1 text-[11px] font-medium text-muted-foreground/60 uppercase tracking-wider select-none">
+      {label}
+    </p>
+  )
+
+  const subNavBtn = (id: string, label: string) => (
+    <button
+      key={id}
+      onClick={() => handleTabChange(id)}
+      className={`text-left pl-5 pr-3 py-1.5 text-[13px] rounded-md transition-colors ${
         activeTab === id
           ? "bg-secondary text-foreground font-medium"
           : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
@@ -241,76 +261,33 @@ export default function SettingsPage() {
   return (
     <div className="flex -m-5 min-h-full">
       {/* Left Sidebar */}
-      <aside className="w-52 shrink-0 border-r border-border">
-        <h1 className="text-2xl font-semibold px-4 pt-6 pb-4">Settings</h1>
-        <nav className="flex flex-col gap-0.5">
+      <aside className="w-52 shrink-0 border-r border-border flex flex-col">
+        <h1 className="text-xl font-semibold px-3 pt-6 pb-4">Settings</h1>
+        <nav className="flex flex-col gap-0.5 px-2 pb-6">
           {topNavItems.map((item) => navBtn(item.id, item.label))}
 
-          {/* Deliverability Suite group */}
-          <div className="mt-1">
-            <button
-              onClick={() => setDeliverabilityOpen((o) => !o)}
-              className="w-full flex items-center justify-between px-4 py-2 text-sm rounded-md mx-2 text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
-              style={{ width: "calc(100% - 16px)" }}
-            >
-              <span>Deliverability suite</span>
-              {deliverabilityOpen
-                ? <ChevronUp className="h-3.5 w-3.5" />
-                : <ChevronDown className="h-3.5 w-3.5" />}
-            </button>
-            {deliverabilityOpen && (
-              <div className="ml-3 flex flex-col gap-0.5 mt-0.5">
-                {deliverabilityItems.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => handleTabChange(item.id)}
-                    className={`text-left px-4 py-1.5 text-sm rounded-md mx-2 transition-colors ${
-                      activeTab === item.id
-                        ? "bg-secondary text-foreground font-medium"
-                        : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          {sectionLabel("Email Deliverability")}
+          <button
+            onClick={() => setDeliverabilityOpen((o) => !o)}
+            className="flex items-center justify-between px-3 py-1.5 text-[13px] rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
+          >
+            <span>Email Deliverability Suite</span>
+            {deliverabilityOpen ? <ChevronUp className="h-3.5 w-3.5 shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 shrink-0" />}
+          </button>
+          {deliverabilityOpen && deliverabilityItems.map((item) => subNavBtn(item.id, item.label))}
 
-          {/* Calling Suite group */}
-          <div className="mt-1">
-            <button
-              onClick={() => setCallingOpen((o) => !o)}
-              className="w-full flex items-center justify-between px-4 py-2 text-sm rounded-md mx-2 text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
-              style={{ width: "calc(100% - 16px)" }}
-            >
-              <span>Calling suite</span>
-              {callingOpen
-                ? <ChevronUp className="h-3.5 w-3.5" />
-                : <ChevronDown className="h-3.5 w-3.5" />}
-            </button>
-            {callingOpen && (
-              <div className="ml-3 flex flex-col gap-0.5 mt-0.5">
-                {callingItems.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => handleTabChange(item.id)}
-                    className={`text-left px-4 py-1.5 text-sm rounded-md mx-2 transition-colors ${
-                      activeTab === item.id
-                        ? "bg-secondary text-foreground font-medium"
-                        : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          {sectionLabel("Calling")}
+          <button
+            onClick={() => setCallingOpen((o) => !o)}
+            className="flex items-center justify-between px-3 py-1.5 text-[13px] rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
+          >
+            <span>Calling Suite</span>
+            {callingOpen ? <ChevronUp className="h-3.5 w-3.5 shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 shrink-0" />}
+          </button>
+          {callingOpen && callingItems.map((item) => subNavBtn(item.id, item.label))}
 
-          <div className="mt-1">
-            {bottomNavItems.map((item) => navBtn(item.id, item.label))}
-          </div>
+          {sectionLabel("Account")}
+          {bottomNavItems.map((item) => navBtn(item.id, item.label))}
         </nav>
       </aside>
 

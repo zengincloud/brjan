@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
   if (event === "recording.done") {
     // Kick off async transcription
     try {
-      await createAsyncTranscript(botId, "elevenlabs")
+      await createAsyncTranscript(botId, "elevenlabs_async")
     } catch (err) {
       console.error(`Recall: failed to start async transcript for bot ${botId}:`, err)
     }

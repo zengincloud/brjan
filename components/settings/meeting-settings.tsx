@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { Pencil, Trash2, Plus, Loader2, Video, Lock, Bold, Italic } from "lucide-react"
+import { Pencil, Trash2, Plus, Loader2, Video, Lock, Bold, Italic, RefreshCw, CheckCircle2, XCircle } from "lucide-react"
 import { toast } from "sonner"
 
 // ── Highlight [[variables]] in preview ────────────────────────────────────────
@@ -327,6 +327,8 @@ function NotetakerView({ userTier }: { userTier?: string }) {
   const [settings, setSettings] = useState<NotetakerSettings>(DEFAULTS)
   const [saving, setSaving] = useState(false)
   const [loaded, setLoaded] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [syncResult, setSyncResult] = useState<{ dispatched: string[]; skipped: string[]; failed: { id: string; title: string; reason: string }[] } | null>(null)
 
   useEffect(() => {
     if (!isPro) return
@@ -355,6 +357,31 @@ function NotetakerView({ userTier }: { userTier?: string }) {
       toast.error("Failed to save settings")
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleSyncNow = async () => {
+    setSyncing(true)
+    setSyncResult(null)
+    try {
+      const res = await fetch("/api/meetings/sync", { method: "POST" })
+      const data = await res.json()
+      if (data.skipped) {
+        toast.error(`Sync skipped: ${data.reason?.replace(/_/g, " ")}`)
+      } else {
+        setSyncResult(data)
+        if (data.dispatched?.length > 0) {
+          toast.success(`Bot dispatched for ${data.dispatched.length} meeting${data.dispatched.length > 1 ? "s" : ""}`)
+        } else if (data.failed?.length > 0) {
+          toast.error(`${data.failed.length} meeting(s) failed — see details below`)
+        } else {
+          toast.success("Sync complete — no new meetings to dispatch")
+        }
+      }
+    } catch {
+      toast.error("Sync failed")
+    } finally {
+      setSyncing(false)
     }
   }
 
@@ -443,12 +470,40 @@ function NotetakerView({ userTier }: { userTier?: string }) {
                 <p className="text-xs text-muted-foreground">Name shown to other participants in the call</p>
               </div>
 
-              <div className="pt-2">
+              <div className="flex items-center gap-3 pt-2">
                 <Button size="sm" onClick={handleSave} disabled={saving}>
                   {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
                   Save Settings
                 </Button>
+                <Button size="sm" variant="outline" onClick={handleSyncNow} disabled={syncing}>
+                  <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${syncing ? "animate-spin" : ""}`} />
+                  Sync Now
+                </Button>
               </div>
+
+              {syncResult && (
+                <div className="rounded-lg border border-border p-3 space-y-2 text-xs">
+                  <p className="font-medium text-sm">Sync result</p>
+                  {syncResult.dispatched.length > 0 && (
+                    <div className="flex items-center gap-1.5 text-green-500">
+                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                      {syncResult.dispatched.length} bot{syncResult.dispatched.length > 1 ? "s" : ""} dispatched
+                    </div>
+                  )}
+                  {syncResult.skipped.length > 0 && (
+                    <p className="text-muted-foreground">{syncResult.skipped.length} already dispatched / skipped</p>
+                  )}
+                  {syncResult.failed.map((f) => (
+                    <div key={f.id} className="flex items-start gap-1.5 text-destructive">
+                      <XCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                      <span><span className="font-medium">{f.title}</span>: {f.reason}</span>
+                    </div>
+                  ))}
+                  {syncResult.dispatched.length === 0 && syncResult.failed.length === 0 && (
+                    <p className="text-muted-foreground">No new meetings found with a video link that start 11+ minutes from now</p>
+                  )}
+                </div>
+              )}
             </>
           )}
         </CardContent>

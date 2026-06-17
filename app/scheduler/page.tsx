@@ -417,7 +417,15 @@ function CreateEventDialog({ open, onClose, prefill, userTzOffset, userTzLabel, 
                           className="w-full text-left px-3 py-2 text-sm hover:bg-accent"
                           onMouseDown={(e) => {
                             e.preventDefault()
-                            setDescription(t.description)
+                            const first = attendees[0]
+                            const now = new Date()
+                            const filled = t.description
+                              .replace(/\[\[name\]\]/gi, first?.name || "")
+                              .replace(/\[\[company\]\]/gi, summary || "")
+                              .replace(/\[\[title\]\]/gi, "")
+                              .replace(/\[\[date\]\]/gi, now.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }))
+                              .replace(/\[\[time\]\]/gi, `${startTime}`)
+                            setDescription(filled)
                             setShowTemplates(false)
                           }}
                         >

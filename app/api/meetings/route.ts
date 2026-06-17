@@ -19,6 +19,7 @@ export const GET = withAuth(async (_req: NextRequest, userId: string) => {
       actionItems: true,
       attendees: true,
       meetingUrl: true,
+      recordingUrl: true,
       prospectId: true,
       accountId: true,
       prospect: { select: { id: true, name: true, email: true } },

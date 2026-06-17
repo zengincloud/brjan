@@ -30,6 +30,7 @@ import {
   HelpCircle,
   MessageCircle,
   Radio,
+  Video,
 } from "lucide-react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { useState } from "react"
@@ -150,11 +151,11 @@ export function Sidebar({ className }: { className?: string }) {
           <CollapsibleContent className="mt-0.5 space-y-0.5">
             <NavItem href="/activity/emails" icon={Mail} label="Emails Delivered" active={pathname === "/activity/emails"} indent />
             <NavItem href="/activity/calls" icon={PhoneCall} label="Calls Made" active={pathname === "/activity/calls"} indent />
-            <NavItem href="/activity/meetings" icon={Calendar} label="Meetings Had" active={pathname === "/activity/meetings"} indent />
             <NavItem href="/activity/tasks" icon={CheckSquare} label="Tasks Done" active={pathname === "/activity/tasks"} indent />
           </CollapsibleContent>
         </Collapsible>
         <NavItem href="/recordings" icon={Mic} label="Call Recordings" active={pathname === "/recordings"} />
+        <NavItem href="/activity/meetings" icon={Video} label="Meeting Recordings" active={pathname === "/activity/meetings"} />
         <NavItem href="/reports" icon={FileBarChart} label="Reports" active={pathname === "/reports"} />
         <NavItem href="/activity/ai-roleplay" icon={Dumbbell} label="AI Roleplay" active={pathname === "/activity/ai-roleplay"} />
 

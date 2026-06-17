@@ -40,6 +40,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { formatDistanceToNow } from "date-fns"
 import { BRLoader } from "@/components/ui/br-loader"
+import { getTimezoneFromLocation } from "@/lib/timezone"
 
 type Account = {
   id: string
@@ -402,21 +403,23 @@ export default function AccountDetailPage() {
                 </div>
               </div>
             )}
-            {account.timezone && (
-              <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Local time</p>
-                  <p className="font-medium">
-                    {(() => {
-                      try {
-                        return new Intl.DateTimeFormat('en-US', { timeZone: account.timezone!, hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short' }).format(new Date())
-                      } catch { return account.timezone }
-                    })()}
-                  </p>
+            {(account.timezone || account.location) && (() => {
+              const tz = account.timezone || getTimezoneFromLocation(account.location)
+              if (!tz) return null
+              let localTime: string
+              try {
+                localTime = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short' }).format(new Date())
+              } catch { return null }
+              return (
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Local time</p>
+                    <p className="font-medium">{localTime}</p>
+                  </div>
                 </div>
-              </div>
-            )}
+              )
+            })()}
             {account.employees != null && (
               <div className="flex items-center gap-2">
                 <Users className="h-4 w-4 text-muted-foreground" />

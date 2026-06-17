@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, ElementType, useRef } from 'react'
 import { useSessionState } from '@/hooks/use-session-state'
 import { formatDistanceToNow } from 'date-fns'
+import { getTimezoneFromLocation } from '@/lib/timezone'
 import { Phone, Mail, Linkedin, Plus, Upload, X, Pencil, Trash2, Zap, Search, MoreHorizontal, Send, StickyNote, Copy, ChevronDown, ChevronRight, Check, SlidersHorizontal, Settings2, RotateCcw, MapPin, Building2, Briefcase, User, GraduationCap, Sparkles, RefreshCw, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -354,7 +355,7 @@ function OverviewTab({ prospect, pov, loadingPov, onRefreshPov, isEditing, onCal
   }
 
   const localTime = (() => {
-    const tz = prospect.timezone
+    const tz = prospect.timezone || getTimezoneFromLocation(prospect.location)
     if (!tz) return null
     try {
       return new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short' }).format(new Date())

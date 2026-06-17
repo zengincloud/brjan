@@ -42,7 +42,6 @@ export async function createBot(
       meeting_url: meetingUrl,
       bot_name: botName,
       ...(joinAt ? { join_at: joinAt } : {}),
-      transcription_options: { provider: "default" },
     }),
   })
 }

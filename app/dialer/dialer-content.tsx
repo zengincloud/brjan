@@ -79,7 +79,7 @@ import { Device, Call as TwilioCall } from "@twilio/voice-sdk"
 import { formatDistanceToNow } from "date-fns"
 import { useUserRole } from "@/hooks/use-user-role"
 import { useSessionState } from "@/hooks/use-session-state"
-import { getLocalTime, getTimezoneAbbr } from "@/lib/timezone"
+import { getLocalTime, getTimezoneAbbr, getTimezoneFromLocation } from "@/lib/timezone"
 import { useUser } from "@/hooks/use-user"
 import { TrialLimitBanner } from "@/components/trial-limit-banner"
 import { TRIAL_LIMITS } from "@/lib/trial-limits"
@@ -670,6 +670,16 @@ export default function DialerPage() {
       const d = new Date(val)
       return isNaN(d.getTime()) ? 0 : d.getTime()
     }
+    const getTzOffset = (p: DialerProspect): number => {
+      const tz = p.timezone || getTimezoneFromLocation(p.location || p.accountInfo?.location)
+      if (!tz) return Infinity
+      try {
+        const now = new Date()
+        const utc = now.getTime() + now.getTimezoneOffset() * 60000
+        const local = new Date(now.toLocaleString("en-US", { timeZone: tz }))
+        return (local.getTime() - utc) / 60000
+      } catch { return Infinity }
+    }
     switch (sortBy) {
       case "due_date":
         return toTime(a.dueDate) - toTime(b.dueDate)
@@ -681,6 +691,10 @@ export default function DialerPage() {
         return (a.name || "").localeCompare(b.name || "")
       case "company":
         return (a.company || "").localeCompare(b.company || "")
+      case "timezone_east":
+        return getTzOffset(b) - getTzOffset(a)
+      case "timezone_west":
+        return getTzOffset(a) - getTzOffset(b)
       default:
         return 0
     }
@@ -1968,6 +1982,8 @@ export default function DialerPage() {
                     <SelectItem value="added_oldest">Date Added (Oldest)</SelectItem>
                     <SelectItem value="name">Name (A-Z)</SelectItem>
                     <SelectItem value="company">Company (A-Z)</SelectItem>
+                    <SelectItem value="timezone_east">Timezone (East → West)</SelectItem>
+                    <SelectItem value="timezone_west">Timezone (West → East)</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">

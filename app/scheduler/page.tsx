@@ -418,9 +418,10 @@ function CreateEventDialog({ open, onClose, prefill, userTzOffset, userTzLabel, 
                           onMouseDown={(e) => {
                             e.preventDefault()
                             const first = attendees[0]
+                            const firstName = first?.name || first?.email?.split("@")[0] || ""
                             const now = new Date()
                             const filled = t.description
-                              .replace(/\[\[name\]\]/gi, first?.name || "")
+                              .replace(/\[\[name\]\]/gi, firstName)
                               .replace(/\[\[company\]\]/gi, summary || "")
                               .replace(/\[\[title\]\]/gi, "")
                               .replace(/\[\[date\]\]/gi, now.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }))

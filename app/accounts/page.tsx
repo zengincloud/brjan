@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, ElementType, useRef } from 'react'
 import { useSessionState } from '@/hooks/use-session-state'
 import { formatDistanceToNow } from 'date-fns'
-import { Globe, Linkedin, Plus, Upload, X, Trash2, Search, MoreHorizontal, FolderInput, Users, Phone, Mail, Sparkles, RefreshCw, UserPlus, Check, SlidersHorizontal, Settings2, RotateCcw, MapPin, Building2, Briefcase } from 'lucide-react'
+import { Globe, Linkedin, Plus, Upload, X, Trash2, Search, MoreHorizontal, FolderInput, Users, Phone, Mail, Sparkles, RefreshCw, UserPlus, Check, SlidersHorizontal, Settings2, RotateCcw, MapPin, Building2, Briefcase, Video } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -93,6 +93,16 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
+type MeetingRecord = {
+  id: string
+  title?: string | null
+  startedAt?: string | null
+  duration?: number | null
+  summary?: string | null
+  actionItems?: string[] | null
+  prospect?: { id: string; name: string } | null
+}
+
 type ActivityItem = {
   id: string
   type: 'call' | 'email' | 'linkedin'
@@ -142,19 +152,26 @@ function AccountDetail({
   const router = useRouter()
   const [tab, setTab] = useState<'overview' | 'activity' | 'contacts'>('overview')
   const [activity, setActivity] = useState<ActivityItem[]>([])
+  const [meetings, setMeetings] = useState<MeetingRecord[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
   const [pov, setPov] = useState<POVData | null>(null)
   const [loadingActivity, setLoadingActivity] = useState(false)
+  const [loadingMeetings, setLoadingMeetings] = useState(false)
   const [loadingContacts, setLoadingContacts] = useState(false)
   const [loadingPov, setLoadingPov] = useState(false)
 
   useEffect(() => {
-    setActivity([]); setContacts([]); setPov(null)
+    setActivity([]); setContacts([]); setPov(null); setMeetings([])
 
     setLoadingActivity(true)
     fetch(`/api/accounts/${account.id}/activity`)
       .then((r) => r.json()).then((d) => setActivity(d.activity || [])).catch(() => {})
       .finally(() => setLoadingActivity(false))
+
+    setLoadingMeetings(true)
+    fetch(`/api/accounts/${account.id}/meetings`)
+      .then((r) => r.json()).then((d) => setMeetings(Array.isArray(d) ? d : [])).catch(() => {})
+      .finally(() => setLoadingMeetings(false))
 
     setLoadingContacts(true)
     fetch(`/api/accounts/${account.id}/contacts`)
@@ -387,6 +404,65 @@ function AccountDetail({
                 })}
               </div>
             )}
+            {/* Meeting Recordings */}
+            <div className="mt-5">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-3">Meeting Recordings</p>
+              {loadingMeetings ? (
+                <p className="text-[12px] text-muted-foreground py-3 text-center">Loading...</p>
+              ) : meetings.length === 0 ? (
+                <div className="flex flex-col items-center py-6 gap-2">
+                  <Video className="h-6 w-6 text-muted-foreground/20" />
+                  <p className="text-[12px] text-muted-foreground">No meeting recordings yet</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {meetings.map((m) => {
+                    const meetDate = m.startedAt ? new Date(m.startedAt) : null
+                    const dur = m.duration ? `${Math.floor(m.duration / 60)}m` : null
+                    const actionItems = Array.isArray(m.actionItems) ? m.actionItems as string[] : []
+                    return (
+                      <div key={m.id} className="rounded-lg border border-border overflow-hidden">
+                        <div className="flex items-center justify-between px-3 py-2.5 bg-muted/20">
+                          <div className="flex items-center gap-2">
+                            <Video className="h-3.5 w-3.5 shrink-0 text-primary" />
+                            <span className="text-[13px] font-semibold">{m.title || 'Meeting'}</span>
+                            {dur && <span className="text-[11px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{dur}</span>}
+                            {m.prospect && <span className="text-[11px] text-muted-foreground">· {m.prospect.name}</span>}
+                          </div>
+                          {meetDate && (
+                            <span className="text-[11px] text-muted-foreground">
+                              {formatDistanceToNow(meetDate, { addSuffix: true })}
+                            </span>
+                          )}
+                        </div>
+                        <div className="px-3 py-2 space-y-2">
+                          {m.summary && (
+                            <p className="text-[12px] text-foreground/80 leading-relaxed">{m.summary}</p>
+                          )}
+                          {actionItems.length > 0 && (
+                            <div>
+                              <p className="text-[11px] text-muted-foreground mb-1">Action items</p>
+                              <ul className="space-y-0.5">
+                                {actionItems.map((item, i) => (
+                                  <li key={i} className="text-[12px] text-foreground/70 flex gap-1.5">
+                                    <span className="shrink-0">·</span>{item}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {meetDate && (
+                            <p className="text-[11px] text-muted-foreground">
+                              {meetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           </>
         )}
 

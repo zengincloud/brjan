@@ -10,6 +10,19 @@ import { Switch } from "@/components/ui/switch"
 import { Pencil, Trash2, Plus, Loader2, Video, Lock } from "lucide-react"
 import { toast } from "sonner"
 
+const TEMPLATE_VARIABLES = ["[[name]]", "[[company]]", "[[title]]", "[[date]]", "[[time]]"]
+
+function highlightVariables(text: string) {
+  const parts = text.split(/(\[\[[^\]]+\]\])/g)
+  return parts.map((part, i) =>
+    /^\[\[.+\]\]$/.test(part) ? (
+      <strong key={i} className="font-semibold text-primary">{part}</strong>
+    ) : (
+      <span key={i}>{part}</span>
+    )
+  )
+}
+
 interface MeetingTemplate {
   id: string
   name: string
@@ -104,8 +117,8 @@ function TemplatesView() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Meeting Templates</CardTitle>
-              <CardDescription>Pre-written agendas and descriptions for different meeting types</CardDescription>
+              <CardTitle>Meeting Creation Templates</CardTitle>
+              <CardDescription>Pre-written agendas and descriptions — use <strong className="font-semibold">[[variables]]</strong> to auto-fill prospect details</CardDescription>
             </div>
             <Button size="sm" variant="outline" onClick={() => setShowForm((v) => !v)}>
               <Plus className="h-4 w-4 mr-1.5" />
@@ -114,6 +127,11 @@ function TemplatesView() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="flex flex-wrap gap-1.5">
+            {TEMPLATE_VARIABLES.map((v) => (
+              <span key={v} className="text-xs font-semibold text-primary bg-primary/10 border border-primary/20 rounded px-1.5 py-0.5 font-mono">{v}</span>
+            ))}
+          </div>
           {showForm && (
             <div className="border rounded-lg p-4 space-y-3 bg-secondary/30">
               <div className="space-y-1.5">
@@ -127,7 +145,7 @@ function TemplatesView() {
               <div className="space-y-1.5">
                 <Label>Default Description / Agenda</Label>
                 <Textarea
-                  placeholder="Agenda, talking points, or any notes to pre-fill..."
+                  placeholder="e.g. Hi [[name]], looking forward to our call about [[company]]..."
                   value={newDesc}
                   onChange={(e) => setNewDesc(e.target.value)}
                   rows={4}
@@ -177,7 +195,7 @@ function TemplatesView() {
                     <div className="min-w-0">
                       <p className="font-medium text-sm">{t.name}</p>
                       {t.description && (
-                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{t.description}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{highlightVariables(t.description)}</p>
                       )}
                     </div>
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
@@ -205,7 +223,7 @@ function TemplatesView() {
 }
 
 function NotetakerView({ userTier }: { userTier?: string }) {
-  const isPro = userTier === "pro_max"
+  const isPro = userTier === "pro_max" || userTier === "super_admin"
 
   if (!isPro) {
     return (

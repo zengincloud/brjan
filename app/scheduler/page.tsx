@@ -199,9 +199,10 @@ interface CreateEventDialogProps {
   prefill?: { startHour: number; participantEmails: string[]; date?: string }
   userTzOffset: number
   userTzLabel: string
+  defaultDuration?: number
 }
 
-function CreateEventDialog({ open, onClose, prefill, userTzOffset, userTzLabel }: CreateEventDialogProps) {
+function CreateEventDialog({ open, onClose, prefill, userTzOffset, userTzLabel, defaultDuration = 30 }: CreateEventDialogProps) {
   const [summary, setSummary] = useState("Meeting")
   const [description, setDescription] = useState("")
   const [attendees, setAttendees] = useState<{ email: string; name?: string }[]>([])
@@ -215,7 +216,9 @@ function CreateEventDialog({ open, onClose, prefill, userTzOffset, userTzLabel }
     return d.toISOString().split("T")[0]
   })
   const [startTime, setStartTime] = useState("09:00")
-  const [durationMinutes, setDurationMinutes] = useState(30)
+  const [durationMinutes, setDurationMinutes] = useState(defaultDuration)
+
+  useEffect(() => { setDurationMinutes(defaultDuration) }, [defaultDuration])
   const [isCreating, setIsCreating] = useState(false)
   const [templates, setTemplates] = useState<{ id: string; name: string; description: string }[]>([])
   const [showTemplates, setShowTemplates] = useState(false)
@@ -449,6 +452,7 @@ export default function SchedulerPage() {
   const [newParticipantTimezone, setNewParticipantTimezone] = useState("utc")
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [createPrefill, setCreatePrefill] = useState<{ startHour: number; participantEmails: string[]; date?: string } | undefined>()
+  const [gridDuration, setGridDuration] = useState(30)
   const [weekStart, setWeekStart] = useState<Date>(() => {
     const d = new Date()
     const day = d.getDay()
@@ -842,6 +846,23 @@ export default function SchedulerPage() {
                     </Button>
                   </div>
                 </CardTitle>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-xs text-muted-foreground">Duration:</span>
+                  {[15, 30, 45, 60].map((min) => (
+                    <button
+                      key={min}
+                      type="button"
+                      onClick={() => setGridDuration(min)}
+                      className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${
+                        gridDuration === min
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "border-border hover:bg-secondary text-foreground"
+                      }`}
+                    >
+                      {min === 60 ? "1h" : `${min}m`}
+                    </button>
+                  ))}
+                </div>
                 <CardDescription>Click any open slot to create a meeting</CardDescription>
               </CardHeader>
               <CardContent>
@@ -922,6 +943,7 @@ export default function SchedulerPage() {
         prefill={createPrefill}
         userTzOffset={userTzInfo.offset}
         userTzLabel={userTzInfo.label}
+        defaultDuration={gridDuration}
       />
     </div>
   )

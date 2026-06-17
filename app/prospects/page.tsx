@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, ElementType, useRef } from 'react'
 import { useSessionState } from '@/hooks/use-session-state'
 import { formatDistanceToNow } from 'date-fns'
 import { getTimezoneFromLocation } from '@/lib/timezone'
-import { Phone, Mail, Linkedin, Plus, Upload, X, Pencil, Trash2, Zap, Search, MoreHorizontal, Send, StickyNote, Copy, ChevronDown, ChevronRight, Check, SlidersHorizontal, Settings2, RotateCcw, MapPin, Building2, Briefcase, User, GraduationCap, Sparkles, RefreshCw, Loader2 } from 'lucide-react'
+import { Phone, Mail, Linkedin, Plus, Upload, X, Pencil, Trash2, Zap, Search, MoreHorizontal, Send, StickyNote, Copy, ChevronDown, ChevronRight, Check, SlidersHorizontal, Settings2, RotateCcw, MapPin, Building2, Briefcase, User, GraduationCap, Sparkles, RefreshCw, Loader2, Video } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -588,6 +588,21 @@ type NoteEntry = {
   userId: string
 }
 
+type MeetingRecord = {
+  id: string
+  title?: string | null
+  startedAt?: string | null
+  endedAt?: string | null
+  duration?: number | null
+  summary?: string | null
+  actionItems?: string[] | null
+  attendees?: { name?: string | null; email?: string | null }[] | null
+  prospectId?: string | null
+  accountId?: string | null
+  prospect?: { id: string; name: string } | null
+  account?: { id: string; name: string } | null
+}
+
 type CallRecord = {
   id: string
   outcome?: string | null
@@ -626,6 +641,8 @@ function ProspectDetail({
   const [tab, setTab] = useState<'overview' | 'activity' | 'notes'>('overview')
   const [calls, setCalls] = useState<CallRecord[]>([])
   const [loadingCalls, setLoadingCalls] = useState(false)
+  const [meetings, setMeetings] = useState<MeetingRecord[]>([])
+  const [loadingMeetings, setLoadingMeetings] = useState(false)
   const [notes, setNotes] = useState<NoteEntry[]>([])
   const [loadingNotes, setLoadingNotes] = useState(false)
   const [newNote, setNewNote] = useState('')
@@ -667,6 +684,14 @@ function ProspectDetail({
       .then((d) => setCalls(d.calls || []))
       .catch(() => {})
       .finally(() => setLoadingCalls(false))
+
+    setMeetings([])
+    setLoadingMeetings(true)
+    fetch(`/api/prospects/${prospect.id}/meetings`)
+      .then((r) => r.json())
+      .then((d) => setMeetings(Array.isArray(d) ? d : []))
+      .catch(() => {})
+      .finally(() => setLoadingMeetings(false))
 
     setNotes([])
     setLoadingNotes(true)
@@ -1027,6 +1052,67 @@ function ProspectDetail({
                 })}
               </div>
             )}
+
+            {/* Meeting Recordings */}
+            <div className="mt-5">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-3">Meeting Recordings</p>
+              {loadingMeetings ? (
+                <p className="text-[12px] text-muted-foreground py-3 text-center">Loading...</p>
+              ) : meetings.length === 0 ? (
+                <div className="flex flex-col items-center py-6 gap-2">
+                  <Video className="h-6 w-6 text-muted-foreground/20" />
+                  <p className="text-[12px] text-muted-foreground">No meeting recordings yet</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {meetings.map((m) => {
+                    const meetDate = m.startedAt ? new Date(m.startedAt) : null
+                    const dur = m.duration ? `${Math.floor(m.duration / 60)}m` : null
+                    const actionItems = Array.isArray(m.actionItems) ? m.actionItems as string[] : []
+                    return (
+                      <div key={m.id} className="rounded-lg border border-border overflow-hidden">
+                        <div className="flex items-center justify-between px-3 py-2.5 bg-muted/20">
+                          <div className="flex items-center gap-2">
+                            <Video className="h-3.5 w-3.5 shrink-0 text-primary" />
+                            <span className="text-[13px] font-semibold">{m.title || 'Meeting'}</span>
+                            {dur && <span className="text-[11px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{dur}</span>}
+                          </div>
+                          {meetDate && (
+                            <span className="text-[11px] text-muted-foreground">
+                              {formatDistanceToNow(meetDate, { addSuffix: true })}
+                            </span>
+                          )}
+                        </div>
+                        <div className="px-3 py-2 space-y-2">
+                          {m.summary && (
+                            <p className="text-[12px] text-foreground/80 leading-relaxed">{m.summary}</p>
+                          )}
+                          {actionItems.length > 0 && (
+                            <div>
+                              <p className="text-[11px] text-muted-foreground mb-1">Action items</p>
+                              <ul className="space-y-0.5">
+                                {actionItems.map((item, i) => (
+                                  <li key={i} className="text-[12px] text-foreground/70 flex gap-1.5">
+                                    <span className="shrink-0">·</span>{item}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {meetDate && (
+                            <p className="text-[11px] text-muted-foreground">
+                              {meetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                              {' '}at{' '}
+                              {meetDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           </>
         )}
         {tab === 'notes' && (

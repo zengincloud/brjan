@@ -55,6 +55,7 @@ model User {
   salesfloorPresence SalesfloorPresence?
   todos             Todo[]
   meetings          Meeting[]
+  meetingTemplates  MeetingTemplate[]
 
   @@index([organizationId])
   @@map("users")
@@ -853,6 +854,24 @@ model LinkedInCampaignProspect {
   @@index([userId])
   @@index([prospectId])
   @@map("linkedin_campaign_prospects")
+}
+
+// ============================================
+// Meeting Templates
+// ============================================
+
+model MeetingTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  description String   @db.Text
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("meeting_templates")
 }
 
 // ============================================

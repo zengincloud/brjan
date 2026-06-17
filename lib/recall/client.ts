@@ -1,7 +1,7 @@
 import crypto from "crypto"
 
 const RECALL_API_KEY = process.env.RECALL_API_KEY
-const RECALL_BASE_URL = "https://us-east-1.recall.ai/api/v1"
+const RECALL_BASE_URL = process.env.RECALL_BASE_URL ?? "https://us-west-2.recall.ai/api/v1"
 
 async function recallFetch(path: string, options: RequestInit = {}) {
   const res = await fetch(`${RECALL_BASE_URL}${path}`, {

@@ -215,15 +215,29 @@ function CreateEventDialog({ open, onClose, prefill, userTzOffset, userTzLabel }
     return d.toISOString().split("T")[0]
   })
   const [startTime, setStartTime] = useState("09:00")
-  const [endTime, setEndTime] = useState("10:00")
+  const [durationMinutes, setDurationMinutes] = useState(30)
   const [isCreating, setIsCreating] = useState(false)
+  const [templates, setTemplates] = useState<{ id: string; name: string; description: string }[]>([])
+  const [showTemplates, setShowTemplates] = useState(false)
+
+  useEffect(() => {
+    fetch("/api/meeting-templates")
+      .then((r) => r.ok ? r.json() : [])
+      .then(setTemplates)
+      .catch(() => {})
+  }, [])
+
+  const computedEndTime = (() => {
+    const [h, m] = startTime.split(":").map(Number)
+    const total = h * 60 + m + durationMinutes
+    return `${String(Math.floor(total / 60) % 24).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`
+  })()
 
   useEffect(() => {
     if (prefill) {
       const h = prefill.startHour
       if (prefill.date) setDate(prefill.date)
       setStartTime(`${String(h).padStart(2, "0")}:00`)
-      setEndTime(`${String((h + 1) % 24).padStart(2, "0")}:00`)
       setAttendees(prefill.participantEmails.map(e => ({ email: e })))
     }
   }, [prefill])
@@ -232,7 +246,7 @@ function CreateEventDialog({ open, onClose, prefill, userTzOffset, userTzLabel }
     setIsCreating(true)
     try {
       const startDateTime = new Date(`${date}T${startTime}:00`).toISOString()
-      const endDateTime = new Date(`${date}T${endTime}:00`).toISOString()
+      const endDateTime = new Date(`${date}T${computedEndTime}:00`).toISOString()
       const attendeeEmails = attendees.map(a => a.email).filter(Boolean)
 
       const res = await fetch("/api/integrations/gcal/create-event", {
@@ -274,19 +288,35 @@ function CreateEventDialog({ open, onClose, prefill, userTzOffset, userTzLabel }
             <Label>Title</Label>
             <Input value={summary} onChange={(e) => setSummary(e.target.value)} />
           </div>
-          <div className="grid grid-cols-3 gap-2">
-            <div className="col-span-3 space-y-1">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
               <Label>Date</Label>
               <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label>Start</Label>
+              <Label>Start Time</Label>
               <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
             </div>
-            <div className="space-y-1">
-              <Label>End</Label>
-              <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <Label>Duration</Label>
+            <div className="flex gap-2">
+              {[15, 30, 45, 60].map((min) => (
+                <button
+                  key={min}
+                  type="button"
+                  onClick={() => setDurationMinutes(min)}
+                  className={`flex-1 py-1.5 text-sm rounded-md border transition-colors ${
+                    durationMinutes === min
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "border-border hover:bg-secondary text-foreground"
+                  }`}
+                >
+                  {min}m
+                </button>
+              ))}
             </div>
+            <p className="text-xs text-muted-foreground">Ends at {computedEndTime}</p>
           </div>
           <div className="space-y-1">
             <Label>Attendees</Label>
@@ -362,8 +392,39 @@ function CreateEventDialog({ open, onClose, prefill, userTzOffset, userTzLabel }
             <p className="text-xs text-muted-foreground">Type a name to search prospects, or type an email and press Enter</p>
           </div>
           <div className="space-y-1">
-            <Label>Description (optional)</Label>
-            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
+            <div className="flex items-center justify-between">
+              <Label>Description (optional)</Label>
+              {templates.length > 0 && (
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setShowTemplates((v) => !v)}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    Use template
+                  </button>
+                  {showTemplates && (
+                    <div className="absolute right-0 z-50 mt-1 w-52 bg-popover border rounded-md shadow-md overflow-hidden">
+                      {templates.map((t) => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-accent"
+                          onMouseDown={(e) => {
+                            e.preventDefault()
+                            setDescription(t.description)
+                            setShowTemplates(false)
+                          }}
+                        >
+                          {t.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="Add agenda or notes..." />
           </div>
         </div>
         <DialogFooter>

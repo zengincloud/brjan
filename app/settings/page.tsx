@@ -25,6 +25,7 @@ import { OrganizationSettings } from "@/components/settings/organization-setting
 import { TeamSettings } from "@/components/settings/team-settings"
 import { DeliverabilitySettings } from "@/components/settings/deliverability-settings"
 import { CallingSettings } from "@/components/settings/calling-settings"
+import { MeetingSettings } from "@/components/settings/meeting-settings"
 
 function ManageSubscriptionButton() {
   const [loading, setLoading] = useState(false)
@@ -59,6 +60,7 @@ export default function SettingsPage() {
   }, [router])
   const [deliverabilityOpen, setDeliverabilityOpen] = useState(true)
   const [callingOpen, setCallingOpen] = useState(true)
+  const [meetingsOpen, setMeetingsOpen] = useState(true)
   const [currentPassword, setCurrentPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
@@ -224,6 +226,11 @@ export default function SettingsPage() {
     { id: "calling-compliance", label: "Compliance" },
   ]
 
+  const meetingItems = [
+    { id: "meetings-templates", label: "Templates" },
+    { id: "meetings-notetaker", label: "Notetaker" },
+  ]
+
   const navBtn = (id: string, label: string) => (
     <button
       key={id}
@@ -285,6 +292,16 @@ export default function SettingsPage() {
             {callingOpen ? <ChevronUp className="h-3.5 w-3.5 shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 shrink-0" />}
           </button>
           {callingOpen && callingItems.map((item) => subNavBtn(item.id, item.label))}
+
+          {sectionLabel("Meetings")}
+          <button
+            onClick={() => setMeetingsOpen((o) => !o)}
+            className="flex items-center justify-between px-3 py-1.5 text-[13px] rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
+          >
+            <span>Meetings</span>
+            {meetingsOpen ? <ChevronUp className="h-3.5 w-3.5 shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 shrink-0" />}
+          </button>
+          {meetingsOpen && meetingItems.map((item) => subNavBtn(item.id, item.label))}
 
           {sectionLabel("Account")}
           {bottomNavItems.map((item) => navBtn(item.id, item.label))}
@@ -595,6 +612,14 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
         </div>}
+
+        {/* Meetings Tabs */}
+        {activeTab === "meetings-templates" && (
+          <MeetingSettings tab="templates" userTier={creditStatus?.tier} />
+        )}
+        {activeTab === "meetings-notetaker" && (
+          <MeetingSettings tab="notetaker" userTier={creditStatus?.tier} />
+        )}
 
         {/* Security Tab */}
         {activeTab === "security" && <div className="space-y-4">

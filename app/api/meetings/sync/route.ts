@@ -32,8 +32,8 @@ export const POST = withAuth(async (_request: NextRequest, userId: string) => {
     if (!videoUrl) continue
 
     const startTime = new Date(event.start)
-    // Skip events that have already started more than 5 minutes ago
-    if (startTime.getTime() < Date.now() - 5 * 60 * 1000) continue
+    // Skip events already past, or starting in less than 11 minutes (Recall requires 10+ min lead time)
+    if (startTime.getTime() < Date.now() + 11 * 60 * 1000) continue
 
     // Check if already dispatched for this gcal event
     const existing = await prisma.meeting.findFirst({

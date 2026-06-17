@@ -366,8 +366,13 @@ function NotetakerView({ userTier }: { userTier?: string }) {
     try {
       const res = await fetch("/api/meetings/sync", { method: "POST" })
       const data = await res.json()
-      if (data.skipped === true) {
-        toast.error(`Sync skipped: ${(data.reason as string)?.replace(/_/g, " ") ?? "unknown reason"}`)
+      console.log("[sync result]", JSON.stringify(data))
+      if (!res.ok || data.error) {
+        toast.error(`Sync error: ${data.error ?? res.status}`)
+        setSyncResult({ dispatched: [], skipped: [], failed: [{ id: "err", title: "Request error", reason: data.error ?? `HTTP ${res.status}` }] })
+      } else if (data.skipped === true) {
+        const reason = data.reason ? String(data.reason).replace(/_/g, " ") : "unknown reason"
+        toast.error(`Sync skipped: ${reason}`)
       } else {
         setSyncResult(data)
         if (data.dispatched?.length > 0) {

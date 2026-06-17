@@ -54,6 +54,17 @@ export async function getBotTranscript(botId: string): Promise<RecallTranscriptE
   return recallFetch(`/bot/${botId}/transcript`)
 }
 
+export async function createAsyncTranscript(botId: string, provider = "elevenlabs"): Promise<{ id: string }> {
+  return recallFetch(`/bot/${botId}/async_transcript`, {
+    method: "POST",
+    body: JSON.stringify({ provider }),
+  })
+}
+
+export async function getAsyncTranscript(botId: string, transcriptId: string): Promise<{ download_url: string; status: string }> {
+  return recallFetch(`/bot/${botId}/async_transcript/${transcriptId}`)
+}
+
 export function transcriptToText(entries: RecallTranscriptEntry[]): string {
   return entries
     .map((e) => `${e.speaker}: ${e.words.map((w) => w.text).join(" ")}`)

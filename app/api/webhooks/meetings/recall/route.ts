@@ -3,14 +3,18 @@ import { prisma } from "@/lib/prisma"
 import Anthropic from "@anthropic-ai/sdk"
 import {
   verifyWebhookSignature,
-  getBotTranscript,
+  createAsyncTranscript,
+  getAsyncTranscript,
   getBot,
-  transcriptToText,
 } from "@/lib/recall/client"
 
 export const dynamic = "force-dynamic"
 
 // POST /api/webhooks/meetings/recall - Recall.ai webhook handler
+// Handles async transcription flow:
+//   recording.done  → kick off ElevenLabs transcription
+//   transcript.done → fetch transcript, generate Claude summary
+//   transcript.failed → log error
 export async function POST(request: NextRequest) {
   const rawBody = await request.text()
 
@@ -28,20 +32,50 @@ export async function POST(request: NextRequest) {
 
   const event = payload.event
   const botId = payload.data?.bot?.id ?? payload.data?.bot_id
+  const transcriptId = payload.data?.transcript?.id
 
-  if (!botId) {
-    return NextResponse.json({ received: true })
-  }
+  if (!botId) return NextResponse.json({ received: true })
 
-  // bot.done fires when the bot has shut down and transcript/recording are available
-  if (event === "bot.done") {
-    await processMeetingEnd(botId)
+  if (event === "recording.done") {
+    // Kick off async transcription
+    try {
+      await createAsyncTranscript(botId, "elevenlabs")
+    } catch (err) {
+      console.error(`Recall: failed to start async transcript for bot ${botId}:`, err)
+    }
+  } else if (event === "transcript.done" && transcriptId) {
+    await processTranscript(botId, transcriptId)
+  } else if (event === "transcript.failed") {
+    console.error(`Recall: transcript failed for bot ${botId}`, payload.data)
+  } else if (event === "bot.done") {
+    // Legacy fallback — update timing metadata if we get this
+    await updateBotTiming(botId)
   }
 
   return NextResponse.json({ received: true })
 }
 
-async function processMeetingEnd(botId: string) {
+async function updateBotTiming(botId: string) {
+  const meeting = await prisma.meeting.findUnique({ where: { recallBotId: botId } })
+  if (!meeting) return
+  try {
+    const bot = await getBot(botId)
+    const statusChanges = bot.status_changes || []
+    const startEntry = statusChanges.find((s) => s.code === "in_call_recording" || s.code === "in_call_not_recording")
+    const endEntry = statusChanges.find((s) => s.code === "done" || s.code === "call_ended")
+    const startedAt = startEntry ? new Date(startEntry.created_at) : meeting.startedAt
+    const endedAt = endEntry ? new Date(endEntry.created_at) : new Date()
+    const duration = startedAt && endedAt ? Math.floor((endedAt.getTime() - startedAt.getTime()) / 1000) : null
+    await prisma.meeting.update({
+      where: { id: meeting.id },
+      data: { startedAt, endedAt, duration, title: bot.meeting_metadata?.title || meeting.title },
+    })
+  } catch (err) {
+    console.error("Recall: failed to update bot timing:", err)
+  }
+}
+
+async function processTranscript(botId: string, transcriptId: string) {
   const meeting = await prisma.meeting.findUnique({ where: { recallBotId: botId } })
   if (!meeting) {
     console.warn(`Recall webhook: no meeting found for bot ${botId}`)
@@ -49,26 +83,39 @@ async function processMeetingEnd(botId: string) {
   }
 
   try {
-    // Fetch transcript
-    const transcriptEntries = await getBotTranscript(botId)
-    const transcriptText = transcriptToText(transcriptEntries)
+    // Fetch transcript download URL
+    const transcriptData = await getAsyncTranscript(botId, transcriptId)
+    if (!transcriptData.download_url) return
 
-    // Fetch bot metadata for timing
+    const transcriptRes = await fetch(transcriptData.download_url)
+    if (!transcriptRes.ok) return
+    const raw = await transcriptRes.json()
+
+    // Recall async transcript format: array of { speaker, words[] } or { speaker, text }
+    type TranscriptSegment = { speaker?: string; text?: string; words?: { text: string }[] }
+    const segments: TranscriptSegment[] = Array.isArray(raw) ? raw : raw.segments || raw.transcript || []
+
+    const transcriptText = segments
+      .map((s) => {
+        const text = s.text ?? s.words?.map((w) => w.text).join(" ") ?? ""
+        return s.speaker ? `${s.speaker}: ${text}` : text
+      })
+      .filter(Boolean)
+      .join("\n")
+
+    // Update timing from bot status
     const bot = await getBot(botId)
     const statusChanges = bot.status_changes || []
     const startEntry = statusChanges.find((s) => s.code === "in_call_recording" || s.code === "in_call_not_recording")
     const endEntry = statusChanges.find((s) => s.code === "done" || s.code === "call_ended")
-
     const startedAt = startEntry ? new Date(startEntry.created_at) : meeting.startedAt
     const endedAt = endEntry ? new Date(endEntry.created_at) : new Date()
-    const duration =
-      startedAt && endedAt ? Math.floor((endedAt.getTime() - startedAt.getTime()) / 1000) : null
+    const duration = startedAt && endedAt ? Math.floor((endedAt.getTime() - startedAt.getTime()) / 1000) : null
 
-    // Store raw transcript immediately so it's available even if Claude fails
     await prisma.meeting.update({
       where: { id: meeting.id },
       data: {
-        transcript: transcriptEntries as any,
+        transcript: segments as any,
         startedAt,
         endedAt,
         duration,
@@ -76,16 +123,13 @@ async function processMeetingEnd(botId: string) {
       },
     })
 
-    if (!transcriptText.trim()) {
-      return
-    }
+    if (!transcriptText.trim()) return
 
-    // Generate summary + action items with Claude
+    // Generate summary with Claude
     const anthropicKey = process.env.ANTHROPIC_API_KEY
     if (!anthropicKey) return
 
     const anthropic = new Anthropic({ apiKey: anthropicKey })
-
     const response = await anthropic.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 600,
@@ -108,7 +152,6 @@ Return this exact shape:
 
     const text = response.content[0].type === "text" ? response.content[0].text : ""
     let parsed: { summary: string; actionItems: string[] } | null = null
-
     try {
       parsed = JSON.parse(text)
     } catch {
@@ -121,7 +164,6 @@ Return this exact shape:
     // Match attendees to prospects/accounts
     const attendees = (meeting.attendees as { name?: string; email?: string }[] | null) || []
     const emails = attendees.map((a) => a.email).filter(Boolean) as string[]
-
     let prospectId = meeting.prospectId
     let accountId = meeting.accountId
 
@@ -138,25 +180,12 @@ Return this exact shape:
 
     await prisma.meeting.update({
       where: { id: meeting.id },
-      data: {
-        summary: parsed.summary,
-        actionItems: parsed.actionItems,
-        prospectId,
-        accountId,
-      },
+      data: { summary: parsed.summary, actionItems: parsed.actionItems, prospectId, accountId },
     })
 
-    // Bump lastActivity on account/prospect
-    if (accountId) {
-      await prisma.account.update({ where: { id: accountId }, data: { lastActivity: new Date() } })
-    }
-    if (prospectId) {
-      await prisma.prospect.update({
-        where: { id: prospectId },
-        data: { lastActivity: new Date() },
-      })
-    }
+    if (accountId) await prisma.account.update({ where: { id: accountId }, data: { lastActivity: new Date() } })
+    if (prospectId) await prisma.prospect.update({ where: { id: prospectId }, data: { lastActivity: new Date() } })
   } catch (error) {
-    console.error("Error processing meeting end:", error)
+    console.error("Error processing transcript:", error)
   }
 }

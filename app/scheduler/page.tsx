@@ -196,7 +196,7 @@ function EventsList({ type }: { type: "upcoming" | "past" }) {
 interface CreateEventDialogProps {
   open: boolean
   onClose: () => void
-  prefill?: { startHour: number; participantEmails: string[]; date?: string }
+  prefill?: { startHour: number; startMinute?: number; participantEmails: string[]; date?: string }
   userTzOffset: number
   userTzLabel: string
   defaultDuration?: number
@@ -239,8 +239,9 @@ function CreateEventDialog({ open, onClose, prefill, userTzOffset, userTzLabel, 
   useEffect(() => {
     if (prefill) {
       const h = prefill.startHour
+      const m = prefill.startMinute ?? 0
       if (prefill.date) setDate(prefill.date)
-      setStartTime(`${String(h).padStart(2, "0")}:00`)
+      setStartTime(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`)
       setAttendees(prefill.participantEmails.map(e => ({ email: e })))
     }
   }, [prefill])
@@ -402,9 +403,10 @@ function CreateEventDialog({ open, onClose, prefill, userTzOffset, userTzLabel, 
                   <button
                     type="button"
                     onClick={() => setShowTemplates((v) => !v)}
-                    className="text-xs text-primary hover:underline"
+                    className="inline-flex items-center gap-1 text-xs text-primary border border-primary/30 rounded px-2 py-0.5 hover:bg-primary/10 transition-colors"
                   >
-                    Use template
+                    <Plus className="h-3 w-3" />
+                    Templates
                   </button>
                   {showTemplates && (
                     <div className="absolute right-0 z-50 mt-1 w-52 bg-popover border rounded-md shadow-md overflow-hidden">
@@ -451,7 +453,7 @@ export default function SchedulerPage() {
   const [newParticipantEmail, setNewParticipantEmail] = useState("")
   const [newParticipantTimezone, setNewParticipantTimezone] = useState("utc")
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
-  const [createPrefill, setCreatePrefill] = useState<{ startHour: number; participantEmails: string[]; date?: string } | undefined>()
+  const [createPrefill, setCreatePrefill] = useState<{ startHour: number; startMinute?: number; participantEmails: string[]; date?: string } | undefined>()
   const [gridDuration, setGridDuration] = useState(30)
   const [weekStart, setWeekStart] = useState<Date>(() => {
     const d = new Date()
@@ -493,13 +495,13 @@ export default function SchedulerPage() {
         for (const event of data.events || []) {
           const start = new Date(event.start)
           const end = new Date(event.end)
-          // Mark every hour slot this event touches as blocked
+          // Mark every 15-min interval this event touches
           const cur = new Date(start)
-          cur.setMinutes(0, 0, 0)
+          cur.setMinutes(Math.floor(cur.getMinutes() / 15) * 15, 0, 0)
           while (cur < end) {
-            const key = `${cur.toISOString().slice(0, 10)}-${cur.getHours()}`
+            const key = `${cur.toISOString().slice(0, 10)}-${cur.getHours()}-${cur.getMinutes()}`
             blocks.add(key)
-            cur.setHours(cur.getHours() + 1)
+            cur.setMinutes(cur.getMinutes() + 15)
           }
         }
         setCalendarBlocks(blocks)
@@ -596,9 +598,9 @@ export default function SchedulerPage() {
     return results.slice(0, 3)
   }
 
-  const handleCreateFromOptimalTime = (startHour: number, date?: string) => {
+  const handleCreateFromOptimalTime = (startHour: number, startMinute: number = 0, date?: string) => {
     const participantEmails = participants.filter(p => p.email && p.id !== 1).map(p => p.email)
-    setCreatePrefill({ startHour, participantEmails, date })
+    setCreatePrefill({ startHour, startMinute, participantEmails, date })
     setCreateDialogOpen(true)
   }
 
@@ -608,7 +610,32 @@ export default function SchedulerPage() {
     return d
   })
 
-  const gridHours = Array.from({ length: 11 }, (_, i) => i + 8) // 8am–6pm
+  // Slots from 8:00 to 18:00 at gridDuration intervals
+  const gridSlots = (() => {
+    const slots: { hour: number; minute: number }[] = []
+    for (let m = 8 * 60; m < 18 * 60; m += gridDuration) {
+      slots.push({ hour: Math.floor(m / 60), minute: m % 60 })
+    }
+    return slots
+  })()
+
+  // Returns true if any 15-min sub-interval of the slot is blocked
+  const isSlotBlocked = (dateKey: string, slotHour: number, slotMinute: number) => {
+    for (let m = 0; m < gridDuration; m += 15) {
+      const total = slotHour * 60 + slotMinute + m
+      const h = Math.floor(total / 60)
+      const min = total % 60
+      if (calendarBlocks.has(`${dateKey}-${h}-${min}`)) return true
+    }
+    return false
+  }
+
+  const slotHeight = gridDuration === 15 ? "h-5" : gridDuration === 30 ? "h-7" : gridDuration === 45 ? "h-9" : "h-10"
+
+  const formatSlotLabel = (hour: number, minute: number, isFirstOfHour: boolean) => {
+    if (minute === 0 || isFirstOfHour) return formatHour(hour)
+    return `:${String(minute).padStart(2, "0")}`
+  }
 
   const formatWeekDay = (d: Date) =>
     d.toLocaleDateString("en-US", { weekday: "short", month: "numeric", day: "numeric" })
@@ -890,51 +917,55 @@ export default function SchedulerPage() {
                       ))}
                     </div>
 
-                    {/* Hour rows */}
-                    {gridHours.map((hour) => (
-                      <div key={hour} className="flex items-stretch mb-px">
-                        <div className="w-16 flex-shrink-0 text-xs text-muted-foreground pr-2 flex items-center justify-end">
-                          {formatHour(hour)}
-                        </div>
-                        {weekDays.map((day, di) => {
-                          const dateKey = day.toISOString().slice(0, 10)
-                          const blockKey = `${dateKey}-${hour}`
-                          const isBlocked = calendarBlocks.has(blockKey)
-                          const availableCount = participants.filter(p => isWorkingHour(p, hour)).length
-                          const allAvailable = availableCount === participants.length
-                          const someAvailable = availableCount > 0
+                    {/* Slot rows */}
+                    {gridSlots.map(({ hour, minute }, si) => {
+                      const isFirstOfHour = si === 0 || gridSlots[si - 1].hour !== hour
+                      return (
+                        <div key={`${hour}-${minute}`} className={`flex items-stretch mb-px`}>
+                          <div className={`w-16 flex-shrink-0 pr-2 flex items-center justify-end ${
+                            minute === 0 ? "text-xs text-muted-foreground" : "text-[10px] text-muted-foreground/50"
+                          }`}>
+                            {formatSlotLabel(hour, minute, isFirstOfHour)}
+                          </div>
+                          {weekDays.map((day, di) => {
+                            const dateKey = day.toISOString().slice(0, 10)
+                            const blocked = isSlotBlocked(dateKey, hour, minute)
+                            const availableCount = participants.filter(p => isWorkingHour(p, hour)).length
+                            const allAvailable = availableCount === participants.length
+                            const someAvailable = availableCount > 0
 
-                          if (isBlocked) {
+                            if (blocked) {
+                              return (
+                                <div key={di} className={`flex-1 ${slotHeight} border border-muted bg-muted/40 flex items-center justify-center mx-px rounded-sm`}>
+                                  {gridDuration >= 45 && <span className="text-xs text-muted-foreground">Blocked</span>}
+                                </div>
+                              )
+                            }
+
                             return (
-                              <div key={di} className="flex-1 h-8 border border-muted bg-muted/40 flex items-center justify-center mx-px rounded-sm">
-                                <span className="text-xs text-muted-foreground">Blocked</span>
-                              </div>
+                              <button
+                                key={di}
+                                type="button"
+                                onClick={() => (allAvailable || someAvailable) ? handleCreateFromOptimalTime(hour, minute, dateKey) : undefined}
+                                className={`flex-1 ${slotHeight} border mx-px rounded-sm flex items-center justify-center transition-colors ${
+                                  allAvailable
+                                    ? "bg-green-500/20 border-green-500/30 hover:bg-green-500/40 cursor-pointer"
+                                    : someAvailable
+                                    ? "bg-primary/15 border-primary/20 hover:bg-primary/25 cursor-pointer"
+                                    : "bg-muted/20 border-transparent cursor-default"
+                                }`}
+                              >
+                                {participants.length > 1 && someAvailable && gridDuration >= 30 && (
+                                  <span className="text-xs font-medium text-muted-foreground">
+                                    {availableCount}/{participants.length}
+                                  </span>
+                                )}
+                              </button>
                             )
-                          }
-
-                          return (
-                            <button
-                              key={di}
-                              type="button"
-                              onClick={() => allAvailable || someAvailable ? handleCreateFromOptimalTime(hour, dateKey) : undefined}
-                              className={`flex-1 h-8 border mx-px rounded-sm flex items-center justify-center transition-colors ${
-                                allAvailable
-                                  ? "bg-green-500/20 border-green-500/30 hover:bg-green-500/40 cursor-pointer"
-                                  : someAvailable
-                                  ? "bg-primary/15 border-primary/20 hover:bg-primary/25 cursor-pointer"
-                                  : "bg-muted/20 border-transparent cursor-default"
-                              }`}
-                            >
-                              {participants.length > 1 && someAvailable && (
-                                <span className="text-xs font-medium text-muted-foreground">
-                                  {availableCount}/{participants.length}
-                                </span>
-                              )}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    ))}
+                          })}
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
 

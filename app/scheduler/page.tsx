@@ -295,11 +295,11 @@ function CreateEventDialog({ open, onClose, prefill, userTzOffset, userTzLabel, 
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
               <Label>Date</Label>
-              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} onClick={(e) => (e.target as HTMLInputElement).showPicker?.()} />
             </div>
             <div className="space-y-1">
               <Label>Start Time</Label>
-              <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+              <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} onClick={(e) => (e.target as HTMLInputElement).showPicker?.()} />
             </div>
           </div>
           <div className="space-y-1">

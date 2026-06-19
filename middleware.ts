@@ -17,6 +17,6 @@ export const config = {
      * - api/calls/recording-status (Twilio recording webhook)
      * - api/calls/transcription-status (Twilio transcription webhook)
      */
-    '/((?!_next/static|_next/image|favicon.ico|api/calls/twiml|api/calls/recording-status|api/calls/transcription-status|api/extension/track|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api/calls/twiml|api/calls/recording-status|api/calls/transcription-status|api/extension/track|api/webhooks/meetings/recall|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

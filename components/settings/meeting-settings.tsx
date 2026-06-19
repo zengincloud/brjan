@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { Pencil, Trash2, Plus, Loader2, Video, Lock, Bold, Italic, RefreshCw, CheckCircle2, XCircle } from "lucide-react"
+import { Pencil, Trash2, Plus, Loader2, Video, Lock, Bold, Italic, RefreshCw, CheckCircle2, XCircle, Calendar } from "lucide-react"
 import { toast } from "sonner"
 
 // ── Highlight [[variables]] in preview ────────────────────────────────────────
@@ -329,6 +329,8 @@ function NotetakerView({ userTier }: { userTier?: string }) {
   const [loaded, setLoaded] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState<{ dispatched: string[]; skipped: string[]; failed: { id: string; title: string; reason: string }[] } | null>(null)
+  const [calendarConnected, setCalendarConnected] = useState<boolean | null>(null)
+  const [connectingCalendar, setConnectingCalendar] = useState(false)
 
   useEffect(() => {
     if (!isPro) return
@@ -341,7 +343,56 @@ function NotetakerView({ userTier }: { userTier?: string }) {
         setLoaded(true)
       })
       .catch(() => setLoaded(true))
+
+    fetch("/api/recall/calendar-status")
+      .then((r) => r.ok ? r.json() : { connected: false })
+      .then((d) => setCalendarConnected(!!d.connected))
+      .catch(() => setCalendarConnected(false))
+
+    // Handle redirect back from Google OAuth
+    const params = new URLSearchParams(window.location.search)
+    if (params.get("calendar_connected") === "true") {
+      toast.success("Google Calendar connected — bots will auto-join your meetings")
+      setCalendarConnected(true)
+      window.history.replaceState({}, "", window.location.pathname + "?tab=meetings-notetaker")
+    } else if (params.get("calendar_error") === "true") {
+      toast.error("Failed to connect Google Calendar")
+      window.history.replaceState({}, "", window.location.pathname + "?tab=meetings-notetaker")
+    }
   }, [isPro])
+
+  const handleConnectCalendar = async () => {
+    setConnectingCalendar(true)
+    try {
+      const res = await fetch("/api/recall/calendar-token", { method: "POST" })
+      const data = await res.json()
+      if (!data.token) throw new Error("No token returned")
+
+      const RECALL_REDIRECT = "https://us-west-2.recall.ai/api/v1/calendar/google_oauth_callback/"
+      const state = JSON.stringify({
+        recall_calendar_auth_token: data.token,
+        google_oauth_redirect_url: RECALL_REDIRECT,
+        success_url: `${window.location.origin}/settings?tab=meetings-notetaker&calendar_connected=true`,
+        error_url: `${window.location.origin}/settings?tab=meetings-notetaker&calendar_error=true`,
+      })
+
+      const params = new URLSearchParams({
+        scope: "https://www.googleapis.com/auth/calendar.events.readonly https://www.googleapis.com/auth/userinfo.email",
+        access_type: "offline",
+        prompt: "consent",
+        include_granted_scopes: "true",
+        response_type: "code",
+        state,
+        redirect_uri: RECALL_REDIRECT,
+        client_id: process.env.NEXT_PUBLIC_GOOGLE_GCAL_CLIENT_ID || "",
+      })
+
+      window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`
+    } catch (err) {
+      toast.error("Failed to start calendar connection")
+      setConnectingCalendar(false)
+    }
+  }
 
   const handleSave = async () => {
     setSaving(true)
@@ -432,9 +483,34 @@ function NotetakerView({ userTier }: { userTier?: string }) {
           <CardDescription>Automatically joins your meetings and generates AI summaries</CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
-          <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/10 border border-primary/20">
-            <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-            <p className="text-sm font-medium text-primary">Active on your account</p>
+          {/* Calendar Connection */}
+          <div className={`flex items-center justify-between p-3 rounded-lg border ${calendarConnected ? "bg-green-500/10 border-green-500/20" : "bg-secondary/50 border-border"}`}>
+            <div className="flex items-center gap-2.5">
+              <Calendar className={`h-4 w-4 ${calendarConnected ? "text-green-500" : "text-muted-foreground"}`} />
+              <div>
+                <p className="text-sm font-medium">
+                  {calendarConnected ? "Google Calendar connected" : "Connect Google Calendar"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {calendarConnected
+                    ? "Bot auto-joins meetings from your calendar"
+                    : "Auto-dispatch bot to every meeting with a video link"}
+                </p>
+              </div>
+            </div>
+            {calendarConnected === null ? (
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            ) : calendarConnected ? (
+              <div className="flex items-center gap-1.5 text-xs text-green-500 font-medium">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Connected
+              </div>
+            ) : (
+              <Button size="sm" onClick={handleConnectCalendar} disabled={connectingCalendar}>
+                {connectingCalendar ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
+                Connect
+              </Button>
+            )}
           </div>
 
           {!loaded ? (

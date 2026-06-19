@@ -32,23 +32,23 @@ export async function POST(request: NextRequest) {
 
   const event = payload.event
   const botId = payload.data?.bot?.id ?? payload.data?.bot_id
+  const recordingId = payload.data?.recording?.id
   const transcriptId = payload.data?.transcript?.id
 
   if (!botId) return NextResponse.json({ received: true })
 
-  if (event === "recording.done") {
-    // Kick off async transcription
+  if (event === "recording.done" && recordingId) {
+    // Kick off async transcription using the recording ID
     try {
-      await createAsyncTranscript(botId, "elevenlabs_async")
+      await createAsyncTranscript(recordingId, "elevenlabs_async")
     } catch (err) {
-      console.error(`Recall: failed to start async transcript for bot ${botId}:`, err)
+      console.error(`Recall: failed to start async transcript for recording ${recordingId}:`, err)
     }
   } else if (event === "transcript.done" && transcriptId) {
     await processTranscript(botId, transcriptId)
   } else if (event === "transcript.failed") {
     console.error(`Recall: transcript failed for bot ${botId}`, payload.data)
   } else if (event === "bot.done") {
-    // Legacy fallback — update timing metadata if we get this
     await updateBotTiming(botId)
   }
 
@@ -84,7 +84,7 @@ async function processTranscript(botId: string, transcriptId: string) {
 
   try {
     // Fetch transcript download URL
-    const transcriptData = await getAsyncTranscript(botId, transcriptId)
+    const transcriptData = await getAsyncTranscript(transcriptId)
     if (!transcriptData.download_url) return
 
     const transcriptRes = await fetch(transcriptData.download_url)

@@ -45,8 +45,6 @@ export const POST = withAuth(async (_request: NextRequest, userId: string) => {
     if (!videoUrl) continue
 
     const startTime = new Date(event.start)
-    // Skip events already past, or starting in less than 11 minutes (Recall requires 10+ min lead time)
-    if (startTime.getTime() < Date.now() + 11 * 60 * 1000) continue
 
     // Check if already dispatched for this gcal event
     const existing = await prisma.meeting.findFirst({
@@ -76,6 +74,10 @@ export const POST = withAuth(async (_request: NextRequest, userId: string) => {
         data: { recallBotId: null, startedAt: startTime },
       })
     }
+
+    // Only skip the time check for new bot creation — already-dispatched meetings handled above
+    // Recall requires 10+ min lead time to schedule a bot
+    if (startTime.getTime() < Date.now() + 11 * 60 * 1000) continue
 
     try {
       const bot = await createBot(videoUrl, botName, startTime.toISOString())

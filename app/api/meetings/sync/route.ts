@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { withAuth } from "@/lib/auth/api-middleware"
 import { listUpcomingEvents, extractMeetingUrl } from "@/lib/gcal/client"
-import { createBot } from "@/lib/recall/client"
+import { createBot, deleteBot } from "@/lib/recall/client"
 import { prisma } from "@/lib/prisma"
 
 export const dynamic = "force-dynamic"
@@ -51,12 +51,30 @@ export const POST = withAuth(async (_request: NextRequest, userId: string) => {
     // Check if already dispatched for this gcal event
     const existing = await prisma.meeting.findFirst({
       where: { gcalEventId: event.id, userId },
-      select: { id: true, recallBotId: true },
+      select: { id: true, recallBotId: true, startedAt: true },
     })
 
     if (existing?.recallBotId) {
-      skipped.push(event.id)
-      continue
+      // Check if the meeting was rescheduled
+      const existingStart = existing.startedAt ? new Date(existing.startedAt).getTime() : null
+      const newStart = startTime.getTime()
+      const rescheduled = existingStart && Math.abs(existingStart - newStart) > 60_000 // >1 min diff
+
+      if (!rescheduled) {
+        skipped.push(event.id)
+        continue
+      }
+
+      // Delete the old bot and fall through to create a new one
+      try {
+        await deleteBot(existing.recallBotId)
+      } catch (err) {
+        console.warn(`Could not delete old bot ${existing.recallBotId}:`, err)
+      }
+      await prisma.meeting.update({
+        where: { id: existing.id },
+        data: { recallBotId: null, startedAt: startTime },
+      })
     }
 
     try {

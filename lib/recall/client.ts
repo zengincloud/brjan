@@ -54,6 +54,10 @@ export async function getBotTranscript(botId: string): Promise<RecallTranscriptE
   return recallFetch(`/bot/${botId}/transcript`)
 }
 
+export async function deleteBot(botId: string): Promise<void> {
+  await recallFetch(`/bot/${botId}/`, { method: "DELETE" })
+}
+
 export async function createAsyncTranscript(recordingId: string, provider = "elevenlabs_async"): Promise<{ id: string }> {
   return recallFetch(`/recording/${recordingId}/create_transcript/`, {
     method: "POST",

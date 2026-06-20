@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import Anthropic from "@anthropic-ai/sdk"
+import OpenAI from "openai"
 import {
   verifyWebhookSignature,
   createAsyncTranscript,
@@ -125,13 +125,13 @@ async function processTranscript(botId: string, transcriptId: string) {
 
     if (!transcriptText.trim()) return
 
-    // Generate summary with Claude
-    const anthropicKey = process.env.ANTHROPIC_API_KEY
-    if (!anthropicKey) return
+    // Generate summary with Grok
+    const grokKey = process.env.GROK_API_KEY
+    if (!grokKey) return
 
-    const anthropic = new Anthropic({ apiKey: anthropicKey })
-    const response = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
+    const grok = new OpenAI({ apiKey: grokKey, baseURL: "https://api.x.ai/v1" })
+    const response = await grok.chat.completions.create({
+      model: "grok-3-mini-fast",
       max_tokens: 600,
       messages: [
         {
@@ -150,7 +150,7 @@ Return this exact shape:
       ],
     })
 
-    const text = response.content[0].type === "text" ? response.content[0].text : ""
+    const text = response.choices[0]?.message?.content || ""
     let parsed: { summary: string; actionItems: string[] } | null = null
     try {
       parsed = JSON.parse(text)

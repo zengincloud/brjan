@@ -62,7 +62,7 @@ export async function createAsyncTranscript(recordingId: string): Promise<{ id: 
   return recallFetch(`/recording/${recordingId}/create_transcript/`, {
     method: "POST",
     body: JSON.stringify({
-      provider: { elevenlabs_async: {} },
+      provider: { elevenlabs_async: { language_code: "en" } },
       diarization: { use_separate_streams_when_available: true },
     }),
   })

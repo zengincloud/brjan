@@ -81,17 +81,23 @@ export function verifyWebhookSignature(
   headers: { get(name: string): string | null }
 ): boolean {
   const secret = process.env.RECALL_WEBHOOK_SECRET
-  if (!secret) return false
+  if (!secret) { console.warn("Recall webhook: RECALL_WEBHOOK_SECRET not set"); return false }
 
   const msgId = headers.get("svix-id")
   const msgTimestamp = headers.get("svix-timestamp")
   const msgSignature = headers.get("svix-signature")
 
-  if (!msgId || !msgTimestamp || !msgSignature) return false
+  if (!msgId || !msgTimestamp || !msgSignature) {
+    console.warn("Recall webhook: missing svix headers", { msgId, msgTimestamp, hasSig: !!msgSignature })
+    return false
+  }
 
   // Reject if timestamp is more than 5 minutes old
   const ts = parseInt(msgTimestamp, 10)
-  if (Math.abs(Math.floor(Date.now() / 1000) - ts) > 300) return false
+  if (Math.abs(Math.floor(Date.now() / 1000) - ts) > 300) {
+    console.warn("Recall webhook: timestamp too old", { ts, now: Math.floor(Date.now() / 1000) })
+    return false
+  }
 
   const toSign = `${msgId}.${msgTimestamp}.${rawBody}`
   const secretBytes = Buffer.from(secret.replace("whsec_", ""), "base64")

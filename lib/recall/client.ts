@@ -58,10 +58,13 @@ export async function deleteBot(botId: string): Promise<void> {
   await recallFetch(`/bot/${botId}/`, { method: "DELETE" })
 }
 
-export async function createAsyncTranscript(recordingId: string, provider = "elevenlabs_async"): Promise<{ id: string }> {
+export async function createAsyncTranscript(recordingId: string): Promise<{ id: string }> {
   return recallFetch(`/recording/${recordingId}/create_transcript/`, {
     method: "POST",
-    body: JSON.stringify({ provider }),
+    body: JSON.stringify({
+      provider: { elevenlabs_async: {} },
+      diarization: { use_separate_streams_when_available: true },
+    }),
   })
 }
 

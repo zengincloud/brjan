@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
   if (event === "recording.done" && recordingId) {
     // Kick off async transcription using the recording ID
     try {
-      await createAsyncTranscript(recordingId, "elevenlabs_async")
+      await createAsyncTranscript(recordingId)
     } catch (err) {
       console.error(`Recall: failed to start async transcript for recording ${recordingId}:`, err)
     }

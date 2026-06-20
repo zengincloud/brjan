@@ -83,12 +83,12 @@ export function verifyWebhookSignature(
   const secret = process.env.RECALL_WEBHOOK_SECRET
   if (!secret) { console.warn("Recall webhook: RECALL_WEBHOOK_SECRET not set"); return false }
 
-  const msgId = headers.get("svix-id")
-  const msgTimestamp = headers.get("svix-timestamp")
-  const msgSignature = headers.get("svix-signature")
+  const msgId = headers.get("webhook-id") ?? headers.get("svix-id")
+  const msgTimestamp = headers.get("webhook-timestamp") ?? headers.get("svix-timestamp")
+  const msgSignature = headers.get("webhook-signature") ?? headers.get("svix-signature")
 
   if (!msgId || !msgTimestamp || !msgSignature) {
-    console.warn("Recall webhook: missing svix headers", { msgId, msgTimestamp, hasSig: !!msgSignature })
+    console.warn("Recall webhook: missing webhook headers", { msgId, msgTimestamp, hasSig: !!msgSignature })
     return false
   }
 

@@ -25,9 +25,11 @@ export const GET = withAuth(async (_req: NextRequest, userId: string) => {
 
   const authData = await authRes.json()
   console.log("[calendar-status] auth response:", JSON.stringify(authData))
-  const calendarToken = authData.token ?? authData.recall_calendar_auth_token ?? authData
+  const calendarToken = typeof authData === "string" ? authData : (authData.token ?? authData.recall_calendar_auth_token)
+  console.log("[calendar-status] extracted token:", calendarToken ? calendarToken.slice(0, 20) + "..." : "null")
 
   if (!calendarToken || typeof calendarToken !== "string") {
+    console.error("[calendar-status] no token extracted from auth response")
     return NextResponse.json({ connected: false })
   }
 
@@ -40,6 +42,8 @@ export const GET = withAuth(async (_req: NextRequest, userId: string) => {
   })
 
   if (!calRes.ok) {
+    const errText = await calRes.text().catch(() => "")
+    console.error("[calendar-status] /calendar/user/ failed:", calRes.status, errText)
     return NextResponse.json({ connected: false })
   }
 

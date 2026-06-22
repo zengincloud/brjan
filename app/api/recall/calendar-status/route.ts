@@ -24,6 +24,7 @@ export const GET = withAuth(async (_req: NextRequest, userId: string) => {
   }
 
   const authData = await authRes.json()
+  console.log("[calendar-status] auth response:", JSON.stringify(authData))
   const calendarToken = authData.token ?? authData.recall_calendar_auth_token ?? authData
 
   if (!calendarToken || typeof calendarToken !== "string") {
@@ -43,6 +44,7 @@ export const GET = withAuth(async (_req: NextRequest, userId: string) => {
   }
 
   const calData = await calRes.json()
-  const connected = !!(calData.google_oauth_token || calData.microsoft_oauth_token || calData.connected)
+  console.log("[calendar-status] Recall response:", JSON.stringify(calData))
+  const connected = !!(calData.google_oauth_token || calData.microsoft_oauth_token || calData.connected || calData.google_calendar || calData.calendars?.length)
   return NextResponse.json({ connected, data: calData })
 })

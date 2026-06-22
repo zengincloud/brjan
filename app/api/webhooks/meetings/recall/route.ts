@@ -70,16 +70,35 @@ async function ensureMeetingRecord(botId: string): Promise<string | null> {
   try {
     const bot = await getBot(botId)
     const externalId = bot.calendar_meetings?.[0]?.calendar_user?.external_id
-    if (!externalId) {
-      console.warn(`[recall webhook] bot ${botId} has no calendar_user.external_id — cannot auto-create meeting`)
-      return null
+
+    let resolvedUserId: string | null = null
+
+    if (externalId) {
+      const user = await prisma.user.findUnique({ where: { id: externalId }, select: { id: true } })
+      if (user) resolvedUserId = user.id
     }
 
-    const user = await prisma.user.findUnique({ where: { id: externalId }, select: { id: true } })
-    if (!user) {
-      console.warn(`[recall webhook] external_id ${externalId} not found in users table`)
-      return null
+    // Fallback: if we can't get userId from Recall, find the one eligible user
+    if (!resolvedUserId) {
+      console.warn(`[recall webhook] bot ${botId} has no calendar_user.external_id — trying fallback user lookup`)
+      const eligible = await prisma.user.findMany({
+        where: { OR: [{ tier: "pro_max" }, { role: "super_admin" }] },
+        select: { id: true, notetakerSettings: true },
+      })
+      const autoJoinUsers = eligible.filter((u) => {
+        const ns = (u.notetakerSettings ?? {}) as Record<string, any>
+        return ns.autoJoin !== false
+      })
+      if (autoJoinUsers.length === 1) {
+        resolvedUserId = autoJoinUsers[0].id
+        console.log(`[recall webhook] fallback resolved userId=${resolvedUserId}`)
+      } else {
+        console.warn(`[recall webhook] fallback found ${autoJoinUsers.length} eligible users, cannot auto-create meeting`)
+        return null
+      }
     }
+
+    const user = { id: resolvedUserId }
 
     const statusChanges = bot.status_changes || []
     const startEntry = statusChanges.find((s) => s.code === "in_call_recording" || s.code === "in_call_not_recording")

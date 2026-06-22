@@ -57,6 +57,7 @@ model User {
   todos             Todo[]
   meetings          Meeting[]
   meetingTemplates  MeetingTemplate[]
+  notifications     Notification[]
 
   @@index([organizationId])
   @@map("users")
@@ -926,4 +927,24 @@ model Todo {
 
   @@index([userId])
   @@map("todos")
+}
+
+// ============================================
+// In-app Notifications
+// ============================================
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String   // "meeting_summary_ready"
+  title     String
+  body      String?
+  link      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("notifications")
 }

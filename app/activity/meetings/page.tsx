@@ -341,17 +341,40 @@ export default function MeetingRecordingsPage() {
   const [detail, setDetail] = useState<MeetingDetail | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
 
-  useEffect(() => {
-    fetch("/api/meetings")
+  const loadMeetings = (initial = false) => {
+    return fetch("/api/meetings")
       .then((r) => (r.ok ? r.json() : []))
       .then((data) => {
-        const list = Array.isArray(data) ? data : []
+        const list: Meeting[] = Array.isArray(data) ? data : []
         setMeetings(list)
-        if (list.length > 0) handleSelect(list[0].id)
+        if (initial && list.length > 0) handleSelect(list[0].id)
+        return list
       })
-      .catch(console.error)
-      .finally(() => setLoading(false))
+      .catch(() => [] as Meeting[])
+  }
+
+  useEffect(() => {
+    loadMeetings(true).finally(() => setLoading(false))
   }, [])
+
+  // Poll every 30s while any recent meeting is still processing (no summary yet)
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      const cutoff = Date.now() - 24 * 60 * 60 * 1000 // last 24h
+      const hasProcessing = meetings.some(
+        (m) => !m.summary && m.startedAt && new Date(m.startedAt).getTime() > cutoff
+      )
+      if (!hasProcessing) return
+      const updated = await loadMeetings()
+      // Refresh detail panel if the selected meeting just got a summary
+      if (selectedId) {
+        const prev = meetings.find((m) => m.id === selectedId)
+        const next = updated.find((m) => m.id === selectedId)
+        if (!prev?.summary && next?.summary) handleSelect(selectedId)
+      }
+    }, 30_000)
+    return () => clearInterval(interval)
+  }, [meetings, selectedId])
 
   function handleSelect(id: string) {
     setSelectedId(id)

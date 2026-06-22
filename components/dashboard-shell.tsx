@@ -30,6 +30,7 @@ import { Badge } from "@/components/ui/badge"
 import { createClient } from "@/lib/supabase/client"
 import { AddProspectDialog } from "@/components/add-prospect-dialog"
 import { AddAccountDialog } from "@/components/add-account-dialog"
+import { NotificationBell } from "@/components/notification-bell"
 
 type NavPage = { label: string; desc: string; href: string; icon: LucideIcon; keywords: string[] }
 
@@ -280,6 +281,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
               <ClipboardList className="h-4 w-4" />
               <span className="text-xs font-medium">To Do</span>
             </Button>
+            <NotificationBell />
             <div className="h-6 w-px bg-border mx-1" />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

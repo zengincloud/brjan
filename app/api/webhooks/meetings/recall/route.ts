@@ -239,6 +239,18 @@ Return this exact shape:
 
     if (accountId) await prisma.account.update({ where: { id: accountId }, data: { lastActivity: new Date() } })
     if (prospectId) await prisma.prospect.update({ where: { id: prospectId }, data: { lastActivity: new Date() } })
+
+    // Create in-app notification
+    const meetingTitle = (await prisma.meeting.findUnique({ where: { id: meeting.id }, select: { title: true } }))?.title
+    await prisma.notification.create({
+      data: {
+        userId: meeting.userId,
+        type: "meeting_summary_ready",
+        title: `Meeting summary ready${meetingTitle ? ` — ${meetingTitle}` : ""}`,
+        body: parsed.summary,
+        link: "/activity/meetings",
+      },
+    })
   } catch (error) {
     console.error("Error processing transcript:", error)
   }

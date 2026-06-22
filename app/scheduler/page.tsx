@@ -418,7 +418,7 @@ function CreateEventDialog({ open, onClose, prefill, userTzOffset, userTzLabel, 
                           onMouseDown={(e) => {
                             e.preventDefault()
                             const first = attendees[0]
-                            const firstName = first?.name || ""
+                            const firstName = (first?.name || "").split(" ")[0]
                             const now = new Date()
                             const filled = t.description
                               .replace(/\[\[name\]\]/gi, firstName)

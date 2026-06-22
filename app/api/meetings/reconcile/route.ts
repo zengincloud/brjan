@@ -8,6 +8,7 @@ import {
   listRecordingTranscripts,
   createAsyncTranscript,
   getBot,
+  resolveMeetingUrl,
 } from "@/lib/recall/client"
 
 export const dynamic = "force-dynamic"
@@ -54,7 +55,7 @@ export const POST = withAuth(async (_req: NextRequest, userId: string) => {
           userId: resolvedUserId,
           recallBotId: botId,
           title: bot.meeting_metadata?.title || null,
-          meetingUrl: bot.meeting_url,
+          meetingUrl: resolveMeetingUrl(bot.meeting_url),
           startedAt,
           endedAt,
           duration,

@@ -6,6 +6,7 @@ import {
   createAsyncTranscript,
   getAsyncTranscript,
   getBot,
+  resolveMeetingUrl,
 } from "@/lib/recall/client"
 
 export const dynamic = "force-dynamic"
@@ -112,7 +113,7 @@ async function ensureMeetingRecord(botId: string): Promise<string | null> {
         userId: user.id,
         recallBotId: botId,
         title: bot.meeting_metadata?.title || null,
-        meetingUrl: bot.meeting_url,
+        meetingUrl: resolveMeetingUrl(bot.meeting_url),
         startedAt,
         endedAt,
         duration,

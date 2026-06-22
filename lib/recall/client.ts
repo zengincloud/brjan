@@ -21,13 +21,21 @@ async function recallFetch(path: string, options: RequestInit = {}) {
 
 export interface RecallBot {
   id: string
-  meeting_url: string
+  meeting_url: string | { meeting_id?: string; platform?: string }
   status_changes: { code: string; created_at: string }[]
   meeting_metadata?: { title?: string; start_time?: string; end_time?: string }
   calendar_meetings?: Array<{
     id: string
     calendar_user?: { external_id?: string }
   }>
+}
+
+export function resolveMeetingUrl(raw: RecallBot["meeting_url"]): string | null {
+  if (!raw) return null
+  if (typeof raw === "string") return raw
+  if (raw.platform === "google_meet" && raw.meeting_id) return `https://meet.google.com/${raw.meeting_id}`
+  if (raw.platform === "zoom" && raw.meeting_id) return `https://zoom.us/j/${raw.meeting_id}`
+  return JSON.stringify(raw)
 }
 
 export interface RecallTranscriptEntry {

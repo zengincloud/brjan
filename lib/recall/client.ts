@@ -24,6 +24,10 @@ export interface RecallBot {
   meeting_url: string
   status_changes: { code: string; created_at: string }[]
   meeting_metadata?: { title?: string; start_time?: string; end_time?: string }
+  calendar_meetings?: Array<{
+    id: string
+    calendar_user?: { external_id?: string }
+  }>
 }
 
 export interface RecallTranscriptEntry {

@@ -60,7 +60,55 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ received: true })
 }
 
+// When Calendar V1 auto-dispatches a bot, there's no Meeting row in our DB yet.
+// This creates one using the bot's calendar_meetings[].calendar_user.external_id
+// which equals the userId we passed when creating the Recall calendar token.
+async function ensureMeetingRecord(botId: string): Promise<string | null> {
+  const existing = await prisma.meeting.findUnique({ where: { recallBotId: botId } })
+  if (existing) return existing.userId
+
+  try {
+    const bot = await getBot(botId)
+    const externalId = bot.calendar_meetings?.[0]?.calendar_user?.external_id
+    if (!externalId) {
+      console.warn(`[recall webhook] bot ${botId} has no calendar_user.external_id — cannot auto-create meeting`)
+      return null
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: externalId }, select: { id: true } })
+    if (!user) {
+      console.warn(`[recall webhook] external_id ${externalId} not found in users table`)
+      return null
+    }
+
+    const statusChanges = bot.status_changes || []
+    const startEntry = statusChanges.find((s) => s.code === "in_call_recording" || s.code === "in_call_not_recording")
+    const endEntry = statusChanges.find((s) => s.code === "done" || s.code === "call_ended")
+    const startedAt = startEntry ? new Date(startEntry.created_at) : null
+    const endedAt = endEntry ? new Date(endEntry.created_at) : null
+    const duration = startedAt && endedAt ? Math.floor((endedAt.getTime() - startedAt.getTime()) / 1000) : null
+
+    await prisma.meeting.create({
+      data: {
+        userId: user.id,
+        recallBotId: botId,
+        title: bot.meeting_metadata?.title || null,
+        meetingUrl: bot.meeting_url,
+        startedAt,
+        endedAt,
+        duration,
+      },
+    })
+    console.log(`[recall webhook] auto-created Meeting record for Calendar V1 bot ${botId}, userId=${user.id}`)
+    return user.id
+  } catch (err) {
+    console.error(`[recall webhook] failed to auto-create meeting for bot ${botId}:`, err)
+    return null
+  }
+}
+
 async function updateBotTiming(botId: string) {
+  await ensureMeetingRecord(botId)
   const meeting = await prisma.meeting.findUnique({ where: { recallBotId: botId } })
   if (!meeting) return
   try {
@@ -81,6 +129,7 @@ async function updateBotTiming(botId: string) {
 }
 
 async function processTranscript(botId: string, transcriptId: string) {
+  await ensureMeetingRecord(botId)
   const meeting = await prisma.meeting.findUnique({ where: { recallBotId: botId } })
   if (!meeting) {
     console.warn(`Recall webhook: no meeting found for bot ${botId}`)

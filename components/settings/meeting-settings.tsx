@@ -433,8 +433,12 @@ function NotetakerView({ userTier }: { userTier?: string }) {
         toast.error(`Sync error: ${data.error ?? res.status}`)
         setSyncResult({ dispatched: [], skipped: [], failed: [{ id: "err", title: "Request error", reason: data.error ?? `HTTP ${res.status}` }] })
       } else if (data.skipped === true) {
-        const reason = data.reason ? String(data.reason).replace(/_/g, " ") : "unknown reason"
-        toast.error(`Sync skipped: ${reason}`)
+        if (data.reason === "calendar_v1_active") {
+          toast.info("Recall Calendar is connected — bots are dispatched automatically")
+        } else {
+          const reason = data.reason ? String(data.reason).replace(/_/g, " ") : "unknown reason"
+          toast.error(`Sync skipped: ${reason}`)
+        }
       } else {
         setSyncResult(data)
         if (data.dispatched?.length > 0) {

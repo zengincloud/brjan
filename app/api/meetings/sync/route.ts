@@ -26,6 +26,36 @@ export const POST = withAuth(async (_request: NextRequest, userId: string) => {
     return NextResponse.json({ skipped: true, reason: "auto_join_disabled" })
   }
 
+  // If Calendar V1 is connected, Recall already auto-dispatches bots.
+  // Skip our own bot creation to avoid sending two bots to every meeting.
+  const RECALL_API_KEY = process.env.RECALL_API_KEY
+  const RECALL_BASE_URL = process.env.RECALL_BASE_URL ?? "https://us-west-2.recall.ai/api/v1"
+  try {
+    const authRes = await fetch(`${RECALL_BASE_URL}/calendar/authenticate/`, {
+      method: "POST",
+      headers: { Authorization: `Token ${RECALL_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: userId }),
+    })
+    if (authRes.ok) {
+      const authData = await authRes.json()
+      const calToken = typeof authData === "string" ? authData : (authData.token ?? authData.recall_calendar_auth_token)
+      if (calToken) {
+        const calRes = await fetch(`${RECALL_BASE_URL}/calendar/user/`, {
+          headers: { Authorization: `Token ${RECALL_API_KEY}`, "x-recallcalendarauthtoken": calToken },
+        })
+        if (calRes.ok) {
+          const calData = await calRes.json()
+          const connected = calData.connections?.some((c: any) => c.connected === true)
+          if (connected) {
+            return NextResponse.json({ skipped: true, reason: "calendar_v1_active" })
+          }
+        }
+      }
+    }
+  } catch {
+    // If calendar check fails, fall through to manual sync
+  }
+
   let events
   try {
     events = await listUpcomingEvents(userId, 50, 7)

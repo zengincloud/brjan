@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { BRLoader } from "@/components/ui/br-loader"
-import { Video, Clock, Users, ChevronRight, FileText, CheckSquare2, Mail, Copy, Loader2 } from "lucide-react"
+import { Video, Clock, Users, ChevronRight, FileText, CheckSquare2, Mail, Copy, Loader2, RefreshCw } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 
@@ -340,6 +340,7 @@ export default function MeetingRecordingsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [detail, setDetail] = useState<MeetingDetail | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
+  const [syncing, setSyncing] = useState(false)
 
   const loadMeetings = (initial = false) => {
     return fetch("/api/meetings")
@@ -355,6 +356,8 @@ export default function MeetingRecordingsPage() {
 
   useEffect(() => {
     loadMeetings(true).finally(() => setLoading(false))
+    // Silently reconcile on load so missed webhooks self-heal
+    fetch("/api/meetings/reconcile", { method: "POST" }).catch(() => {})
   }, [])
 
   // Poll every 30s while any recent meeting is still processing (no summary yet)
@@ -386,6 +389,24 @@ export default function MeetingRecordingsPage() {
       .finally(() => setLoadingDetail(false))
   }
 
+  async function handleSync() {
+    setSyncing(true)
+    try {
+      await fetch("/api/meetings/reconcile", { method: "POST" })
+      const updated = await loadMeetings()
+      if (selectedId) {
+        const prev = meetings.find((m) => m.id === selectedId)
+        const next = updated.find((m) => m.id === selectedId)
+        if (!prev?.summary && next?.summary) handleSelect(selectedId)
+      }
+      toast.success("Synced with Recall")
+    } catch {
+      toast.error("Sync failed")
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -402,6 +423,12 @@ export default function MeetingRecordingsPage() {
         {meetings.length > 0 && (
           <Badge variant="secondary">{meetings.length}</Badge>
         )}
+        <div className="ml-auto">
+          <Button size="sm" variant="outline" onClick={handleSync} disabled={syncing}>
+            <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", syncing && "animate-spin")} />
+            {syncing ? "Syncing..." : "Sync"}
+          </Button>
+        </div>
       </div>
 
       {meetings.length === 0 ? (

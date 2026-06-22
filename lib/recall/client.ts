@@ -62,6 +62,31 @@ export async function deleteBot(botId: string): Promise<void> {
   await recallFetch(`/bot/${botId}/`, { method: "DELETE" })
 }
 
+export async function listBots(limit = 20): Promise<{ results: RecallBot[] }> {
+  return recallFetch(`/bot/?limit=${limit}&ordering=-created_at`)
+}
+
+export interface RecallRecording {
+  id: string
+  status: { code: string }
+  started_at: string | null
+  completed_at: string | null
+}
+
+export async function listBotRecordings(botId: string): Promise<{ results: RecallRecording[] }> {
+  return recallFetch(`/bot/${botId}/recordings/`)
+}
+
+export interface RecallTranscriptMeta {
+  id: string
+  status: { code: string }
+  download_url: string | null
+}
+
+export async function listRecordingTranscripts(recordingId: string): Promise<{ results: RecallTranscriptMeta[] }> {
+  return recallFetch(`/recording/${recordingId}/transcripts/`)
+}
+
 export async function createAsyncTranscript(recordingId: string): Promise<{ id: string }> {
   return recallFetch(`/recording/${recordingId}/create_transcript/`, {
     method: "POST",

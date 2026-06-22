@@ -5,9 +5,14 @@ import { prisma } from "@/lib/prisma"
 export const dynamic = "force-dynamic"
 
 // GET /api/meetings — list all recorded meetings for the user
-export const GET = withAuth(async (_req: NextRequest, userId: string) => {
+// Supports ?prospectId=xxx and ?accountId=xxx filters
+export const GET = withAuth(async (req: NextRequest, userId: string) => {
+  const { searchParams } = new URL(req.url)
+  const prospectId = searchParams.get("prospectId") || undefined
+  const accountId = searchParams.get("accountId") || undefined
+
   const meetings = await prisma.meeting.findMany({
-    where: { userId, recallBotId: { not: null } },
+    where: { userId, recallBotId: { not: null }, ...(prospectId ? { prospectId } : {}), ...(accountId ? { accountId } : {}) },
     orderBy: { startedAt: "desc" },
     select: {
       id: true,

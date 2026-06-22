@@ -23,6 +23,7 @@ function safeTimeAgo(dateStr: string | null | undefined): string {
   }
 }
 import { CallHistory } from "@/components/call-history"
+import { MeetingRecordingsCard } from "@/components/meeting-recordings-card"
 import { CallProspectDialog } from "@/components/call-prospect-dialog"
 import { EditProspectDialog } from "@/components/edit-prospect-dialog"
 import { SendEmailDialog } from "@/components/send-email-dialog"
@@ -1168,6 +1169,9 @@ export default function ProspectDetailPage() {
 
       {/* Call History */}
       <CallHistory prospectId={prospect.id} key={`calls-${refreshKey}`} />
+
+      {/* Meeting Recordings */}
+      <MeetingRecordingsCard prospectId={prospect.id} />
 
       {/* Dialogs */}
       <SendEmailDialog

@@ -87,10 +87,29 @@ export const POST = withAuth(async (_request: NextRequest, userId: string) => {
         email: a.email,
       }))
 
+      // Try to link to a known prospect/account at scheduling time
+      const attendeeEmails = event.attendees.map((a) => a.email).filter(Boolean)
+      let linkedProspectId: string | undefined
+      let linkedAccountId: string | undefined
+      if (attendeeEmails.length > 0) {
+        const matched = await prisma.prospect.findFirst({
+          where: { email: { in: attendeeEmails }, userId },
+          select: { id: true, accountId: true },
+        })
+        if (matched) {
+          linkedProspectId = matched.id
+          linkedAccountId = matched.accountId || undefined
+        }
+      }
+
       if (existing) {
         await prisma.meeting.update({
           where: { id: existing.id },
-          data: { recallBotId: bot.id },
+          data: {
+            recallBotId: bot.id,
+            ...(linkedProspectId ? { prospectId: linkedProspectId } : {}),
+            ...(linkedAccountId ? { accountId: linkedAccountId } : {}),
+          },
         })
       } else {
         await prisma.meeting.create({
@@ -102,6 +121,8 @@ export const POST = withAuth(async (_request: NextRequest, userId: string) => {
             startedAt: startTime,
             attendees,
             recallBotId: bot.id,
+            ...(linkedProspectId ? { prospectId: linkedProspectId } : {}),
+            ...(linkedAccountId ? { accountId: linkedAccountId } : {}),
           },
         })
       }

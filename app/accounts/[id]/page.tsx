@@ -40,6 +40,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { formatDistanceToNow } from "date-fns"
 import { BRLoader } from "@/components/ui/br-loader"
+import { MeetingRecordingsCard } from "@/components/meeting-recordings-card"
 import { getTimezoneFromLocation } from "@/lib/timezone"
 
 type Account = {
@@ -741,6 +742,9 @@ export default function AccountDetailPage() {
           </Card>
         </div>
       )}
+
+      {/* Meeting Recordings */}
+      <MeetingRecordingsCard accountId={accountId} />
 
       {/* Contacts - Linked Prospects */}
       <Card>

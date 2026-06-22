@@ -3,9 +3,11 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { BRLoader } from "@/components/ui/br-loader"
-import { Video, Clock, Users, ChevronRight, FileText, CheckSquare2 } from "lucide-react"
+import { Video, Clock, Users, ChevronRight, FileText, CheckSquare2, Mail, Copy, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 
 interface Attendee {
   name?: string
@@ -125,6 +127,9 @@ function MeetingCard({
 }
 
 function MeetingDetailPanel({ meeting }: { meeting: MeetingDetail }) {
+  const [generatingEmail, setGeneratingEmail] = useState(false)
+  const [emailDraft, setEmailDraft] = useState<{ subject: string; body: string } | null>(null)
+
   const transcriptText =
     meeting.transcript
       ?.map((s) => {
@@ -132,6 +137,21 @@ function MeetingDetailPanel({ meeting }: { meeting: MeetingDetail }) {
         return s.speaker ? `${s.speaker}: ${text}` : text
       })
       .filter(Boolean) || []
+
+  async function handleGenerateEmail() {
+    setGeneratingEmail(true)
+    setEmailDraft(null)
+    try {
+      const res = await fetch(`/api/meetings/${meeting.id}/draft-followup`, { method: "POST" })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Failed")
+      setEmailDraft({ subject: data.emailSubject, body: data.emailBody })
+    } catch (err: any) {
+      toast.error(err.message || "Failed to generate email")
+    } finally {
+      setGeneratingEmail(false)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -215,6 +235,64 @@ function MeetingDetailPanel({ meeting }: { meeting: MeetingDetail }) {
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {meeting.summary && (
+        <div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleGenerateEmail}
+            disabled={generatingEmail}
+            className="w-full"
+          >
+            {generatingEmail ? (
+              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+            ) : (
+              <Mail className="h-3.5 w-3.5 mr-1.5" />
+            )}
+            {generatingEmail ? "Generating..." : "Generate Follow-up Email"}
+          </Button>
+
+          {emailDraft && (
+            <div className="mt-3 space-y-2">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground font-medium">Subject</p>
+                <div className="relative">
+                  <textarea
+                    readOnly
+                    value={emailDraft.subject}
+                    rows={1}
+                    className="w-full resize-none rounded-md border border-border bg-muted/40 px-3 py-2 text-sm outline-none pr-8"
+                  />
+                  <button
+                    onClick={() => { navigator.clipboard.writeText(emailDraft.subject); toast.success("Copied") }}
+                    className="absolute right-2 top-2 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground font-medium">Body</p>
+                <div className="relative">
+                  <textarea
+                    readOnly
+                    value={emailDraft.body}
+                    rows={6}
+                    className="w-full resize-none rounded-md border border-border bg-muted/40 px-3 py-2 text-sm outline-none pr-8"
+                  />
+                  <button
+                    onClick={() => { navigator.clipboard.writeText(emailDraft.body); toast.success("Copied") }}
+                    className="absolute right-2 top-2 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

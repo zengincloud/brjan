@@ -350,6 +350,17 @@ function NotetakerView({ userTier }: { userTier?: string }) {
       .then((d) => setCalendarConnected(!!d.connected))
       .catch(() => setCalendarConnected(false))
 
+    // Auto-sync on open — silent unless bots are dispatched
+    fetch("/api/meetings/sync", { method: "POST" })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.dispatched?.length > 0) {
+          toast.success(`Bot dispatched for ${data.dispatched.length} meeting${data.dispatched.length > 1 ? "s" : ""}`)
+          setSyncResult(data)
+        }
+      })
+      .catch(() => {})
+
     const params = new URLSearchParams(window.location.search)
     if (params.get("calendar_connected") === "true") {
       toast.success("Google Calendar connected — bots will auto-join your meetings")

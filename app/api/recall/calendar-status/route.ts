@@ -45,6 +45,6 @@ export const GET = withAuth(async (_req: NextRequest, userId: string) => {
 
   const calData = await calRes.json()
   console.log("[calendar-status] Recall response:", JSON.stringify(calData))
-  const connected = !!(calData.google_oauth_token || calData.microsoft_oauth_token || calData.connected || calData.google_calendar || calData.calendars?.length)
+  const connected = !!(calData.connections?.some((c: any) => c.connected === true))
   return NextResponse.json({ connected, data: calData })
 })

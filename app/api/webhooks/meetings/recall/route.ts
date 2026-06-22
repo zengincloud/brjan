@@ -35,15 +35,20 @@ export async function POST(request: NextRequest) {
   const recordingId = payload.data?.recording?.id
   const transcriptId = payload.data?.transcript?.id
 
+  console.log(`[recall webhook] event=${event} botId=${botId} recordingId=${recordingId} transcriptId=${transcriptId}`)
+  console.log(`[recall webhook] full data:`, JSON.stringify(payload.data))
+
   if (!botId) return NextResponse.json({ received: true })
 
   if (event === "recording.done" && recordingId) {
-    // Kick off async transcription using the recording ID
     try {
-      await createAsyncTranscript(recordingId)
+      const result = await createAsyncTranscript(recordingId)
+      console.log(`[recall webhook] async transcript created:`, JSON.stringify(result))
     } catch (err) {
       console.error(`Recall: failed to start async transcript for recording ${recordingId}:`, err)
     }
+  } else if (event === "recording.done" && !recordingId) {
+    console.error(`[recall webhook] recording.done fired but no recordingId found in payload`)
   } else if (event === "transcript.done" && transcriptId) {
     await processTranscript(botId, transcriptId)
   } else if (event === "transcript.failed") {

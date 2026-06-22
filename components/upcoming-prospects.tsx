@@ -22,12 +22,15 @@ interface UpcomingProspect {
 }
 
 export function UpcomingProspects() {
-  const { isSuperAdmin } = useUserRole()
+  const { isSuperAdmin, isLoading: roleLoading } = useUserRole()
   const [searchTerm, setSearchTerm] = useState("")
   const [realProspects, setRealProspects] = useState<UpcomingProspect[]>([])
+  const [dataLoading, setDataLoading] = useState(false)
 
   useEffect(() => {
+    if (roleLoading) return
     if (isSuperAdmin) return
+    setDataLoading(true)
     fetch("/api/prospects?status=meeting_scheduled")
       .then((r) => (r.ok ? r.json() : { prospects: [] }))
       .then((data) => {
@@ -41,8 +44,10 @@ export function UpcomingProspects() {
         setRealProspects(prospects)
       })
       .catch(console.error)
-  }, [isSuperAdmin])
+      .finally(() => setDataLoading(false))
+  }, [isSuperAdmin, roleLoading])
 
+  const isLoading = roleLoading || dataLoading
   const upcomingProspects = isSuperAdmin ? demoUpcomingProspects : realProspects
 
   const filteredProspects = upcomingProspects.filter(
@@ -70,7 +75,15 @@ export function UpcomingProspects() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {filteredProspects.length === 0 ? (
+          {isLoading ? (
+            [0, 1, 2].map((i) => (
+              <TableRow key={i}>
+                {[0, 1, 2, 3].map((j) => (
+                  <TableCell key={j}><div className="h-4 rounded bg-secondary/60 animate-pulse" /></TableCell>
+                ))}
+              </TableRow>
+            ))
+          ) : filteredProspects.length === 0 ? (
             <TableRow>
               <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
                 No upcoming meetings yet.

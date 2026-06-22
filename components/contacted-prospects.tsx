@@ -31,12 +31,15 @@ const statusLabels: Record<string, string> = {
 }
 
 export function ContactedProspects() {
-  const { isSuperAdmin } = useUserRole()
+  const { isSuperAdmin, isLoading: roleLoading } = useUserRole()
   const [searchTerm, setSearchTerm] = useState("")
   const [realProspects, setRealProspects] = useState<ContactedProspect[]>([])
+  const [dataLoading, setDataLoading] = useState(false)
 
   useEffect(() => {
+    if (roleLoading) return
     if (isSuperAdmin) return
+    setDataLoading(true)
     fetch("/api/prospects?status=contacted")
       .then((r) => (r.ok ? r.json() : { prospects: [] }))
       .then((data) => {
@@ -50,8 +53,10 @@ export function ContactedProspects() {
         setRealProspects(prospects)
       })
       .catch(console.error)
-  }, [isSuperAdmin])
+      .finally(() => setDataLoading(false))
+  }, [isSuperAdmin, roleLoading])
 
+  const isLoading = roleLoading || dataLoading
   const contactedProspects = isSuperAdmin ? demoContactedProspects : realProspects
 
   const filteredProspects = contactedProspects.filter(
@@ -79,7 +84,15 @@ export function ContactedProspects() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {filteredProspects.length === 0 ? (
+          {isLoading ? (
+            [0, 1, 2].map((i) => (
+              <TableRow key={i}>
+                {[0, 1, 2, 3].map((j) => (
+                  <TableCell key={j}><div className="h-4 rounded bg-secondary/60 animate-pulse" /></TableCell>
+                ))}
+              </TableRow>
+            ))
+          ) : filteredProspects.length === 0 ? (
             <TableRow>
               <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
                 No contacted prospects yet.

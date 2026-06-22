@@ -21,14 +21,17 @@ interface TodoPanelProps {
 
 export function TodoPanel({ open, onOpenChange }: TodoPanelProps) {
   const [todos, setTodos] = useState<Todo[]>([])
+  const [loading, setLoading] = useState(false)
   const [newTitle, setNewTitle] = useState("")
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (open) {
+      setLoading(true)
       fetch("/api/todos")
         .then((r) => r.json())
         .then((d) => setTodos(d.todos ?? []))
+        .finally(() => setLoading(false))
       setTimeout(() => inputRef.current?.focus(), 100)
     }
   }, [open])
@@ -85,20 +88,30 @@ export function TodoPanel({ open, onOpenChange }: TodoPanelProps) {
 
         {/* List */}
         <div className="flex-1 overflow-y-auto">
-          {incomplete.length === 0 && completed.length === 0 && (
-            <p className="text-xs text-muted-foreground text-center mt-8 px-4">Nothing to do — you&apos;re all clear</p>
-          )}
-
-          {incomplete.map((todo) => (
-            <TodoRow key={todo.id} todo={todo} onToggle={toggle} onDelete={remove} />
-          ))}
-
-          {completed.length > 0 && (
+          {loading ? (
+            <div className="space-y-1 px-4 py-3">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="h-8 rounded-md bg-secondary/60 animate-pulse" />
+              ))}
+            </div>
+          ) : (
             <>
-              {incomplete.length > 0 && <div className="h-px bg-border mx-4 my-1" />}
-              {completed.map((todo) => (
+              {incomplete.length === 0 && completed.length === 0 && (
+                <p className="text-xs text-muted-foreground text-center mt-8 px-4">Nothing to do — you&apos;re all clear</p>
+              )}
+
+              {incomplete.map((todo) => (
                 <TodoRow key={todo.id} todo={todo} onToggle={toggle} onDelete={remove} />
               ))}
+
+              {completed.length > 0 && (
+                <>
+                  {incomplete.length > 0 && <div className="h-px bg-border mx-4 my-1" />}
+                  {completed.map((todo) => (
+                    <TodoRow key={todo.id} todo={todo} onToggle={toggle} onDelete={remove} />
+                  ))}
+                </>
+              )}
             </>
           )}
         </div>

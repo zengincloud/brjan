@@ -323,6 +323,7 @@ const DEFAULTS: NotetakerSettings = {
 }
 
 function NotetakerView({ userTier }: { userTier?: string }) {
+  const tierLoading = userTier === undefined
   const isPro = userTier === "pro_max" || userTier === "super_admin"
   const [settings, setSettings] = useState<NotetakerSettings>(DEFAULTS)
   const [saving, setSaving] = useState(false)
@@ -442,6 +443,23 @@ function NotetakerView({ userTier }: { userTier?: string }) {
 
   const set = (key: keyof NotetakerSettings, value: boolean | string) =>
     setSettings((prev) => ({ ...prev, [key]: value }))
+
+  if (tierLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Video className="h-4 w-4 text-muted-foreground" />
+            AI Meeting Notetaker
+          </CardTitle>
+          <CardDescription>Automatically joins your meetings and generates AI summaries</CardDescription>
+        </CardHeader>
+        <CardContent className="flex justify-center py-8">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    )
+  }
 
   if (!isPro) {
     return (

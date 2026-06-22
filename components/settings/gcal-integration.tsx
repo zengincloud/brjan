@@ -234,23 +234,25 @@ export function GcalIntegration({ initialStatus, userTier }: { initialStatus?: G
             </ul>
           </div>
 
-          <div className={`rounded-lg border p-3 ${userTier === "pro_max" ? "border-primary/30 bg-primary/5" : "border-border bg-muted/30"}`}>
-            <div className="flex items-center gap-2 mb-1.5">
-              <Video className="h-4 w-4 text-primary" />
-              <p className="font-medium text-foreground text-xs">AI Meeting Notetaker</p>
-              {userTier !== "pro_max" && (
-                <span className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
-                  <Lock className="h-3 w-3" />
-                  Pro Max
-                </span>
-              )}
+          {userTier !== undefined && (
+            <div className={`rounded-lg border p-3 ${userTier === "pro_max" ? "border-primary/30 bg-primary/5" : "border-border bg-muted/30"}`}>
+              <div className="flex items-center gap-2 mb-1.5">
+                <Video className="h-4 w-4 text-primary" />
+                <p className="font-medium text-foreground text-xs">AI Meeting Notetaker</p>
+                {userTier !== "pro_max" && (
+                  <span className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
+                    <Lock className="h-3 w-3" />
+                    Pro Max
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {userTier === "pro_max"
+                  ? "Active — a bot will automatically join your Google Meet, Zoom, and Teams calls and generate a transcript, summary, and action items when connected."
+                  : "Upgrade to Pro Max to automatically record and transcribe every meeting from your calendar — no manual setup required."}
+              </p>
             </div>
-            <p className="text-xs text-muted-foreground">
-              {userTier === "pro_max"
-                ? "Active — a bot will automatically join your Google Meet, Zoom, and Teams calls and generate a transcript, summary, and action items when connected."
-                : "Upgrade to Pro Max to automatically record and transcribe every meeting from your calendar — no manual setup required."}
-            </p>
-          </div>
+          )}
         </div>
       </CardContent>
     </Card>

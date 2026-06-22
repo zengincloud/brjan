@@ -82,6 +82,7 @@ export default function SettingsPage() {
   const [integrationStatuses, setIntegrationStatuses] = useState<{
     gmail?: any; gcal?: any; hubspot?: any; salesforce?: any
   } | null>(null)
+  const [integrationStatusesLoading, setIntegrationStatusesLoading] = useState(true)
   const supabase = createClient()
 
   useEffect(() => {
@@ -113,6 +114,7 @@ export default function SettingsPage() {
       .then((r) => r.ok ? r.json() : null)
       .then((data) => { if (data) setIntegrationStatuses(data) })
       .catch(() => {})
+      .finally(() => setIntegrationStatusesLoading(false))
   }, [])
 
   const handleProfileSave = async () => {
@@ -551,10 +553,28 @@ export default function SettingsPage() {
 
         {/* Integrations Tab */}
         {activeTab === "integrations" && <div className="space-y-4">
-          <GmailIntegration initialStatus={integrationStatuses?.gmail} />
-          <GcalIntegration initialStatus={integrationStatuses?.gcal} userTier={creditStatus?.tier} />
-          <HubspotIntegration initialStatus={integrationStatuses?.hubspot} />
-          <SalesforceIntegration initialStatus={integrationStatuses?.salesforce} />
+          {integrationStatusesLoading ? (
+            <>
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="rounded-lg border border-border p-6 space-y-3 animate-pulse">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded bg-secondary" />
+                    <div className="space-y-2 flex-1">
+                      <div className="h-4 w-32 rounded bg-secondary" />
+                      <div className="h-3 w-56 rounded bg-secondary" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </>
+          ) : (
+            <>
+              <GmailIntegration initialStatus={integrationStatuses?.gmail} />
+              <GcalIntegration initialStatus={integrationStatuses?.gcal} userTier={creditStatus?.tier} />
+              <HubspotIntegration initialStatus={integrationStatuses?.hubspot} />
+              <SalesforceIntegration initialStatus={integrationStatuses?.salesforce} />
+            </>
+          )}
 
           <Card>
             <CardHeader>

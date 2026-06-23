@@ -27,11 +27,9 @@ export const POST = withAuth(async (_req: NextRequest, userId: string) => {
     return NextResponse.json({ error: "Failed to fetch bots from Recall" }, { status: 500 })
   }
 
-  const doneBots = botsResp.results.filter((b) =>
-    b.status_changes?.some((s) => s.code === "done" || s.code === "call_ended")
-  )
+  console.log(`[reconcile] fetched ${botsResp.results.length} bots from Recall`)
 
-  for (const bot of doneBots) {
+  for (const bot of botsResp.results) {
     const botId = bot.id
 
     // Ensure Meeting record exists
@@ -79,7 +77,9 @@ export const POST = withAuth(async (_req: NextRequest, userId: string) => {
     let recordings: Awaited<ReturnType<typeof listBotRecordings>>
     try {
       recordings = await listBotRecordings(botId)
-    } catch {
+      console.log(`[reconcile] bot ${botId}: ${recordings.results.length} recordings`)
+    } catch (err) {
+      console.warn(`[reconcile] bot ${botId}: error listing recordings:`, err)
       results.push({ botId, action: "error:list_recordings" })
       continue
     }
@@ -93,7 +93,7 @@ export const POST = withAuth(async (_req: NextRequest, userId: string) => {
         continue
       }
 
-      const ready = transcripts.results.find((t) => t.status?.code === "completed" && t.download_url)
+      const ready = transcripts.results.find((t) => t.download_url)
       if (ready?.download_url) {
         const saved = await processAndSaveTranscript(meeting.id, meeting.userId, botId, ready.download_url)
         if (saved) {

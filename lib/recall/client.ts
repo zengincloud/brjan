@@ -82,7 +82,7 @@ export interface RecallRecording {
 }
 
 export async function listBotRecordings(botId: string): Promise<{ results: RecallRecording[] }> {
-  return recallFetch(`/bot/${botId}/recordings/`)
+  return recallFetch(`/recording/?bot_id=${botId}`)
 }
 
 export interface RecallTranscriptMeta {
@@ -92,7 +92,7 @@ export interface RecallTranscriptMeta {
 }
 
 export async function listRecordingTranscripts(recordingId: string): Promise<{ results: RecallTranscriptMeta[] }> {
-  return recallFetch(`/recording/${recordingId}/transcripts/`)
+  return recallFetch(`/recording/${recordingId}/transcript/`)
 }
 
 export async function createAsyncTranscript(recordingId: string): Promise<{ id: string }> {

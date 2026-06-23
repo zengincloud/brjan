@@ -3,7 +3,6 @@ import { createClient } from "@/lib/supabase/server"
 import { prisma } from "@/lib/prisma"
 import { exchangeCodeForTokens, getCalendarEmail, saveGcalTokens } from "@/lib/gcal/oauth"
 import { registerCalendarWatch } from "@/lib/gcal/client"
-import { prisma } from "@/lib/prisma"
 
 export const dynamic = "force-dynamic"
 

@@ -3,7 +3,6 @@ import { withAuth } from "@/lib/auth/api-middleware"
 import { prisma } from "@/lib/prisma"
 import OpenAI from "openai"
 import {
-  listBots,
   listBotRecordings,
   listRecordingTranscripts,
   createAsyncTranscript,
@@ -19,61 +18,19 @@ export const dynamic = "force-dynamic"
 export const POST = withAuth(async (_req: NextRequest, userId: string) => {
   const results: { botId: string; action: string }[] = []
 
-  let botsResp: Awaited<ReturnType<typeof listBots>>
-  try {
-    botsResp = await listBots(30)
-  } catch (err) {
-    console.error("[reconcile] failed to list bots:", err)
-    return NextResponse.json({ error: "Failed to fetch bots from Recall" }, { status: 500 })
-  }
+  // Only look at our own meetings that are missing a summary (last 7 days)
+  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+  const pendingMeetings = await prisma.meeting.findMany({
+    where: { userId, recallBotId: { not: null }, summary: null, startedAt: { gte: since } },
+    select: { id: true, userId: true, recallBotId: true },
+  })
 
-  console.log(`[reconcile] fetched ${botsResp.results.length} bots from Recall`)
+  console.log(`[reconcile] ${pendingMeetings.length} meetings without summaries`)
 
-  for (const bot of botsResp.results) {
-    const botId = bot.id
+  for (const meeting of pendingMeetings) {
+    const botId = meeting.recallBotId!
 
-    // Ensure Meeting record exists
-    let meeting = await prisma.meeting.findUnique({ where: { recallBotId: botId } })
-    if (!meeting) {
-      const resolvedUserId = await resolveUserId(bot, userId)
-      if (!resolvedUserId) {
-        results.push({ botId, action: "skipped:no_user" })
-        continue
-      }
-
-      const statusChanges = bot.status_changes || []
-      const startEntry = statusChanges.find((s) => s.code === "in_call_recording" || s.code === "in_call_not_recording")
-      const endEntry = statusChanges.find((s) => s.code === "done" || s.code === "call_ended")
-      const startedAt = startEntry ? new Date(startEntry.created_at) : null
-      const endedAt = endEntry ? new Date(endEntry.created_at) : null
-      const duration = startedAt && endedAt ? Math.floor((endedAt.getTime() - startedAt.getTime()) / 1000) : null
-
-      meeting = await prisma.meeting.create({
-        data: {
-          userId: resolvedUserId,
-          recallBotId: botId,
-          title: bot.meeting_metadata?.title || null,
-          meetingUrl: resolveMeetingUrl(bot.meeting_url),
-          startedAt,
-          endedAt,
-          duration,
-        },
-      })
-      results.push({ botId, action: "created_meeting_record" })
-    }
-
-    // Only process transcripts for this user's meetings
-    if (meeting.userId !== userId) {
-      results.push({ botId, action: "skipped:other_user" })
-      continue
-    }
-
-    if (meeting.summary) {
-      results.push({ botId, action: "already_done" })
-      continue
-    }
-
-    // Find recordings and transcripts
+    // Find recordings for this specific bot
     let recordings: Awaited<ReturnType<typeof listBotRecordings>>
     try {
       recordings = await listBotRecordings(botId)
@@ -102,7 +59,6 @@ export const POST = withAuth(async (_req: NextRequest, userId: string) => {
           break
         }
       } else if (transcripts.results.length === 0) {
-        // No transcript exists yet — kick one off
         try {
           await createAsyncTranscript(recording.id)
           results.push({ botId, action: "started_transcription" })
@@ -112,7 +68,6 @@ export const POST = withAuth(async (_req: NextRequest, userId: string) => {
           results.push({ botId, action: "error:start_transcription" })
         }
       } else {
-        // Transcript exists but still processing
         results.push({ botId, action: "transcription_in_progress" })
         processed = true
         break
@@ -122,20 +77,14 @@ export const POST = withAuth(async (_req: NextRequest, userId: string) => {
     if (!processed && recordings.results.length === 0) {
       results.push({ botId, action: "no_recordings" })
     }
+
+    // Small delay between bots to avoid rate limiting
+    await new Promise((r) => setTimeout(r, 300))
   }
 
   return NextResponse.json({ reconciled: results.length, results })
 })
 
-async function resolveUserId(bot: Awaited<ReturnType<typeof listBots>>["results"][number], fallbackUserId: string): Promise<string | null> {
-  const externalId = bot.calendar_meetings?.[0]?.calendar_user?.external_id
-  if (externalId) {
-    const user = await prisma.user.findUnique({ where: { id: externalId }, select: { id: true } })
-    if (user) return user.id
-  }
-  // Use the authenticated user as fallback
-  return fallbackUserId
-}
 
 async function processAndSaveTranscript(
   meetingId: string,

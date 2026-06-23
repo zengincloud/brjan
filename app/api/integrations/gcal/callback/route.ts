@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { prisma } from "@/lib/prisma"
 import { exchangeCodeForTokens, getCalendarEmail, saveGcalTokens } from "@/lib/gcal/oauth"
+import { registerCalendarWatch } from "@/lib/gcal/client"
+import { prisma } from "@/lib/prisma"
 
 export const dynamic = "force-dynamic"
 
@@ -58,6 +60,25 @@ export async function GET(request: NextRequest) {
       },
       calendarEmail
     )
+
+    // Register GCal push notification channel so we get notified of event changes
+    try {
+      const watch = await registerCalendarWatch(user.id)
+      const ns = (await prisma.user.findUnique({ where: { id: user.id }, select: { notetakerSettings: true } }))?.notetakerSettings ?? {}
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          notetakerSettings: {
+            ...(ns as object),
+            gcalChannelId: watch.channelId,
+            gcalResourceId: watch.resourceId,
+            gcalChannelExpiry: watch.expiry,
+          },
+        },
+      })
+    } catch (err) {
+      console.warn("GCal callback: failed to register watch channel:", err)
+    }
 
     const response = NextResponse.redirect(`${origin}/settings?tab=integrations&gcal_success=true`)
     response.cookies.delete("gcal_oauth_state")

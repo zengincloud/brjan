@@ -142,6 +142,33 @@ export function extractMeetingUrl(event: CalendarEvent): string | null {
   return null
 }
 
+export async function registerCalendarWatch(userId: string): Promise<{ channelId: string; resourceId: string; expiry: number }> {
+  const calendar = await getAuthedClient(userId)
+  const channelId = `gcal-watch-${userId}`
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.boilerroom.ai"
+
+  const res = await calendar.events.watch({
+    calendarId: "primary",
+    requestBody: {
+      id: channelId,
+      type: "web_hook",
+      address: `${appUrl}/api/webhooks/gcal`,
+      token: userId,
+    },
+  })
+
+  return {
+    channelId: res.data.id!,
+    resourceId: res.data.resourceId!,
+    expiry: parseInt(res.data.expiration ?? "0"),
+  }
+}
+
+export async function stopCalendarWatch(userId: string, channelId: string, resourceId: string): Promise<void> {
+  const calendar = await getAuthedClient(userId)
+  await calendar.channels.stop({ requestBody: { id: channelId, resourceId } })
+}
+
 function mapEvent(item: any): CalendarEvent {
   return {
     id: item.id || "",

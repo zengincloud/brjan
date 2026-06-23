@@ -159,10 +159,17 @@ async function processTranscript(botId: string, transcriptId: string) {
   try {
     // Fetch transcript download URL
     const transcriptData = await getAsyncTranscript(transcriptId)
-    if (!transcriptData.download_url) return
+    console.log(`[recall webhook] transcript ${transcriptId} status=${JSON.stringify(transcriptData.status)} download_url=${transcriptData.download_url ? "present" : "null"}`)
+    if (!transcriptData.download_url) {
+      console.warn(`[recall webhook] transcript ${transcriptId} has no download_url yet — skipping`)
+      return
+    }
 
     const transcriptRes = await fetch(transcriptData.download_url)
-    if (!transcriptRes.ok) return
+    if (!transcriptRes.ok) {
+      console.warn(`[recall webhook] failed to download transcript: ${transcriptRes.status}`)
+      return
+    }
     const raw = await transcriptRes.json()
 
     // Recall async transcript format: array of { speaker, words[] } or { speaker, text }
@@ -176,6 +183,8 @@ async function processTranscript(botId: string, transcriptId: string) {
       })
       .filter(Boolean)
       .join("\n")
+
+    console.log(`[recall webhook] transcript downloaded: ${segments.length} segments, ${transcriptText.length} chars`)
 
     // Update timing from bot status
     const bot = await getBot(botId)
@@ -256,6 +265,7 @@ Return this exact shape:
       where: { id: meeting.id },
       data: { summary: parsed.summary, actionItems: parsed.actionItems, prospectId, accountId },
     })
+    console.log(`[recall webhook] summary saved for meeting ${meeting.id} (bot ${botId})`)
 
     if (accountId) await prisma.account.update({ where: { id: accountId }, data: { lastActivity: new Date() } })
     if (prospectId) await prisma.prospect.update({ where: { id: prospectId }, data: { lastActivity: new Date() } })

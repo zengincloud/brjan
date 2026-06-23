@@ -157,17 +157,11 @@ async function processTranscript(botId: string, transcriptId: string) {
   }
 
   try {
-    // Fetch transcript download URL — Recall sometimes fires transcript.done before
-    // the download_url is ready, so retry a few times with backoff
-    let transcriptData: { download_url: string | null; status: any } | null = null
-    for (let attempt = 1; attempt <= 5; attempt++) {
-      transcriptData = await getAsyncTranscript(transcriptId)
-      console.log(`[recall webhook] transcript ${transcriptId} attempt=${attempt} status=${transcriptData.status?.code} download_url=${transcriptData.download_url ? "present" : "null"}`)
-      if (transcriptData.download_url) break
-      if (attempt < 5) await new Promise((r) => setTimeout(r, attempt * 2000))
-    }
-    if (!transcriptData?.download_url) {
-      console.warn(`[recall webhook] transcript ${transcriptId} still no download_url after retries — giving up`)
+    // Fetch transcript download URL
+    const transcriptData = await getAsyncTranscript(transcriptId)
+    console.log(`[recall webhook] transcript ${transcriptId} status=${transcriptData.status?.code} download_url=${transcriptData.download_url ? "present" : "null"}`)
+    if (!transcriptData.download_url) {
+      console.warn(`[recall webhook] transcript ${transcriptId} has no download_url — skipping`)
       return
     }
 

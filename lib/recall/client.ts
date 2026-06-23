@@ -105,8 +105,10 @@ export async function createAsyncTranscript(recordingId: string): Promise<{ id: 
   })
 }
 
-export async function getAsyncTranscript(transcriptId: string): Promise<{ download_url: string; status: string }> {
-  return recallFetch(`/transcript/${transcriptId}/`)
+export async function getAsyncTranscript(transcriptId: string): Promise<{ download_url: string | null; status: any }> {
+  const res = await recallFetch(`/transcript/${transcriptId}/`)
+  // download_url is nested at data.download_url in Recall's response
+  return { download_url: res.data?.download_url ?? res.download_url ?? null, status: res.status }
 }
 
 export function transcriptToText(entries: RecallTranscriptEntry[]): string {

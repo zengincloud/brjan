@@ -46,13 +46,17 @@ export const POST = withAuth(async (_req: NextRequest, userId: string) => {
       let transcripts: Awaited<ReturnType<typeof listRecordingTranscripts>>
       try {
         transcripts = await listRecordingTranscripts(recording.id)
-      } catch {
+        console.log(`[reconcile] recording ${recording.id}: ${transcripts.results.length} transcripts`)
+      } catch (err) {
+        console.warn(`[reconcile] recording ${recording.id}: error listing transcripts:`, err)
         continue
       }
 
       const ready = transcripts.results.find((t) => t.download_url)
       if (ready?.download_url) {
+        console.log(`[reconcile] bot ${botId}: transcript ready, processing...`)
         const saved = await processAndSaveTranscript(meeting.id, meeting.userId, botId, ready.download_url)
+        console.log(`[reconcile] bot ${botId}: processAndSaveTranscript=${saved}`)
         if (saved) {
           results.push({ botId, action: "processed_transcript" })
           processed = true
@@ -61,13 +65,16 @@ export const POST = withAuth(async (_req: NextRequest, userId: string) => {
       } else if (transcripts.results.length === 0) {
         try {
           await createAsyncTranscript(recording.id)
+          console.log(`[reconcile] bot ${botId}: kicked off transcription`)
           results.push({ botId, action: "started_transcription" })
           processed = true
           break
-        } catch {
+        } catch (err) {
+          console.warn(`[reconcile] bot ${botId}: failed to start transcription:`, err)
           results.push({ botId, action: "error:start_transcription" })
         }
       } else {
+        console.log(`[reconcile] bot ${botId}: transcription in progress`)
         results.push({ botId, action: "transcription_in_progress" })
         processed = true
         break

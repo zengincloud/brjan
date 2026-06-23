@@ -48,7 +48,6 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
           OR: [
             { prospect: { name: { contains: q, mode: "insensitive" } } },
             { notes: { contains: q, mode: "insensitive" } },
-            { outcome: { contains: q, mode: "insensitive" } },
           ],
         },
         select: {

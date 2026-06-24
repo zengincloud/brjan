@@ -36,11 +36,9 @@ export const GET = withAuth(async (request: NextRequest, userId: string, context
 
     // Check for required API keys
     const newsApiKey = process.env.NEWSAPI_AI_KEY
-    const anthropicKey = process.env.ANTHROPIC_API_KEY
-
-    if (!anthropicKey) {
+    if (!process.env.GROK_API_KEY) {
       return NextResponse.json(
-        { error: 'ANTHROPIC_API_KEY not configured. Add it to your .env file.' },
+        { error: 'GROK_API_KEY not configured' },
         { status: 500 }
       )
     }

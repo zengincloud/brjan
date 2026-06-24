@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { withAuth } from "@/lib/auth/api-middleware"
-import Anthropic from "@anthropic-ai/sdk"
+import OpenAI from "openai"
 
 export const dynamic = "force-dynamic"
 
@@ -18,7 +18,6 @@ function parseNotes(notes: string | null): { text: string; date: string }[] {
   }
 }
 
-// POST /api/prospects/[id]/compose-email — Generate a draft email from notes + POV
 export const POST = withAuth<{ params: { id: string } }>(async (
   _request: NextRequest,
   userId: string,
@@ -42,12 +41,11 @@ export const POST = withAuth<{ params: { id: string } }>(async (
     return NextResponse.json({ error: "Prospect not found" }, { status: 404 })
   }
 
-  const anthropicKey = process.env.ANTHROPIC_API_KEY
-  if (!anthropicKey) {
+  const grokKey = process.env.GROK_API_KEY
+  if (!grokKey) {
     return NextResponse.json({ error: "AI service not configured" }, { status: 500 })
   }
 
-  // Build context sections
   const noteEntries = parseNotes(prospect.notes)
   const notesSection = noteEntries.length > 0
     ? noteEntries.map(n => `- ${n.text}`).join("\n")
@@ -67,10 +65,10 @@ export const POST = withAuth<{ params: { id: string } }>(async (
     if (lines.length > 0) povSection = lines.join("\n")
   }
 
-  const anthropic = new Anthropic({ apiKey: anthropicKey })
+  const grok = new OpenAI({ apiKey: grokKey, baseURL: "https://api.x.ai/v1" })
 
-  const response = await anthropic.messages.create({
-    model: "claude-haiku-4-5-20251001",
+  const response = await grok.chat.completions.create({
+    model: "grok-3-mini-fast",
     max_tokens: 600,
     messages: [
       {
@@ -91,7 +89,7 @@ Return ONLY this JSON (no markdown, no extra text):
     ],
   })
 
-  const text = response.content[0].type === "text" ? response.content[0].text : ""
+  const text = response.choices[0]?.message?.content || ""
 
   let result: { subject: string; body: string }
   try {

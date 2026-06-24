@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { withAuth } from "@/lib/auth/api-middleware"
-import Anthropic from "@anthropic-ai/sdk"
+import OpenAI from "openai"
 
 export const dynamic = "force-dynamic"
 
@@ -47,7 +47,6 @@ export const POST = withAuth<{ params: { id: string } }>(
     const userMessages = messages.filter((m) => m.role === "user")
 
     if (userMessages.length < 1) {
-      // Call ended with no user input — minimal score
       await prisma.mockCall.update({
         where: { id },
         data: { status: "completed", score: 0, feedback: "The call ended before you said anything." },
@@ -55,12 +54,11 @@ export const POST = withAuth<{ params: { id: string } }>(
       return NextResponse.json({ score: 0, feedback: "The call ended before you said anything.", scoringBreakdown: null })
     }
 
-    // Format transcript for evaluation
     const transcript = messages
       .map((m) => `${m.role === "user" ? "CALLER" : "PROSPECT"}: ${m.content}`)
       .join("\n")
 
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
+    const grok = new OpenAI({ apiKey: process.env.GROK_API_KEY!, baseURL: "https://api.x.ai/v1" })
 
     const scoringPrompt = `You are an expert cold call coach evaluating a sales rep's cold call performance.
 
@@ -88,21 +86,19 @@ Return ONLY valid JSON in this exact format, no explanation:
   "feedback": "2–3 sentence overall coaching note. Be direct and specific. Mention the #1 thing they did well and the #1 thing to fix."
 }`
 
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
+    const response = await grok.chat.completions.create({
+      model: "grok-3-mini-fast",
       max_tokens: 600,
       messages: [{ role: "user", content: scoringPrompt }],
     })
 
-    const raw = response.content[0].type === "text" ? response.content[0].text.trim() : "{}"
+    const raw = response.choices[0]?.message?.content?.trim() || "{}"
 
     let parsed: ScoringBreakdown & { feedback: string }
     try {
-      // Strip any markdown code fences if present
       const cleaned = raw.replace(/^```json\n?/, "").replace(/\n?```$/, "")
       parsed = JSON.parse(cleaned)
     } catch {
-      // Fallback if parsing fails
       parsed = {
         opener: { passed: false, points: 0, maxPoints: 10, note: "Could not evaluate" },
         permission: { passed: false, points: 0, maxPoints: 10, note: "Could not evaluate" },
@@ -126,12 +122,7 @@ Return ONLY valid JSON in this exact format, no explanation:
 
     await prisma.mockCall.update({
       where: { id },
-      data: {
-        status: "completed",
-        score,
-        feedback,
-        scoringBreakdown,
-      },
+      data: { status: "completed", score, feedback, scoringBreakdown },
     })
 
     return NextResponse.json({ score, feedback, scoringBreakdown })

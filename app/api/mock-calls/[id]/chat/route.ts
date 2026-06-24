@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { withAuth } from "@/lib/auth/api-middleware"
-import Anthropic from "@anthropic-ai/sdk"
+import OpenAI from "openai"
 
 export const dynamic = "force-dynamic"
 
@@ -186,37 +186,34 @@ export const POST = withAuth<{ params: { id: string } }>(
 
     const history = (mockCall.messages as Message[]) ?? []
 
-    // Build Anthropic messages array (prospect messages = "assistant", user messages = "user")
-    const anthropicMessages: Anthropic.MessageParam[] = []
-
-    // Add history (skip the very first prospect opener since it's baked into system context)
-    for (const msg of history) {
-      if (msg.role === "prospect") {
-        anthropicMessages.push({ role: "assistant", content: msg.content })
-      } else {
-        anthropicMessages.push({ role: "user", content: msg.content })
-      }
-    }
-
-    // Add the new user message
-    anthropicMessages.push({ role: "user", content: userMessage })
-
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
+    const grokMessages: { role: "system" | "user" | "assistant"; content: string }[] = []
 
     const systemPrompt = character.systemPrompt +
       (mockCall.whatYouSell
         ? `\n\nWHAT THE CALLER IS PITCHING:\n"${mockCall.whatYouSell}"\n\nFactor this into how you react — if it's relevant to your role/company, show appropriate interest or skepticism. If it's irrelevant, push back naturally.`
         : "")
 
-    const response = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
+    grokMessages.push({ role: "system", content: systemPrompt })
+
+    for (const msg of history) {
+      if (msg.role === "prospect") {
+        grokMessages.push({ role: "assistant", content: msg.content })
+      } else {
+        grokMessages.push({ role: "user", content: msg.content })
+      }
+    }
+
+    grokMessages.push({ role: "user", content: userMessage })
+
+    const grok = new OpenAI({ apiKey: process.env.GROK_API_KEY!, baseURL: "https://api.x.ai/v1" })
+
+    const response = await grok.chat.completions.create({
+      model: "grok-3-mini-fast",
       max_tokens: 150,
-      system: systemPrompt,
-      messages: anthropicMessages,
+      messages: grokMessages,
     })
 
-    const prospectReply =
-      response.content[0].type === "text" ? response.content[0].text.trim() : "..."
+    const prospectReply = response.choices[0]?.message?.content?.trim() || "..."
 
     const updatedMessages: Message[] = [
       ...history,

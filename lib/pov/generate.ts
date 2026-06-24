@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk'
+import OpenAI from "openai"
 
 export interface POVData {
   whatTheyDo: string
@@ -104,12 +104,12 @@ export async function generatePOV(
   companyNews: string[],
   industryNews: string[],
 ): Promise<POVData> {
-  const anthropicKey = process.env.ANTHROPIC_API_KEY
-  if (!anthropicKey) {
-    throw new Error('ANTHROPIC_API_KEY not configured')
+  const grokKey = process.env.GROK_API_KEY
+  if (!grokKey) {
+    throw new Error('GROK_API_KEY not configured')
   }
 
-  const anthropic = new Anthropic({ apiKey: anthropicKey })
+  const anthropic = new OpenAI({ apiKey: grokKey, baseURL: "https://api.x.ai/v1" })
 
   const companyContext = companyNews.length > 0
     ? `Recent news about ${companyName}:\n${companyNews.join('\n')}`
@@ -135,13 +135,13 @@ Return ONLY this JSON (no markdown, no extra text):
   "exampleUseCase": "A concrete example of who uses them or what problem they solve. Example: 'Mid-market e-commerce brands use them to cut shipping costs by optimizing carrier selection in real-time'. Make it feel real and specific."
 }`
 
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-5-20250929',
+  const response = await anthropic.chat.completions.create({
+    model: "grok-3-mini-fast",
     max_tokens: 500,
-    messages: [{ role: 'user', content: prompt }],
+    messages: [{ role: "user", content: prompt }],
   })
 
-  const text = response.content[0].type === 'text' ? response.content[0].text : ''
+  const text = response.choices[0]?.message?.content || ""
 
   try {
     return JSON.parse(text) as POVData

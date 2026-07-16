@@ -83,7 +83,10 @@ export const POST = withAuth(async (
       // Process the current step based on type
       try {
         switch (currentStep.type) {
-          case 'email':
+          case 'email': {
+            if (!prospect.email) {
+              throw new Error(`Prospect ${prospect.id} has no email address`)
+            }
             // Create draft email in emailer
             await prisma.email.create({
               data: {
@@ -107,6 +110,7 @@ export const POST = withAuth(async (
             })
             emailsCreated++
             break
+          }
 
           case 'call':
             // Create task in task board for call
@@ -117,7 +121,7 @@ export const POST = withAuth(async (
                 description: currentStep.callScript || `Call ${prospect.name} from sequence "${sequence.name}"`,
                 type: 'follow_up',
                 status: 'to_do',
-                priority: 'high',
+                priority: currentStep.priority,
                 dueDate: now,
                 userId,
                 contact: {
@@ -153,7 +157,7 @@ export const POST = withAuth(async (
                 description: currentStep.taskNotes || `Reach out to ${prospect.name} on LinkedIn`,
                 type: 'linkedin',
                 status: 'to_do',
-                priority: 'medium',
+                priority: currentStep.priority,
                 dueDate: now,
                 userId,
                 contact: {
@@ -177,7 +181,7 @@ export const POST = withAuth(async (
                 description: currentStep.taskNotes || `Complete task for ${prospect.name}`,
                 type: 'follow_up',
                 status: 'to_do',
-                priority: 'medium',
+                priority: currentStep.priority,
                 dueDate: now,
                 userId,
                 contact: {

@@ -2,55 +2,24 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Badge } from "@/components/ui/badge"
 import {
-  Mail,
-  Phone,
-  Linkedin,
-  Clock,
-  Plus,
-  Trash2,
+  ChevronRight,
+  ChevronsUpDown,
+  ChevronsDownUp,
   ArrowLeft,
   Save,
-  ArrowUp,
-  ArrowDown,
-  FileText,
-  ClipboardList,
 } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/components/ui/use-toast"
-import { RichTextEditor } from "@/components/rich-text-editor"
 import { useUser } from "@/hooks/use-user"
 import { TrialLimitBanner } from "@/components/trial-limit-banner"
 import { TRIAL_LIMITS } from "@/lib/trial-limits"
-
-type StepType = "email" | "call" | "linkedin" | "task" | "wait"
-
-type SequenceStep = {
-  id?: string
-  type: StepType
-  name: string
-  order: number
-  delayDays: number
-  delayHours: number
-  emailSubject?: string
-  emailBody?: string
-  callScript?: string
-  taskNotes?: string
-}
-
-type EmailTemplate = {
-  id: string
-  name: string
-  subject: string
-  body: string
-  category: string
-}
+import { SequenceStepCard, type SequenceStep, type StepType } from "@/components/sequence-step-card"
+import { SequenceEmptyState, AddStepMenu, STEP_TYPE_OPTIONS } from "@/components/sequence-empty-state"
 
 export default function NewSequencePage() {
   const router = useRouter()
@@ -60,109 +29,85 @@ export default function NewSequencePage() {
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [steps, setSteps] = useState<SequenceStep[]>([])
-  const [editingStep, setEditingStep] = useState<number | null>(null)
-  const [templates, setTemplates] = useState<EmailTemplate[]>([])
+  const [collapsedIndexes, setCollapsedIndexes] = useState<Set<number>>(new Set())
+  const [templates, setTemplates] = useState<{ id: string; name: string; subject: string; body: string }[]>([])
   const [existingSequenceCount, setExistingSequenceCount] = useState<number | null>(null)
 
   const isTrial = user?.tier === 'trial' && user?.role !== 'super_admin'
   const atSequenceLimit = isTrial && existingSequenceCount !== null && existingSequenceCount >= TRIAL_LIMITS.sequences
+  const atStepLimit = isTrial && steps.length >= TRIAL_LIMITS.sequenceSteps
 
   useEffect(() => {
-    loadTemplates()
-    // Fetch existing sequence count for trial users
+    fetch("/api/email-templates")
+      .then((r) => (r.ok ? r.json() : { templates: [] }))
+      .then((d) => setTemplates(d.templates || []))
+      .catch(() => {})
+
     fetch("/api/sequences")
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.sequences) setExistingSequenceCount(d.sequences.length) })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.sequences) setExistingSequenceCount(d.sequences.length) })
       .catch(() => {})
   }, [])
 
-  const loadTemplates = async () => {
-    try {
-      const response = await fetch("/api/email-templates")
-      if (!response.ok) throw new Error("Failed to load templates")
-      const data = await response.json()
-      setTemplates(data.templates || [])
-    } catch (error) {
-      console.error("Error loading templates:", error)
-    }
+  const addStep = (type: StepType, afterIndex?: number) => {
+    if (atStepLimit) return
+    setSteps((prev) => {
+      const newStep: SequenceStep = {
+        type,
+        name: STEP_TYPE_OPTIONS.find((o) => o.type === type)?.label || type,
+        order: 0,
+        delayDays: prev.length === 0 ? 0 : 1,
+        delayHours: 0,
+        priority: "medium",
+      }
+      const insertAt = afterIndex === undefined ? prev.length : afterIndex + 1
+      const updated = [...prev.slice(0, insertAt), newStep, ...prev.slice(insertAt)]
+      return updated.map((s, i) => ({ ...s, order: i }))
+    })
   }
 
-  const loadTemplate = (index: number, templateId: string) => {
-    const template = templates.find(t => t.id === templateId)
-    if (template) {
-      updateStep(index, {
-        emailSubject: template.subject,
-        emailBody: template.body,
-      })
-      toast({
-        title: "Template loaded",
-        description: `"${template.name}" applied to this step`,
-      })
-    }
-  }
-
-  const addStep = (type: StepType) => {
-    const newStep: SequenceStep = {
-      type,
-      name: `${type.charAt(0).toUpperCase() + type.slice(1)} Step ${steps.length + 1}`,
-      order: steps.length,
-      delayDays: type === "wait" ? 1 : 0,
-      delayHours: 0,
-    }
-    setSteps([...steps, newStep])
-    setEditingStep(steps.length)
-  }
-
-  const updateStep = (index: number, updates: Partial<SequenceStep>) => {
-    const updated = [...steps]
-    updated[index] = { ...updated[index], ...updates }
-    setSteps(updated)
+  const updateStep = (index: number, patch: Partial<SequenceStep>) => {
+    setSteps((prev) => {
+      const updated = [...prev]
+      updated[index] = { ...updated[index], ...patch }
+      return updated
+    })
   }
 
   const deleteStep = (index: number) => {
-    const updated = steps.filter((_, i) => i !== index)
-    updated.forEach((step, i) => {
-      step.order = i
-    })
-    setSteps(updated)
-    setEditingStep(null)
+    setSteps((prev) => prev.filter((_, i) => i !== index).map((s, i) => ({ ...s, order: i })))
   }
 
   const moveStep = (index: number, direction: "up" | "down") => {
-    if (
-      (direction === "up" && index === 0) ||
-      (direction === "down" && index === steps.length - 1)
-    ) {
-      return
-    }
-
-    const updated = [...steps]
-    const targetIndex = direction === "up" ? index - 1 : index + 1
-    ;[updated[index], updated[targetIndex]] = [updated[targetIndex], updated[index]]
-
-    updated.forEach((step, i) => {
-      step.order = i
+    setSteps((prev) => {
+      if ((direction === "up" && index === 0) || (direction === "down" && index === prev.length - 1)) return prev
+      const updated = [...prev]
+      const target = direction === "up" ? index - 1 : index + 1
+      ;[updated[index], updated[target]] = [updated[target], updated[index]]
+      return updated.map((s, i) => ({ ...s, order: i }))
     })
-
-    setSteps(updated)
   }
+
+  const toggleCollapse = (index: number) => {
+    setCollapsedIndexes((prev) => {
+      const next = new Set(prev)
+      if (next.has(index)) next.delete(index)
+      else next.add(index)
+      return next
+    })
+  }
+
+  const collapseAll = () => setCollapsedIndexes(new Set(steps.map((_, i) => i)))
+  const expandAll = () => setCollapsedIndexes(new Set())
+  const allCollapsed = steps.length > 0 && collapsedIndexes.size === steps.length
 
   const saveSequence = async () => {
     if (!name.trim()) {
-      toast({
-        title: "Error",
-        description: "Sequence name is required",
-        variant: "destructive",
-      })
+      toast({ title: "Error", description: "Sequence name is required", variant: "destructive" })
       return
     }
-
     if (steps.length === 0) {
-      toast({
-        title: "Error",
-        description: "Add at least one step to the sequence",
-        variant: "destructive",
-      })
+      toast({ title: "Error", description: "Add at least one step to the sequence", variant: "destructive" })
       return
     }
 
@@ -171,74 +116,42 @@ export default function NewSequencePage() {
       const response = await fetch("/api/sequences", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          description,
-          steps: steps.map((step) => ({
-            type: step.type,
-            name: step.name,
-            delayDays: step.delayDays,
-            delayHours: step.delayHours,
-            emailSubject: step.emailSubject,
-            emailBody: step.emailBody,
-            callScript: step.callScript,
-            taskNotes: step.taskNotes,
-          })),
-        }),
+        body: JSON.stringify({ name, description, steps }),
       })
 
-      if (!response.ok) {
-        throw new Error("Failed to create sequence")
-      }
+      if (!response.ok) throw new Error("Failed to create sequence")
 
       const data = await response.json()
-
-      toast({
-        title: "Success",
-        description: "Sequence created successfully",
-      })
-
+      toast({ title: "Success", description: "Sequence created successfully" })
       router.push(`/sequences/${data.sequence.id}`)
     } catch (error: any) {
       console.error(error)
-      toast({
-        title: "Error",
-        description: "Failed to create sequence",
-        variant: "destructive",
-      })
+      toast({ title: "Error", description: "Failed to create sequence", variant: "destructive" })
     } finally {
       setSaving(false)
     }
   }
 
-  const getStepIcon = (type: StepType) => {
-    switch (type) {
-      case "email":
-        return <Mail className="h-4 w-4" />
-      case "call":
-        return <Phone className="h-4 w-4" />
-      case "linkedin":
-        return <Linkedin className="h-4 w-4" />
-      case "task":
-        return <ClipboardList className="h-4 w-4" />
-      case "wait":
-        return <Clock className="h-4 w-4" />
-    }
-  }
-
   return (
-    <div className="container mx-auto py-8 space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
+    <div className="space-y-4">
+      <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+        <button onClick={() => router.push("/sequences")} className="hover:text-foreground">Sequences</button>
+        <span>/</span>
+        <span className="text-foreground font-medium">{name || "New sequence"}</span>
+      </div>
+
+      <div className="flex items-center gap-3">
         <Button variant="outline" size="icon" onClick={() => router.push("/sequences")}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div>
-          <h1 className="text-xl font-semibold">Create Sequence</h1>
-          <p className="text-muted-foreground">Design your outreach workflow</p>
-        </div>
+        <Input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Name this sequence"
+          className="text-xl font-semibold h-10 max-w-sm"
+        />
         <Button onClick={saveSequence} disabled={saving || atSequenceLimit} className="ml-auto">
-          <Save className="mr-2 h-4 w-4" />
+          <Save className="h-4 w-4 mr-2" />
           {saving ? "Saving..." : "Save Sequence"}
         </Button>
       </div>
@@ -247,355 +160,63 @@ export default function NewSequencePage() {
         <TrialLimitBanner current={existingSequenceCount!} limit={TRIAL_LIMITS.sequences} resourceLabel="sequences" />
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left: Sequence Details */}
-        <div className="lg:col-span-1 space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Sequence Details</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="name">Name</Label>
-                <Input
-                  id="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g., Enterprise Cold Outreach"
-                />
-              </div>
-              <div>
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="What is this sequence for?"
-                  rows={3}
-                />
-              </div>
-            </CardContent>
-          </Card>
+      <div>
+        <Label htmlFor="description">Description</Label>
+        <Textarea
+          id="description"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="What is this sequence for? (optional)"
+          rows={2}
+          className="max-w-xl"
+        />
+      </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Add Step</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {user?.tier === 'trial' && user?.role !== 'super_admin' && (
-                <TrialLimitBanner current={steps.length} limit={TRIAL_LIMITS.sequenceSteps} resourceLabel="steps" className="mb-2" />
-              )}
-              <Button
-                onClick={() => addStep("email")}
-                variant="outline"
-                className="w-full justify-start"
-                disabled={user?.tier === 'trial' && user?.role !== 'super_admin' && steps.length >= TRIAL_LIMITS.sequenceSteps}
-              >
-                <Mail className="mr-2 h-4 w-4" />
-                Email
-              </Button>
-              <Button
-                onClick={() => addStep("call")}
-                variant="outline"
-                className="w-full justify-start"
-                disabled={user?.tier === 'trial' && user?.role !== 'super_admin' && steps.length >= TRIAL_LIMITS.sequenceSteps}
-              >
-                <Phone className="mr-2 h-4 w-4" />
-                Call
-              </Button>
-              <Button
-                onClick={() => addStep("linkedin")}
-                variant="outline"
-                className="w-full justify-start"
-                disabled={user?.tier === 'trial' && user?.role !== 'super_admin' && steps.length >= TRIAL_LIMITS.sequenceSteps}
-              >
-                <Linkedin className="mr-2 h-4 w-4" />
-                LinkedIn
-              </Button>
-              <Button
-                onClick={() => addStep("task")}
-                variant="outline"
-                className="w-full justify-start"
-                disabled={user?.tier === 'trial' && user?.role !== 'super_admin' && steps.length >= TRIAL_LIMITS.sequenceSteps}
-              >
-                <ClipboardList className="mr-2 h-4 w-4" />
-                Task
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
+      <div className="flex items-center justify-between pt-2">
+        <Badge variant="outline" className="gap-1 font-normal">
+          {steps.length} step{steps.length === 1 ? "" : "s"}
+          <ChevronRight className="h-3 w-3" />
+        </Badge>
+        {steps.length > 0 && (
+          <Button variant="outline" size="sm" onClick={allCollapsed ? expandAll : collapseAll}>
+            {allCollapsed ? <ChevronsUpDown className="h-4 w-4 mr-2" /> : <ChevronsDownUp className="h-4 w-4 mr-2" />}
+            {allCollapsed ? "Expand" : "Collapse"} steps
+          </Button>
+        )}
+      </div>
 
-        {/* Right: Steps Builder */}
-        <div className="lg:col-span-2 space-y-0">
-          {steps.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center text-muted-foreground">
-                <p>No steps added yet. Click a step type on the left to get started.</p>
-              </CardContent>
-            </Card>
-          ) : (
-            steps.map((step, index) => (
-              <div key={index} className="relative">
-                <Card className={editingStep === index ? "border-accent" : ""}>
-                  <CardHeader className="flex flex-row items-center justify-between pb-3">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary">Step {index + 1}</Badge>
-                      <div className="flex items-center gap-1">
-                        {getStepIcon(step.type)}
-                        <span className="font-medium">{step.name}</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => moveStep(index, "up")}
-                        disabled={index === 0}
-                      >
-                        <ArrowUp className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => moveStep(index, "down")}
-                        disabled={index === steps.length - 1}
-                      >
-                        <ArrowDown className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => deleteStep(index)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                  <div>
-                    <Label>Step Name</Label>
-                    <Input
-                      value={step.name}
-                      onChange={(e) => updateStep(index, { name: e.target.value })}
-                      placeholder="Name this step"
-                    />
-                  </div>
+      {isTrial && (
+        <TrialLimitBanner current={steps.length} limit={TRIAL_LIMITS.sequenceSteps} resourceLabel="steps" />
+      )}
 
-                  {step.type === "email" && (
-                    <>
-                      {templates.length > 0 && (
-                        <div>
-                          <Label>Load from Template</Label>
-                          <Select onValueChange={(value) => loadTemplate(index, value)}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Choose a template..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {templates.map((template) => (
-                                <SelectItem key={template.id} value={template.id}>
-                                  <div className="flex items-center gap-2">
-                                    <FileText className="h-4 w-4" />
-                                    {template.name}
-                                  </div>
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      )}
-                      <div>
-                        <Label>Email Subject</Label>
-                        <Input
-                          value={step.emailSubject || ""}
-                          onChange={(e) =>
-                            updateStep(index, { emailSubject: e.target.value })
-                          }
-                          placeholder="Email subject line"
-                        />
-                      </div>
-                      <div>
-                        <Label>Email Body</Label>
-                        <RichTextEditor
-                          content={step.emailBody || ""}
-                          onChange={(content) => updateStep(index, { emailBody: content })}
-                          placeholder="Write your email..."
-                        />
-                      </div>
-                    </>
-                  )}
-
-                  {step.type === "call" && (
-                    <div>
-                      <Label>Call Script</Label>
-                      <Textarea
-                        value={step.callScript || ""}
-                        onChange={(e) => updateStep(index, { callScript: e.target.value })}
-                        placeholder="Call script / talking points..."
-                        rows={6}
-                      />
-                    </div>
-                  )}
-
-                  {(step.type === "linkedin" || step.type === "task") && (
-                    <div>
-                      <Label>Task Notes</Label>
-                      <Textarea
-                        value={step.taskNotes || ""}
-                        onChange={(e) => updateStep(index, { taskNotes: e.target.value })}
-                        placeholder="Instructions for this step..."
-                        rows={4}
-                      />
-                    </div>
-                  )}
-
-                </CardContent>
-              </Card>
-
-              {/* Delay Adjuster Between Steps */}
+      {steps.length === 0 ? (
+        <SequenceEmptyState onAddStep={addStep} />
+      ) : (
+        <div className="space-y-6">
+          {steps.map((step, index) => (
+            <div key={index}>
+              <SequenceStepCard
+                step={step}
+                index={index}
+                totalSteps={steps.length}
+                templates={templates}
+                collapsed={collapsedIndexes.has(index)}
+                onToggleCollapse={() => toggleCollapse(index)}
+                onUpdate={(patch) => updateStep(index, patch)}
+                onDelete={() => deleteStep(index)}
+                onMove={(dir) => moveStep(index, dir)}
+              />
               {index < steps.length - 1 && (
-                <div className="relative flex items-center justify-center py-4">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t-2 border-dashed border-border"></div>
-                  </div>
-                  <div className="relative z-10 bg-background px-4">
-                    <Card className="border-2">
-                      <CardContent className="p-3">
-                        <div className="flex flex-col gap-3">
-                          <div className="flex items-center gap-4">
-                            <Clock className="h-4 w-4 text-muted-foreground" />
-
-                            <div className="flex items-center gap-2">
-                              <div className="flex flex-col items-center">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6"
-                                  onClick={() => updateStep(index, { delayDays: step.delayDays + 1 })}
-                                >
-                                  <ArrowUp className="h-3 w-3" />
-                                </Button>
-                                <div className="text-center px-2 py-1 min-w-[60px]">
-                                  <div className="text-lg font-bold">{step.delayDays}</div>
-                                  <div className="text-xs text-muted-foreground">days</div>
-                                </div>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6"
-                                  onClick={() => updateStep(index, { delayDays: Math.max(0, step.delayDays - 1) })}
-                                >
-                                  <ArrowDown className="h-3 w-3" />
-                                </Button>
-                              </div>
-
-                              <div className="flex flex-col items-center">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6"
-                                  onClick={() => updateStep(index, { delayHours: Math.min(23, step.delayHours + 1) })}
-                                >
-                                  <ArrowUp className="h-3 w-3" />
-                                </Button>
-                                <div className="text-center px-2 py-1 min-w-[60px]">
-                                  <div className="text-lg font-bold">{step.delayHours}</div>
-                                  <div className="text-xs text-muted-foreground">hours</div>
-                                </div>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6"
-                                  onClick={() => updateStep(index, { delayHours: Math.max(0, step.delayHours - 1) })}
-                                >
-                                  <ArrowDown className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            </div>
-
-                            <div className="text-sm text-muted-foreground">
-                              {step.delayDays === 0 && step.delayHours === 0 ? (
-                                <span>Immediate</span>
-                              ) : (
-                                <span>
-                                  Wait{" "}
-                                  {step.delayDays > 0 && `${step.delayDays}d`}
-                                  {step.delayDays > 0 && step.delayHours > 0 && " "}
-                                  {step.delayHours > 0 && `${step.delayHours}h`}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Quick presets */}
-                          <div className="flex gap-1 flex-wrap">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-6 text-xs"
-                              onClick={() => updateStep(index, { delayDays: 0, delayHours: 0 })}
-                            >
-                              Now
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-6 text-xs"
-                              onClick={() => updateStep(index, { delayDays: 0, delayHours: 2 })}
-                            >
-                              2h
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-6 text-xs"
-                              onClick={() => updateStep(index, { delayDays: 0, delayHours: 4 })}
-                            >
-                              4h
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-6 text-xs"
-                              onClick={() => updateStep(index, { delayDays: 1, delayHours: 0 })}
-                            >
-                              1d
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-6 text-xs"
-                              onClick={() => updateStep(index, { delayDays: 2, delayHours: 0 })}
-                            >
-                              2d
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-6 text-xs"
-                              onClick={() => updateStep(index, { delayDays: 3, delayHours: 0 })}
-                            >
-                              3d
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-6 text-xs"
-                              onClick={() => updateStep(index, { delayDays: 7, delayHours: 0 })}
-                            >
-                              1w
-                            </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
+                <div className="flex justify-center py-2">
+                  <AddStepMenu onAddStep={(type) => addStep(type, index)} compact disabled={atStepLimit} />
                 </div>
               )}
             </div>
-            ))
-          )}
+          ))}
+          <div className="w-px h-3 border-l border-dotted border-border mx-auto" />
+          <AddStepMenu onAddStep={addStep} disabled={atStepLimit} />
         </div>
-      </div>
+      )}
     </div>
   )
 }

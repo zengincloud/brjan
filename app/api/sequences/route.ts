@@ -93,6 +93,14 @@ export const GET = withAuth(async (
         steps: {
           orderBy: { order: 'asc' }
         },
+        user: {
+          select: {
+            firstName: true,
+            lastName: true,
+            email: true,
+            avatarUrl: true,
+          }
+        },
         _count: {
           select: {
             prospectSequences: {

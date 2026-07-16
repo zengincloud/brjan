@@ -1,0 +1,151 @@
+import { NextRequest, NextResponse } from "next/server"
+import { prisma } from "@/lib/prisma"
+import { withAuth } from "@/lib/auth/api-middleware"
+import OpenAI from "openai"
+
+export const dynamic = "force-dynamic"
+
+function parseNotes(notes: string | null): { text: string; date: string }[] {
+  if (!notes) return []
+  try {
+    const parsed = JSON.parse(notes)
+    if (Array.isArray(parsed)) return parsed
+    if (typeof parsed === "string") return [{ text: parsed, date: "" }]
+    return []
+  } catch {
+    if (notes.trim()) return [{ text: notes, date: "" }]
+    return []
+  }
+}
+
+// POST /api/sequences/ai-draft - Generate step content (email or call/task note) for a prospect
+export const POST = withAuth(async (
+  request: NextRequest,
+  userId: string
+) => {
+  try {
+    const body = await request.json()
+    const { prospectId, stepType, tone, guidelines, stepName } = body as {
+      prospectId?: string
+      stepType?: "email" | "call" | "linkedin" | "task"
+      tone?: string
+      guidelines?: string
+      stepName?: string
+    }
+
+    if (!stepType) {
+      return NextResponse.json({ error: "stepType is required" }, { status: 400 })
+    }
+
+    const grokKey = process.env.GROK_API_KEY
+    if (!grokKey) {
+      return NextResponse.json({ error: "AI service not configured" }, { status: 500 })
+    }
+
+    let prospectSection = "No specific prospect selected — write generic copy addressed to \"Bob\" that would work for a typical prospect, without inventing other specific personal details."
+
+    if (prospectId) {
+      const prospect = await prisma.prospect.findFirst({
+        where: { id: prospectId, userId },
+        select: {
+          name: true,
+          title: true,
+          company: true,
+          email: true,
+          notes: true,
+          povData: true,
+        },
+      })
+
+      if (!prospect) {
+        return NextResponse.json({ error: "Prospect not found" }, { status: 404 })
+      }
+
+      const noteEntries = parseNotes(prospect.notes)
+      const notesSection = noteEntries.length > 0
+        ? noteEntries.map(n => `- ${n.text}`).join("\n")
+        : "No notes recorded."
+
+      let povSection = "No point of view data available."
+      if (prospect.povData && typeof prospect.povData === "object") {
+        const pov = prospect.povData as Record<string, any>
+        const lines: string[] = []
+        if (pov.opportunity) lines.push(`Opportunity: ${pov.opportunity}`)
+        if (pov.industryContext) lines.push(`Industry context: ${pov.industryContext}`)
+        if (pov.howToHelp) lines.push(`How we can help: ${pov.howToHelp}`)
+        if (pov.angle) lines.push(`Angle: ${pov.angle}`)
+        if (pov.whatTheyDo) lines.push(`What they do: ${pov.whatTheyDo}`)
+        if (pov.specificIndustry) lines.push(`Specific industry: ${pov.specificIndustry}`)
+        if (pov.exampleUseCase) lines.push(`Use case: ${pov.exampleUseCase}`)
+        if (lines.length > 0) povSection = lines.join("\n")
+      }
+
+      prospectSection = `Prospect: ${prospect.name}${prospect.title ? `, ${prospect.title}` : ""}${prospect.company ? ` at ${prospect.company}` : ""}
+
+Notes from previous interactions:
+${notesSection}
+
+Point of view / research:
+${povSection}`
+    }
+
+    const toneLine = tone && tone !== "Default" ? `Tone: ${tone}.` : ""
+    const guidelinesLine = guidelines ? `Additional guidelines: ${guidelines}` : ""
+
+    const grok = new OpenAI({ apiKey: grokKey, baseURL: "https://api.x.ai/v1" })
+
+    if (stepType === "email") {
+      const response = await grok.chat.completions.create({
+        model: "grok-3-mini-fast",
+        max_tokens: 600,
+        messages: [
+          {
+            role: "user",
+            content: `You are a sales professional writing a sequence step called "${stepName || "Email"}". Write a concise, personalized outreach email to the prospect below. Use the notes and point of view context to make it relevant. Keep it short (3-4 sentences), human, and end with a clear ask or question. ${toneLine} ${guidelinesLine}
+
+${prospectSection}
+
+Return ONLY this JSON (no markdown, no extra text):
+{"subject": "...", "body": "..."}`,
+          },
+        ],
+      })
+
+      const text = response.choices[0]?.message?.content || ""
+      let result: { subject: string; body: string }
+      try {
+        result = JSON.parse(text)
+      } catch {
+        const jsonMatch = text.match(/\{[\s\S]*\}/)
+        if (jsonMatch) {
+          result = JSON.parse(jsonMatch[0])
+        } else {
+          return NextResponse.json({ error: "Failed to parse AI response" }, { status: 500 })
+        }
+      }
+
+      return NextResponse.json({ subject: result.subject, body: result.body })
+    }
+
+    // call / linkedin / task: generate a short note / talking-point guide
+    const kindLabel = stepType === "call" ? "call guide with 3-4 talking points" : stepType === "linkedin" ? "LinkedIn outreach note" : "task note"
+    const response = await grok.chat.completions.create({
+      model: "grok-3-mini-fast",
+      max_tokens: 400,
+      messages: [
+        {
+          role: "user",
+          content: `You are a sales professional preparing for a sequence step called "${stepName || stepType}". Write a short, personalized ${kindLabel} for the prospect below, grounded in their notes and point-of-view context. Plain text, no markdown. ${toneLine} ${guidelinesLine}
+
+${prospectSection}`,
+        },
+      ],
+    })
+
+    const note = response.choices[0]?.message?.content?.trim() || ""
+    return NextResponse.json({ note })
+  } catch (error: any) {
+    console.error("Error generating AI draft:", error)
+    return NextResponse.json({ error: "Failed to generate content" }, { status: 500 })
+  }
+})

@@ -119,6 +119,8 @@ export const PATCH = withAuth<{ params: { id: string } }>(async (
           emailBody: step.emailBody,
           callScript: step.callScript,
           taskNotes: step.taskNotes,
+          priority: step.priority || 'medium',
+          skipAfterDays: step.skipAfterDays ?? null,
         }
 
         if (step.id) {

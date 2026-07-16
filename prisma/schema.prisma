@@ -457,19 +457,21 @@ model Sequence {
 }
 
 model SequenceStep {
-  id           String           @id @default(cuid())
-  sequenceId   String
-  type         SequenceStepType
-  name         String
-  order        Int
-  delayDays    Int              @default(0)
-  delayHours   Int              @default(0)
-  emailSubject String?
-  emailBody    String?
-  callScript   String?
-  taskNotes    String?
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
+  id            String           @id @default(cuid())
+  sequenceId    String
+  type          SequenceStepType
+  name          String
+  order         Int
+  delayDays     Int              @default(0)
+  delayHours    Int              @default(0)
+  emailSubject  String?
+  emailBody     String?
+  callScript    String?
+  taskNotes     String?
+  priority      TaskPriority     @default(medium)
+  skipAfterDays Int?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
 
   sequence Sequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
 

@@ -13,7 +13,7 @@ export const PATCH = withAuth<{ params: { id: string; stepId: string } }>(async 
   const { params } = context!
   try {
     const body = await request.json()
-    const { type, name, delayDays, delayHours, emailSubject, emailBody, callScript, taskNotes } = body
+    const { type, name, delayDays, delayHours, emailSubject, emailBody, callScript, taskNotes, priority, skipAfterDays } = body
 
     // Verify sequence belongs to user
     const sequence = await prisma.sequence.findUnique({
@@ -51,6 +51,8 @@ export const PATCH = withAuth<{ params: { id: string; stepId: string } }>(async 
         emailBody,
         callScript,
         taskNotes,
+        priority,
+        skipAfterDays,
         updatedAt: new Date(),
       },
     })

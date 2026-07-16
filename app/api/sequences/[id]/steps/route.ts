@@ -14,7 +14,7 @@ export const POST = withAuth<{ params: { id: string } }>(async (
   const { params } = context!
   try {
     const body = await request.json()
-    const { type, name, delayDays, delayHours, emailSubject, emailBody, callScript, taskNotes } = body
+    const { type, name, delayDays, delayHours, emailSubject, emailBody, callScript, taskNotes, priority, skipAfterDays } = body
 
     // Verify sequence belongs to user
     const sequence = await prisma.sequence.findUnique({
@@ -57,6 +57,8 @@ export const POST = withAuth<{ params: { id: string } }>(async (
         emailBody,
         callScript,
         taskNotes,
+        priority: priority || 'medium',
+        skipAfterDays: skipAfterDays ?? null,
       },
     })
 

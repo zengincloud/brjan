@@ -81,6 +81,14 @@ export async function advanceSequenceStep(
     nextActionAt.setDate(nextActionAt.getDate() + nextStep.delayDays)
     nextActionAt.setHours(nextActionAt.getHours() + nextStep.delayHours)
 
+    // If next step has no delay, create the task/email before advancing state,
+    // so a failure here (e.g. prospect has no email) doesn't leave the
+    // sequence pointing at a step that never actually produced anything.
+    const hasNoDelay = nextStep.delayDays === 0 && nextStep.delayHours === 0
+    if (hasNoDelay && nextStep.type !== 'wait') {
+      await createTaskForStep(nextStep, prospect, sequence, userId)
+    }
+
     // Update the prospect sequence to the next step
     await prisma.prospectSequence.update({
       where: {
@@ -105,12 +113,6 @@ export async function advanceSequenceStep(
       },
     })
 
-    // If next step has no delay, immediately create the task/email
-    const hasNoDelay = nextStep.delayDays === 0 && nextStep.delayHours === 0
-    if (hasNoDelay && nextStep.type !== 'wait') {
-      await createTaskForStep(nextStep, prospect, sequence, userId)
-    }
-
     return {
       success: true,
       nextStep: { name: nextStep.name, type: nextStep.type },
@@ -133,11 +135,12 @@ export async function createTaskForStep(
     callScript?: string | null
     emailSubject?: string | null
     emailBody?: string | null
+    priority?: string | null
   },
   prospect: {
     id: string
     name: string
-    email: string
+    email: string | null
     phone?: string | null
     linkedin?: string | null
     company?: string | null
@@ -150,6 +153,9 @@ export async function createTaskForStep(
 
   switch (step.type) {
     case 'email': {
+      if (!prospect.email) {
+        throw new Error(`Cannot send email step "${step.name}": prospect ${prospect.id} has no email address`)
+      }
       const emailSubject = replaceEmailVariables(step.emailSubject || `Follow up with ${prospect.name}`, prospect)
       const emailBody = replaceEmailVariables(step.emailBody || '', prospect)
       await prisma.email.create({
@@ -183,7 +189,7 @@ export async function createTaskForStep(
             `Call ${prospect.name} from sequence "${sequence.name}"`,
           type: 'follow_up',
           status: 'to_do',
-          priority: 'high',
+          priority: (step.priority as any) || 'medium',
           dueDate: now,
           userId,
           contact: {
@@ -212,7 +218,7 @@ export async function createTaskForStep(
             `Reach out to ${prospect.name} on LinkedIn from sequence "${sequence.name}"`,
           type: 'linkedin',
           status: 'to_do',
-          priority: 'medium',
+          priority: (step.priority as any) || 'medium',
           dueDate: now,
           userId,
           contact: {
@@ -241,7 +247,7 @@ export async function createTaskForStep(
             `Complete task for ${prospect.name} from sequence "${sequence.name}"`,
           type: 'follow_up',
           status: 'to_do',
-          priority: 'medium',
+          priority: (step.priority as any) || 'medium',
           dueDate: now,
           userId,
           contact: {

@@ -47,7 +47,7 @@ export function normalizeCompanyName(name: string): string {
  * Returns the account if found, null otherwise.
  */
 export async function findMatchingAccount(userId: string, companyName: string) {
-  if (!companyName?.trim()) return null
+  if (typeof companyName !== "string" || !companyName.trim()) return null
 
   // First try exact case-insensitive match
   const exactMatch = await prisma.account.findFirst({
@@ -99,7 +99,7 @@ export async function findOrCreateAccount(
   companyName: string,
   enrichment?: AccountEnrichment
 ): Promise<string | null> {
-  if (!companyName?.trim()) return null
+  if (typeof companyName !== "string" || !companyName.trim()) return null
 
   // Enrichment can originate from external APIs (e.g. Wiza) whose fields
   // aren't guaranteed to match our expected types, so coerce defensively.

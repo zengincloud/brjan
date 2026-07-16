@@ -5,7 +5,7 @@
 
 // Map common city/state/country strings to IANA timezone
 export function getTimezoneFromLocation(location: string | null | undefined): string | null {
-  if (!location) return null
+  if (typeof location !== "string" || !location) return null
   const loc = location.toLowerCase().replace(/\./g, "")
   if (/new york|nyc|manhattan|brooklyn|new jersey|new brunswick|newark|nj\b|ny\b|connecticut|ct\b|boston|massachusetts|ma\b|philadelphia|pennsylvania|pa\b|washington.*dc|dc\b|virginia|va\b|maryland|md\b|maine|me\b|vermont|vt\b|new hampshire|nh\b|rhode island|ri\b|delaware|de\b|east coast/i.test(loc)) return "America/New_York"
   if (/chicago|illinois|il\b|wisconsin|wi\b|minnesota|mn\b|iowa|ia\b|missouri|mo\b|indiana|in\b|michigan|mi\b|ohio|oh\b|central time|midwest|nashville|tennessee|tn\b|memphis|milwaukee|detroit|cleveland|columbus|kansas city|omaha|nebraska|ne\b|north dakota|nd\b|south dakota|sd\b/i.test(loc)) return "America/Chicago"
@@ -68,7 +68,7 @@ const ABBR_TO_IANA: Record<string, string> = {
  * Returns a valid IANA timezone string or null.
  */
 export function normalizeTimezone(value: string | null | undefined): string | null {
-  if (!value) return null
+  if (typeof value !== "string" || !value) return null
   const trimmed = value.trim()
   if (!trimmed) return null
 

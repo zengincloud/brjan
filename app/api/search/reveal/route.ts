@@ -25,35 +25,47 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       )
     }
 
+    // Wiza's response fields aren't guaranteed to match the documented shape,
+    // so coerce to the expected type at this boundary rather than trusting `d`.
+    const str = (v: unknown): string | null => (typeof v === "string" && v ? v : null)
+    const num = (v: unknown): number | null => {
+      if (typeof v === "number" && !isNaN(v)) return v
+      if (typeof v === "string" && v.trim()) {
+        const parsed = parseInt(v, 10)
+        if (!isNaN(parsed)) return parsed
+      }
+      return null
+    }
+
     // Helper to extract reveal data from response
     const extractRevealData = (d: any) => ({
-      email: d.email || null,
-      emailType: d.email_type || null,
-      emailStatus: d.email_status || null,
-      emails: (d.emails || []).map((e: any) => ({
-        email: e.email,
-        type: e.type || e.email_type,
-        status: e.status || e.email_status,
+      email: str(d.email),
+      emailType: str(d.email_type),
+      emailStatus: str(d.email_status),
+      emails: (Array.isArray(d.emails) ? d.emails : []).map((e: any) => ({
+        email: str(e?.email),
+        type: str(e?.type || e?.email_type),
+        status: str(e?.status || e?.email_status),
       })),
-      phone: d.mobile_phone || d.phone_number || null,
-      phoneStatus: d.phone_status || null,
-      phones: (d.phones || []).map((p: any) => ({
-        number: p.number,
-        prettyNumber: p.number_pretty || p.pretty_number,
-        type: p.type,
+      phone: str(d.mobile_phone || d.phone_number),
+      phoneStatus: str(d.phone_status),
+      phones: (Array.isArray(d.phones) ? d.phones : []).map((p: any) => ({
+        number: str(p?.number),
+        prettyNumber: str(p?.number_pretty || p?.pretty_number),
+        type: str(p?.type),
       })),
-      name: d.name || null,
-      title: d.title || null,
-      company: d.company || null,
-      location: d.location || null,
-      linkedinUrl: d.linkedin_profile_url || null,
-      companySize: d.company_size || null,
-      companySizeRange: d.company_size_range || null,
-      companyIndustry: d.company_industry || null,
-      companyDomain: d.company_domain || null,
-      companyFounded: d.company_founded || null,
-      companyRevenue: d.company_revenue || null,
-      companyDescription: d.company_description || null,
+      name: str(d.name),
+      title: str(d.title),
+      company: str(d.company),
+      location: str(d.location),
+      linkedinUrl: str(d.linkedin_profile_url),
+      companySize: num(d.company_size),
+      companySizeRange: str(d.company_size_range),
+      companyIndustry: str(d.company_industry),
+      companyDomain: str(d.company_domain),
+      companyFounded: num(d.company_founded),
+      companyRevenue: str(d.company_revenue),
+      companyDescription: str(d.company_description),
     })
 
     // Helper to check if reveal data has actual contact info

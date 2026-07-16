@@ -385,6 +385,9 @@ export function LeadsProspecting() {
         setExcludedCompanies(state.excludedCompanies || [])
         setExcludedTitles(state.excludedTitles || [])
         setExcludedIndustries(state.excludedIndustries || [])
+        // Restore already-revealed contacts so refreshing doesn't burn Wiza
+        // credits re-revealing people we already paid to reveal this session
+        setRevealedContacts(state.revealedContacts || {})
       } catch (e) {
         console.error('Error loading saved state:', e)
       }
@@ -479,7 +482,20 @@ export function LeadsProspecting() {
           setSearchResults([result])
           setTotalResults(1)
           // Auto-store reveal data so it shows immediately
-          setRevealedContacts(prev => ({ ...prev, [linkedinUrl]: d }))
+          setRevealedContacts(prev => {
+            const next = { ...prev, [linkedinUrl]: d }
+            try {
+              const existing = sessionStorage.getItem('leadsProspectingState')
+              const state = existing ? JSON.parse(existing) : {}
+              state.searchResults = [result]
+              state.totalResults = 1
+              state.revealedContacts = next
+              sessionStorage.setItem('leadsProspectingState', JSON.stringify(state))
+            } catch {
+              // sessionStorage unavailable — reveal still succeeded, just won't survive a refresh
+            }
+            return next
+          })
 
           toast({
             title: "Contact found!",
@@ -724,10 +740,18 @@ export function LeadsProspecting() {
       console.log("Reveal response for", lead.name, ":", JSON.stringify(data, null, 2))
 
       if (data.success) {
-        setRevealedContacts(prev => ({
-          ...prev,
-          [leadId]: data.data,
-        }))
+        setRevealedContacts(prev => {
+          const next = { ...prev, [leadId]: data.data }
+          try {
+            const existing = sessionStorage.getItem('leadsProspectingState')
+            const state = existing ? JSON.parse(existing) : {}
+            state.revealedContacts = next
+            sessionStorage.setItem('leadsProspectingState', JSON.stringify(state))
+          } catch {
+            // sessionStorage unavailable — reveal still succeeded, just won't survive a refresh
+          }
+          return next
+        })
 
         // Update the search result with revealed data
         setSearchResults(prev =>

@@ -18,7 +18,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { RichTextEditor } from "@/components/rich-text-editor"
-import { TEMPLATE_VARIABLES } from "@/lib/template-variables"
+import { TEMPLATE_VARIABLES, replaceEmailVariables } from "@/lib/template-variables"
 import { useToast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
 import {
@@ -193,7 +193,6 @@ export function SequenceStepCard({
   const [aiPrompt, setAiPrompt] = useState("")
   const [research, setResearch] = useState<string[]>(["Executive Persona Research", "Strategic Company Research"])
   const [generating, setGenerating] = useState(false)
-  const [preview, setPreview] = useState<{ subject?: string; body: string } | null>(null)
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop")
 
   const researchOptions = [
@@ -236,7 +235,6 @@ export function SequenceStepCard({
       const data = await res.json()
       if (step.type === "email") {
         onUpdate({ emailSubject: data.subject, emailBody: data.body })
-        setPreview({ subject: data.subject, body: data.body })
       } else if (step.type === "call") {
         onUpdate({ callScript: data.note })
       } else {
@@ -365,7 +363,7 @@ export function SequenceStepCard({
                     variant="outline"
                     size="sm"
                     className="h-7 text-xs"
-                    disabled={!preview}
+                    disabled={!step.emailBody}
                     onClick={() => toast({ title: "Coming soon", description: "Sending test emails isn't wired up yet." })}
                   >
                     Send me a test mail
@@ -687,7 +685,7 @@ export function SequenceStepCard({
                 )}
               </div>
 
-              {/* RIGHT: generic preview */}
+              {/* RIGHT: live preview of whatever's in the email content fields — updates as you type, independent of AI generation */}
               {showRightPanel && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
@@ -695,7 +693,7 @@ export function SequenceStepCard({
                     <div className="flex items-center gap-2">
                       <button
                         className="p-1.5 rounded border border-border text-muted-foreground hover:text-foreground"
-                        title="Refresh preview"
+                        title="Regenerate with AI"
                         onClick={generateAiContent}
                       >
                         <RefreshCw className="h-3.5 w-3.5" />
@@ -717,16 +715,20 @@ export function SequenceStepCard({
                     </div>
                   </div>
 
-                  {preview && (
+                  {step.emailSubject || step.emailBody ? (
                     <div className={cn("rounded-lg border border-border overflow-hidden", device === "mobile" && "max-w-[320px] mx-auto")}>
                       <div className="p-3 space-y-1 text-xs border-b border-border bg-secondary/20">
                         <p><span className="text-muted-foreground">To:</span> bob@boilerroom.ai</p>
-                        <p><span className="text-muted-foreground">Subject:</span> {preview.subject}</p>
+                        <p><span className="text-muted-foreground">Subject:</span> {replaceEmailVariables(step.emailSubject || "", { name: "Bob" })}</p>
                       </div>
                       <div
                         className="p-3 text-sm prose prose-sm dark:prose-invert max-w-none"
-                        dangerouslySetInnerHTML={{ __html: preview.body }}
+                        dangerouslySetInnerHTML={{ __html: replaceEmailVariables(step.emailBody || "", { name: "Bob" }) }}
                       />
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
+                      Start typing a subject or body to see a preview here.
                     </div>
                   )}
                 </div>

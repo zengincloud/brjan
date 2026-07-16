@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -127,6 +127,7 @@ export function AddProspectDialog({ open, onOpenChange, onProspectAdded }: AddPr
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <DialogTitle className="text-base font-semibold">Create New Contact</DialogTitle>
+          <DialogDescription className="sr-only">Enter the contact's information to add them as a new prospect.</DialogDescription>
           <div className="flex items-center gap-2">
             <Button
               type="button"

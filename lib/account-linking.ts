@@ -101,16 +101,24 @@ export async function findOrCreateAccount(
 ): Promise<string | null> {
   if (!companyName?.trim()) return null
 
+  // Enrichment can originate from external APIs (e.g. Wiza) whose fields
+  // aren't guaranteed to match our expected types, so coerce defensively.
+  const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v : null)
+
   // Try to find existing account
   const existing = await findMatchingAccount(userId, companyName)
   if (existing) {
     // Backfill empty fields on the existing account
     if (enrichment) {
       const updates: Record<string, any> = {}
-      if (enrichment.industry && !existing.industry) updates.industry = enrichment.industry
-      if (enrichment.location && !existing.location) updates.location = enrichment.location
-      if (enrichment.website && !existing.website) updates.website = enrichment.website
-      if (enrichment.linkedin && !existing.linkedin) updates.linkedin = enrichment.linkedin
+      const industry = str(enrichment.industry)
+      const location = str(enrichment.location)
+      const website = str(enrichment.website)
+      const linkedin = str(enrichment.linkedin)
+      if (industry && !existing.industry) updates.industry = industry
+      if (location && !existing.location) updates.location = location
+      if (website && !existing.website) updates.website = website
+      if (linkedin && !existing.linkedin) updates.linkedin = linkedin
       if (enrichment.employees && !existing.employees) {
         const parsed = typeof enrichment.employees === "number" ? enrichment.employees : parseInt(String(enrichment.employees), 10)
         if (!isNaN(parsed)) updates.employees = parsed
@@ -127,10 +135,14 @@ export async function findOrCreateAccount(
     name: companyName.trim(),
     userId,
   }
-  if (enrichment?.industry) createData.industry = enrichment.industry
-  if (enrichment?.location) createData.location = enrichment.location
-  if (enrichment?.website) createData.website = enrichment.website
-  if (enrichment?.linkedin) createData.linkedin = enrichment.linkedin
+  const industry = str(enrichment?.industry)
+  const location = str(enrichment?.location)
+  const website = str(enrichment?.website)
+  const linkedin = str(enrichment?.linkedin)
+  if (industry) createData.industry = industry
+  if (location) createData.location = location
+  if (website) createData.website = website
+  if (linkedin) createData.linkedin = linkedin
   if (enrichment?.employees) {
     const parsed = typeof enrichment.employees === "number" ? enrichment.employees : parseInt(String(enrichment.employees), 10)
     if (!isNaN(parsed)) createData.employees = parsed

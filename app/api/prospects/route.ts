@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { ProspectStatus } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { withAuth } from "@/lib/auth/api-middleware"
 import { checkCredits, deductCredits } from "@/lib/credits"
@@ -118,7 +119,30 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
   try {
     const body = await request.json()
 
-    const { name, email, title, company, phone, location, timezone: tzParam, linkedin, notes, status, sequence, sequenceStep, wizaData } = body
+    // Request bodies can originate from Wiza-sourced data (reveal, bulk
+    // upload, extension) whose fields aren't guaranteed to be strings, so
+    // coerce every string-typed field once here rather than trusting body.*
+    // at each downstream use.
+    const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v : null)
+    // `status` is an enum with a non-nullable Prisma default — pass undefined
+    // (omit) rather than null for anything that isn't a recognized value, so
+    // Prisma applies the default instead of throwing on a bad/missing status.
+    const toProspectStatus = (v: unknown): ProspectStatus | undefined =>
+      typeof v === "string" && v in ProspectStatus ? (v as ProspectStatus) : undefined
+
+    const name = str(body.name)
+    const email = str(body.email)
+    const title = str(body.title)
+    const company = str(body.company)
+    const phone = str(body.phone)
+    const location = str(body.location)
+    const tzParam = str(body.timezone)
+    const linkedin = str(body.linkedin)
+    const notes = str(body.notes)
+    const status = toProspectStatus(body.status)
+    const sequence = str(body.sequence)
+    const sequenceStep = str(body.sequenceStep)
+    const wizaData = body.wizaData
 
     if (!name) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 })

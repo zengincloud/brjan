@@ -24,7 +24,20 @@ function toTitleCase(str: string | null | undefined): string {
 export const POST = withExtensionAuth(async (request: NextRequest, userId: string) => {
   try {
     const body = await request.json()
-    const { name, email, title, company, phone, location, linkedin, notes, wizaData } = body
+
+    // Request bodies originate from Wiza-sourced data (reveal, extension
+    // scrape), whose fields aren't guaranteed to be strings, so coerce
+    // every string-typed field once here rather than trusting body.* below.
+    const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v : null)
+    const name = str(body.name)
+    const email = str(body.email)
+    const title = str(body.title)
+    const company = str(body.company)
+    const phone = str(body.phone)
+    const location = str(body.location)
+    const linkedin = str(body.linkedin)
+    const notes = str(body.notes)
+    const wizaData = body.wizaData
 
     if (!name) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 })

@@ -1,6 +1,8 @@
 /**
  * Timezone utilities for mapping locations to IANA timezones.
  * Used at ingestion time (bulk upload, create, enrich) and as fallback in the dialer UI.
+ * Inputs may originate from external APIs (Wiza), so exported functions
+ * validate type at the boundary rather than assuming callers pass strings.
  */
 
 // Map common city/state/country strings to IANA timezone

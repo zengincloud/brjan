@@ -9,7 +9,7 @@ import { getValidAccessToken } from "@/lib/hubspot/oauth"
 export const dynamic = 'force-dynamic'
 
 function toTitleCase(str: string | null | undefined): string {
-  if (!str) return ""
+  if (typeof str !== "string" || !str) return ""
   return str
     .toLowerCase()
     .split(" ")

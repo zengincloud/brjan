@@ -174,30 +174,41 @@ export async function POST(
       )
     }
 
-    // Extract enriched data
+    // Extract enriched data. Wiza's response fields aren't guaranteed to
+    // match the documented shape, so coerce to the expected type here.
+    const str = (v: unknown): string | null => (typeof v === "string" && v ? v : null)
+    const num = (v: unknown): number | null => {
+      if (typeof v === "number" && !isNaN(v)) return v
+      if (typeof v === "string" && v.trim()) {
+        const parsed = parseInt(v, 10)
+        if (!isNaN(parsed)) return parsed
+      }
+      return null
+    }
+
     const enriched = {
-      email: revealData.email || null,
-      emails: (revealData.emails || []).map((e: any) => ({
-        email: e.email,
-        type: e.type || e.email_type,
-        status: e.status || e.email_status,
+      email: str(revealData.email),
+      emails: (Array.isArray(revealData.emails) ? revealData.emails : []).map((e: any) => ({
+        email: str(e?.email),
+        type: str(e?.type || e?.email_type),
+        status: str(e?.status || e?.email_status),
       })),
-      phone: revealData.mobile_phone || revealData.phone_number || null,
-      phones: (revealData.phones || []).map((p: any) => ({
-        number: p.number,
-        prettyNumber: p.number_pretty || p.pretty_number,
-        type: p.type,
+      phone: str(revealData.mobile_phone || revealData.phone_number),
+      phones: (Array.isArray(revealData.phones) ? revealData.phones : []).map((p: any) => ({
+        number: str(p?.number),
+        prettyNumber: str(p?.number_pretty || p?.pretty_number),
+        type: str(p?.type),
       })),
-      title: revealData.title || null,
-      location: revealData.location || null,
-      linkedinUrl: revealData.linkedin_profile_url || null,
-      companySize: revealData.company_size || null,
-      companySizeRange: revealData.company_size_range || null,
-      companyIndustry: revealData.company_industry || null,
-      companyDomain: revealData.company_domain || null,
-      companyFounded: revealData.company_founded || null,
-      companyRevenue: revealData.company_revenue || null,
-      companyDescription: revealData.company_description || null,
+      title: str(revealData.title),
+      location: str(revealData.location),
+      linkedinUrl: str(revealData.linkedin_profile_url),
+      companySize: num(revealData.company_size),
+      companySizeRange: str(revealData.company_size_range),
+      companyIndustry: str(revealData.company_industry),
+      companyDomain: str(revealData.company_domain),
+      companyFounded: num(revealData.company_founded),
+      companyRevenue: str(revealData.company_revenue),
+      companyDescription: str(revealData.company_description),
     }
 
     // --- Merge without overwriting existing data ---

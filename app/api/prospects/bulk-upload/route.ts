@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic'
 
 // Helper function to convert text to title case
 function toTitleCase(str: string | null | undefined): string {
-  if (!str) return ""
+  if (typeof str !== "string" || !str) return ""
   return str
     .toLowerCase()
     .split(" ")

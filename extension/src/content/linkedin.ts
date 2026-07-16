@@ -18,6 +18,23 @@ import './linkedin.css'
 
 // ——— DOM Scraping ———
 
+// Sales Nav profile URLs (/sales/lead/...) get rewritten to the regular
+// /in/username URL so the reveal cache key matches regardless of which
+// view the contact was revealed from.
+function getCanonicalLinkedinUrl(): string {
+  let linkedinUrl = window.location.href.split('?')[0]
+  if (isSalesNav()) {
+    const regularProfileLink = document.querySelector('a[href*="/in/"]') as HTMLAnchorElement | null
+    if (regularProfileLink?.href) {
+      const parsed = new URL(regularProfileLink.href)
+      if (parsed.pathname.startsWith('/in/')) {
+        linkedinUrl = `https://www.linkedin.com${parsed.pathname}`.split('?')[0]
+      }
+    }
+  }
+  return linkedinUrl
+}
+
 function scrapeProfileData(): LinkedInScrapedData {
   const onSalesNav = isSalesNav()
 
@@ -91,17 +108,7 @@ function scrapeProfileData(): LinkedInScrapedData {
   }
 
   // LinkedIn URL — for Sales Nav, try to extract the regular profile URL
-  let linkedinUrl = window.location.href.split('?')[0]
-  if (onSalesNav) {
-    // Sales Nav profile links sometimes contain a link back to the regular profile
-    const regularProfileLink = document.querySelector('a[href*="/in/"]') as HTMLAnchorElement | null
-    if (regularProfileLink?.href) {
-      const parsed = new URL(regularProfileLink.href)
-      if (parsed.pathname.startsWith('/in/')) {
-        linkedinUrl = `https://www.linkedin.com${parsed.pathname}`.split('?')[0]
-      }
-    }
-  }
+  const linkedinUrl = getCanonicalLinkedinUrl()
 
   // Profile picture
   let profilePictureUrl: string | undefined
@@ -257,7 +264,7 @@ async function checkCacheAndRender() {
   const body = document.getElementById('br-body')
   if (!body) return
 
-  const linkedinUrl = window.location.href.split('?')[0]
+  const linkedinUrl = getCanonicalLinkedinUrl()
   try {
     const cached = await sendMessage<(RevealResponse & { cachedAt?: number }) | null>({
       type: 'GET_CACHED_REVEAL',

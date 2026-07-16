@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic'
 // POST /api/search/people - Search for people using PDL Person Search API (no credits consumed for browsing)
 export const POST = withAuth(async (request: NextRequest, userId: string) => {
   function toTitleCase(str: string | null | undefined): string {
-    if (!str) return ""
+    if (typeof str !== "string" || !str) return ""
     return str.toLowerCase().split(" ").map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(" ")
   }
 

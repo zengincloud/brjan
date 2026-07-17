@@ -61,6 +61,7 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
           from: true,
           subject: true,
           bodyText: true,
+          bodyHtml: true,
           status: true,
           emailType: true,
           sentAt: true,

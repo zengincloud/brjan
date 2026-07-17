@@ -5,13 +5,14 @@ import { formatDistanceToNow, format } from "date-fns"
 import {
   Search, SlidersHorizontal, Settings2, ChevronDown, Mail, Globe,
   AlertTriangle, CheckCircle2, TrendingUp, Plus, Pencil, Trash2,
-  MoreHorizontal, ExternalLink, Eye, MousePointerClick, Send,
+  MoreHorizontal, ExternalLink, Eye, MousePointerClick, Send, Zap,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { EmailTemplateManager } from "@/components/email-template-manager"
 import { BRLoader } from "@/components/ui/br-loader"
+import { EmailReviewDialog } from "@/components/email-review-dialog"
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -20,12 +21,16 @@ type Email = {
   to: string
   from?: string | null
   subject?: string | null
+  bodyText?: string | null
+  bodyHtml?: string | null
+  emailType?: string | null
   status: string
   sentAt?: string | null
   openedAt?: string | null
   clickedAt?: string | null
   createdAt: string
   prospectId?: string | null
+  metadata?: any
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -110,7 +115,7 @@ function Th({ children, className }: { children?: React.ReactNode; className?: s
   )
 }
 
-function EmailTable({ emails, loading }: { emails: Email[]; loading: boolean }) {
+function EmailTable({ emails, loading, onSelect }: { emails: Email[]; loading: boolean; onSelect: (email: Email) => void }) {
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center py-24">
@@ -157,15 +162,27 @@ function EmailTable({ emails, loading }: { emails: Email[]; loading: boolean }) 
         </thead>
         <tbody>
           {emails.map((email) => (
-            <tr key={email.id} className="border-b border-border/60 hover:bg-muted/20 transition-colors group">
+            <tr
+              key={email.id}
+              onClick={() => onSelect(email)}
+              className="border-b border-border/60 hover:bg-muted/20 transition-colors group cursor-pointer"
+            >
               <td className="px-4 py-2.5 text-[13px] text-foreground">{email.to}</td>
-              <td className="px-4 py-2.5 text-[13px] text-muted-foreground truncate max-w-[280px]">{email.subject || '(no subject)'}</td>
+              <td className="px-4 py-2.5 text-[13px] text-muted-foreground truncate max-w-[280px]">
+                <div className="flex items-center gap-1.5">
+                  {email.emailType === 'sequence' && <Zap className="h-3 w-3 shrink-0 text-primary" />}
+                  <span className="truncate">{email.subject || '(no subject)'}</span>
+                </div>
+              </td>
               <td className="px-4 py-2.5"><StatusPill email={email} /></td>
               <td className="px-4 py-2.5 text-[12px] text-muted-foreground whitespace-nowrap">
                 {email.sentAt ? format(new Date(email.sentAt), 'MMM d, h:mm a') : email.createdAt ? formatDistanceToNow(new Date(email.createdAt), { addSuffix: true }) : '—'}
               </td>
               <td className="px-4 py-2.5 w-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button className="p-1 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground">
+                <button
+                  onClick={(e) => { e.stopPropagation(); onSelect(email) }}
+                  className="p-1 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+                >
                   <MoreHorizontal className="h-3.5 w-3.5" />
                 </button>
               </td>
@@ -185,15 +202,21 @@ export function EmailerDashboard({ isTrialUser }: { isTrialUser?: boolean }) {
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
   const [inboxFilter, setInboxFilter] = useState('My inbox')
+  const [selectedEmail, setSelectedEmail] = useState<Email | null>(null)
+  const [dialogOpen, setDialogOpen] = useState(false)
 
-  useEffect(() => {
-    if (tab !== 'all') return
+  const loadEmails = () => {
     setLoading(true)
     fetch('/api/emails?pageSize=100')
       .then(r => r.json())
       .then(d => setEmails(d.emails || []))
       .catch(() => {})
       .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    if (tab !== 'all') return
+    loadEmails()
   }, [tab])
 
   const filtered = emails.filter(e =>
@@ -293,7 +316,13 @@ export function EmailerDashboard({ isTrialUser }: { isTrialUser?: boolean }) {
 
       {/* Content */}
       <div className="flex-1 overflow-hidden flex flex-col">
-        {tab === 'all' && <EmailTable emails={filtered} loading={loading} />}
+        {tab === 'all' && (
+          <EmailTable
+            emails={filtered}
+            loading={loading}
+            onSelect={(email) => { setSelectedEmail(email); setDialogOpen(true) }}
+          />
+        )}
         {tab === 'templates' && (
           <div className="flex-1 overflow-auto px-6 py-5">
             <EmailTemplateManager />
@@ -308,6 +337,14 @@ export function EmailerDashboard({ isTrialUser }: { isTrialUser?: boolean }) {
           </div>
         )}
       </div>
+
+      <EmailReviewDialog
+        email={selectedEmail}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onSent={loadEmails}
+        onDeleted={loadEmails}
+      />
     </div>
   )
 }

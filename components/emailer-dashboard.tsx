@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { EmailTemplateManager } from "@/components/email-template-manager"
 import { BRLoader } from "@/components/ui/br-loader"
-import { EmailReviewDialog } from "@/components/email-review-dialog"
+import { EmailDetailPanel } from "@/components/email-detail-panel"
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -115,7 +115,8 @@ function Th({ children, className }: { children?: React.ReactNode; className?: s
   )
 }
 
-function EmailTable({ emails, loading, onSelect }: { emails: Email[]; loading: boolean; onSelect: (email: Email) => void }) {
+function EmailTable({ emails, loading, selectedId, onSelect }: { emails: Email[]; loading: boolean; selectedId?: string; onSelect: (email: Email) => void }) {
+  const compact = !!selectedId
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center py-24">
@@ -156,7 +157,7 @@ function EmailTable({ emails, loading, onSelect }: { emails: Email[]; loading: b
             <Th>To</Th>
             <Th>Subject</Th>
             <Th>Status</Th>
-            <Th>Sent</Th>
+            {!compact && <Th>Sent</Th>}
             <Th className="w-10" />
           </tr>
         </thead>
@@ -165,9 +166,12 @@ function EmailTable({ emails, loading, onSelect }: { emails: Email[]; loading: b
             <tr
               key={email.id}
               onClick={() => onSelect(email)}
-              className="border-b border-border/60 hover:bg-muted/20 transition-colors group cursor-pointer"
+              className={cn(
+                'border-b border-border/60 transition-colors group cursor-pointer',
+                email.id === selectedId ? 'bg-primary/5' : 'hover:bg-muted/20'
+              )}
             >
-              <td className="px-4 py-2.5 text-[13px] text-foreground">{email.to}</td>
+              <td className="px-4 py-2.5 text-[13px] text-foreground truncate max-w-[160px]">{email.to}</td>
               <td className="px-4 py-2.5 text-[13px] text-muted-foreground truncate max-w-[280px]">
                 <div className="flex items-center gap-1.5">
                   {email.emailType === 'sequence' && <Zap className="h-3 w-3 shrink-0 text-primary" />}
@@ -175,9 +179,11 @@ function EmailTable({ emails, loading, onSelect }: { emails: Email[]; loading: b
                 </div>
               </td>
               <td className="px-4 py-2.5"><StatusPill email={email} /></td>
-              <td className="px-4 py-2.5 text-[12px] text-muted-foreground whitespace-nowrap">
-                {email.sentAt ? format(new Date(email.sentAt), 'MMM d, h:mm a') : email.createdAt ? formatDistanceToNow(new Date(email.createdAt), { addSuffix: true }) : '—'}
-              </td>
+              {!compact && (
+                <td className="px-4 py-2.5 text-[12px] text-muted-foreground whitespace-nowrap">
+                  {email.sentAt ? format(new Date(email.sentAt), 'MMM d, h:mm a') : email.createdAt ? formatDistanceToNow(new Date(email.createdAt), { addSuffix: true }) : '—'}
+                </td>
+              )}
               <td className="px-4 py-2.5 w-10 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
                   onClick={(e) => { e.stopPropagation(); onSelect(email) }}
@@ -203,7 +209,6 @@ export function EmailerDashboard({ isTrialUser }: { isTrialUser?: boolean }) {
   const [search, setSearch] = useState('')
   const [inboxFilter, setInboxFilter] = useState('My inbox')
   const [selectedEmail, setSelectedEmail] = useState<Email | null>(null)
-  const [dialogOpen, setDialogOpen] = useState(false)
 
   const loadEmails = () => {
     setLoading(true)
@@ -315,13 +320,28 @@ export function EmailerDashboard({ isTrialUser }: { isTrialUser?: boolean }) {
       )}
 
       {/* Content */}
-      <div className="flex-1 overflow-hidden flex flex-col">
+      <div className="flex-1 overflow-hidden flex">
         {tab === 'all' && (
-          <EmailTable
-            emails={filtered}
-            loading={loading}
-            onSelect={(email) => { setSelectedEmail(email); setDialogOpen(true) }}
-          />
+          <>
+            <div className={cn('flex flex-col overflow-hidden transition-all duration-200', selectedEmail ? 'w-[480px] shrink-0' : 'flex-1')}>
+              <EmailTable
+                emails={filtered}
+                loading={loading}
+                selectedId={selectedEmail?.id}
+                onSelect={setSelectedEmail}
+              />
+            </div>
+            {selectedEmail && (
+              <div className="flex-1 overflow-hidden">
+                <EmailDetailPanel
+                  email={selectedEmail}
+                  onClose={() => setSelectedEmail(null)}
+                  onSent={() => { setSelectedEmail(null); loadEmails() }}
+                  onDeleted={() => { setSelectedEmail(null); loadEmails() }}
+                />
+              </div>
+            )}
+          </>
         )}
         {tab === 'templates' && (
           <div className="flex-1 overflow-auto px-6 py-5">
@@ -337,14 +357,6 @@ export function EmailerDashboard({ isTrialUser }: { isTrialUser?: boolean }) {
           </div>
         )}
       </div>
-
-      <EmailReviewDialog
-        email={selectedEmail}
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        onSent={loadEmails}
-        onDeleted={loadEmails}
-      />
     </div>
   )
 }

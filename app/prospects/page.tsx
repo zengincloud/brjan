@@ -172,11 +172,21 @@ function EmailRow({
   const [val, setVal] = useState(email)
   return (
     <div className="flex items-center gap-2 group py-1.5">
-      <button
-        onClick={() => !isPrimary && isEditing && onSetPrimary(email)}
-        title={isPrimary ? 'Primary' : isEditing ? 'Set as primary' : ''}
-        className={cn('shrink-0 w-2 h-2 rounded-full transition-colors', isPrimary ? 'bg-[hsl(100,78%,44%)]' : isEditing ? 'bg-border hover:bg-muted-foreground/50 cursor-pointer' : 'bg-border')}
-      />
+      {isPrimary ? (
+        <span title="Primary email" className="shrink-0 w-4 h-4 rounded-full bg-[hsl(100,78%,44%)] flex items-center justify-center">
+          <Check className="h-2.5 w-2.5 text-white stroke-[3]" />
+        </span>
+      ) : isEditing ? (
+        <button
+          onClick={() => onSetPrimary(email)}
+          title="Make primary"
+          className="shrink-0 w-4 h-4 rounded-full border border-border hover:border-[hsl(100,78%,44%)] hover:bg-[hsl(100,78%,44%)]/10 flex items-center justify-center transition-colors"
+        >
+          <Check className="h-2.5 w-2.5 text-transparent group-hover:text-[hsl(100,78%,44%)] stroke-[3] transition-colors" />
+        </button>
+      ) : (
+        <span className="shrink-0 w-4 h-4" />
+      )}
       {isEditing ? (
         <input
           value={val}
@@ -185,6 +195,14 @@ function EmailRow({
         />
       ) : (
         <a href={`mailto:${email}`} className="text-[13px] text-foreground hover:underline flex-1 truncate">{email}</a>
+      )}
+      {isEditing && !isPrimary && (
+        <button
+          onClick={() => onSetPrimary(email)}
+          className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0 text-[11px] font-medium text-muted-foreground hover:text-[hsl(100,78%,44%)]"
+        >
+          Make primary
+        </button>
       )}
       <button onClick={() => copyToClipboard(isEditing ? val : email)} title="Copy" className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
         <Copy className="h-3 w-3 text-muted-foreground hover:text-foreground" />
@@ -211,11 +229,21 @@ function PhoneRow({
   const [val, setVal] = useState(number)
   return (
     <div className="flex items-center gap-2 group py-1.5">
-      <button
-        onClick={() => !isPrimary && isEditing && onSetPrimary(number)}
-        title={isPrimary ? 'Primary' : isEditing ? 'Set as primary' : ''}
-        className={cn('shrink-0 w-2 h-2 rounded-full transition-colors', isPrimary ? 'bg-[hsl(100,78%,44%)]' : isEditing ? 'bg-border hover:bg-muted-foreground/50 cursor-pointer' : 'bg-border')}
-      />
+      {isPrimary ? (
+        <span title="Primary phone" className="shrink-0 w-4 h-4 rounded-full bg-[hsl(100,78%,44%)] flex items-center justify-center">
+          <Check className="h-2.5 w-2.5 text-white stroke-[3]" />
+        </span>
+      ) : isEditing ? (
+        <button
+          onClick={() => onSetPrimary(number)}
+          title="Make primary"
+          className="shrink-0 w-4 h-4 rounded-full border border-border hover:border-[hsl(100,78%,44%)] hover:bg-[hsl(100,78%,44%)]/10 flex items-center justify-center transition-colors"
+        >
+          <Check className="h-2.5 w-2.5 text-transparent group-hover:text-[hsl(100,78%,44%)] stroke-[3] transition-colors" />
+        </button>
+      ) : (
+        <span className="shrink-0 w-4 h-4" />
+      )}
       {isEditing ? (
         <input
           value={val}
@@ -232,6 +260,14 @@ function PhoneRow({
         </button>
       )}
       {type && <span className="text-[10px] bg-secondary text-muted-foreground px-1.5 py-0.5 rounded capitalize shrink-0">{type}</span>}
+      {isEditing && !isPrimary && (
+        <button
+          onClick={() => onSetPrimary(number)}
+          className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0 text-[11px] font-medium text-muted-foreground hover:text-[hsl(100,78%,44%)]"
+        >
+          Make primary
+        </button>
+      )}
       {!isEditing && (
         <button onClick={() => onCall(number)} title="Call" className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
           <Phone className="h-3 w-3 text-muted-foreground hover:text-accent" />

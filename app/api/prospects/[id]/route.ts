@@ -52,20 +52,22 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: "Prospect not found" }, { status: 404 })
     }
 
-    // Extract current step details if in an active sequence
+    // Extract current step details if in an active sequence. sequenceId/sequenceName
+    // are always populated here whenever there's an active ProspectSequence, even if
+    // the current step index is stale (e.g. the sequence's steps were edited/shortened
+    // after this prospect started it) — callers like "Remove from sequence" need the
+    // sequenceId regardless of whether the specific step still resolves.
     let currentStepDetails = null
     if (prospect.prospectSequences?.[0]) {
       const ps = prospect.prospectSequences[0]
       const currentStep = ps.sequence.steps[ps.currentStep]
-      if (currentStep) {
-        currentStepDetails = {
-          id: currentStep.id,
-          name: currentStep.name,
-          type: currentStep.type,
-          order: currentStep.order,
-          sequenceId: ps.sequenceId,
-          sequenceName: ps.sequence.name,
-        }
+      currentStepDetails = {
+        id: currentStep?.id ?? null,
+        name: currentStep?.name ?? null,
+        type: currentStep?.type ?? null,
+        order: currentStep?.order ?? null,
+        sequenceId: ps.sequenceId,
+        sequenceName: ps.sequence.name,
       }
     }
 

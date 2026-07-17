@@ -139,6 +139,28 @@ export const PATCH = withAuth<{ params: { id: string } }>(async (
           })
         }
       }
+
+      // If steps were removed, any prospect already sitting past the new end of the
+      // sequence has a currentStep index that no longer resolves to a real step.
+      // Treat them as having finished the sequence instead of leaving them dangling.
+      const strandedProspectSequences = await prisma.prospectSequence.findMany({
+        where: {
+          sequenceId: params.id,
+          status: 'active',
+          currentStep: { gte: steps.length },
+        },
+      })
+
+      if (strandedProspectSequences.length > 0) {
+        await prisma.prospectSequence.updateMany({
+          where: { id: { in: strandedProspectSequences.map(ps => ps.id) } },
+          data: { status: 'completed', completedAt: new Date(), nextActionAt: null },
+        })
+        await prisma.prospect.updateMany({
+          where: { id: { in: strandedProspectSequences.map(ps => ps.prospectId) } },
+          data: { status: 'contacted', sequence: null, sequenceStep: null },
+        })
+      }
     }
 
     const updatedSequence = await prisma.sequence.update({

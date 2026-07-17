@@ -52,10 +52,10 @@ type POVData = {
 }
 
 type CurrentStepDetails = {
-  id: string
-  name: string
-  type: 'email' | 'call' | 'linkedin' | 'task' | 'wait'
-  order: number
+  id: string | null
+  name: string | null
+  type: 'email' | 'call' | 'linkedin' | 'task' | 'wait' | null
+  order: number | null
   sequenceId: string
   sequenceName: string
 }
@@ -897,7 +897,7 @@ export default function ProspectDetailPage() {
                       Active
                     </Badge>
                   </div>
-                  {prospect.currentStepDetails ? (
+                  {prospect.currentStepDetails?.name && prospect.currentStepDetails?.type ? (
                     <div className="mt-3 p-2 rounded-md bg-background border">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -925,9 +925,13 @@ export default function ProspectDetailPage() {
                         )}
                       </div>
                     </div>
-                  ) : prospect.sequenceStep && (
+                  ) : prospect.sequenceStep ? (
                     <p className="text-xs text-muted-foreground">
                       Current step: {prospect.sequenceStep}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      This step no longer exists in the sequence (it may have been edited or removed).
                     </p>
                   )}
                 </div>
@@ -1162,6 +1166,10 @@ export default function ProspectDetailPage() {
             </a>
           </Button>
         )}
+        <Button variant="outline" onClick={() => setSequenceDialogOpen(true)}>
+          <Zap className="mr-2 h-4 w-4" />
+          {prospect.sequence || prospect.currentStepDetails ? "Change Sequence" : "Add to Sequence"}
+        </Button>
       </div>
 
       {/* LinkedIn Activity */}

@@ -259,6 +259,12 @@ function OverviewTab({ prospect, pov, loadingPov, onRefreshPov, isEditing, onCal
   const [emailsExpanded, setEmailsExpanded] = useState(false)
   const [phonesExpanded, setPhonesExpanded] = useState(false)
   const [settingPrimary, setSettingPrimary] = useState(false)
+  const [addingEmail, setAddingEmail] = useState(false)
+  const [newEmailValue, setNewEmailValue] = useState('')
+  const [savingEmail, setSavingEmail] = useState(false)
+  const [addingPhone, setAddingPhone] = useState(false)
+  const [newPhoneValue, setNewPhoneValue] = useState('')
+  const [savingPhone, setSavingPhone] = useState(false)
   const [composingEmail, setComposingEmail] = useState(false)
   const [emailDraft, setEmailDraft] = useState<{ subject: string; body: string; to: string } | null>(null)
 
@@ -339,15 +345,64 @@ function OverviewTab({ prospect, pov, loadingPov, onRefreshPov, isEditing, onCal
   const handleSetPrimaryPhone = async (number: string) => {
     setSettingPrimary(true)
     try {
-      const res = await fetch(`/api/prospects/${prospect.id}`, {
+      const res = await fetch(`/api/prospects/${prospect.id}/phones`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: prospect.name, email: prospect.email, phone: number }),
+        body: JSON.stringify({ number }),
       })
       if (res.ok) { toast({ title: 'Primary phone updated' }); onRefresh() }
+      else { const data = await res.json().catch(() => ({})); toast({ title: 'Error', description: data.error || 'Failed to update primary phone', variant: 'destructive' }) }
     } catch {
       toast({ title: 'Error', description: 'Failed to update primary phone', variant: 'destructive' })
     } finally { setSettingPrimary(false) }
+  }
+
+  const handleAddEmail = async () => {
+    const value = newEmailValue.trim()
+    if (!value) return
+    setSavingEmail(true)
+    try {
+      const res = await fetch(`/api/prospects/${prospect.id}/emails`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: value }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        toast({ title: 'Email added' })
+        setNewEmailValue('')
+        setAddingEmail(false)
+        onRefresh()
+      } else {
+        toast({ title: 'Error', description: data.error || 'Failed to add email', variant: 'destructive' })
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to add email', variant: 'destructive' })
+    } finally { setSavingEmail(false) }
+  }
+
+  const handleAddPhone = async () => {
+    const value = newPhoneValue.trim()
+    if (!value) return
+    setSavingPhone(true)
+    try {
+      const res = await fetch(`/api/prospects/${prospect.id}/phones`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ number: value }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        toast({ title: 'Phone added' })
+        setNewPhoneValue('')
+        setAddingPhone(false)
+        onRefresh()
+      } else {
+        toast({ title: 'Error', description: data.error || 'Failed to add phone', variant: 'destructive' })
+      }
+    } catch {
+      toast({ title: 'Error', description: 'Failed to add phone', variant: 'destructive' })
+    } finally { setSavingPhone(false) }
   }
 
   const handleCallNumber = (number: string) => {
@@ -421,6 +476,39 @@ function OverviewTab({ prospect, pov, loadingPov, onRefreshPov, isEditing, onCal
                 )}
               </>
             )}
+            {isEditing && (
+              <div className="ml-20 mb-1.5">
+                {addingEmail ? (
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      autoFocus
+                      type="email"
+                      value={newEmailValue}
+                      onChange={(e) => setNewEmailValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleAddEmail()
+                        if (e.key === 'Escape') { setAddingEmail(false); setNewEmailValue('') }
+                      }}
+                      placeholder="name@company.com"
+                      className="text-[13px] text-foreground flex-1 min-w-0 bg-transparent border-b border-border focus:border-accent outline-none"
+                    />
+                    <button onClick={handleAddEmail} disabled={savingEmail || !newEmailValue.trim()} title="Save" className="shrink-0 text-accent disabled:opacity-40">
+                      <Check className="h-3.5 w-3.5" />
+                    </button>
+                    <button onClick={() => { setAddingEmail(false); setNewEmailValue('') }} title="Cancel" className="shrink-0 text-muted-foreground hover:text-foreground">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setAddingEmail(true)}
+                    className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <Plus className="h-3 w-3" /> Add email
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Phones */}
@@ -469,6 +557,39 @@ function OverviewTab({ prospect, pov, loadingPov, onRefreshPov, isEditing, onCal
                   </div>
                 )}
               </>
+            )}
+            {isEditing && (
+              <div className="ml-20 mb-1.5">
+                {addingPhone ? (
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      autoFocus
+                      type="tel"
+                      value={newPhoneValue}
+                      onChange={(e) => setNewPhoneValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleAddPhone()
+                        if (e.key === 'Escape') { setAddingPhone(false); setNewPhoneValue('') }
+                      }}
+                      placeholder="+1 (555) 123-4567"
+                      className="text-[13px] text-foreground flex-1 min-w-0 bg-transparent border-b border-border focus:border-accent outline-none"
+                    />
+                    <button onClick={handleAddPhone} disabled={savingPhone || !newPhoneValue.trim()} title="Save" className="shrink-0 text-accent disabled:opacity-40">
+                      <Check className="h-3.5 w-3.5" />
+                    </button>
+                    <button onClick={() => { setAddingPhone(false); setNewPhoneValue('') }} title="Cancel" className="shrink-0 text-muted-foreground hover:text-foreground">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setAddingPhone(true)}
+                    className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <Plus className="h-3 w-3" /> Add phone
+                  </button>
+                )}
+              </div>
             )}
           </div>
 

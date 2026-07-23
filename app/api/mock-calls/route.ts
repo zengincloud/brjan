@@ -5,8 +5,6 @@ import { checkCredits, deductCredits } from "@/lib/credits"
 
 export const dynamic = "force-dynamic"
 
-const MOCK_CALL_CREDIT_COST = 2
-
 // GET /api/mock-calls - Get user's mock call history + stats
 export const GET = withAuth(async (_request: NextRequest, userId: string) => {
   const mockCalls = await prisma.mockCall.findMany({
@@ -37,7 +35,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
     return NextResponse.json({ error: "difficulty and character are required" }, { status: 400 })
   }
 
-  const creditCheck = await checkCredits(userId, MOCK_CALL_CREDIT_COST)
+  const creditCheck = await checkCredits(userId, "mock_call")
   if (!creditCheck.allowed) {
     return NextResponse.json(
       { error: creditCheck.error, creditsRemaining: creditCheck.creditsRemaining },
@@ -58,7 +56,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
     },
   })
 
-  await deductCredits(userId, MOCK_CALL_CREDIT_COST)
+  await deductCredits(userId, "mock_call")
 
   return NextResponse.json({ mockCall })
 })

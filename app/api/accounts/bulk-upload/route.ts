@@ -63,7 +63,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
     }
 
     // Check initial credits
-    const creditCheck = await checkCredits(userId)
+    const creditCheck = await checkCredits(userId, "account_created")
     if (!creditCheck.allowed) {
       return NextResponse.json({ error: creditCheck.error }, { status: 403 })
     }
@@ -75,7 +75,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
 
     for (const account of accounts) {
       // Check if user still has credits
-      const check = await checkCredits(userId)
+      const check = await checkCredits(userId, "account_created")
       if (!check.allowed) {
         creditsExhausted = true
         break
@@ -85,7 +85,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
         await prisma.account.create({
           data: account,
         })
-        await deductCredits(userId)
+        await deductCredits(userId, "account_created")
         created++
       } catch (error: any) {
         if (error.code === "P2002") {

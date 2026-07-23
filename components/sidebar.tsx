@@ -5,6 +5,7 @@ import {
   BarChart3,
   Calendar,
   ChevronDown,
+  ChevronRight,
   HomeIcon,
   Mail,
   Phone,
@@ -211,12 +212,16 @@ export function Sidebar({ className }: { className?: string }) {
           <>
             {/* Credits indicator */}
             {creditsRemaining !== null && (
-              <div className="flex items-center gap-2 px-2 py-1">
+              <Link
+                href="/credits"
+                className="flex items-center gap-2 px-2 py-1 rounded-md hover:bg-white/[0.05] transition-colors group/credits"
+              >
                 <CircleDot className="h-3.5 w-3.5 text-white/30 shrink-0" />
-                <span className="text-[12px] text-white/40">
+                <span className="text-[12px] text-white/40 group-hover/credits:text-white/60 transition-colors flex-1">
                   {creditsRemaining} credits remaining
                 </span>
-              </div>
+                <ChevronRight className="h-3 w-3 text-white/0 group-hover/credits:text-white/40 transition-colors shrink-0" />
+              </Link>
             )}
 
             {/* Upgrade button (trial users) */}

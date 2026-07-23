@@ -75,7 +75,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
     }
 
     // Check credits before creating
-    const creditCheck = await checkCredits(userId)
+    const creditCheck = await checkCredits(userId, "account_created")
     if (!creditCheck.allowed) {
       return NextResponse.json({ error: creditCheck.error }, { status: 403 })
     }
@@ -100,7 +100,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
     })
 
     // Deduct credit after successful creation
-    await deductCredits(userId)
+    await deductCredits(userId, "account_created")
 
     return NextResponse.json({ account }, { status: 201 })
   } catch (error: any) {

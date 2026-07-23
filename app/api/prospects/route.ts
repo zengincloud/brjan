@@ -159,7 +159,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
         )
       }
     } else {
-      const creditCheck = await checkCredits(userId)
+      const creditCheck = await checkCredits(userId, "prospect_created")
       if (!creditCheck.allowed) {
         return NextResponse.json({ error: creditCheck.error }, { status: 403 })
       }
@@ -208,7 +208,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
     })
 
     // Deduct credit after successful creation
-    await deductCredits(userId)
+    await deductCredits(userId, "prospect_created")
 
     // Push to HubSpot in background (non-blocking)
     getValidAccessToken(userId).then(async (hsToken) => {

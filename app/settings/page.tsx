@@ -786,6 +786,10 @@ export default function SettingsPage() {
                     )}
                   </div>
 
+                  <Button variant="outline" className="w-full" asChild>
+                    <a href="/credits">See what your credits went to</a>
+                  </Button>
+
                   {/* Upgrade / Manage buttons */}
                   {creditStatus.tier === "trial" ? (
                     <Button className="w-full bg-[hsl(100,78%,44%)] hover:bg-[hsl(100,78%,38%)] text-white shadow-[0_0_16px_hsl(100,78%,44%,0.25)]" asChild>

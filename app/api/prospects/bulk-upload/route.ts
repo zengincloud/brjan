@@ -153,7 +153,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       prospects.splice(allowed) // trim to remaining allowance
     } else {
       // Paid plans: check initial credits
-      const creditCheck = await checkCredits(userId)
+      const creditCheck = await checkCredits(userId, "prospect_created")
       if (!creditCheck.allowed) {
         return NextResponse.json({ error: creditCheck.error }, { status: 403 })
       }
@@ -170,7 +170,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
     for (const prospect of prospects) {
       // Paid plans: check if user still has credits
       if (bulkUser?.tier !== 'trial') {
-        const check = await checkCredits(userId)
+        const check = await checkCredits(userId, "prospect_created")
         if (!check.allowed) {
           creditsExhausted = true
           break
@@ -202,7 +202,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
           },
         })
         if (bulkUser?.tier !== 'trial') {
-          await deductCredits(userId)
+          await deductCredits(userId, "prospect_created")
         }
         created++
       } catch (error: any) {

@@ -71,7 +71,7 @@ export const POST = withExtensionAuth(async (request: NextRequest, userId: strin
       }
 
       // Check credits
-      const creditCheck = await checkCredits(userId)
+      const creditCheck = await checkCredits(userId, "prospect_created")
       if (!creditCheck.allowed) {
         return NextResponse.json({ error: creditCheck.error }, { status: 403 })
       }
@@ -137,7 +137,7 @@ export const POST = withExtensionAuth(async (request: NextRequest, userId: strin
         prospectId = prospect.id
         prospectCreated = true
 
-        await deductCredits(userId)
+        await deductCredits(userId, "prospect_created")
 
         // Push to HubSpot in background (non-blocking)
         getValidAccessToken(userId).then(async (hsToken) => {

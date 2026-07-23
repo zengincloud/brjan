@@ -4,8 +4,6 @@ import { prisma } from "@/lib/prisma"
 import { checkCredits, deductCredits } from "@/lib/credits"
 import twilio from "twilio"
 
-const ADDITIONAL_NUMBER_COST = 50 // credits per number after the first
-
 const twilioClient = twilio(
   process.env.TWILIO_ACCOUNT_SID,
   process.env.TWILIO_AUTH_TOKEN
@@ -39,7 +37,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
     // Check if this is the user's first number
     const existingCount = await prisma.phoneNumber.count({ where: { userId } })
     if (existingCount > 0) {
-      const creditCheck = await checkCredits(userId, ADDITIONAL_NUMBER_COST)
+      const creditCheck = await checkCredits(userId, "additional_phone_number")
       if (!creditCheck.allowed) {
         return NextResponse.json({ error: creditCheck.error }, { status: 402 })
       }
@@ -67,7 +65,7 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
 
     // Deduct credits for additional numbers (first is free)
     if (existingCount > 0) {
-      await deductCredits(userId, ADDITIONAL_NUMBER_COST)
+      await deductCredits(userId, "additional_phone_number")
     }
 
     return NextResponse.json({ phoneNumber: record })

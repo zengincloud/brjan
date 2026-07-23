@@ -70,6 +70,7 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
               id: true,
               name: true,
               email: true,
+              phone: true,
               company: true,
               title: true,
               accountId: true,

@@ -17,11 +17,13 @@ const outcomeLabels: Record<string, string> = {
   connected_referral: "Referral",
   connected_not_interested: "Not interested",
   connected_info_gathered: "Info Gathered",
+  callback: "Callback",
   voicemail: "Voicemail",
   no_answer: "No answer",
   busy: "Busy",
   failed: "Failed",
   gatekeeper: "Gatekeeper",
+  wrong_number: "Wrong number",
 }
 
 function formatDuration(seconds: number | null): string {
@@ -108,10 +110,13 @@ export default function CallsMadePage() {
     .slice(-14)
 
   // Build recent calls table from real data
-  const recentCalls = filteredCalls.slice(0, 10).map((c: any) => ({
+  const recentCalls = filteredCalls.map((c: any) => ({
     id: c.id,
-    contact: c.prospect?.name || c.to,
+    lineUsed: c.from || "--",
+    name: c.prospect?.name || "Unknown",
     company: c.prospect?.company || "--",
+    email: c.prospect?.email || "--",
+    phone: c.prospect?.phone || c.to || "--",
     date: format(new Date(c.createdAt), "yyyy-MM-dd HH:mm"),
     duration: formatDuration(c.duration),
     outcome: outcomeLabels[c.outcome] || c.outcome || c.status,
@@ -204,8 +209,10 @@ export default function CallsMadePage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Contact</TableHead>
+                  <TableHead>Name</TableHead>
                   <TableHead>Company</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Phone</TableHead>
                   <TableHead>Date & Time</TableHead>
                   <TableHead>Duration</TableHead>
                   <TableHead>Outcome</TableHead>
@@ -214,8 +221,13 @@ export default function CallsMadePage() {
               <TableBody>
                 {recentCalls.map((call) => (
                   <TableRow key={call.id}>
-                    <TableCell>{call.contact}</TableCell>
+                    <TableCell>
+                      <span className="text-[10px] text-muted-foreground mr-1.5">{call.lineUsed}</span>
+                      {call.name}
+                    </TableCell>
                     <TableCell>{call.company}</TableCell>
+                    <TableCell>{call.email}</TableCell>
+                    <TableCell>{call.phone}</TableCell>
                     <TableCell>{call.date}</TableCell>
                     <TableCell>{call.duration}</TableCell>
                     <TableCell>

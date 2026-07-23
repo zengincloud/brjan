@@ -8,7 +8,7 @@ import { addDays, format } from "date-fns"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Loader2 } from "lucide-react"
+import { Loader2, PhoneIncoming } from "lucide-react"
 import { BRLoader } from "@/components/ui/br-loader"
 
 const outcomeLabels: Record<string, string> = {
@@ -113,6 +113,7 @@ export default function CallsMadePage() {
   const recentCalls = filteredCalls.map((c: any) => ({
     id: c.id,
     lineUsed: c.from || "--",
+    isInbound: (c.metadata as any)?.direction === "inbound",
     name: c.prospect?.name || "Unknown",
     company: c.prospect?.company || "--",
     email: c.prospect?.email || "--",
@@ -224,6 +225,12 @@ export default function CallsMadePage() {
                     <TableCell>
                       <span className="text-[10px] text-muted-foreground mr-1.5">{call.lineUsed}</span>
                       {call.name}
+                      {call.isInbound && (
+                        <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5 py-0 h-4 align-middle gap-0.5">
+                          <PhoneIncoming className="h-2.5 w-2.5" />
+                          Inbound
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell>{call.company}</TableCell>
                     <TableCell>{call.email}</TableCell>

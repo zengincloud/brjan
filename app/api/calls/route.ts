@@ -65,6 +65,7 @@ export const GET = withAuth(async (request: NextRequest, userId: string) => {
           recordingDuration: true,
           transcription: true,
           transcriptionStatus: true,
+          metadata: true,
           prospect: {
             select: {
               id: true,

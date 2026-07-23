@@ -19,6 +19,7 @@ import {
   Search,
   X,
   Building2,
+  Delete,
 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { Device, Call as TwilioCall } from "@twilio/voice-sdk"
@@ -56,7 +57,20 @@ type AccountMatch = {
   location: string | null
 }
 
-const DIALPAD_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#"] as const
+const DIALPAD_KEYS = [
+  { key: "1", letters: "" },
+  { key: "2", letters: "ABC" },
+  { key: "3", letters: "DEF" },
+  { key: "4", letters: "GHI" },
+  { key: "5", letters: "JKL" },
+  { key: "6", letters: "MNO" },
+  { key: "7", letters: "PQRS" },
+  { key: "8", letters: "TUV" },
+  { key: "9", letters: "WXYZ" },
+  { key: "*", letters: "" },
+  { key: "0", letters: "+" },
+  { key: "#", letters: "" },
+] as const
 
 export function QuickDialDialog({
   open,
@@ -251,6 +265,7 @@ export function QuickDialDialog({
   }, [prospectSearch])
 
   const pressKey = (key: string) => setPhoneNumber((prev) => prev + key)
+  const backspace = () => setPhoneNumber((prev) => prev.slice(0, -1))
 
   const makeCall = async () => {
     const cleaned = phoneNumber.trim()
@@ -408,25 +423,41 @@ export function QuickDialDialog({
             <div className="space-y-3">
               <div className="space-y-1.5">
                 <Label htmlFor="phone-input">Phone Number</Label>
-                <Input
-                  id="phone-input"
-                  placeholder="+1 555 000 0000"
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && makeCall()}
-                  autoFocus
-                />
+                <div className="relative">
+                  <Input
+                    id="phone-input"
+                    placeholder="+1 555 000 0000"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && makeCall()}
+                    autoFocus
+                    className="text-center text-lg tracking-wide h-11 pr-9"
+                  />
+                  {phoneNumber && (
+                    <button
+                      type="button"
+                      onClick={backspace}
+                      aria-label="Delete last digit"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <Delete className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
               </div>
 
-              {/* Dialpad row */}
-              <div className="flex gap-1.5">
-                {DIALPAD_KEYS.map((key) => (
+              {/* Dialpad grid */}
+              <div className="grid grid-cols-3 gap-2.5 justify-items-center py-1">
+                {DIALPAD_KEYS.map(({ key, letters }) => (
                   <button
                     key={key}
                     onClick={() => pressKey(key)}
-                    className="flex-1 h-9 rounded-md border border-border bg-secondary/40 hover:bg-secondary text-sm font-medium text-foreground transition-colors"
+                    className="flex flex-col items-center justify-center h-14 w-14 rounded-full border border-border bg-secondary/40 hover:bg-secondary active:scale-95 transition-all"
                   >
-                    {key}
+                    <span className="text-lg font-medium text-foreground leading-none">{key}</span>
+                    {letters && (
+                      <span className="text-[9px] text-muted-foreground tracking-wide mt-0.5">{letters}</span>
+                    )}
                   </button>
                 ))}
               </div>

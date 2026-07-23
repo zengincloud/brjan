@@ -83,6 +83,7 @@ import { getLocalTime, getTimezoneAbbr, getTimezoneFromLocation } from "@/lib/ti
 import { useUser } from "@/hooks/use-user"
 import { TrialLimitBanner } from "@/components/trial-limit-banner"
 import { TRIAL_LIMITS } from "@/lib/trial-limits"
+import { forceHangupCall } from "@/lib/hangup-call"
 
 type CallStatus = "idle" | "ringing" | "connected" | "completed"
 
@@ -854,6 +855,7 @@ export default function DialerPage() {
         console.log("Call disconnected")
         activeCallRef.current = null
         setIsMuted(false)
+        forceHangupCall(data.callId)
 
         // Play hangup sound
         playHangupSound()
@@ -886,6 +888,7 @@ export default function DialerPage() {
         console.log("Call cancelled")
         try { deviceRef.current?.disconnectAll() } catch {}
         activeCallRef.current = null
+        forceHangupCall(data.callId)
 
         // Play hangup sound
         playHangupSound()
@@ -898,6 +901,7 @@ export default function DialerPage() {
         console.log("Call rejected")
         try { deviceRef.current?.disconnectAll() } catch {}
         activeCallRef.current = null
+        forceHangupCall(data.callId)
 
         // Play hangup sound
         playHangupSound()
@@ -912,6 +916,7 @@ export default function DialerPage() {
         try { call.disconnect() } catch {}
         try { deviceRef.current?.disconnectAll() } catch {}
         activeCallRef.current = null
+        forceHangupCall(data.callId)
 
         // Play hangup sound
         playHangupSound()
@@ -3851,7 +3856,13 @@ export default function DialerPage() {
         onNumberAdded={handleNumberAdded}
       />
 
-      <QuickDialDialog open={quickDialOpen} onOpenChange={setQuickDialOpen} />
+      <QuickDialDialog
+        open={quickDialOpen}
+        onOpenChange={setQuickDialOpen}
+        phoneNumbers={phoneNumbers}
+        selectedPhone={selectedPhone}
+        onSelectedPhoneChange={setSelectedPhone}
+      />
 
       <SalesfloorSheet open={salesfloorOpen} onOpenChange={setSalesfloorOpen} />
 

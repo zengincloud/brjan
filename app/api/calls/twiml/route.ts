@@ -171,7 +171,10 @@ export async function POST(request: NextRequest) {
       const AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN!
       const fromNumber = callerId || process.env.TWILIO_PHONE_NUMBER || ""
 
-      // Dial the prospect into the same conference via REST API (fire and forget)
+      // Dial the prospect into the same conference via REST API (fire and forget).
+      // Stash the resulting Call SID so the rep's "hang up" can force-terminate this
+      // specific leg later — endConferenceOnExit alone isn't reliable if the rep hangs
+      // up before this leg has actually joined the conference.
       twilio(ACCOUNT_SID, AUTH_TOKEN)
         .calls.create({
           to,
@@ -180,6 +183,14 @@ export async function POST(request: NextRequest) {
           statusCallback: `${baseUrl}/api/calls/status?callId=${callId}`,
           statusCallbackEvent: ["initiated", "ringing", "answered", "completed"],
           statusCallbackMethod: "POST",
+        })
+        .then(async (prospectCall) => {
+          const existing = await prisma.call.findUnique({ where: { id: callId! }, select: { metadata: true } })
+          const existingMeta = (existing?.metadata && typeof existing.metadata === "object" ? existing.metadata : {}) as Record<string, any>
+          await prisma.call.update({
+            where: { id: callId! },
+            data: { metadata: { ...existingMeta, prospectCallSid: prospectCall.sid } },
+          })
         })
         .catch((err: Error) => console.error("[twiml] prospect dial failed:", err))
 

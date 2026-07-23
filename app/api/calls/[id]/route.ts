@@ -6,8 +6,38 @@ import { pushContact, logCall as hubspotLogCall } from "@/lib/hubspot/client"
 import { getValidAccessToken } from "@/lib/hubspot/oauth"
 import { upsertContact, upsertAccount, logCallTask } from "@/lib/salesforce/client"
 import { getValidAccessToken as getSfToken } from "@/lib/salesforce/oauth"
+import twilio from "twilio"
 
 export const dynamic = 'force-dynamic'
+
+// Forcibly ends the prospect's PSTN leg (and the conference, as a fallback)
+// via the Twilio REST API. The browser SDK's call.disconnect() only ends the
+// rep's own leg — endConferenceOnExit is supposed to propagate that to the
+// prospect's leg too, but that only works once the prospect's leg has actually
+// joined the conference, so a rep hanging up early can leave the prospect's
+// phone connected. This makes "hang up" actually hang up.
+async function forceHangupProspectLeg(callId: string, metadata: unknown) {
+  const ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID
+  const AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN
+  if (!ACCOUNT_SID || !AUTH_TOKEN) return
+
+  const twilioClient = twilio(ACCOUNT_SID, AUTH_TOKEN)
+  const prospectCallSid = metadata && typeof metadata === "object" ? (metadata as any).prospectCallSid : undefined
+
+  if (prospectCallSid) {
+    await twilioClient.calls(prospectCallSid).update({ status: "completed" }).catch((err: any) => {
+      // 404 just means it already ended on its own — nothing to do
+      if (err?.status !== 404) console.error("[hangup] failed to end prospect leg:", err)
+    })
+  }
+
+  // Belt-and-suspenders: also end the conference directly in case some other
+  // participant (e.g. a supervisor listening in) is still connected.
+  await twilioClient.conferences
+    .list({ friendlyName: `conf-${callId}`, status: "in-progress", limit: 1 })
+    .then((conferences) => (conferences[0] ? twilioClient.conferences(conferences[0].sid).update({ status: "completed" }) : null))
+    .catch((err: any) => console.error("[hangup] failed to end conference:", err))
+}
 
 // PATCH /api/calls/[id] - Update call outcome and notes
 export const PATCH = withAuth<{ params: { id: string } }>(async (
@@ -18,7 +48,7 @@ export const PATCH = withAuth<{ params: { id: string } }>(async (
   const { params } = context!;
   try {
     const body = await request.json()
-    const { outcome, notes, duration, endedAt, twilioSid, status, startedAt, prospectId } = body
+    const { outcome, notes, duration, endedAt, twilioSid, status, startedAt, prospectId, hangup } = body
 
     const call = await prisma.call.findUnique({
       where: {
@@ -45,6 +75,10 @@ export const PATCH = withAuth<{ params: { id: string } }>(async (
 
     if (!call) {
       return NextResponse.json({ error: "Call not found" }, { status: 404 })
+    }
+
+    if (hangup) {
+      await forceHangupProspectLeg(call.id, call.metadata)
     }
 
     // Build update data

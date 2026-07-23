@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Phone,
   PhoneOff,
@@ -24,6 +25,7 @@ import {
 import { useToast } from "@/components/ui/use-toast"
 import { Device, Call as TwilioCall } from "@twilio/voice-sdk"
 import { cn } from "@/lib/utils"
+import { forceHangupCall } from "@/lib/hangup-call"
 
 type CallStatus = "idle" | "calling" | "ringing" | "in_progress" | "completed" | "failed"
 type CallOutcome =
@@ -75,9 +77,15 @@ const DIALPAD_KEYS = [
 export function QuickDialDialog({
   open,
   onOpenChange,
+  phoneNumbers,
+  selectedPhone,
+  onSelectedPhoneChange,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
+  phoneNumbers: { id: string; label: string }[]
+  selectedPhone: string
+  onSelectedPhoneChange: (phone: string) => void
 }) {
   const { toast } = useToast()
 
@@ -274,6 +282,10 @@ export function QuickDialDialog({
       toast({ title: "Not Ready", description: "Calling device is still initializing.", variant: "destructive" })
       return
     }
+    if (!selectedPhone) {
+      toast({ title: "No caller ID selected", description: "Get a phone number before placing calls.", variant: "destructive" })
+      return
+    }
 
     setCallStatus("calling")
 
@@ -281,14 +293,14 @@ export function QuickDialDialog({
       const response = await fetch("/api/calls/make", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to: cleaned }),
+        body: JSON.stringify({ to: cleaned, from: selectedPhone }),
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Failed to make call")
 
       setCallId(data.callId)
 
-      const call = await deviceRef.current.connect({ params: { To: cleaned, callId: data.callId } })
+      const call = await deviceRef.current.connect({ params: { To: cleaned, callId: data.callId, callerId: selectedPhone } })
       activeCallRef.current = call
 
       call.on("accept", async () => {
@@ -306,13 +318,14 @@ export function QuickDialDialog({
         }
       })
 
-      call.on("disconnect", () => { setCallStatus("completed"); activeCallRef.current = null })
-      call.on("cancel", () => { setCallStatus("failed"); activeCallRef.current = null })
-      call.on("reject", () => { setCallStatus("failed"); activeCallRef.current = null })
+      call.on("disconnect", () => { setCallStatus("completed"); activeCallRef.current = null; forceHangupCall(data.callId) })
+      call.on("cancel", () => { setCallStatus("failed"); activeCallRef.current = null; forceHangupCall(data.callId) })
+      call.on("reject", () => { setCallStatus("failed"); activeCallRef.current = null; forceHangupCall(data.callId) })
       call.on("error", (error) => {
         console.error("Call error:", error)
         setCallStatus("failed")
         activeCallRef.current = null
+        forceHangupCall(data.callId)
         toast({ title: "Call Error", description: error.message || "An error occurred during the call", variant: "destructive" })
       })
       call.on("sample", () => setCallStatus((prev) => prev === "ringing" ? "in_progress" : prev))
@@ -462,11 +475,33 @@ export function QuickDialDialog({
                 ))}
               </div>
 
+              {phoneNumbers.length > 0 ? (
+                <div className="space-y-1.5">
+                  <Label htmlFor="caller-id-select" className="text-xs">Caller ID</Label>
+                  <Select value={selectedPhone} onValueChange={onSelectedPhoneChange}>
+                    <SelectTrigger id="caller-id-select">
+                      <SelectValue placeholder="Select phone number" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {phoneNumbers.map((phone) => (
+                        <SelectItem key={phone.id} value={phone.id}>
+                          {phone.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground text-center">
+                  You don't have a phone number yet — get one from the dialer before calling.
+                </p>
+              )}
+
               <Button
                 onClick={makeCall}
                 className="w-full"
                 size="lg"
-                disabled={!deviceReady || !phoneNumber.trim()}
+                disabled={!deviceReady || !phoneNumber.trim() || !selectedPhone}
               >
                 <Phone className="mr-2 h-4 w-4" />
                 {deviceReady ? "Call" : "Initializing..."}

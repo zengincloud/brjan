@@ -9,6 +9,7 @@ import { Phone, PhoneOff, Voicemail, UserCheck, UserX, Clock, Mic, MicOff, Volum
 import { useToast } from "@/components/ui/use-toast"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Device, Call as TwilioCall } from "@twilio/voice-sdk"
+import { forceHangupCall } from "@/lib/hangup-call"
 
 type Prospect = {
   id: string
@@ -225,24 +226,28 @@ export function CallProspectDialog({
         console.log("Call disconnected")
         setCallStatus("completed")
         activeCallRef.current = null
+        forceHangupCall(data.callId)
       })
 
       call.on("cancel", () => {
         console.log("Call cancelled")
         setCallStatus("failed")
         activeCallRef.current = null
+        forceHangupCall(data.callId)
       })
 
       call.on("reject", () => {
         console.log("Call rejected")
         setCallStatus("failed")
         activeCallRef.current = null
+        forceHangupCall(data.callId)
       })
 
       call.on("error", (error) => {
         console.error("Call error:", error)
         setCallStatus("failed")
         activeCallRef.current = null
+        forceHangupCall(data.callId)
         toast({
           title: "Call Error",
           description: error.message || "An error occurred during the call",

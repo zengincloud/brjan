@@ -1,21 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { createClient } from "@/lib/supabase/server"
+import { digitsOnly, normalizePhones } from "@/lib/phone"
 
 export const dynamic = "force-dynamic"
-
-type PhoneEntry = { type?: string; number: string; prettyNumber?: string }
-
-function normalizePhones(raw: any): PhoneEntry[] {
-  if (!Array.isArray(raw)) return []
-  return raw.map((p: any) =>
-    typeof p === "string" ? { number: p } : { number: p?.number || "", type: p?.type, prettyNumber: p?.prettyNumber }
-  ).filter((p: PhoneEntry) => p.number)
-}
-
-function digitsOnly(value: string) {
-  return (value || "").replace(/\D/g, "")
-}
 
 async function getAuthedProspect(request: NextRequest, prospectId: string) {
   const supabase = await createClient()

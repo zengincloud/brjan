@@ -10,6 +10,7 @@ import { ImpersonationBanner } from "@/components/impersonation-banner"
 import { Menu, Search, Phone, Zap, User, Building2, Loader2, ClipboardList, Send, X, Mic, Mail, MessageSquare, BarChart2, FileText, Users, Calendar, Activity, Settings, UserCircle, Building, Plug, Bell, Shield, CreditCard, LayoutDashboard, type LucideIcon } from "lucide-react"
 import { UserProvider, useUser } from "@/hooks/use-user"
 import { VoiceOrb } from "@/components/voice-orb"
+import { IncomingCallWidget } from "@/components/incoming-call-widget"
 import { HubSpotIdentity } from "@/components/hubspot-identity"
 import { TodoPanel } from "@/components/todo-panel"
 import { UserRoleProvider } from "@/hooks/use-user-role"
@@ -88,6 +89,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         <DashboardStatsProvider>
           <DashboardShellInner>{children}</DashboardShellInner>
           <VoiceOrb />
+          <IncomingCallWidget />
           <HubSpotIdentity />
         </DashboardStatsProvider>
       </UserRoleProvider>

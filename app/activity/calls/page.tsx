@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Loader2, PhoneIncoming } from "lucide-react"
 import { BRLoader } from "@/components/ui/br-loader"
+import Link from "next/link"
 
 const outcomeLabels: Record<string, string> = {
   connected: "Connected",
@@ -114,6 +115,8 @@ export default function CallsMadePage() {
     id: c.id,
     lineUsed: c.from || "--",
     isInbound: (c.metadata as any)?.direction === "inbound",
+    prospectId: c.prospect?.id || null,
+    accountId: c.prospect?.accountId || null,
     name: c.prospect?.name || "Unknown",
     company: c.prospect?.company || "--",
     email: c.prospect?.email || "--",
@@ -224,7 +227,13 @@ export default function CallsMadePage() {
                   <TableRow key={call.id}>
                     <TableCell>
                       <span className="text-[10px] text-muted-foreground mr-1.5">{call.lineUsed}</span>
-                      {call.name}
+                      {call.prospectId ? (
+                        <Link href={`/prospects/${call.prospectId}`} className="hover:underline">
+                          {call.name}
+                        </Link>
+                      ) : (
+                        call.name
+                      )}
                       {call.isInbound && (
                         <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5 py-0 h-4 align-middle gap-0.5">
                           <PhoneIncoming className="h-2.5 w-2.5" />
@@ -232,7 +241,15 @@ export default function CallsMadePage() {
                         </Badge>
                       )}
                     </TableCell>
-                    <TableCell>{call.company}</TableCell>
+                    <TableCell>
+                      {call.accountId ? (
+                        <Link href={`/accounts/${call.accountId}`} className="hover:underline">
+                          {call.company}
+                        </Link>
+                      ) : (
+                        call.company
+                      )}
+                    </TableCell>
                     <TableCell>{call.email}</TableCell>
                     <TableCell>{call.phone}</TableCell>
                     <TableCell>{call.date}</TableCell>

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Phone, PhoneOff, Mic, MicOff, Delete } from "lucide-react"
+import { Phone, PhoneOff, Mic, MicOff, Delete, Grid3x3 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { Device, Call as TwilioCall } from "@twilio/voice-sdk"
 import { cn } from "@/lib/utils"
@@ -54,6 +54,8 @@ export function QuickDialDialog({
   const [startTime, setStartTime] = useState<number | null>(null)
   const [isMuted, setIsMuted] = useState(false)
   const [deviceReady, setDeviceReady] = useState(false)
+  const [showKeypad, setShowKeypad] = useState(false)
+  const [dtmfDigits, setDtmfDigits] = useState("")
 
   // Notes taken during the live call, handed off to CallOutcomePanel on completion
   const [notes, setNotes] = useState("")
@@ -121,12 +123,19 @@ export function QuickDialDialog({
         setStartTime(null)
         setIsMuted(false)
         setNotes("")
+        setShowKeypad(false)
+        setDtmfDigits("")
       }, 300)
     }
   }, [open])
 
   const pressKey = (key: string) => setPhoneNumber((prev) => prev + key)
   const backspace = () => setPhoneNumber((prev) => prev.slice(0, -1))
+
+  const sendDigit = (key: string) => {
+    activeCallRef.current?.sendDigits(key)
+    setDtmfDigits((prev) => prev + key)
+  }
 
   const makeCall = async () => {
     const cleaned = phoneNumber.trim()
@@ -141,6 +150,7 @@ export function QuickDialDialog({
     }
 
     setCallStatus("calling")
+    setDtmfDigits("")
 
     try {
       const response = await fetch("/api/calls/make", {
@@ -322,10 +332,45 @@ export function QuickDialDialog({
 
               <div className="space-y-2">
                 {callStatus === "in_progress" && (
-                  <Button onClick={toggleMute} variant="outline" className="w-full">
-                    {isMuted ? <><MicOff className="mr-2 h-4 w-4" /> Unmute</> : <><Mic className="mr-2 h-4 w-4" /> Mute</>}
-                  </Button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button onClick={toggleMute} variant="outline">
+                      {isMuted ? <><MicOff className="mr-2 h-4 w-4" /> Unmute</> : <><Mic className="mr-2 h-4 w-4" /> Mute</>}
+                    </Button>
+                    <Button
+                      onClick={() => setShowKeypad((prev) => !prev)}
+                      variant="outline"
+                      aria-pressed={showKeypad}
+                      className={cn(showKeypad && "bg-secondary")}
+                    >
+                      <Grid3x3 className="mr-2 h-4 w-4" />
+                      Keypad
+                    </Button>
+                  </div>
                 )}
+
+                {callStatus === "in_progress" && showKeypad && (
+                  <div className="space-y-2 p-3 rounded-lg border border-border bg-secondary/20">
+                    {dtmfDigits && (
+                      <p className="text-center text-sm tracking-wide text-muted-foreground truncate">{dtmfDigits}</p>
+                    )}
+                    <div className="grid grid-cols-3 gap-2.5 justify-items-center py-1">
+                      {DIALPAD_KEYS.map(({ key, letters }) => (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => sendDigit(key)}
+                          className="flex flex-col items-center justify-center h-12 w-12 rounded-full border border-border bg-background hover:bg-secondary active:scale-95 transition-all"
+                        >
+                          <span className="text-base font-medium text-foreground leading-none">{key}</span>
+                          {letters && (
+                            <span className="text-[8px] text-muted-foreground tracking-wide mt-0.5">{letters}</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <Button onClick={endCall} variant="destructive" className="w-full" size="lg">
                   <PhoneOff className="mr-2 h-4 w-4" />
                   End Call

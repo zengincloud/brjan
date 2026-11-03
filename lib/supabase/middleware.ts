@@ -5,6 +5,10 @@ import { NextResponse, type NextRequest } from 'next/server'
  * Create a Supabase client for use in Middleware.
  * This is used to refresh the session on every request.
  */
+// Force a fresh sign-in (via Google or password) after this many days
+const MAX_SESSION_DAYS = 30
+const MAX_SESSION_MS = MAX_SESSION_DAYS * 24 * 60 * 60 * 1000
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
@@ -38,8 +42,28 @@ export async function updateSession(request: NextRequest) {
   // issues with users being randomly logged out.
 
   const {
-    data: { user },
+    data: { user: authUser },
   } = await supabase.auth.getUser()
+  const user = authUser
+
+  // Expire sessions older than MAX_SESSION_DAYS. last_sign_in_at only changes on an
+  // actual sign-in (not on token refresh), so this forces a real re-login.
+  const isAuthRoute =
+    request.nextUrl.pathname.startsWith('/login') ||
+    request.nextUrl.pathname.startsWith('/auth')
+  if (user?.last_sign_in_at && !isAuthRoute) {
+    const signedInAt = new Date(user.last_sign_in_at).getTime()
+    if (Date.now() - signedInAt > MAX_SESSION_MS) {
+      await supabase.auth.signOut() // clears the auth cookies on supabaseResponse
+      const url = request.nextUrl.clone()
+      url.pathname = '/login'
+      url.search = ''
+      url.searchParams.set('redirect', request.nextUrl.pathname)
+      const redirectResponse = NextResponse.redirect(url)
+      supabaseResponse.cookies.getAll().forEach((c) => redirectResponse.cookies.set(c))
+      return redirectResponse
+    }
+  }
 
   // Redirect to login if user is not authenticated
   if (

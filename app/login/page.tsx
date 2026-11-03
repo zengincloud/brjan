@@ -85,6 +85,8 @@ function LoginContent() {
         provider: 'google',
         options: {
           redirectTo: `${siteUrl}/auth/callback?redirect=${redirect}`,
+          // Always show Google's account chooser so you can pick a different account
+          queryParams: { prompt: 'select_account' },
         },
       })
 

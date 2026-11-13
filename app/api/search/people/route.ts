@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from "next/server"
 import { withAuth } from "@/lib/auth/api-middleware"
+import {
+  type PersonResult,
+  type SearchCriteria,
+  dedupeKey,
+  searchMoltsets,
+  searchWiza,
+  splitLocationTags,
+} from "@/lib/people-search/providers"
 
 export const dynamic = 'force-dynamic'
 
-// POST /api/search/people - Search for people using PDL Person Search API (no credits consumed for browsing)
+// POST /api/search/people - Cascading people search: Moltsets > Wiza > PDL.
+// Each later source only fills the gap left by the earlier ones. A source that is
+// unconfigured or errors is skipped.
 export const POST = withAuth(async (request: NextRequest, userId: string) => {
   function toTitleCase(str: string | null | undefined): string {
     if (typeof str !== "string" || !str) return ""
@@ -240,8 +250,9 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
 
     console.log("PDL person search query:", JSON.stringify(esQuery, null, 2))
 
+    let pdlSize = limit
     const doSearch = async (q: any, token?: string) => {
-      const payload: any = { query: q, size: Math.min(limit, 30) }
+      const payload: any = { query: q, size: Math.min(pdlSize, 30) }
       if (token) payload.scroll_token = token
       const response = await fetch("https://api.peopledatalabs.com/v5/person/search", {
         method: "POST",
@@ -279,63 +290,173 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
           industry: person.job_company_industry || null,
           companyWebsite: person.job_company_website || null,
           buyerIntent: calculateBuyerIntent(person),
+          source: "pdl" as const,
         }
       })
 
       return { ok: true, profiles, total: data.total || 0, scrollToken: data.scroll_token || null }
     }
 
-    let result = await doSearch(esQuery, scrollToken)
+    // ---- PDL (last in the cascade), including its existing fallbacks ----
+    const runPdl = async (token: string | undefined, size: number) => {
+      pdlSize = size
+      const result = await doSearch(esQuery, token)
+      if (!result.ok) return result
 
-    if (!result.ok) {
-      return NextResponse.json(
-        { error: (result as any).errorData?.error?.message || "Failed to search people" },
-        { status: (result as any).status }
-      )
-    }
+      let profiles = result.profiles
 
-    let transformedResults = result.profiles
-    const totalCount = result.total
-
-    // Fallback: domain search got 0 → retry with company name only
-    if (transformedResults.length === 0 && companyDomain && currentCompany) {
-      console.log("Domain search returned 0, retrying with company name only...")
-      const withoutDomain = {
-        bool: {
-          must: [
-            ...mustClauses.filter((c: any) => !c.term?.job_company_website),
-            { match: { job_company_name: currentCompany.trim() } },
-          ],
-          ...(mustNotClauses.length > 0 ? { must_not: mustNotClauses } : {}),
-        },
+      // Fallback: domain search got 0 → retry with company name only
+      if (profiles.length === 0 && companyDomain && currentCompany) {
+        console.log("Domain search returned 0, retrying with company name only...")
+        const withoutDomain = {
+          bool: {
+            must: [
+              ...mustClauses.filter((c: any) => !c.term?.job_company_website),
+              { match: { job_company_name: currentCompany.trim() } },
+            ],
+            ...(mustNotClauses.length > 0 ? { must_not: mustNotClauses } : {}),
+          },
+        }
+        const fallback = await doSearch(withoutDomain)
+        if (fallback.ok && fallback.profiles.length > 0) profiles = fallback.profiles
       }
-      const fallback = await doSearch(withoutDomain)
-      if (fallback.ok && fallback.profiles.length > 0) transformedResults = fallback.profiles
-    }
 
-    // Fallback: any search + company got 0 → retry without company constraint
-    // (PDL may store the company name differently than what the user typed)
-    if (transformedResults.length === 0 && currentCompany && (query || isNameSearch || nameFilter || jobTitle?.length)) {
-      console.log("Name + company returned 0, retrying without company filter...")
-      const withoutCompany = {
-        bool: {
-          must: mustClauses.filter((c: any) => !c.match?.job_company_name && !c.term?.job_company_website),
-          ...(mustNotClauses.length > 0 ? { must_not: mustNotClauses } : {}),
-        },
+      // Fallback: any search + company got 0 → retry without company constraint
+      // (PDL may store the company name differently than what the user typed)
+      if (profiles.length === 0 && currentCompany && (query || isNameSearch || nameFilter || jobTitle?.length)) {
+        console.log("Name + company returned 0, retrying without company filter...")
+        const withoutCompany = {
+          bool: {
+            must: mustClauses.filter((c: any) => !c.match?.job_company_name && !c.term?.job_company_website),
+            ...(mustNotClauses.length > 0 ? { must_not: mustNotClauses } : {}),
+          },
+        }
+        const fallback = await doSearch(withoutCompany)
+        if (fallback.ok && fallback.profiles.length > 0) profiles = fallback.profiles
       }
-      const fallback = await doSearch(withoutCompany)
-      if (fallback.ok && fallback.profiles.length > 0) transformedResults = fallback.profiles
+
+      return { ...result, profiles }
     }
 
-    // Client-side: filter excluded names
-    if (excludedNames?.length) {
-      const excludeLower = excludedNames.map((n: string) => n.toLowerCase())
-      transformedResults = transformedResults.filter((r: any) =>
-        !excludeLower.some((name: string) => r.name.toLowerCase().includes(name))
-      )
+    // ---- Shared criteria for Moltsets / Wiza ----
+    const asList = (v: any): string[] =>
+      (Array.isArray(v) ? v : v ? [v] : []).filter((x: any) => typeof x === "string" && x.trim()).map((x: string) => x.trim())
+    const regionCountries: Record<string, string[]> = {
+      "north-america": ["United States", "Canada"],
+      "europe": ["United Kingdom", "Germany", "France", "Spain", "Italy", "Netherlands", "Sweden", "Switzerland"],
+      "asia-pacific": ["Australia", "Japan", "India", "Singapore", "China", "South Korea"],
+      "latin-america": ["Brazil", "Mexico", "Argentina", "Colombia", "Chile"],
+      "middle-east": ["United Arab Emirates", "Saudi Arabia", "Israel", "Qatar"],
+    }
+    const tags = splitLocationTags(asList(city))
+    const nameText = nameFilter ? String(nameFilter).trim() : ""
+    const criteria: SearchCriteria = {
+      query: nameText || (query && !jobTitle?.length ? String(query).trim() : undefined),
+      queryIsName: !!nameText || isNameSearch,
+      titles: asList(jobTitle),
+      excludedTitles: asList(excludedTitles),
+      company: currentCompany ? String(currentCompany).trim() : undefined,
+      companyDomain: companyDomain ? String(companyDomain).trim().toLowerCase() : undefined,
+      excludedCompanies: asList(excludedCompanies),
+      jobFunction: jobFunction ? String(jobFunction).toLowerCase() : undefined,
+      seniority: asList(seniorityLevel),
+      headcount: companyHeadcount?.length === 2 ? [companyHeadcount[0], companyHeadcount[1]] : undefined,
+      countries: [...(geography ? regionCountries[String(geography).toLowerCase()] || [] : []), ...tags.countries],
+      cities: tags.cities,
+      industries: asList(industry).map(i => i.toLowerCase()),
+      excludedIndustries: asList(excludedIndustries).map(i => i.toLowerCase()),
     }
 
-    return NextResponse.json({ results: transformedResults, total: totalCount || transformedResults.length, limit, scrollToken: result.scrollToken })
+    // ---- Cursor: opaque to the client, round-tripped via scrollToken ----
+    type Cursor = { src: "moltsets" | "pdl"; offset?: number; token?: string }
+    const encode = (c: Cursor) => Buffer.from(JSON.stringify(c)).toString("base64url")
+    const decode = (t?: string): Cursor => {
+      if (!t) return { src: "moltsets", offset: 0 }
+      try {
+        const c = JSON.parse(Buffer.from(t, "base64url").toString())
+        if (c?.src === "moltsets" || c?.src === "pdl") return c
+      } catch {}
+      return { src: "pdl", token: t } // legacy raw PDL token
+    }
+    const cursor = decode(scrollToken)
+
+    // ---- Cascade ----
+    const pageSize = Math.min(Math.max(Number(limit) || 30, 1), 30)
+    const seen = new Set<string>()
+    let collected: PersonResult[] = []
+    const add = (list: PersonResult[]) => {
+      for (const p of list) {
+        const k = dedupeKey(p)
+        if (seen.has(k) || collected.length >= pageSize) continue
+        seen.add(k)
+        collected.push(p)
+      }
+    }
+    let totalCount = 0
+    let nextCursor: Cursor | null = null
+    let reachedPdl = cursor.src === "pdl"
+
+    if (cursor.src === "moltsets") {
+      const offset = cursor.offset || 0
+      // Moltsets caps a page at 25
+      const m = await searchMoltsets(criteria, Math.min(pageSize, 25), offset).catch(() => null)
+      if (m) {
+        add(m.profiles)
+        totalCount = m.total
+        const consumed = offset + m.profiles.length
+        if (m.profiles.length >= Math.min(pageSize, 25) && consumed < m.total) {
+          nextCursor = { src: "moltsets", offset: consumed }
+        }
+      }
+      // Wiza has no paging, so it only tops up the first page
+      if (collected.length < pageSize && offset === 0 && !nextCursor) {
+        const w = await searchWiza(criteria, pageSize - collected.length).catch(() => null)
+        if (w) {
+          add(w.profiles)
+          totalCount = Math.max(totalCount, w.total)
+        }
+      }
+      reachedPdl = !nextCursor && collected.length < pageSize
+      if (!nextCursor && !reachedPdl) nextCursor = { src: "pdl" } // page filled; continue with PDL next
+    }
+
+    let pdlScroll: string | null = null
+    if (reachedPdl) {
+      const need = pageSize - collected.length
+      // Over-fetch a little so de-duplication against earlier sources still fills the page
+      const r = await runPdl(cursor.src === "pdl" ? cursor.token : undefined, Math.min(need > 0 ? need + collected.length : pageSize, 30))
+      if (!r.ok) {
+        if (collected.length === 0) {
+          return NextResponse.json(
+            { error: (r as any).errorData?.error?.message || "Failed to search people" },
+            { status: (r as any).status }
+          )
+        }
+      } else {
+        add(r.profiles)
+        totalCount = Math.max(totalCount, r.total)
+        pdlScroll = r.scrollToken
+        if (pdlScroll) nextCursor = { src: "pdl", token: pdlScroll }
+      }
+    }
+
+    // Client-side: excluded names / companies / titles (not all sources filter these natively)
+    const lc = (v: any) => asList(v).map(x => x.toLowerCase())
+    const exNames = lc(excludedNames)
+    const exCompanies = lc(excludedCompanies)
+    const exTitles = lc(excludedTitles)
+    let transformedResults = collected.filter(r =>
+      !exNames.some(n => r.name.toLowerCase().includes(n)) &&
+      !exCompanies.some(c => r.company.toLowerCase().includes(c)) &&
+      !exTitles.some(t => r.title.toLowerCase().includes(t))
+    )
+
+    return NextResponse.json({
+      results: transformedResults,
+      total: totalCount || transformedResults.length,
+      limit,
+      scrollToken: nextCursor ? encode(nextCursor) : null,
+    })
   } catch (error: any) {
     console.error("Error searching people:", error)
     return NextResponse.json({ error: error.message || "Failed to search people" }, { status: 500 })

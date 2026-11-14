@@ -195,9 +195,6 @@ export async function searchMoltsets(
   if (data.status !== "ok") return { profiles: [], total: 0 }
   const rows: any[] = data.results?.results || []
   const profiles: PersonResult[] = rows.map(p => {
-    const emails = [p.business_email, ...(p.personal_emails || []), p.personal_email]
-      .filter((e): e is string => typeof e === "string" && !!e)
-    const uniqueEmails = [...new Set(emails)]
     const linkedin = p.linkedin_url ? (p.linkedin_url.startsWith("http") ? p.linkedin_url : `https://${p.linkedin_url}`) : null
     const website = p.company?.website_url || (p.company?.domain ? `https://${p.company.domain}` : null)
     return {
@@ -206,8 +203,10 @@ export async function searchMoltsets(
       title: p.title || "",
       company: toTitleCase(p.company?.name),
       location: [p.city, p.state, p.country].filter(Boolean).join(", "),
-      email: uniqueEmails[0] || null,
-      emails: uniqueEmails,
+      // Emails are intentionally not returned from search: contact details are
+      // only available through the reveal flow.
+      email: null,
+      emails: [],
       phone: null,
       linkedin,
       seniorityLevel: p.functional_area?.[0] || p.seniority || null,

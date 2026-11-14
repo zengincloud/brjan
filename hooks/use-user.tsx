@@ -77,6 +77,35 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     fetchUser()
   }, [fetchUser])
 
+  // Keep the sidebar credit count current: refetch after any successful write to a
+  // credit-charging endpoint, and when the tab regains focus.
+  React.useEffect(() => {
+    const CREDIT_PATHS = ["/api/prospects", "/api/accounts", "/api/mock-calls", "/api/calling/numbers", "/api/extension"]
+    const originalFetch = window.fetch
+    let timer: ReturnType<typeof setTimeout> | undefined
+    window.fetch = async (...args) => {
+      const res = await originalFetch(...args)
+      try {
+        const input = args[0]
+        const url = typeof input === "string" ? input : input instanceof URL ? input.pathname : input.url
+        const method = (args[1]?.method || (typeof input === "object" && "method" in input ? input.method : "GET")).toUpperCase()
+        const path = url.startsWith("http") ? new URL(url).pathname : url
+        if (res.ok && method !== "GET" && CREDIT_PATHS.some(p => path.startsWith(p))) {
+          clearTimeout(timer)
+          timer = setTimeout(fetchUser, 500)
+        }
+      } catch {}
+      return res
+    }
+    const onFocus = () => { fetchUser() }
+    window.addEventListener("focus", onFocus)
+    return () => {
+      window.fetch = originalFetch
+      window.removeEventListener("focus", onFocus)
+      clearTimeout(timer)
+    }
+  }, [fetchUser])
+
   const value = React.useMemo(
     () => ({
       user,

@@ -801,7 +801,7 @@ export default function AccountsPage() {
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50 mb-2 px-1">Company Filters</p>
                   <div className="space-y-0.5">
-                    <FilterRow icon={Building2} label="Business Name" value={filters.name} onSet={(v) => setFilters((f) => ({ ...f, name: v }))} onClear={() => setFilters((f) => ({ ...f, name: '' }))} />
+                    <FilterRow icon={Building2} label="Company Name" value={filters.name} onSet={(v) => setFilters((f) => ({ ...f, name: v }))} onClear={() => setFilters((f) => ({ ...f, name: '' }))} />
                     <FilterRow icon={MapPin} label="HQ Location" value={filters.location} onSet={(v) => setFilters((f) => ({ ...f, location: v }))} onClear={() => setFilters((f) => ({ ...f, location: '' }))} />
                     <FilterRow icon={Briefcase} label="Industry" value={filters.industry} onSet={(v) => setFilters((f) => ({ ...f, industry: v }))} onClear={() => setFilters((f) => ({ ...f, industry: '' }))} />
                     <FilterRow icon={Users} label="Headcount" value={filters.employees} onSet={(v) => setFilters((f) => ({ ...f, employees: v }))} onClear={() => setFilters((f) => ({ ...f, employees: '' }))} />

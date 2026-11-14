@@ -1547,7 +1547,7 @@ export function LeadsProspecting() {
               <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/40 mb-2 px-1">Company Filters</p>
               <div className="space-y-0.5">
 
-                <FilterSectionRow icon={Building2} label="Business Name"
+                <FilterSectionRow icon={Building2} label="Company Name"
                   isOpen={openFilters.has('company')} onToggle={() => toggleFilter('company')}
                   hasValue={!!currentCompany} onClear={() => setCurrentCompany('')}>
                   <Input value={currentCompany} onChange={(e) => setCurrentCompany(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSearch()} placeholder="Company name..." className="h-8 text-[12px]" />

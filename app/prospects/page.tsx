@@ -1668,7 +1668,7 @@ export default function ProspectsPage() {
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50 mb-2 px-1">Company Filters</p>
                   <div className="space-y-0.5">
-                    <FilterRow icon={Building2} label="Business Name" value={filters.company} onSet={(v) => setFilters((f) => ({ ...f, company: v }))} onClear={() => setFilters((f) => ({ ...f, company: '' }))} />
+                    <FilterRow icon={Building2} label="Company Name" value={filters.company} onSet={(v) => setFilters((f) => ({ ...f, company: v }))} onClear={() => setFilters((f) => ({ ...f, company: '' }))} />
                   </div>
                 </div>
                 {activeFilterCount > 0 && (

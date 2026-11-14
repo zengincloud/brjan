@@ -519,7 +519,7 @@ export function AccountsProspecting() {
               <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/40 mb-2 px-1">Company Filters</p>
               <div className="space-y-0.5">
 
-                <FilterSectionRow icon={Building2} label="Business Name"
+                <FilterSectionRow icon={Building2} label="Company Name"
                   isOpen={openFilters.has('query')} onToggle={() => toggleFilter('query')}
                   hasValue={!!query} onClear={() => setQuery('')}>
                   <Input value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSearch()} placeholder="Company name or domain..." className="h-8 text-[12px]" />

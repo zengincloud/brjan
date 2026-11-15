@@ -395,11 +395,17 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
     let totalCount = 0
     let nextCursor: Cursor | null = null
     let reachedPdl = cursor.src === "pdl"
+    const providerNotes: string[] = []
 
     if (cursor.src === "moltsets") {
       const offset = cursor.offset || 0
       // Moltsets caps a page at 25
-      const m = await searchMoltsets(criteria, Math.min(pageSize, 25), offset).catch(() => null)
+      const m = await searchMoltsets(criteria, Math.min(pageSize, 25), offset).catch((e) => {
+        console.error("Moltsets search threw:", e)
+        return null
+      })
+      providerNotes.push(m ? `Moltsets: ${m.profiles.length} results` : "Moltsets: failed or not configured")
+      console.log("People search:", providerNotes[providerNotes.length - 1])
       if (m) {
         add(m.profiles)
         totalCount = m.total
@@ -410,7 +416,12 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       }
       // Wiza has no paging, so it only tops up the first page
       if (collected.length < pageSize && offset === 0 && !nextCursor) {
-        const w = await searchWiza(criteria, pageSize - collected.length).catch(() => null)
+        const w = await searchWiza(criteria, pageSize - collected.length).catch((e) => {
+          console.error("Wiza search threw:", e)
+          return null
+        })
+        providerNotes.push(w ? `Wiza: ${w.profiles.length} results` : "Wiza: failed or not configured")
+        console.log("People search:", providerNotes[providerNotes.length - 1])
         if (w) {
           add(w.profiles)
           totalCount = Math.max(totalCount, w.total)
@@ -427,8 +438,13 @@ export const POST = withAuth(async (request: NextRequest, userId: string) => {
       const r = await runPdl(cursor.src === "pdl" ? cursor.token : undefined, Math.min(need > 0 ? need + collected.length : pageSize, 30))
       if (!r.ok) {
         if (collected.length === 0) {
+          const pdlMsg = (r as any).errorData?.error?.message || "Failed to search people"
           return NextResponse.json(
-            { error: (r as any).errorData?.error?.message || "Failed to search people" },
+            {
+              error: providerNotes.length
+                ? `No results. ${providerNotes.join("; ")}; PDL: ${pdlMsg}`
+                : pdlMsg,
+            },
             { status: (r as any).status }
           )
         }
